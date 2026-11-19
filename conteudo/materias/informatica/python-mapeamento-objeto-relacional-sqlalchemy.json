@@ -1,0 +1,2246 @@
+{
+  "id": "informatica.python-mapeamento-objeto-relacional-sqlalchemy",
+  "subject": "Informática",
+  "title": "Mapeamento objeto-relacional com Python e SQLAlchemy",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Mapeamento objeto-relacional com Python e SQLAlchemy 1.5 ou superior",
+    "SQLAlchemy ORM com Python",
+    "ORM Python SQLAlchemy",
+    "Mapeamento ORM usando SQLAlchemy",
+    "Persistência de objetos Python em bancos relacionais",
+    "Classes mapeadas no SQLAlchemy",
+    "Relacionamentos ORM em SQLAlchemy",
+    "Consultas ORM com SQLAlchemy",
+    "Session e transações no SQLAlchemy",
+    "SQLAlchemy Declarative Mapping",
+    "Mapeamento relacional de classes Python",
+    "Persistência Python com ORM SQLAlchemy"
+  ],
+  "scope": {
+    "covers": "Mapeamento objeto-relacional com Python e SQLAlchemy 1.5 ou superior: papel do ORM e distinção entre Core e ORM; Engine, URL, conexão e metadados; mapeamento declarativo de classes, tabelas, colunas, tipos, chaves primárias, restrições e nulabilidade; relacionamentos um-para-muitos, muitos-para-um e muitos-para-muitos; Session, identidade, estados, flush, commit, rollback e transações; consultas com select, filtros, junções e resultados; carregamento de relacionamentos lazy, joined e select-in; cascatas, exclusão e cuidados com N+1; diferenças relevantes entre o estilo legado 1.x e a API moderna 2.x.",
+    "excludes": "Administração de SGBD, desenho avançado de índices, otimização específica de cada banco, migrações com Alembic, frameworks web e mapeamentos avançados de herança polimórfica."
+  },
+  "theoryTitle": "Do modelo Python às tabelas relacionais",
+  "chapters": [
+    {
+      "title": "1. O ORM e a configuração do mapeamento",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação Python trabalha com objetos: cliente, pedido, endereço. Um banco relacional guarda linhas em tabelas, colunas e chaves. O **mapeador objeto-relacional (ORM)** conecta essas representações: uma classe Python pode corresponder a uma tabela, seus atributos podem corresponder a colunas, e instâncias podem ser lidas ou persistidas como linhas. O SQLAlchemy oferece essa camada ORM e também o **Core**, que constrói SQL e trabalha com tabelas e expressões sem exigir objetos de domínio. O ORM usa o Core por baixo; não elimina SQL nem muda as regras do banco.\n\n> **Siglas e termos deste capítulo**\n> - **ORM**: Object Relational Mapper, ferramenta que associa objetos e estruturas relacionais.\n> - **Engine**: ponto central de configuração do banco; fornece conexões, normalmente por meio de um pool.\n> - **Dialect**: adaptação do SQLAlchemy às particularidades de um SGBD e de seu driver.\n> - **Metadata**: coleção de definições de tabelas e demais objetos de esquema conhecidos pelo mapeamento.\n> - **Declarative**: estilo em que a classe declara a tabela e os atributos mapeados.\n\n### Do Engine à classe mapeada\n\n`create_engine(url)` configura acesso ao banco, mas em geral não abre a conexão imediatamente. A URL identifica dialeto, driver e parâmetros de conexão. Credenciais com caracteres reservados precisam ser escapadas ou montadas com `URL.create()`. A conexão efetiva é obtida quando uma operação precisa falar com o banco.\n\nNo estilo declarativo tradicional, define-se uma classe base (por exemplo, herdando de `declarative_base()` em configurações 1.x) e classes mapeadas que herdam dela. Cada classe declara `__tablename__`; atributos `Column(...)` compõem a tabela. Em SQLAlchemy 2.x, `DeclarativeBase`, `Mapped[...]` e `mapped_column()` oferecem declaração tipada. SQLAlchemy 1.4 introduziu a transição para o estilo 2.0; a forma exata depende da versão mínima e do padrão adotado.\n\n| Conceito | Exemplo de função | O que não faz sozinho |\n| --- | --- | --- |\n| `Engine` | Configura dialeto, pool e conexão | Não define o ciclo de vida de cada objeto |\n| `MetaData` | Reúne tabelas conhecidas pelo modelo | Não é um banco de dados nem guarda linhas |\n| Classe mapeada | Representa entidade persistente | Não garante que tabela exista no banco |\n| `create_all()` | Emite criação das tabelas ausentes conhecidas | Não é ferramenta de migração evolutiva |\n\n`Base.metadata.create_all(engine)` pode criar tabelas que ainda não existem, respeitando dependências conhecidas, mas não altera tabelas existentes para refletir toda mudança posterior no modelo. Mudanças de esquema em aplicações reais pedem estratégia de migração, frequentemente Alembic.\n\n### Colunas, tipos e restrições\n\nUma chave primária identifica cada linha. `ForeignKey(\"cliente.id\")` declara uma referência relacional; `nullable=False` impede valor nulo para a coluna; `unique=True` declara unicidade. Tipos SQLAlchemy como `Integer`, `String(80)`, `DateTime` e `Boolean` representam tipos portáveis, sujeitos às adaptações do dialeto. No mapeamento tipado 2.x, `Mapped[str]` costuma inferir não nulabilidade e `Mapped[str | None]` nulabilidade, salvo configuração explícita. Em formas anteriores, opções como `nullable` e `primary_key` são declaradas na `Column`.\n\n### Como cai na prova\n\n- `Engine` é infraestrutura de conexão; `Session` acompanha objetos e transações ORM.\n- A classe declarativa descreve o mapeamento, enquanto a tabela física só existe se criada por DDL ou ferramenta apropriada.\n- `create_all()` cria objetos ausentes; não substitui migrações para alterações graduais.\n- Core e ORM são partes relacionadas, mas é possível construir SQL com Core sem mapear classes."
+    },
+    {
+      "title": "2. Chaves e relacionamentos entre classes",
+      "markdown": "### O problema que este assunto resolve\n\nUma tabela de pedidos pode ter muitos pedidos para um cliente. No relacional, cada pedido guarda uma chave estrangeira para a tabela de clientes. No modelo de objetos, costuma ser útil acessar tanto `pedido.cliente` quanto `cliente.pedidos`. O SQLAlchemy separa duas peças: a coluna `ForeignKey` representa a restrição no banco; `relationship()` define como as instâncias relacionadas são navegadas pelo ORM.\n\n> **Siglas e termos deste capítulo**\n> - **PK**: primary key, chave primária que identifica uma linha.\n> - **FK**: foreign key, chave estrangeira que referencia uma chave de outra tabela.\n> - **Cardinalidade**: quantidade de instâncias que podem participar de uma associação.\n> - **`relationship()`**: propriedade ORM que conecta classes mapeadas.\n> - **`back_populates`**: declara explicitamente os dois lados correspondentes do relacionamento.\n\n### Um-para-muitos e muitos-para-um\n\nPara Cliente–Pedido, é comum colocar `cliente_id` como FK na tabela `pedido`. Em `Pedido`, `cliente_id` é uma coluna escalar; `cliente` é a propriedade ORM para um objeto. Em `Cliente`, `pedidos` é uma coleção. As duas propriedades podem declarar `relationship(..., back_populates=...)`, apontando uma para a outra. O lado que contém a FK no banco é o lado muitos-para-um; a coleção inversa é um-para-muitos. `back_populates` sincroniza a associação em memória e informa ao ORM os dois lados do mesmo vínculo.\n\n### Muitos-para-muitos\n\nQuando cada aluno pode frequentar vários cursos e cada curso tem vários alunos, normalmente existe uma tabela de associação com duas FKs. Em SQLAlchemy, `relationship(secondary=tabela_associativa)` usa essa tabela intermediária. Se a associação tiver atributos próprios, como data de matrícula ou nota, é mais apropriado mapear a tabela associativa como uma classe (padrão association object) e relacionar as entidades por essa classe.\n\n| Relação | Estrutura relacional usual | Navegação ORM comum |\n| --- | --- | --- |\n| Um-para-muitos | FK no lado muitos | Coleção no lado um e objeto no lado muitos |\n| Muitos-para-um | FK no lado muitos | Cada linha aponta para uma instância do lado um |\n| Muitos-para-muitos | Tabela associativa com duas FKs | Coleções em ambos os lados |\n\n### Restrições, cascatas e exclusão\n\nA FK deve estar no esquema para que o banco possa impor integridade referencial. `relationship()` não substitui essa restrição. Cascatas ORM descrevem propagação de operações entre objetos associados durante a unidade de trabalho. `delete-orphan`, por exemplo, pode excluir um filho que deixa de pertencer ao pai, quando a relação representa dependência exclusiva; seu uso pressupõe uma associação adequada e não deve ser escolhido sem considerar o domínio. `ON DELETE CASCADE` é uma regra do banco e não é a mesma coisa que a cascata ORM, embora possam ser coordenadas com opções como `passive_deletes`.\n\n### Como cai na prova\n\n- A FK relacional costuma ficar na tabela do lado muitos; `relationship()` fornece navegação no modelo de objetos.\n- Um relacionamento não cria automaticamente a coluna FK se o esquema não foi descrito.\n- Muitos-para-muitos usa tabela associativa; atributos próprios nessa associação favorecem mapeá-la como classe.\n- Cascata ORM e `ON DELETE` do banco operam em camadas diferentes."
+    },
+    {
+      "title": "3. Session, identidade e transações",
+      "markdown": "### O problema que este assunto resolve\n\nA `Session` é a unidade de trabalho do ORM. Ela mantém objetos carregados ou associados, acompanha mudanças, coordena operações com o `Engine` e administra uma transação. Não é apenas uma conexão nem um cache global. Em uma aplicação, é comum criar sessões curtas por operação ou requisição e fechá-las ao terminar. `sessionmaker` configura uma fábrica de sessões; cada `Session` criada tem seu próprio estado transacional.\n\n> **Siglas e termos deste capítulo**\n> - **Identity map**: mapa da sessão que mantém uma instância ORM por identidade de chave primária.\n> - **Transient**: objeto recém-criado, ainda sem associação à sessão.\n> - **Pending**: objeto adicionado à sessão, aguardando flush.\n> - **Persistent**: objeto associado à sessão e representado no banco.\n> - **Detached**: objeto que já foi persistente, mas não está mais associado à sessão.\n> - **Flush**: sincronização das alterações pendentes com comandos SQL dentro da transação.\n\n### Ciclo de vida e identidade\n\nUm objeto criado em Python é inicialmente transient. `session.add(obj)` o torna pending. No `flush()`, o ORM emite `INSERT` (e demais alterações necessárias); após a inserção ele passa a persistent. Consultar novamente a mesma identidade dentro da mesma sessão normalmente retorna a mesma instância Python, característica da identity map. Encerrar a sessão pode deixar instâncias detached.\n\n### Flush não é commit\n\nO flush envia SQL para a transação atual, mas não confirma a transação. `commit()` primeiro faz flush quando necessário e então solicita confirmação da transação. Até o commit, outras transações podem não ver as alterações, conforme o isolamento do banco. `rollback()` desfaz a transação atual no banco; após erro durante flush, a sessão precisa normalmente de `rollback()` antes de ser reutilizada. `close()` libera recursos e encerra o uso daquela sessão; não se deve manter uma sessão compartilhada indiscriminadamente entre threads ou tarefas concorrentes.\n\nO padrão `with Session(engine) as session:` fecha a sessão no fim. Para demarcar transação, `with Session.begin() as session:` (ou padrões equivalentes com `sessionmaker`) confirma se o bloco termina normalmente e reverte em exceção. A forma exata do construtor varia entre versões e configuração.\n\n| Operação | Efeito principal | Confirma definitivamente? |\n| --- | --- | --- |\n| `add()` | Associa objeto à sessão | Não |\n| `flush()` | Emite SQL pendente na transação | Não |\n| `commit()` | Confirma a transação após sincronização | Sim, se o banco confirmar |\n| `rollback()` | Reverte a transação ativa | Não aplica mudanças pendentes |\n| `close()` | Libera recursos e encerra a sessão | Não é substituto de commit explícito |\n\n### Como cai na prova\n\n- `flush()` pode produzir SQL, mas o trabalho ainda pode ser desfeito por rollback antes do commit.\n- A identity map é local à sessão e organiza instâncias pela chave primária.\n- Uma falha na transação exige rollback antes de continuar a usar a sessão.\n- Uma sessão representa uma unidade de trabalho; não deve ser tratada como objeto global seguro para concorrência."
+    },
+    {
+      "title": "4. Consultas, carregamento e desempenho",
+      "markdown": "### O problema que este assunto resolve\n\nO ORM permite expressar consultas relacionando atributos Python a colunas e entidades. SQLAlchemy 2.x usa `select(Classe).where(...)` e executa a instrução por `Session.execute()`. Para recuperar entidades, é comum usar `session.scalars(stmt)`; `Session.execute()` retorna `Result`, cuja forma depende das entidades e colunas selecionadas. Em SQLAlchemy 1.4, a API `select()` já estava disponível e prepara a migração ao estilo 2.x; a API `Query` continua como interface legada, mas não é a forma recomendada para código novo 2.x.\n\n> **Siglas e termos deste capítulo**\n> - **SELECT**: consulta que recupera linhas ou entidades.\n> - **JOIN**: combinação de linhas de tabelas relacionadas segundo uma condição.\n> - **Lazy loading**: carrega uma relação quando o atributo é acessado.\n> - **Eager loading**: carrega relações junto da consulta ou em consultas planejadas.\n> - **N+1**: padrão de uma consulta inicial mais uma consulta adicional por objeto relacionado.\n\n### Filtros, joins e resultados\n\n`select(Cliente).where(Cliente.nome == \"Ana\")` constrói uma expressão; a execução ocorre pela sessão. `select(Cliente, Pedido)` pode produzir linhas contendo ambas as entidades. `select(Cliente).join(Cliente.pedidos)` faz junção seguindo o relacionamento mapeado. O SQLAlchemy monta parâmetros vinculados para valores, o que evita concatenar diretamente dados de usuário em SQL. Para SQL textual, `text()` com parâmetros nomeados também deve ser usado corretamente.\n\n### Estratégias de carregamento\n\nO padrão usual de relacionamento é lazy: ao acessar `cliente.pedidos`, pode ocorrer uma consulta adicional. Isso é conveniente, mas iterar por muitos clientes e acessar suas coleções pode gerar N+1 consultas. `joinedload()` carrega relação por junção na mesma instrução SQL, podendo multiplicar linhas de resultados em coleções; no estilo 2.x, resultados de coleções carregadas por joined eager load podem exigir `unique()` antes de materializar entidades. `selectinload()` busca entidades relacionadas em consulta(s) adicional(is) usando chaves em cláusula IN, evitando muitas consultas individuais e frequentemente sendo boa escolha para coleções. O carregamento deve ser escolhido conforme o formato e volume dos dados.\n\n### DDL, consultas e segurança\n\nCriar tabelas e consultar dados são operações diferentes. A instrução de consulta não cria esquema. SQLAlchemy gera SQL adequado ao dialeto, mas não corrige automaticamente consultas ineficientes: é necessário observar quantidade de consultas, índices, cardinalidade e plano do SGBD. Use expressões parametrizadas; não concatene entrada externa em SQL.\n\n### Como cai na prova\n\n- No estilo 2.x, construa `select(...)` e passe a instrução à sessão; `Query` pertence ao estilo legado.\n- Lazy loading pode causar N+1; `selectinload()` e `joinedload()` são estratégias explícitas de carregamento antecipado.\n- `joinedload()` não é sinônimo de `join()` explícito: o primeiro é opção de carregamento; o segundo compõe a consulta.\n- O ORM constrói consultas e converte resultados em objetos, mas desempenho continua dependente do SQL e do banco."
+    }
+  ],
+  "summary": "O SQLAlchemy ORM associa classes e instâncias Python a tabelas e linhas relacionais. O Engine configura o acesso ao banco; MetaData reúne descrições de esquema; classes declarativas definem tabelas, colunas, tipos, PKs e FKs. `relationship()` oferece navegação entre classes, enquanto a FK representa a restrição relacional. A Session acompanha identidade e mudanças, emite SQL no flush e confirma a transação no commit; rollback reverte a transação. Na API moderna, consultas são construídas com `select()` e executadas por Session. Relacionamentos podem carregar sob demanda ou com joinedload/selectinload; o lazy loading pode causar N+1. `create_all()` cria tabelas ausentes, mas não substitui migrações para evoluir esquemas existentes.",
+  "flashcards": [
+    {
+      "front": "O que faz um ORM?",
+      "back": "Associa classes e objetos a tabelas e linhas relacionais, coordenando conversão e persistência."
+    },
+    {
+      "front": "O ORM elimina o SQL?",
+      "back": "Não. O SQLAlchemy gera SQL e também permite compô-lo diretamente com Core."
+    },
+    {
+      "front": "Qual o papel do Engine?",
+      "back": "Configura dialeto, pool e obtenção de conexões para falar com o banco."
+    },
+    {
+      "front": "O que guarda MetaData?",
+      "back": "As definições de tabelas e demais objetos de esquema conhecidos pelo modelo."
+    },
+    {
+      "front": "Para que serve `__tablename__`?",
+      "back": "Indica o nome da tabela associado a uma classe declarativa."
+    },
+    {
+      "front": "O que define `ForeignKey`?",
+      "back": "Uma referência relacional entre uma coluna e uma chave de outra tabela."
+    },
+    {
+      "front": "O que define `relationship()`?",
+      "back": "A navegação e associação ORM entre classes mapeadas; não substitui a FK."
+    },
+    {
+      "front": "Como se representa um para muitos?",
+      "back": "FK no lado muitos, coleção no lado um e propriedade escalar no lado muitos."
+    },
+    {
+      "front": "Como se representa muitos para muitos?",
+      "back": "Normalmente com tabela associativa contendo FKs para as duas entidades."
+    },
+    {
+      "front": "Quando usar association object?",
+      "back": "Quando a própria associação possui atributos, como data, função ou nota."
+    },
+    {
+      "front": "O que sincroniza `back_populates`?",
+      "back": "Os dois atributos ORM que descrevem os lados correspondentes de uma relação."
+    },
+    {
+      "front": "O que é identity map?",
+      "back": "Estrutura da Session que mantém instância única por identidade de chave primária."
+    },
+    {
+      "front": "O que `Session.add()` faz?",
+      "back": "Associa o objeto à sessão; em geral ele fica pendente até o flush."
+    },
+    {
+      "front": "Flush é commit?",
+      "back": "Não. Flush envia SQL dentro da transação; commit confirma essa transação."
+    },
+    {
+      "front": "Quando usar rollback?",
+      "back": "Para reverter a transação atual, inclusive após falha de flush antes de reutilizar a sessão."
+    },
+    {
+      "front": "Qual é o padrão moderno de consulta ORM?",
+      "back": "Construir `select(Entidade)` e executar pela Session, por exemplo com execute ou scalars."
+    },
+    {
+      "front": "O que o lazy loading pode causar?",
+      "back": "N+1 consultas ao carregar separadamente uma relação para cada objeto listado."
+    },
+    {
+      "front": "O que faz `joinedload()`?",
+      "back": "Carrega relação por junção como estratégia de eager loading."
+    },
+    {
+      "front": "O que faz `selectinload()`?",
+      "back": "Busca relações em consulta adicional baseada em chaves, evitando uma consulta por objeto."
+    },
+    {
+      "front": "O que `create_all()` não faz?",
+      "back": "Não altera automaticamente tabelas existentes para refletir mudanças posteriores no modelo."
+    }
+  ],
+  "tips": [
+    "Separe Engine, Session e Base: conexão, unidade de trabalho e descrição do mapeamento têm papéis distintos.",
+    "Em SQLAlchemy 2.x, reconheça o fluxo `select(...)` seguido de execução pela Session.",
+    "Localize a FK para identificar o lado muitos de uma relação um-para-muitos.",
+    "Lembre que `relationship()` permite navegação ORM, mas a FK materializa integridade referencial no esquema.",
+    "Não confunda flush com commit: o primeiro sincroniza SQL na transação; o segundo confirma.",
+    "Ao ver consultas repetidas por objeto, investigue lazy loading e avalie selectinload ou joinedload."
+  ],
+  "traps": [
+    "Dizer que create_all altera todas as tabelas existentes é incorreto: ele cria tabelas ausentes conhecidas, sem ser mecanismo de migração evolutiva.",
+    "Dizer que relationship substitui ForeignKey confunde navegação de objetos com restrição do banco.",
+    "Dizer que flush confirma a transação ignora que rollback ainda pode desfazer as operações antes do commit.",
+    "Dizer que Session é uma conexão global compartilhável confunde unidade de trabalho com Engine e ignora seu estado transacional.",
+    "Dizer que joinedload e join são equivalentes confunde estratégia de carregamento com composição explícita da consulta.",
+    "Dizer que todo relacionamento é carregado junto da entidade ignora o carregamento lazy padrão e suas consultas posteriores."
+  ],
+  "activeRecall": [
+    "Explique como uma classe declarativa passa a representar uma tabela.",
+    "Diferencie Core e ORM no SQLAlchemy.",
+    "Descreva o caminho de uma instância desde a criação até a persistência.",
+    "Por que create_all não substitui uma ferramenta de migração de esquema?",
+    "Onde costuma ficar a FK em uma relação um-para-muitos?",
+    "Como back_populates liga os lados de um relacionamento?",
+    "Quando uma associação muitos-para-muitos deve ser mapeada como classe?",
+    "Compare cascata ORM e ON DELETE CASCADE do banco.",
+    "O que a identity map garante dentro de uma Session?",
+    "O que acontece durante flush?",
+    "Por que flush não equivale a commit?",
+    "O que deve ocorrer após uma falha durante flush?",
+    "Como uma transação pode ser demarcada com um bloco de contexto?",
+    "Como se constrói e executa uma consulta moderna de entidades?",
+    "Que padrão de consulta caracteriza o problema N+1?",
+    "Compare joinedload e selectinload.",
+    "Qual a diferença entre lazy loading e eager loading?",
+    "Em que contexto a API Query é considerada legada?"
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre mapeamento e esquema físico",
+      "summary": "Classe, atributo e MetaData descrevem o mapeamento; create_all cria tabelas ausentes, enquanto alterações evolutivas pedem migrações."
+    },
+    {
+      "key": "e2",
+      "title": "FK e relationship tratados como sinônimos",
+      "summary": "ForeignKey define referência relacional; relationship define a associação navegável entre objetos mapeados."
+    },
+    {
+      "key": "e3",
+      "title": "Ciclo da Session e da transação confundido",
+      "summary": "Add associa, flush envia SQL, commit confirma, rollback reverte; a Session mantém estado e identidade."
+    },
+    {
+      "key": "e4",
+      "title": "Consultas e carregamento mal compreendidos",
+      "summary": "select constrói consulta, join a compõe e opções como joinedload/selectinload controlam carregamento; lazy pode causar N+1."
+    },
+    {
+      "key": "e5",
+      "title": "Estilo legado e moderno misturados",
+      "summary": "A API Query é legada; SQLAlchemy 1.4 introduziu a transição e 2.x usa select e anotações Mapped no estilo moderno."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No SQLAlchemy, qual componente configura o dialeto e fornece conexões ao trabalho ORM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A classe Base, que armazena conexões dentro de cada entidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O Engine, que configura acesso e gerencia obtenção de conexões.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A Session, que cria o dialeto e mantém o pool para toda aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O MetaData, que abre uma conexão nova a cada atributo Python.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O relationship, que negocia o protocolo diretamente com o driver.",
+          "correct": false
+        }
+      ],
+      "explanation": "Engine configura o acesso ao banco, incluindo dialeto e pool de conexões. Session usa um Engine associado para executar operações; Base e MetaData descrevem mapeamentos, e relationship associa entidades.",
+      "section": "1. O ORM e a configuração do mapeamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmativa descreve corretamente SQLAlchemy Core e ORM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O Core constrói SQL e o ORM associa entidades Python a estruturas relacionais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O Core exige classes declarativas, enquanto o ORM proíbe expressões SQL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O ORM substitui o dialeto e executa apenas comandos Python locais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Core cria objetos persistentes e impede o uso de tabelas explícitas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Core e ORM são nomes distintos para a mesma API de consulta legada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Core oferece construção de SQL, tabelas e expressões; o ORM acrescenta mapeamento de classes e persistência de objetos, apoiando-se também no Core.",
+      "section": "1. O ORM e a configuração do mapeamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um mapeamento declarativo, qual função de `__tablename__`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Indicar o nome da tabela associada à classe mapeada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Indicar o nome da sessão que carregará cada instância da classe.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Indicar a chave estrangeira que liga automaticamente todas as tabelas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Indicar o dialeto SQL que será criado para cada coluna da classe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Indicar o comando de commit que deve ser executado após cada atributo.",
+          "correct": false
+        }
+      ],
+      "explanation": "`__tablename__` informa à configuração declarativa o nome da tabela representada pela classe. Não escolhe sessão, dialeto, chave estrangeira nem política de confirmação.",
+      "section": "1. O ORM e a configuração do mapeamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A chamada `Base.metadata.create_all(engine)` é suficiente para alterar colunas de tabelas já existentes sempre que a classe mapeada mudar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. create_all é voltado a criar tabelas ausentes descritas nos metadados; não compara e migra todas as alterações de tabelas existentes. Para evoluir o esquema usa-se uma estratégia de migração.",
+      "section": "1. O ORM e a configuração do mapeamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No estilo tipado de SQLAlchemy 2.x, qual anotação indica que um atributo pode receber valor nulo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar o atributo como `Mapped[str | None]`, salvo configuração explícita diferente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Declarar o atributo como `Mapped[str]`, pois todo texto aceita NULL por padrão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Declarar o atributo como `relationship[str]`, que cria uma coluna nullable.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Declarar o atributo como `PrimaryKey[str]`, pois chave primária aceita NULL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Declarar o atributo sem tipo, pois o ORM assume nulabilidade em qualquer caso.",
+          "correct": false
+        }
+      ],
+      "explanation": "A nulabilidade pode ser inferida da anotação opcional no mapeamento tipado. Mapped[str | None] expressa possibilidade de None, embora configurações de coluna possam definir comportamento explícito.",
+      "section": "1. O ORM e a configuração do mapeamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A configuração de uma classe mapeada descreve a tabela, mas a existência física dessa tabela depende de DDL ou de uma ferramenta que a crie.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O mapeamento define como a classe corresponde à estrutura relacional; declarar a classe não executa automaticamente DDL em qualquer banco. create_all ou migrações podem criar o esquema.",
+      "section": "1. O ORM e a configuração do mapeamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso declarativo representa normalmente uma referência de chave estrangeira para `cliente.id`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`ForeignKey(\"cliente.id\")` declarado na coluna apropriada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`relationship(\"cliente.id\")` declarado como tipo SQL da coluna.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`MetaData(\"cliente.id\")` declarado como chave primária automática.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`Session(\"cliente.id\")` declarado como restrição da tabela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`Engine(\"cliente.id\")` declarado como valor padrão da coluna.",
+          "correct": false
+        }
+      ],
+      "explanation": "ForeignKey declara a referência relacional a uma coluna de outra tabela. relationship configura a associação ORM entre classes e não substitui a restrição de FK.",
+      "section": "1. O ORM e a configuração do mapeamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A MetaData contém descrições estruturais das tabelas conhecidas pelo mapeamento, não as linhas de dados do banco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. MetaData reúne objetos de esquema como tabelas e suas colunas. Linhas persistidas são armazenadas no banco e objetos carregados são acompanhados pela Session.",
+      "section": "1. O ORM e a configuração do mapeamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coluna marcada `nullable=False` permite ao banco aceitar NULL, mas instrui o ORM a substituir o valor por zero.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. nullable=False descreve uma coluna que não deve aceitar NULL no esquema. Não converte ausência em zero; validação de valores padrão é outro aspecto e depende da configuração.",
+      "section": "1. O ORM e a configuração do mapeamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Cliente–Pedido, cada pedido pertence a um cliente e um cliente pode possuir vários pedidos. Qual desenho é usual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "FK `cliente_id` em Pedido, objeto `cliente` em Pedido e coleção `pedidos` em Cliente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "FK `pedido_id` em Cliente, coleção `cliente` em Pedido e valor escalar em Cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tabela associativa obrigatória, pois toda relação um-para-muitos exige duas FKs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Nenhuma FK, pois relationship mantém a integridade no próprio Python.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma única coluna de lista em Cliente, contendo todos os identificadores de pedidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A tabela do lado muitos guarda a FK para o lado um. No ORM, cada Pedido navega para um Cliente e Cliente pode expor uma coleção de Pedidos, ligada por back_populates.",
+      "section": "2. Chaves e relacionamentos entre classes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o papel específico de `relationship()` em uma classe mapeada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir associação ORM navegável entre classes mapeadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar sempre a chave estrangeira física sem coluna declarada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Abrir automaticamente uma transação isolada a cada atributo acessado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir a chave primária e controlar a unicidade das linhas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter uma relação do banco em tabela sem qualquer configuração adicional.",
+          "correct": false
+        }
+      ],
+      "explanation": "relationship define como as classes mapeadas se relacionam e como navegar entre instâncias. A coluna de FK e as restrições relacionais são descritas separadamente no esquema.",
+      "section": "2. Chaves e relacionamentos entre classes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um mapeamento bidirecional explícito, para que os atributos dos dois lados apontam com `back_populates`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para informar que ambas as propriedades descrevem os lados do mesmo vínculo ORM.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Para criar automaticamente duas tabelas associativas de mesmo nome.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para indicar ao banco que ambas as colunas são chaves primárias compostas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para substituir o pool do Engine por uma conexão compartilhada entre objetos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para ordenar a execução de commits conforme a ordem das classes Python.",
+          "correct": false
+        }
+      ],
+      "explanation": "back_populates conecta os atributos complementares do relacionamento e permite ao ORM coordenar a associação em memória e o mapeamento bidirecional.",
+      "section": "2. Chaves e relacionamentos entre classes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma associação muitos-para-muitos simples é normalmente representada no banco por tabela intermediária com FKs para as duas entidades.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A tabela associativa representa as combinações entre linhas de ambas as tabelas. No SQLAlchemy, pode ser informada por secondary no relacionamento quando não há atributos próprios relevantes.",
+      "section": "2. Chaves e relacionamentos entre classes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma matrícula muitos-para-muitos também guarda data e nota. Qual abordagem de mapeamento tende a representar melhor esses dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mapear a tabela de associação como classe com atributos próprios.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Descartar a tabela associativa e gravar data e nota na chave primária do aluno.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar todos os valores da associação em uma coluna textual do curso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformar o vínculo em chave estrangeira opcional apenas no aluno.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar somente back_populates, que cria colunas de data e nota automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando o vínculo possui atributos próprios, o padrão association object mapeia a tabela associativa como entidade, permitindo modelar explicitamente data, nota e outras propriedades.",
+      "section": "2. Chaves e relacionamentos entre classes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A opção `ON DELETE CASCADE` do banco e uma cascata ORM são configurações de camadas distintas, embora possam ser coordenadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. ON DELETE CASCADE é regra referencial do banco; cascatas ORM orientam como operações na unidade de trabalho se propagam entre objetos. A configuração precisa considerar a interação entre ambas.",
+      "section": "2. Chaves e relacionamentos entre classes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No relacionamento um-para-muitos, em qual lado costuma ficar a coluna de chave estrangeira?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "No lado muitos, apontando para a chave do lado um.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "No lado um, com uma FK diferente para cada linha do lado muitos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Em ambas as tabelas, como duas chaves primárias obrigatórias.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Na tabela MetaData, sem uma coluna física no banco relacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Em tabela associativa adicional, exigida para qualquer cardinalidade um-para-muitos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A FK normalmente fica na tabela do lado muitos, pois cada registro desse lado referencia uma linha do lado um. A coleção no lado um é uma navegação ORM inversa.",
+      "section": "2. Chaves e relacionamentos entre classes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao remover um filho de uma coleção, `delete-orphan` pode excluir a linha filha se o mapeamento expressar dependência exclusiva adequada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. delete-orphan indica que um objeto dependente sem seu pai deve ser removido pela unidade de trabalho. É apropriado apenas quando a semântica do domínio e a configuração da relação sustentam essa exclusividade.",
+      "section": "2. Chaves e relacionamentos entre classes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação justifica declarar `ForeignKey` mesmo quando o Python já possui `relationship()` entre as classes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A FK declara a restrição relacional que o banco pode impor à coluna física.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A FK permite que o ORM reconheça os nomes dos módulos importados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A FK converte automaticamente objetos Python em tabelas temporárias locais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A FK impede o uso de transações para tornar relações mais rápidas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A FK é necessária apenas para ligar propriedades sem persistência no banco.",
+          "correct": false
+        }
+      ],
+      "explanation": "relationship expressa associação no mapeamento de objetos; ForeignKey descreve a referência no esquema relacional e pode permitir ao próprio banco garantir integridade referencial.",
+      "section": "2. Chaves e relacionamentos entre classes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um objeto recém-criado e ainda não associado a uma Session está no estado persistent.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um objeto recém-criado, ainda não associado à sessão, é transient. Ao ser adicionado fica pending e, após persistência, passa a persistent.",
+      "section": "3. Session, identidade e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde ao papel de `Session.add(obj)` para um objeto novo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Associa o objeto à sessão para participar da unidade de trabalho.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Confirma imediatamente a transação e fecha a conexão usada pelo Engine.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executa sempre UPDATE sem verificar a chave primária do objeto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cria a tabela e atualiza a MetaData antes de qualquer SQL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Retira o objeto da identity map e o torna detached sem persistência.",
+          "correct": false
+        }
+      ],
+      "explanation": "add associa o objeto à unidade de trabalho da Session. A inserção SQL ocorre normalmente no flush, e a confirmação da transação exige commit.",
+      "section": "3. Session, identidade e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa diferencia corretamente flush de commit?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Flush emite SQL na transação; commit confirma a transação no banco.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Flush fecha a sessão; commit abre o Engine pela primeira vez.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Flush reverte alterações; commit apenas atualiza objetos em memória.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Flush cria o esquema; commit converte as classes em tabelas mapeadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Flush seleciona resultados; commit executa somente consultas sem alterações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Flush sincroniza alterações pendentes com comandos SQL dentro da transação em curso; commit solicita a confirmação dessa transação. Flush sozinho não a torna definitiva.",
+      "section": "3. Session, identidade e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A identity map mantém, em uma Session, uma instância ORM por identidade de chave primária carregada ou associada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A identity map é local à Session e mantém uma instância única por identidade persistente, permitindo que consultas da mesma sessão compartilhem a mesma referência Python.",
+      "section": "3. Session, identidade e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação de flush falhou por restrição do banco. O que deve ser feito antes de seguir usando essa Session?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar rollback para encerrar a transação falha e restabelecer o uso da sessão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar commit para preservar somente as instruções que passaram antes do erro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar create_all para limpar automaticamente o estado transacional inválido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar close e reutilizar a mesma instância fechada sem reconfiguração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar refresh em cada classe para confirmar todas as alterações pendentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Após falha no flush, a transação precisa ser revertida com rollback antes que a Session seja usada novamente. Commit não recupera uma transação em erro.",
+      "section": "3. Session, identidade e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A Session é uma conexão global sem estado, projetada para ser compartilhada livremente por threads concorrentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Session mantém identidade, objetos associados e estado transacional. Ela não é uma conexão global sem estado e não deve ser compartilhada indiscriminadamente entre fluxos concorrentes.",
+      "section": "3. Session, identidade e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao terminar um bloco `with Session(engine) as session:`, qual comportamento se espera do gerenciador de contexto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fechar a Session e liberar os recursos sob sua responsabilidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Confirmar automaticamente toda transação mesmo se o bloco lançar exceção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover do banco todas as linhas carregadas durante o bloco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter a mesma Session ativa como singleton para a próxima requisição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter todas as entidades em objetos Core sem executar SQL algum.",
+          "correct": false
+        }
+      ],
+      "explanation": "O contexto de Session fecha a sessão ao sair do bloco. Para demarcar também uma transação com confirmação ou rollback automático, usam-se os contextos transacionais apropriados, como Session.begin().",
+      "section": "3. Session, identidade e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma transação ainda não confirmada, rollback pode desfazer no banco as instruções já enviadas por flush.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Flush emite comandos dentro da transação; se a transação não foi confirmada e o banco permite rollback, essas alterações podem ser revertidas.",
+      "section": "3. Session, identidade e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O commit da Session normalmente realiza flush das alterações pendentes antes de pedir a confirmação da transação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A Session sincroniza as mudanças pendentes com o banco durante o flush e então solicita commit. O flush pode também ocorrer antes por autoflush em operações apropriadas.",
+      "section": "3. Session, identidade e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual padrão é característico de uma consulta ORM no estilo 2.x?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Construir `select(Cliente).where(...)` e executá-lo pela Session.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Chamar `create_all()` com filtros para selecionar linhas existentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `relationship()` como comando que retorna todas as linhas diretamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Chamar `Engine.commit()` para filtrar entidades sem abrir sessão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Construir `ForeignKey()` e executar a consulta pela MetaData.",
+          "correct": false
+        }
+      ],
+      "explanation": "O estilo moderno constrói uma expressão Select com select() e a executa por meio da Session, por exemplo com execute() ou scalars(). create_all trata DDL, não seleção de linhas.",
+      "section": "4. Consultas, carregamento e desempenho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o risco de acessar lazy loading para uma coleção em cada uma de muitas entidades retornadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gerar uma consulta inicial e consultas adicionais repetidas, padrão chamado N+1.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Converter automaticamente todas as linhas em chaves primárias compostas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Impedir o banco de executar qualquer consulta com chave estrangeira.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Confirmar a transação após cada entidade e fechar o pool do Engine.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transformar a coleção carregada em tabela associativa permanente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Lazy loading pode emitir uma consulta por coleção acessada. Para muitos objetos, isso soma uma consulta inicial mais várias individuais, causando o padrão N+1.",
+      "section": "4. Consultas, carregamento e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção costuma carregar uma coleção relacionada em consulta adicional usando as chaves das entidades já encontradas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`selectinload()`, que busca os relacionados por conjunto de chaves.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`joinedload()`, que sempre executa uma consulta individual por entidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`create_all()`, que lê registros associados por introspecção do esquema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`back_populates()`, que consulta o banco no momento de declarar a classe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`rollback()`, que carrega coleções sem abrir uma transação.",
+          "correct": false
+        }
+      ],
+      "explanation": "selectinload busca coleções relacionadas em consulta ou consultas adicionais baseadas em chaves, reduzindo o padrão N+1 sem juntar todas as linhas em um único resultado amplo.",
+      "section": "4. Consultas, carregamento e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A opção `joinedload()` é uma estratégia de eager loading que normalmente inclui a relação por junção na consulta SQL.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. joinedload carrega relações usando junção na instrução SQL. Em coleções, isso pode repetir dados da entidade principal nas linhas e exigir tratamento de unicidade dos resultados no estilo 2.x.",
+      "section": "4. Consultas, carregamento e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa diferencia `join()` de `joinedload()`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "join compõe a consulta; joinedload especifica como carregar uma relação ORM.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "join abre transação; joinedload confirma alterações em objetos relacionados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "join cria tabela associativa; joinedload acrescenta chave primária à entidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "join carrega sempre todas as relações; joinedload aplica filtro WHERE obrigatório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "join é exclusivo do Core; joinedload é exclusivo de bancos sem SQL.",
+          "correct": false
+        }
+      ],
+      "explanation": "join participa da construção explícita do FROM/JOIN da consulta e pode ser usado para filtrar ou selecionar. joinedload é uma opção de carregamento antecipado que visa preencher atributos relacionados sem mudar o conjunto lógico de entidades retornadas.",
+      "section": "4. Consultas, carregamento e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta `select(Cliente).where(Cliente.nome == valor)` cria uma tabela se ela ainda não existe no banco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. select constrói consulta de leitura; criação de tabela é operação DDL separada, realizada por ferramentas como create_all ou por migrações.",
+      "section": "4. Consultas, carregamento e desempenho",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que valores recebidos do usuário devem ser passados como parâmetros em expressões SQLAlchemy?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque parâmetros vinculados evitam concatenar dados como trecho de SQL executável.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Porque parâmetros vinculados criam uma chave estrangeira por valor recebido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque parâmetros vinculados fazem commit automático após cada comparação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque parâmetros vinculados desativam o dialeto e substituem o driver.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque parâmetros vinculados convertem qualquer entrada inválida em NULL.",
+          "correct": false
+        }
+      ],
+      "explanation": "Expressões parametrizadas separam valores de texto SQL, reduzindo risco de injeção por concatenação direta. A validação e autorização da entrada ainda são responsabilidades da aplicação.",
+      "section": "4. Consultas, carregamento e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na API 2.x, `select(Cliente).join(Cliente.pedidos)` pode seguir o relacionamento mapeado para compor a junção da consulta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A expressão de relacionamento pode servir como caminho para o join e orientar a condição entre as entidades. O resultado continua sendo executado pela Session.",
+      "section": "4. Consultas, carregamento e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre SQLAlchemy 1.4 e 2.x é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A versão 1.4 introduziu a transição para o estilo 2.0, incluindo uso de select.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A versão 1.4 removeu todo mapeamento declarativo e proibiu sessões ORM.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A versão 2.x exige a API Query e rejeita instruções Select modernas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A versão 2.x abandonou Engine e passou a persistir sem conexão com banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As versões 1.4 e 2.x aceitam somente SQL textual sem classes Python.",
+          "correct": false
+        }
+      ],
+      "explanation": "SQLAlchemy 1.4 foi a versão de transição que incorporou a API de estilo 2.0. A versão 2.x consolida select() e o padrão tipado moderno; a API Query é mantida como interface legada, não como caminho recomendado para código novo.",
+      "section": "4. Consultas, carregamento e desempenho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em consultas ORM, `Session.scalars(stmt)` é uma forma conveniente de obter os valores escalares, como entidades, do resultado da instrução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A Session pode executar a Select e scalars() expõe a primeira coluna/entidade de cada linha como fluxo escalar, útil em consultas que selecionam uma entidade.",
+      "section": "4. Consultas, carregamento e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando uma coleção é carregada por joined eager load no estilo 2.x, qual cuidado pode ser necessário ao consumir entidades?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar `unique()` ao resultado quando linhas repetem a entidade principal.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aplicar `commit()` a cada linha antes de acessar qualquer atributo relacionado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar `create_all()` ao resultado para remover duplicidades do banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar `rollback()` depois da leitura para consolidar as entidades repetidas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar `ForeignKey()` ao objeto Result para agrupar as linhas por tabela.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma junção de coleção pode produzir várias linhas para a mesma entidade principal. No padrão 2.x, a materialização de entidades com joined eager load de coleção pode exigir unique() para deduplicar identidades no resultado.",
+      "section": "4. Consultas, carregamento e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A API Query permanece disponível como interface legada, mas o estilo moderno de consultas 2.x usa Select executada pela Session.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação mantém Query na categoria de API legada; código moderno usa a construção select() e a execução pela Session, inclusive em SQLAlchemy 1.4 no modo de transição.",
+      "section": "4. Consultas, carregamento e desempenho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual par de tipos corresponde melhor às propriedades `id` inteira obrigatória e `apelido` textual opcional em declaração tipada 2.x?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`Mapped[int]` e `Mapped[str | None]`, com ajustes explícitos se necessários.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`Mapped[None]` e `Mapped[PrimaryKey]`, sem coluna declarada no modelo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`relationship[int]` e `ForeignKey[str]`, que inferem ambas as tabelas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`Mapped[str | None]` e `Mapped[int | None]`, pois id sempre admite NULL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`Engine[int]` e `Session[str]`, pois tipos SQL são definidos na conexão.",
+          "correct": false
+        }
+      ],
+      "explanation": "No estilo tipado, Mapped associa atributos ORM a tipos Python, e a opcionalidade pode informar nulabilidade. Uma chave primária normalmente não admite NULL; configurações explícitas podem especializar o comportamento.",
+      "section": "1. O ORM e a configuração do mapeamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A opção de carregamento lazy pode consultar o banco quando o atributo relacionado é acessado, desde que o objeto ainda permita essa operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Lazy loading posterga a busca da relação até o acesso ao atributo. O acesso pode exigir sessão ativa e gerar consultas extras, motivo pelo qual deve ser considerado no desenho da operação.",
+      "section": "4. Consultas, carregamento e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta ORM ineficiente pode ser corrigida apenas pela existência do mapeamento, sem considerar cardinalidade ou SQL emitido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O mapeamento facilita a conversão entre entidades e linhas, mas não garante desempenho. É necessário observar SQL, quantidade de consultas, cardinalidade, índices e plano do banco.",
+      "section": "4. Consultas, carregamento e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual efeito principal de `nullable=False` na definição de uma coluna?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar que a coluna não deve aceitar valor NULL no esquema.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Declarar que a coluna sempre terá valor zero gerado pela Session.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Declarar que a coluna se torna chave primária automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Declarar que a coluna será carregada somente por joinedload.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Declarar que a coluna pertence a uma tabela associativa invisível.",
+          "correct": false
+        }
+      ],
+      "explanation": "nullable=False configura a coluna como não anulável. Não cria chave primária, valor padrão ou estratégia de carregamento ORM.",
+      "section": "1. O ORM e a configuração do mapeamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os tipos SQLAlchemy são adaptados ao dialeto do banco; por isso, usar `String(80)` descreve uma coluna textual com tamanho configurado no mapeamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Tipos SQLAlchemy representam tipos portáveis e o dialeto os traduz para a plataforma. String(80) descreve uma coluna textual com comprimento indicado, sujeito às regras do banco.",
+      "section": "1. O ORM e a configuração do mapeamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela associativa de associação simples pode ser passada a `relationship()` pelo argumento apropriado para representar muitos-para-muitos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O argumento secondary referencia a tabela intermediária usada pelo vínculo muitos-para-muitos quando ela não é modelada como association object.",
+      "section": "2. Chaves e relacionamentos entre classes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recomendação é adequada para reduzir risco de N+1 ao listar clientes e suas coleções de pedidos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Planejar o carregamento com selectinload ou joinedload conforme o formato dos dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Acessar cada coleção dentro de um laço e abrir uma Session nova por atributo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover todas as FKs para que o ORM não encontre as tabelas relacionadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar create_all após cada leitura para consolidar as consultas feitas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir cada relationship por SQL textual concatenado com nomes dos usuários.",
+          "correct": false
+        }
+      ],
+      "explanation": "Carregamento antecipado evita buscas individuais repetidas. selectinload e joinedload têm características diferentes, então a escolha deve considerar cardinalidade, volume e resultado esperado.",
+      "section": "4. Consultas, carregamento e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma transação demarcada por contexto apropriado de begin, o encerramento normal pode confirmar e uma exceção pode provocar rollback.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os contextos transacionais do SQLAlchemy delimitam a unidade de trabalho: conclusão normal confirma, enquanto uma exceção provoca reversão, conforme o padrão usado.",
+      "section": "3. Session, identidade e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmativa melhor caracteriza o estado detached?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O objeto foi persistente, mas deixou de estar associado à Session atual.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O objeto aguarda o primeiro flush após session.add e já é pending.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O objeto nunca foi associado e conserva estado transient inicial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O objeto é uma conexão aberta mantida exclusivamente pelo Engine.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O objeto representa uma tabela descrita pela MetaData e não uma instância.",
+          "correct": false
+        }
+      ],
+      "explanation": "Detached designa uma instância que já esteve persistente, mas não está ligada a uma Session. Pending, por outro lado, é o estado de objeto novo associado que aguarda persistência.",
+      "section": "3. Session, identidade e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao consultar a mesma chave primária duas vezes na mesma Session, o ORM normalmente mantém uma identidade de objeto única nessa sessão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A identity map mantém uma instância por identidade persistente na Session. Isso não constitui cache global entre sessões distintas.",
+      "section": "3. Session, identidade e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao selecionar simultaneamente duas entidades em uma Select, qual forma de resultado é esperada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Linhas de resultado podem conter valores para ambas as entidades selecionadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A Session escolhe uma entidade aleatória e descarta a outra antes do SQL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O Engine transforma as duas classes em uma única tabela permanente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A MetaData confirma a transação e devolve apenas chaves estrangeiras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A consulta é inválida, pois ORM permite selecionar somente uma coluna escalar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma Select pode selecionar várias entidades ou expressões. O Result pode então expor cada linha com os valores correspondentes, conforme os elementos selecionados.",
+      "section": "4. Consultas, carregamento e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de SQLAlchemy ORM dispensa verificar as restrições, índices e tipos efetivamente definidos pelo banco de dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O ORM mapeia estruturas e emite SQL, mas o banco continua impondo restrições e influenciando desempenho e tipos. O esquema e as consultas precisam ser considerados.",
+      "section": "1. O ORM e a configuração do mapeamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um SQL textual, qual prática evita incorporar diretamente entrada externa ao texto SQL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar parâmetros vinculados em `text()` e passar os valores separadamente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Concatenar cada valor recebido entre aspas antes de executar o texto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter a entrada em nome de tabela sem validar nem parametrizar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar primeiro create_all para neutralizar caracteres especiais da entrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar o dialeto e enviar a entrada ao driver como comando independente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Parâmetros vinculados separam os valores da estrutura SQL e reduzem risco de injeção por concatenação. Identificadores dinâmicos, como nomes de tabela, exigem validação e tratamento apropriados.",
+      "section": "4. Consultas, carregamento e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma relação escalar ou uma coleção em Python determina por si só a integridade referencial do banco, mesmo sem restrição FK.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O formato da propriedade ORM orienta associação e cardinalidade de objetos, mas a integridade referencial no banco depende de restrições e estrutura relacional apropriadas, como FK.",
+      "section": "2. Chaves e relacionamentos entre classes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação quer adicionar uma coluna nova sem recriar a tabela em cada inicialização. Qual interpretação de create_all é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "create_all não é ferramenta de alteração evolutiva; uma migração deve aplicar a mudança.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "create_all detecta diferenças e remove automaticamente qualquer dado incompatível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "create_all confirma a sessão e altera colunas conforme atributos Python novos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "create_all transforma a coluna em relacionamento e dispensa instrução DDL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "create_all altera somente tabelas que não possuem chave primária declarada.",
+          "correct": false
+        }
+      ],
+      "explanation": "create_all cria tabelas ausentes a partir dos metadados; não é mecanismo geral de comparação e migração de tabelas existentes. Para evolução controlada de esquema, utiliza-se ferramenta de migração.",
+      "section": "1. O ORM e a configuração do mapeamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma opção `relationship(lazy=\"selectin\")` determina a estratégia de carregamento relacionado, não o tipo físico da coluna FK.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. lazy seleciona o estilo de carregamento do relacionamento ORM. A definição da coluna e da FK continua sendo parte do mapeamento da tabela e da restrição relacional.",
+      "section": "2. Chaves e relacionamentos entre classes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual consequência pode surgir ao configurar eager loading por joinedload para uma coleção muito grande?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A junção pode multiplicar linhas do resultado e aumentar o volume transferido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A Session deixa de manter identidade e passa a duplicar chaves primárias no banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A tabela relacionada é removida após a primeira leitura da coleção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O banco converte a coleção em coluna textual e ignora as demais entidades.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Engine interrompe a conexão antes de produzir qualquer resultado ORM.",
+          "correct": false
+        }
+      ],
+      "explanation": "A junção de uma coleção pode gerar várias linhas para a mesma entidade principal e aumentar o resultado transferido. Estratégias como selectinload podem ser mais adequadas conforme cardinalidade e necessidade.",
+      "section": "4. Consultas, carregamento e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Engine normalmente estabelece a conexão física apenas quando uma operação precisa acessar o banco, e pode usar um pool.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. create_engine configura o acesso, mas em geral não abre imediatamente uma conexão DBAPI. Quando necessária, uma conexão é obtida do pool associado ao Engine.",
+      "section": "1. O ORM e a configuração do mapeamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual componente cria uma fábrica configurada para produzir instâncias Session em um padrão comum?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`sessionmaker`, configurado com o Engine ou opções de sessão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`relationship`, configurado como construtor global de conexões.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`MetaData`, configurado para manter transações entre requisições.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`ForeignKey`, configurado para gerar uma sessão por coluna mapeada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`mapped_column`, configurado para abrir e fechar sessões por atributo.",
+          "correct": false
+        }
+      ],
+      "explanation": "sessionmaker é uma fábrica configurável de Session. Cada sessão criada constitui uma unidade de trabalho com seu próprio estado, enquanto Engine fornece a conectividade ao banco.",
+      "section": "3. Session, identidade e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No estilo moderno do SQLAlchemy, instruções Select são objetos de consulta que podem receber métodos como where antes da execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. select() produz uma construção Select; métodos como where compõem a instrução. A consulta só acessa o banco quando executada por Session ou Connection.",
+      "section": "4. Consultas, carregamento e desempenho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma entidade Cliente é selecionada e sua propriedade pedidos precisa estar disponível sem uma consulta individual por cliente. Qual escolha é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar uma opção de eager loading, como selectinload para a coleção.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar rollback para materializar todos os pedidos na identity map.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar create_all para carregar linhas de pedidos por metadados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover o relacionamento e acessar a tabela como atributo de Engine.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar commit antes de cada leitura para forçar o modo joined.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma opção de carregamento antecipado como selectinload busca relações para o conjunto de entidades sem uma consulta por cliente. rollback, create_all e commit não controlam o carregamento relacionado.",
+      "section": "4. Consultas, carregamento e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "SQLAlchemy 1.4 ORM Documentation",
+      "publisher": "SQLAlchemy",
+      "reference": "Visão geral oficial do ORM e passagem entre estilos 1.x e 2.0",
+      "url": "https://docs.sqlalchemy.org/en/14/orm/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ORM Quick Start — SQLAlchemy 2.0 Documentation",
+      "publisher": "SQLAlchemy",
+      "reference": "Mapeamento declarativo, Engine, criação de tabela, persistência e consultas iniciais",
+      "url": "https://docs.sqlalchemy.org/en/20/orm/quickstart.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Table Configuration with Declarative",
+      "publisher": "SQLAlchemy",
+      "reference": "Configuração declarativa de tabelas, colunas, tipos e nulabilidade",
+      "url": "https://docs.sqlalchemy.org/en/20/orm/declarative_tables.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Relationship Configuration",
+      "publisher": "SQLAlchemy",
+      "reference": "Relacionamentos, cardinalidade, tabela associativa e relationship()",
+      "url": "https://docs.sqlalchemy.org/en/20/orm/relationship_api.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Session Basics",
+      "publisher": "SQLAlchemy",
+      "reference": "Identity map, ciclo de vida de Session, flush, commit e rollback",
+      "url": "https://docs.sqlalchemy.org/en/20/orm/session_basics.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Writing SELECT statements for ORM Mapped Classes",
+      "publisher": "SQLAlchemy",
+      "reference": "select(), execução ORM, resultados e junções",
+      "url": "https://docs.sqlalchemy.org/en/20/orm/queryguide/select.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Relationship Loading Techniques",
+      "publisher": "SQLAlchemy",
+      "reference": "Lazy loading, joined eager loading e select-in loading",
+      "url": "https://docs.sqlalchemy.org/en/20/orm/queryguide/relationships.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Cascades",
+      "publisher": "SQLAlchemy",
+      "reference": "Cascatas ORM e interação com ON DELETE do banco",
+      "url": "https://docs.sqlalchemy.org/en/20/orm/cascades.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Engine Configuration",
+      "publisher": "SQLAlchemy",
+      "reference": "create_engine, URLs, dialetos e pool de conexões",
+      "url": "https://docs.sqlalchemy.org/en/20/core/engines.html",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

@@ -1,0 +1,2278 @@
+{
+  "id": "informatica.banco-dados-sql-server",
+  "subject": "Informática",
+  "title": "Banco de dados SQL Server",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Banco de dados SQL Server",
+    "Microsoft SQL Server e administração de bancos",
+    "SGBD relacional Microsoft SQL Server",
+    "Banco de dados Microsoft SQL Server",
+    "SQL Server Database Engine",
+    "Administração básica do SQL Server",
+    "Arquitetura de bancos no SQL Server",
+    "Arquivos MDF NDF e LDF do SQL Server",
+    "Bancos de sistema do Microsoft SQL Server",
+    "Backup e recuperação no SQL Server"
+  ],
+  "scope": {
+    "covers": "Fundamentos concretos do Microsoft SQL Server: instância e Database Engine; bancos de sistema master, model, msdb, tempdb e Resource; arquivos de dados e log, grupos de arquivos; T-SQL, batches e GO; transações e níveis de isolamento; índices clustered e nonclustered; autenticação, logins, usuários, funções e permissões; modelos de recuperação simple, full e bulk-logged; backups completos, diferenciais e de log e sua ordem de restauração.",
+    "excludes": "Administração avançada de SQL Server Agent, auditoria SQL Server Audit, Extended Events, Always On, replicação, Azure SQL, instalação e licenciamento por edição, tuning aprofundado, integração ETL, modelagem relacional geral e sintaxe completa de T-SQL."
+  },
+  "theoryTitle": "Fundamentos e administração do Microsoft SQL Server",
+  "chapters": [
+    {
+      "title": "1. Instância, Database Engine e bancos de sistema",
+      "markdown": "### O problema que este assunto resolve\n\nO SQL Server é um sistema gerenciador de banco de dados relacional da Microsoft. O serviço central, chamado **Database Engine**, recebe conexões, interpreta e executa Transact-SQL (T-SQL), mantém bancos em arquivos e registra transações para preservar consistência e permitir recuperação. Uma **instância** é uma instalação em execução do mecanismo, com configuração, logins e bancos próprios. Um servidor pode hospedar uma instância padrão e instâncias nomeadas; os bancos de cada instância não são automaticamente compartilhados com outra.\n\n> **Siglas e termos deste capítulo**\n> - **SGBD**: sistema gerenciador de banco de dados.\n> - **Instância**: ambiente do Database Engine que administra bancos e logins.\n> - **T-SQL**: dialeto da Microsoft para consultas, definição de objetos e controle procedural.\n> - **Catálogo**: metadados consultáveis por visões como `sys.databases`.\n> - **Banco de usuário**: banco criado para os dados e objetos de uma aplicação.\n\n### Os bancos de sistema têm papéis diferentes\n\n| Banco | Papel concreto |\n| --- | --- |\n| `master` | Guarda informações de configuração e nível da instância, como bancos registrados e logins. Se indisponível, o serviço não consegue iniciar normalmente. |\n| `model` | Molde usado na criação de novos bancos. Opções alteradas nele, como collation e modelo de recuperação, podem ser herdadas por bancos criados depois. |\n| `msdb` | Armazena informações usadas pelo SQL Server Agent, incluindo trabalhos, agendas e alertas. |\n| `tempdb` | Área recriada na inicialização do serviço para objetos temporários, tabelas temporárias, versões de linha e resultados intermediários. |\n| `Resource` | Banco somente leitura com cópias físicas de objetos do sistema, apresentados logicamente nos esquemas do sistema. |\n\nNão se deve editar tabelas internas do sistema diretamente. Para administrar configurações e objetos, usam-se comandos, procedimentos e ferramentas suportados pelo produto. `tempdb` é transitório: objetos colocados nele não servem como armazenamento permanente da aplicação. Já `msdb` não é o banco que contém os dados de negócio só por ser usado pelo Agent.\n\n### Banco, esquema e objeto\n\nUma instância pode hospedar vários bancos. Dentro de cada banco, **schemas** organizam objetos e funcionam também como contêineres de permissões; `dbo` é um schema comum, mas não é sinônimo de banco. Uma tabela ou view pode ser referenciada com nome qualificado, como `Vendas.dbo.Pedido`. A view de catálogo `sys.databases` permite consultar bancos conhecidos pela instância, respeitadas as permissões de visibilidade.\n\nNo SQL Server, criar um login no nível da instância não concede automaticamente acesso a todo banco de usuário. Para entrar num banco, o login costuma ser mapeado a um usuário daquele banco; depois, permissões podem ser concedidas diretamente ou por funções. Essa separação aparece em questões sobre autenticação e autorização.\n\n### Como cai na prova\n\n- `master` trata informações do nível da instância; `model` serve de modelo para bancos novos; `msdb` apoia o Agent; `tempdb` contém trabalho temporário.\n- Confundir instância com banco leva a erro: uma instância é o serviço lógico que administra vários bancos.\n- `GO` não é uma instrução T-SQL enviada ao Database Engine; é um separador de batch reconhecido por ferramentas clientes como SSMS e `sqlcmd`."
+    },
+    {
+      "title": "2. Arquivos, grupos de arquivos e Transact-SQL",
+      "markdown": "### O problema que este assunto resolve\n\nUm banco lógico do SQL Server persiste dados em arquivos do sistema operacional. A estrutura mínima inclui um arquivo de dados primário e um arquivo de log de transações. O arquivo primário contém informações de inicialização e aponta para os demais arquivos; os arquivos de dados guardam tabelas, índices, procedimentos e outros objetos; o log registra operações necessárias à recuperação. As extensões convencionais são `.mdf` para o arquivo primário, `.ndf` para arquivos de dados secundários e `.ldf` para o log, mas a extensão é convenção de nome, não substitui a função definida no banco.\n\n> **Siglas e termos deste capítulo**\n> - **MDF / NDF / LDF**: extensões usuais de arquivo primário, dado secundário e log.\n> - **Filegroup**: unidade lógica que agrupa arquivos de dados para alocação e administração.\n> - **DDL**: comandos que definem ou alteram objetos, como `CREATE` e `ALTER`.\n> - **DML**: comandos que consultam ou modificam dados, como `SELECT`, `INSERT` e `UPDATE`.\n> - **Batch**: conjunto de instruções T-SQL enviado como uma unidade pelo cliente.\n\n### Arquivos de dados não são o log\n\nCada banco tem pelo menos um arquivo de dados e um arquivo de log. Pode haver vários arquivos de dados e eles podem ser agrupados em filegroups. O filegroup `PRIMARY` contém o arquivo de dados primário e pode conter outros arquivos. Arquivos secundários permitem distribuir alocação de dados e administração entre arquivos; simplesmente criar vários arquivos no mesmo disco não garante desempenho melhor. O log de transações não é um filegroup e não serve para armazenar tabelas como arquivo de dados.\n\nO Database Engine acompanha tamanho e crescimento dos arquivos. Crescimento automático é uma proteção operacional, não uma política completa de capacidade: sem dimensionamento e monitoramento, o arquivo pode consumir o espaço disponível. Arquivo de backup também não é o arquivo ativo do banco; copiar MDF/LDF sem procedimento consistente não equivale a executar um backup SQL Server.\n\n### T-SQL, transações e batches\n\nT-SQL oferece instruções SQL e construções procedurais. `BEGIN TRANSACTION`, `COMMIT` e `ROLLBACK` demarcam trabalho transacional: confirmar torna permanentes as mudanças da transação; reverter desfaz as mudanças ainda reversíveis da unidade. `TRY...CATCH` permite tratar muitos erros de execução que não encerram a conexão, mas a lógica de erro ainda deve decidir o destino da transação. Uma instrução que falha não significa, em toda configuração, que o bloco inteiro foi automaticamente revertido.\n\nSSMS e `sqlcmd` reconhecem `GO` como marcador para enviar o batch anterior e iniciar outro. `GO` não é palavra-chave executada pelo SQL Server e não pode ser usado como se fosse uma instrução dentro de uma procedure. Variáveis locais declaradas num batch deixam de existir quando outro batch começa.\n\n### Como cai na prova\n\n- O log (`.ldf`) sustenta recuperação; dados e objetos ficam nos arquivos de dados.\n- Grupos de arquivos agrupam **arquivos de dados**, não arquivos de log.\n- `GO` encerra um batch no cliente, não confirma uma transação e não substitui `COMMIT`."
+    },
+    {
+      "title": "3. Consultas, índices, transações e concorrência",
+      "markdown": "### O problema que este assunto resolve\n\nO SQL Server usa índices para localizar linhas sem percorrer necessariamente toda a tabela. Um índice **clustered** organiza as páginas de dados da tabela segundo a chave do índice: a tabela pode ter apenas um, pois os dados não podem estar fisicamente organizados de duas formas ao mesmo tempo. Um índice **nonclustered** mantém uma estrutura separada com chaves e localizadores de linha; uma tabela pode ter vários, sujeitos a custo de armazenamento e manutenção. O otimizador escolhe um plano de execução conforme estatísticas, predicados e custo estimado; a presença de um índice não obriga o otimizador a usá-lo.\n\n> **Siglas e termos deste capítulo**\n> - **Plano de execução**: operadores escolhidos para executar uma instrução.\n> - **Índice clustered**: estrutura que determina a organização das páginas de dados da tabela.\n> - **Índice nonclustered**: estrutura auxiliar com chave e localizador para encontrar linhas.\n> - **Lock**: mecanismo de bloqueio para coordenar acessos concorrentes.\n> - **Leitura suja**: leitura de alteração ainda não confirmada por outra transação.\n\n### Índice ajuda leitura e custa escrita\n\nÍndices podem acelerar buscas, junções e ordenações quando correspondem ao padrão de consulta. Em contrapartida, `INSERT`, `UPDATE` e `DELETE` também precisam manter estruturas afetadas; muitos índices podem aumentar escrita, espaço e manutenção. Uma chave clustered costuma ser incorporada como localizador nos índices nonclustered, portanto escolhas de chave e largura repercutem nas estruturas auxiliares. Índice columnstore organiza dados em colunas e atende cenários analíticos, distinto do índice rowstore tradicional voltado a linhas.\n\n### Isolamento e bloqueios\n\nO SQL Server suporta níveis definidos pelo padrão SQL. `READ UNCOMMITTED` permite leitura suja. `READ COMMITTED` impede leitura de dados não confirmados; é o nível padrão do mecanismo, embora a opção `READ_COMMITTED_SNAPSHOT` possa alterar a implementação para versionamento de linhas. `REPEATABLE READ` mantém bloqueios de linhas lidas até o fim da transação, mas ainda pode permitir linhas-fantasma. `SERIALIZABLE` usa bloqueios de intervalo para impedir inserções que alterariam o conjunto lido. `SNAPSHOT` usa versões de linha e precisa ser habilitado no banco. Maior isolamento pode reduzir anomalias, mas aumentar bloqueios, espera ou conflitos.\n\nCom `SET TRANSACTION ISOLATION LEVEL`, a sessão escolhe o nível aplicável. `NOLOCK` equivale ao comportamento de leitura não confirmada para a referência, não é uma garantia de leitura correta e pode retornar dados que serão revertidos ou resultados inconsistentes. Transações longas mantêm recursos ocupados por mais tempo e podem prejudicar concorrência.\n\n### Como cai na prova\n\n- Tabela só pode ter um índice clustered; pode ter vários nonclustered.\n- `READ COMMITTED` não permite ler alterações não confirmadas; `READ UNCOMMITTED` permite.\n- Índice não é ganho gratuito: acelera certos acessos e impõe custo de manutenção nas alterações."
+    },
+    {
+      "title": "4. Segurança, backup e recuperação",
+      "markdown": "### O problema que este assunto resolve\n\nSegurança no SQL Server combina identidade e autorização. **Autenticação** verifica quem se conecta; **autorização** define o que a identidade pode fazer. Instâncias aceitam autenticação do Windows e autenticação do SQL Server, conforme o modo configurado; instalações também podem admitir modo misto. Um login é principal no nível da instância. Um usuário é principal no nível do banco. O login é mapeado a um usuário, e permissões são concedidas a usuários ou funções (roles). O princípio de menor privilégio orienta conceder só as permissões necessárias.\n\n> **Siglas e termos deste capítulo**\n> - **Login**: identidade reconhecida na instância.\n> - **User**: identidade com acesso dentro de um banco.\n> - **Role**: grupo de permissões e membros no nível do servidor ou do banco.\n> - **Backup full**: cópia que contém o banco no momento de conclusão do backup.\n> - **Backup differential**: alterações desde o backup full diferencial-base.\n> - **Recovery model**: controla manutenção do log e cenários de backup e restauração.\n\n### Modelos de recuperação\n\n| Modelo | Backup de log | Recuperação característica |\n| --- | --- | --- |\n| `SIMPLE` | Não permite backup do log. O mecanismo recupera espaço do log de forma automática conforme possível. | Recuperação até o fim de um backup de dados; não oferece restauração point-in-time por cadeia de logs. |\n| `FULL` | Requer backups regulares do log para manter a cadeia e controlar crescimento. | Com a cadeia disponível, permite restaurar até um ponto coberto pelos logs. |\n| `BULK_LOGGED` | Permite e requer backups de log; registra operações em massa de modo minimamente registrado em condições aplicáveis. | Recuperação até o fim de backup; operações minimamente registradas podem impedir ponto exato dentro do backup de log. |\n\nTrocar o modelo para `FULL` não cria, sozinho, a cadeia de log: depois da mudança é necessário iniciar a cadeia com backup de dados apropriado e programar backups de log. No modelo `FULL`, deixar de fazer backup do log pode permitir seu crescimento até consumir espaço. O modelo deve refletir o objetivo de recuperação e ser acompanhado por plano de backup testado.\n\n### Tipos e sequência de restauração\n\nUm backup full guarda o banco no estado em que terminou. O diferencial acumula extensões alteradas desde seu full-base mais recente; para restaurá-lo, primeiro se restaura esse full-base. Backups de log contêm registros ainda não cobertos por backup de log anterior na cadeia. Uma sequência comum é restaurar o full com `NORECOVERY`, depois o diferencial compatível (se houver), depois cada log em ordem cronológica, e só no final usar `WITH RECOVERY` para deixar o banco disponível. Recuperar cedo encerra a sequência e impede aplicar logs posteriores sem recomeçar o processo. Backup e restore não substituem teste de restauração nem cópia guardada em local separado dos arquivos ativos.\n\n### Como cai na prova\n\n- Login pertence à instância; usuário pertence ao banco; conceder uma permissão não é autenticar.\n- `SIMPLE` não aceita backup de log; `FULL` permite ponto no tempo se a cadeia de backups estiver íntegra.\n- Restaurar um diferencial exige seu full-base; logs subsequentes são aplicados em ordem antes de finalizar a recuperação."
+    }
+  ],
+  "summary": "SQL Server é organizado em instâncias que executam o Database Engine e administram vários bancos. Os bancos de sistema têm papéis específicos: master registra informações da instância, model serve de molde, msdb apoia SQL Server Agent, tempdb guarda trabalho temporário e Resource contém objetos do sistema em modo somente leitura. Um banco usa arquivos de dados (primário e, opcionalmente, secundários em filegroups) e ao menos um log de transações. T-SQL controla consultas, objetos e transações; GO é separador de batch do cliente. Tabelas podem ter um índice clustered e vários nonclustered, que melhoram certos acessos e aumentam custo de escrita. No controle de acesso, login é da instância, user do banco, e roles agrupam permissões. Os modelos SIMPLE, FULL e BULK_LOGGED definem a manutenção do log e as opções de recuperação. Para restaurar, aplica-se o full, o diferencial compatível e os logs em ordem, mantendo NORECOVERY até o último backup e então finalizando com RECOVERY.",
+  "flashcards": [
+    {
+      "front": "Qual é o papel do Database Engine?",
+      "back": "Recebe conexões, executa T-SQL e administra bancos, objetos, transações e recuperação."
+    },
+    {
+      "front": "O que registra o banco master?",
+      "back": "Informações de nível da instância, como bancos registrados e logins."
+    },
+    {
+      "front": "Para que serve o banco model?",
+      "back": "É o molde usado na criação de novos bancos; opções dele podem ser herdadas."
+    },
+    {
+      "front": "Qual é a função de msdb?",
+      "back": "Armazena informações utilizadas pelo SQL Server Agent, como trabalhos e agendas."
+    },
+    {
+      "front": "O que costuma ficar em tempdb?",
+      "back": "Objetos temporários, tabelas temporárias, versões de linha e resultados intermediários."
+    },
+    {
+      "front": "O que contém o banco Resource?",
+      "back": "Objetos do sistema, fisicamente guardados em banco somente leitura."
+    },
+    {
+      "front": "Quais são as extensões convencionais dos arquivos de dados e log?",
+      "back": "MDF para primário, NDF para dados secundários e LDF para log."
+    },
+    {
+      "front": "O que um filegroup agrupa?",
+      "back": "Arquivos de dados; não é um agrupamento de arquivos de log."
+    },
+    {
+      "front": "O que é GO no SSMS?",
+      "back": "Separador de batches reconhecido pelo cliente, não uma instrução T-SQL do servidor."
+    },
+    {
+      "front": "Quantos índices clustered uma tabela pode ter?",
+      "back": "Um, porque a organização das páginas de dados só pode seguir uma chave clustered."
+    },
+    {
+      "front": "O que diferencia um índice nonclustered?",
+      "back": "Mantém uma estrutura separada com chaves e localizadores para encontrar as linhas."
+    },
+    {
+      "front": "Qual anomalia READ UNCOMMITTED permite?",
+      "back": "Leitura suja: visualizar alterações ainda não confirmadas por outra transação."
+    },
+    {
+      "front": "Qual é o nível de isolamento padrão do Database Engine?",
+      "back": "READ COMMITTED, embora READ_COMMITTED_SNAPSHOT altere o mecanismo de leitura."
+    },
+    {
+      "front": "O que distingue login de usuário SQL Server?",
+      "back": "Login é principal da instância; usuário é principal dentro de um banco."
+    },
+    {
+      "front": "Quais são os três modelos de recuperação?",
+      "back": "SIMPLE, FULL e BULK_LOGGED."
+    },
+    {
+      "front": "Qual modelo não permite backup do log?",
+      "back": "SIMPLE."
+    },
+    {
+      "front": "O que permite o modelo FULL com cadeia de logs íntegra?",
+      "back": "Restaurar a base e aplicar logs para recuperar até ponto coberto pela cadeia."
+    },
+    {
+      "front": "Desde qual backup um diferencial mede as alterações?",
+      "back": "Desde o último backup full que funciona como sua base diferencial."
+    },
+    {
+      "front": "Por que restaurar logs em ordem cronológica?",
+      "back": "Cada backup de log continua a cadeia a partir do anterior; um elo ausente limita a recuperação."
+    },
+    {
+      "front": "Quando usar WITH RECOVERY na restauração em cadeia?",
+      "back": "Depois de aplicar o último backup necessário, para finalizar e disponibilizar o banco."
+    }
+  ],
+  "tips": [
+    "Associe master à instância, model ao molde, msdb ao Agent, tempdb ao trabalho transitório e Resource aos objetos de sistema somente leitura.",
+    "Ao ver MDF, NDF e LDF, identifique primeiro dados primários, dados adicionais e log; extensões são convenções usuais.",
+    "GO separa batches enviados pelo cliente; COMMIT confirma uma transação. Não confunda batch com transação.",
+    "Clustered organiza os dados da tabela; nonclustered é estrutura auxiliar. Índices aceleram certos acessos e custam manutenção.",
+    "Faça o mapa de segurança em duas etapas: login entra na instância, usuário recebe acesso no banco; permissões podem vir de roles.",
+    "Em restauração, anote a sequência: full-base, diferencial compatível, logs cronológicos e RECOVERY ao final."
+  ],
+  "traps": [
+    "Dizer que msdb armazena os dados de negócio por ser usado pelo Agent troca metadados e trabalhos do Agent por conteúdo da aplicação.",
+    "Tratar GO como comando T-SQL ou confirmação de transação está errado: o cliente separa batches com ele.",
+    "Afirmar que uma tabela pode ter dois índices clustered ignora que os dados só têm uma organização clustered.",
+    "Usar NOLOCK como garantia de consistência é erro: a leitura não confirmada pode observar alterações revertidas.",
+    "Criar login não dá acesso irrestrito a todos os bancos; login, usuário e permissão ocupam níveis diferentes.",
+    "FULL sem backups regulares de log não assegura ponto no tempo; mudar a opção não substitui iniciar e manter a cadeia."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique a diferença entre instância e banco SQL Server.",
+      "answer": "A instância é o ambiente do Database Engine que administra configurações, logins e bancos. Banco é um contêiner lógico de objetos e dados dentro da instância."
+    },
+    {
+      "question": "Compare os papéis de master, model, msdb e tempdb.",
+      "answer": "master mantém informação da instância; model é molde para novos bancos; msdb serve ao Agent e seus trabalhos; tempdb recebe estruturas temporárias e resultados intermediários."
+    },
+    {
+      "question": "Como se relacionam arquivos de dados, log e filegroups?",
+      "answer": "Arquivos de dados guardam objetos e podem ser agrupados em filegroups; o log guarda registros necessários à recuperação e não pertence a filegroup de dados."
+    },
+    {
+      "question": "Por que GO não deve ser confundido com COMMIT?",
+      "answer": "GO faz o cliente enviar o batch atual e começar outro. COMMIT é instrução que confirma a transação no Database Engine."
+    },
+    {
+      "question": "Como clustered e nonclustered diferem na tabela?",
+      "answer": "Clustered define a organização das páginas de dados e só pode haver um por tabela; nonclustered é estrutura separada e podem existir vários."
+    },
+    {
+      "question": "O que READ UNCOMMITTED permite e qual é o risco?",
+      "answer": "Permite ler mudanças ainda não confirmadas por outra transação, podendo expor dados que depois serão revertidos."
+    },
+    {
+      "question": "Diferencie login, usuário e role.",
+      "answer": "Login autentica no nível da instância; usuário autoriza entrada num banco; role agrupa membros e permissões em escopo de servidor ou banco."
+    },
+    {
+      "question": "Descreva a cadeia comum para restaurar full, diferencial e logs.",
+      "answer": "Restaure o full-base com NORECOVERY, o diferencial compatível e os logs posteriores em ordem cronológica; finalize com RECOVERY após o último."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre bancos de sistema",
+      "summary": "master contém informações da instância; model é o molde de bancos novos; msdb atende tarefas do Agent; tempdb é temporário; Resource armazena objetos do sistema e é somente leitura."
+    },
+    {
+      "key": "e2",
+      "title": "Arquivos de dados e log trocados",
+      "summary": "MDF e NDF são extensões usuais de arquivos de dados; LDF designa o arquivo de log. Filegroups agrupam dados e não o log."
+    },
+    {
+      "key": "e3",
+      "title": "Batch tratado como transação",
+      "summary": "GO é interpretado por cliente como separador de batches. BEGIN TRANSACTION, COMMIT e ROLLBACK controlam a unidade transacional no servidor."
+    },
+    {
+      "key": "e4",
+      "title": "Índice sem custo ou sem limite",
+      "summary": "Uma tabela pode ter um clustered e múltiplos nonclustered; índices podem favorecer leituras, mas precisam ser mantidos nas operações de escrita."
+    },
+    {
+      "key": "e5",
+      "title": "Autenticação confundida com autorização",
+      "summary": "Login é principal da instância; user pertence ao banco; roles agrupam permissões. A existência do login, isoladamente, não concede permissões de negócio."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No SQL Server, qual banco de sistema mantém informações de nível da instância, incluindo bancos registrados e logins?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "master guarda metadados e configuração da instância.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "model, que fornece a base inicial usada ao criar bancos novos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "msdb, que mantém dados utilizados por trabalhos e agendas do Agent.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "tempdb, que recebe estruturas e resultados temporários das sessões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Resource, que guarda objetos de sistema em um banco somente leitura.",
+          "correct": false
+        }
+      ],
+      "explanation": "master registra informações do nível da instância, necessárias à administração do Database Engine. model é molde, msdb atende ao Agent, tempdb recebe trabalho temporário e Resource mantém objetos de sistema.",
+      "section": "1. Instância, Database Engine e bancos de sistema",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma DBA quer que uma opção configurada seja herdada por bancos criados futuramente na instância. Qual banco tem função de molde?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "master, que registra configurações e objetos no nível da instância.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "model é usado como molde para bancos novos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "msdb, que armazena trabalhos, agendas e alertas do SQL Server Agent.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "tempdb, que contém objetos temporários criados durante o trabalho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Resource, que fornece objetos de sistema em modo de leitura.",
+          "correct": false
+        }
+      ],
+      "explanation": "O banco model é usado como molde de novos bancos, e certas opções nele são herdadas por bancos criados depois. Os demais bancos de sistema têm finalidades distintas, não essa função de template.",
+      "section": "1. Instância, Database Engine e bancos de sistema",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual banco de sistema é usado pelo SQL Server Agent para armazenar informações de trabalhos e agendas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "master, onde ficam informações sobre a instância e seus bancos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "model, empregado como base na criação de bancos futuros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "msdb atende trabalhos e agendas do Agent.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "tempdb, que recebe tabelas temporárias e resultados intermediários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Resource, que armazena objetos de sistema em formato somente leitura.",
+          "correct": false
+        }
+      ],
+      "explanation": "msdb é utilizado pelo SQL Server Agent para informações como trabalhos, agendas e alertas. Não é o banco de negócio; master, model, tempdb e Resource exercem outras funções de sistema.",
+      "section": "1. Instância, Database Engine e bancos de sistema",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta precisa de objetos temporários e resultados intermediários criados durante a execução. Qual banco do SQL Server atende esse uso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "master, pois reúne os registros de bancos da instância.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "model, pois é copiado como ponto de partida de novos bancos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "msdb, pois mantém informações usadas pelo Agent.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "tempdb é a área de trabalho temporária do mecanismo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Resource, pois apresenta objetos internos do sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "tempdb é o espaço de trabalho do Database Engine para objetos temporários e resultados intermediários, além de outras estruturas transitórias. Ele não deve ser escolhido como armazenamento permanente da aplicação.",
+      "section": "1. Instância, Database Engine e bancos de sistema",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição caracteriza corretamente uma instância do SQL Server?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É um único arquivo de log vinculado obrigatoriamente a cada aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ambiente do Database Engine que administra bancos e configurações.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "É um schema reservado que contém todas as tabelas de usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É um backup integral que pode ser montado como servidor ativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É uma tabela de catálogo que lista as transações pendentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma instância representa um ambiente do Database Engine, com configuração e bancos próprios, capaz de administrar diversos bancos. Não se reduz a arquivo, schema, backup ou tabela de catálogo.",
+      "section": "1. Instância, Database Engine e bancos de sistema",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que significa dizer que um login foi mapeado para um usuário em um banco de usuário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A identidade da instância ganhou um principal nesse banco.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Que todos os usuários da instância receberam acesso irrestrito ao banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que o banco foi convertido em uma nova instância independente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que o SQL Server transferiu o login para o banco tempdb.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Que a autenticação foi substituída pela execução de um backup full.",
+          "correct": false
+        }
+      ],
+      "explanation": "O login é principal da instância e pode ser mapeado a um user no banco, que é o principal no escopo daquele banco. Esse mapeamento não concede automaticamente todas as permissões sobre seus objetos.",
+      "section": "1. Instância, Database Engine e bancos de sistema",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SQL Server, os objetos internos do banco Resource são fisicamente armazenados nesse banco, que é somente leitura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O banco Resource é somente leitura e guarda fisicamente objetos de sistema que aparecem logicamente nos esquemas do sistema dos bancos. Ele não é o molde de novos bancos nem a área temporária.",
+      "section": "1. Instância, Database Engine e bancos de sistema",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A execução de GO no SSMS é uma instrução T-SQL enviada ao Database Engine e confirma a transação aberta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. GO é reconhecido pelo cliente como separador de batches e não é executado pelo Database Engine. Também não confirma uma transação; para isso usa-se COMMIT.",
+      "section": "2. Arquivos, grupos de arquivos e Transact-SQL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela do SQL Server pode ter vários índices clustered independentes, cada um organizando suas páginas de dados por uma chave diferente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A tabela pode ter um índice clustered, porque a organização das páginas de dados não pode seguir simultaneamente várias chaves clustered. É possível criar estruturas nonclustered adicionais.",
+      "section": "3. Consultas, índices, transações e concorrência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Com READ UNCOMMITTED, uma sessão pode ler alterações feitas por outra transação antes de essa transação confirmar suas mudanças.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. READ UNCOMMITTED permite leitura suja: a sessão pode observar dados ainda não confirmados, que podem ser alterados novamente ou revertidos pela outra transação.",
+      "section": "3. Consultas, índices, transações e concorrência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O modelo de recuperação SIMPLE permite criar backups regulares do log de transações para restaurar o banco a qualquer segundo coberto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. SIMPLE não oferece backup do log nem restauração point-in-time por cadeia de logs. A recuperação é limitada ao fim de backups de dados disponíveis, como full ou diferencial.",
+      "section": "4. Segurança, backup e recuperação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma sequência de restauração, um backup diferencial depende do backup full que serve como sua base diferencial.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O diferencial contém mudanças desde o full-base mais recente. Por isso, para restaurá-lo, aplica-se primeiro esse backup full e então o diferencial compatível.",
+      "section": "4. Segurança, backup e recuperação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de restaurar um backup intermediário com WITH RECOVERY, a cadeia permanece aberta para aplicar backups de log posteriores normalmente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. WITH RECOVERY finaliza a sequência e deixa o banco disponível; não se aplicam logs posteriores nessa sequência. Mantenha NORECOVERY até restaurar o último backup necessário.",
+      "section": "4. Segurança, backup e recuperação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O login é um principal de nível da instância, enquanto o usuário é um principal associado ao acesso dentro de um banco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O login participa da autenticação na instância; para acesso ao banco, costuma ser mapeado a um usuário, a quem permissões podem ser concedidas diretamente ou por roles.",
+      "section": "4. Segurança, backup e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O modelo FULL, por si só, cria uma cadeia completa de backups de log assim que é selecionado no banco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Selecionar FULL não cria backups nem inicia sozinho a cadeia. É preciso fazer backup de dados para iniciá-la e programar backups regulares do log para sustentar a recuperação planejada.",
+      "section": "4. Segurança, backup e recuperação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "READ COMMITTED, nível padrão do Database Engine, impede leitura de dados ainda não confirmados por outra transação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. READ COMMITTED não permite leitura suja. A opção READ_COMMITTED_SNAPSHOT pode fazer o mecanismo usar versões de linha para leituras, mas o princípio de não ler mudanças não confirmadas permanece.",
+      "section": "3. Consultas, índices, transações e concorrência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um filegroup do SQL Server agrupa arquivos de log para que as tabelas sejam alocadas diretamente neles.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Filegroups agrupam arquivos de dados. O log é mantido em arquivo próprio de transações, e os filegroups não são contêineres de arquivos de log.",
+      "section": "2. Arquivos, grupos de arquivos e Transact-SQL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O modelo model pode influenciar opções herdadas por bancos criados futuramente na mesma instância.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O SQL Server usa model como base na criação de novos bancos, e configurações como collation e recovery model podem ser herdadas. Alterar model não muda automaticamente todos os bancos existentes.",
+      "section": "1. Instância, Database Engine e bancos de sistema",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sessão com NOLOCK sempre recebe uma fotografia consistente dos dados confirmados no instante de início da consulta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. NOLOCK permite leitura não confirmada e não fornece fotografia consistente. A consulta pode observar dados posteriormente revertidos ou resultados afetados por alterações concorrentes.",
+      "section": "3. Consultas, índices, transações e concorrência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se não houver backups regulares do log em uma base FULL, o arquivo de log pode continuar crescendo e ocupar o espaço disponível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. No modelo FULL, o log continua acumulando registros até que backups de log permitam truncar a parte inativa. Sem rotina de backup e monitoramento, o arquivo pode crescer até faltar espaço.",
+      "section": "4. Segurança, backup e recuperação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela pode ter muitos índices nonclustered, embora cada estrutura adicional exija armazenamento e manutenção nas alterações de dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O SQL Server permite múltiplos índices nonclustered. Eles podem favorecer consultas, mas aumentam espaço e o trabalho exigido em operações de inserção, atualização e exclusão.",
+      "section": "3. Consultas, índices, transações e concorrência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual arquivo contém informações usadas pelo Database Engine para recuperar transações do banco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O log de transações, normalmente com extensão LDF.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O arquivo de dados primário, usualmente identificado pela extensão MDF.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um arquivo de dados secundário, frequentemente identificado como NDF.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um arquivo de backup full, com extensão convencional BAK.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um arquivo de script, separado do banco pela ferramenta SSMS.",
+          "correct": false
+        }
+      ],
+      "explanation": "O log de transações registra informações necessárias à recuperação do banco e costuma usar a extensão LDF. MDF e NDF são extensões usuais de dados; arquivo de backup não é o log ativo.",
+      "section": "2. Arquivos, grupos de arquivos e Transact-SQL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em relação a um banco SQL Server, o que a extensão usual MDF indica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Arquivo primário de dados, com metadados de inicialização.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um arquivo de log que guarda registros para recuperação de transações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um backup diferencial dependente do full-base mais recente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um arquivo temporário criado exclusivamente dentro de tempdb.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um arquivo de configuração de login armazenado fora da instância.",
+          "correct": false
+        }
+      ],
+      "explanation": "MDF é a extensão convencional do arquivo primário de dados. Ele contém informações de inicialização e referências aos demais arquivos do banco; a extensão não o transforma em backup ou log.",
+      "section": "2. Arquivos, grupos de arquivos e Transact-SQL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que efeito tem criar diversos índices nonclustered sem considerar o padrão de consulta e de escrita?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pode aumentar armazenamento e custo de manutenção em INSERT, UPDATE e DELETE.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Garante que o otimizador escolha sempre um índice em cada instrução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substitui o log de transações e permite recuperar dados sem backup.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converte automaticamente todos os dados da tabela para formato columnstore.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Impede que usuários concorrentes obtenham bloqueios nas mesmas linhas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada índice adicional ocupa espaço e precisa ser mantido quando os dados relevantes mudam. O benefício depende das consultas e do plano escolhido; índices não substituem logs, backups ou mecanismos de concorrência.",
+      "section": "3. Consultas, índices, transações e concorrência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação diferencia corretamente clustered e nonclustered em uma tabela SQL Server?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Clustered organiza os dados; nonclustered guarda chaves e localizadores.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Clustered só pode existir em tempdb; nonclustered só existe em msdb.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Clustered armazena cópias de backup; nonclustered mantém arquivos de log.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Clustered é sempre temporário; nonclustered é sempre uma chave estrangeira.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Clustered controla autenticação; nonclustered concede permissões sobre schemas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O índice clustered define a organização das páginas de dados da tabela; o nonclustered é uma estrutura separada com chaves e localizadores. As demais alternativas atribuem aos índices papéis de bancos, backup ou segurança.",
+      "section": "3. Consultas, índices, transações e concorrência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa permitir recuperação até um ponto no tempo coberto por backups de log. Qual modelo é compatível com esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "FULL permite recuperação pontual com a cadeia de log íntegra.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SIMPLE, pois ele mantém todos os logs históricos sem backup.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SIMPLE, desde que o arquivo tempdb seja copiado a cada consulta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "BULK_LOGGED, que sempre permite recuperar qualquer instante interno ao log.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "model, pois ele armazena versões temporais de todos os bancos criados.",
+          "correct": false
+        }
+      ],
+      "explanation": "FULL permite recuperação point-in-time quando backups e cadeia de log necessários estão disponíveis. SIMPLE não oferece restauração por cadeia de logs; BULK_LOGGED pode impedir o ponto exato em backups com operações minimamente registradas.",
+      "section": "4. Segurança, backup e recuperação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância autentica o login de uma funcionária, mas ela não consegue consultar uma tabela do banco de vendas. Qual ajuste conceitual pode estar faltando?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mapear o login a um usuário e conceder a permissão necessária.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Copiar o login para tempdb e alterar o modelo de recuperação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Restaurar um backup diferencial para transformar a conta em usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar outro índice clustered, que autentica usuários da tabela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar GO depois de cada SELECT para habilitar autorização automática.",
+          "correct": false
+        }
+      ],
+      "explanation": "Autenticar na instância e autorizar acesso a objetos são etapas diferentes. O login precisa estar representado por usuário no banco e receber permissão apropriada, diretamente ou por role.",
+      "section": "4. Segurança, backup e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual estratégia descreve corretamente a restauração de um full, um diferencial e backups de log subsequentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar full-base, diferencial e logs em ordem; finalizar com RECOVERY.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Restaurar o diferencial primeiro, depois o full e aplicar os logs em qualquer ordem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar os logs antes do full, usar RECOVERY em todos e encerrar no diferencial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Restaurar apenas o backup de log mais recente, pois ele contém todo o banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar primeiro o full e apagar os backups diferenciais para liberar a cadeia.",
+          "correct": false
+        }
+      ],
+      "explanation": "O diferencial depende de seu full-base, e os logs subsequentes devem seguir em ordem cronológica. Restaurações intermediárias ficam em NORECOVERY; RECOVERY só é usado depois do último backup a aplicar.",
+      "section": "4. Segurança, backup e recuperação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o efeito prático de NORECOVERY ao restaurar uma etapa intermediária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mantém o banco indisponível para receber os próximos backups da sequência.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Torna o banco imediatamente disponível e encerra a cadeia de restauração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apaga o backup full-base e inicia uma nova cadeia vazia de logs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converte o modelo SIMPLE em FULL sem configurar backups posteriores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reverte qualquer mudança de esquema feita depois do backup inicial.",
+          "correct": false
+        }
+      ],
+      "explanation": "NORECOVERY deixa o banco não operacional e permite aplicar outro diferencial ou log. A recuperação final ocorre depois da última etapa; RECOVERY disponibiliza o banco e fecha aquela sequência.",
+      "section": "4. Segurança, backup e recuperação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ação é mais diretamente associada à autenticação do SQL Server?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Validar quem tenta conectar à instância.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Definir quais linhas uma consulta pode retornar em cada tabela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escolher o índice utilizado por cada plano de execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Decidir a ordem em que backups diferenciais serão restaurados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Agrupar arquivos de dados dentro de filegroups do banco.",
+          "correct": false
+        }
+      ],
+      "explanation": "Autenticação verifica quem está tentando se conectar. Autorização decide o que a identidade pode fazer, como consultar tabelas; índices, backups e filegroups tratam de outras funções.",
+      "section": "4. Segurança, backup e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe busca agrupar permissões de consulta para vários usuários do banco. Que recurso de segurança atende diretamente a essa organização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma role de banco agrupa usuários e permissões.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um filegroup, que reúne permissões de consulta e identidade da instância.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um backup full, que concede acesso enquanto a restauração está ativa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma sessão tempdb, que representa os membros da equipe temporariamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um índice clustered, que controla privilégios sobre todas as tabelas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Roles agrupam membros e permissões dentro do escopo correspondente. Um filegroup organiza arquivos de dados; backup, tempdb e índices não substituem os mecanismos de autorização.",
+      "section": "4. Segurança, backup e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário mostra o uso apropriado de tempdb?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma consulta cria tabela temporária para processar resultados na sessão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma aplicação guarda permanentemente o cadastro oficial de clientes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O administrador registra os logins usados por todas as instâncias.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A equipe guarda o molde padrão de todos os bancos futuros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O SQL Server Agent armazena agendas e alertas de seus trabalhos.",
+          "correct": false
+        }
+      ],
+      "explanation": "tempdb serve como espaço de trabalho para objetos temporários e resultados intermediários. Dados permanentes pertencem a bancos de usuário; logins, molde e informações do Agent ficam associados a outros bancos de sistema.",
+      "section": "1. Instância, Database Engine e bancos de sistema",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela tem chave clustered e índices auxiliares para consultas por outras colunas. Qual afirmação sobre esses índices auxiliares é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Eles podem ser nonclustered e manter localizadores para encontrar linhas da tabela.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Eles precisam ser novos índices clustered para organizar a tabela simultaneamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eles substituem os arquivos de dados e armazenam cópias de backup do banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eles só podem existir no banco model, pois são herdados de novos bancos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eles eliminam toda manutenção de índice necessária em UPDATE e DELETE.",
+          "correct": false
+        }
+      ],
+      "explanation": "Índices nonclustered mantêm uma estrutura separada de chaves e localizadores, possibilitando buscar linhas por outras colunas. Eles não criam outra organização clustered nem removem custos de manutenção.",
+      "section": "3. Consultas, índices, transações e concorrência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comportamento se espera de uma transação confirmada com COMMIT?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "COMMIT confirma as mudanças da transação no banco.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O cliente encerra o batch corrente sem enviar suas instruções.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O banco restaura automaticamente o último backup diferencial disponível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O Database Engine move todas as tabelas para o banco msdb.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O SQL Server descarta todos os índices nonclustered da tabela alterada.",
+          "correct": false
+        }
+      ],
+      "explanation": "COMMIT confirma as mudanças feitas pela transação. GO separa batches no cliente; backup, bancos de sistema e índices não são a função de confirmação transacional.",
+      "section": "2. Arquivos, grupos de arquivos e Transact-SQL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que nível de isolamento do SQL Server é conhecido por impedir leitura suja, sendo o padrão do mecanismo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "READ COMMITTED impede ler alterações ainda não confirmadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "READ UNCOMMITTED, que admite leitura de dados não confirmados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "NOLOCK, que garante uma fotografia serializável dos dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SIMPLE, que define a retenção de bloqueios durante consultas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "BULK_LOGGED, que escolhe o isolamento das sessões conectadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "READ COMMITTED é o nível padrão do Database Engine e não permite leitura suja. READ UNCOMMITTED permite; SIMPLE e BULK_LOGGED são modelos de recuperação, não níveis de isolamento.",
+      "section": "3. Consultas, índices, transações e concorrência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe executa grande carga de dados e considera BULK_LOGGED. Qual característica deve ser considerada ao avaliar a recuperação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Operações minimamente registradas podem impedir recuperação a um ponto dentro daquele backup de log.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O modelo não permite qualquer backup de log durante a carga em massa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O modelo remove o arquivo de dados primário assim que o lote termina.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O modelo concede permissão de administrador a todos os logins da instância.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O modelo transforma cada backup diferencial em uma cópia full independente.",
+          "correct": false
+        }
+      ],
+      "explanation": "BULK_LOGGED permite registro mínimo para certas operações em massa. Backup de log continua previsto, mas um backup que inclua operações minimamente registradas pode limitar a recuperação point-in-time dentro dele.",
+      "section": "4. Segurança, backup e recuperação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual providência reduz o risco de que uma falha do mesmo disco destrua tanto os arquivos ativos quanto as cópias de segurança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazenar backups em dispositivo ou local físico separado dos arquivos do banco.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Colocar backup full e banco ativo no mesmo diretório tempdb.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar um segundo índice clustered no disco que contém o arquivo MDF.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o recovery model para SIMPLE e dispensar cópias externas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter o backup somente como tabela temporária no banco de usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Guardar cópias em outro dispositivo ou local físico reduz o risco comum de falha de armazenamento destruir origem e backup. Um modelo de recuperação não substitui cópias acessíveis e testadas.",
+      "section": "4. Segurança, backup e recuperação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta precisa conservar as linhas lidas até o fim da transação e também impedir linhas-fantasma no intervalo consultado. Qual nível oferece o isolamento mais forte entre estes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SERIALIZABLE, com bloqueios de intervalo para proteger o conjunto lido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "READ UNCOMMITTED, que não impede sequer leitura suja.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "READ COMMITTED, que libera bloqueios de leitura após cada operação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SIMPLE, que controla a retenção de linhas durante transações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "BULK_LOGGED, que define bloqueios de intervalo para consultas analíticas.",
+          "correct": false
+        }
+      ],
+      "explanation": "SERIALIZABLE usa bloqueios de intervalo para impedir inserções que criariam linhas-fantasma no conjunto protegido. SIMPLE e BULK_LOGGED tratam de recuperação, e os níveis mais baixos não oferecem essa proteção de intervalo.",
+      "section": "3. Consultas, índices, transações e concorrência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve a finalidade típica de um índice columnstore em SQL Server?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazenar dados por coluna para favorecer consultas analíticas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Guardar o histórico de logins e trabalhos do SQL Server Agent.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir a autenticação do Windows por usuários de banco contidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter os arquivos de backup diferencial em grupos de arquivos temporários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Garantir a execução de todo plano sem avaliar estatísticas ou predicados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Columnstore armazena dados em formato orientado a colunas e é útil em cenários analíticos, especialmente para leitura e agregação de grandes conjuntos. Não controla Agent, segurança nem sequência de backups.",
+      "section": "3. Consultas, índices, transações e concorrência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é uma consequência de restaurar o banco com RECOVERY antes de aplicar todos os logs necessários?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A sequência é finalizada e logs posteriores não podem ser aplicados nessa mesma etapa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O SQL Server restaura automaticamente os logs que faltam a partir da memória.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O modelo de recuperação muda para BULK_LOGGED e refaz os backups ausentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A sessão recebe acesso permanente como membro de sysadmin.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O backup diferencial é recalculado com base no banco já recuperado.",
+          "correct": false
+        }
+      ],
+      "explanation": "RECOVERY deixa o banco disponível e conclui a sequência de restauração. Se ainda forem necessários logs, será preciso reiniciar a restauração desde o full-base para aplicá-los corretamente.",
+      "section": "4. Segurança, backup e recuperação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador deseja consultar bancos registrados na instância utilizando uma visão de catálogo. Qual objeto atende esse propósito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "sys.databases, que apresenta metadados de bancos visíveis à sessão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "tempdb.dbo.master, que armazena cópias de todos os logins.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "msdb.sys.clustered, que define a organização física de todos os bancos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "model.dbo.restore, que lista somente arquivos diferenciais disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Resource.dbo.users, que concede acesso a qualquer banco da instância.",
+          "correct": false
+        }
+      ],
+      "explanation": "A visão de catálogo sys.databases permite consultar metadados de bancos conhecidos pela instância, respeitadas as permissões de visibilidade. As demais alternativas não correspondem a esses objetos ou funções.",
+      "section": "1. Instância, Database Engine e bancos de sistema",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela temporária criada para apoiar o processamento de uma sessão deve ser entendida como dado permanente de negócio após o reinício do serviço.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não; tempdb é transitório e é recriado na inicialização do Database Engine.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Sim; tempdb é o banco permanente destinado a todos os cadastros da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sim; cada tabela temporária é automaticamente replicada para master.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não; toda tabela temporária é armazenada no banco Resource somente leitura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim; msdb copia cada objeto temporário para uso por novos bancos.",
+          "correct": false
+        }
+      ],
+      "explanation": "tempdb é transitório e recriado quando o serviço inicia. Tabelas temporárias e resultados intermediários não substituem o armazenamento persistente em banco de usuário.",
+      "section": "1. Instância, Database Engine e bancos de sistema",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre a restauração de um backup diferencial está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele se aplica ao full que constitui sua base diferencial, não a qualquer full arbitrário.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ele contém obrigatoriamente cada transação de log desde a criação do banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele dispensa o full-base porque funciona sempre como backup integral autônomo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele é restaurado antes do full para reconstruir a base por comparação reversa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele só pode ser aplicado depois que o banco já recebeu WITH RECOVERY.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um diferencial contém mudanças desde seu full-base e precisa ser aplicado sobre esse backup full. Ele não é uma cópia integral independente nem substitui a ordem correta de restauração.",
+      "section": "4. Segurança, backup e recuperação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que torna o modelo de recuperação BULK_LOGGED diferente do FULL durante operações aplicáveis em massa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele admite registro mínimo para certas operações e pode limitar recuperação pontual em seu log.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ele impede backups de log e recupera apenas até o último backup diferencial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele mantém cada alteração em tempdb até que a aplicação faça commit.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele converte automaticamente qualquer índice rowstore em índice clustered.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele armazena identidades e senhas de usuários diretamente no modelo model.",
+          "correct": false
+        }
+      ],
+      "explanation": "BULK_LOGGED é uma variante do FULL que permite registro mínimo em determinadas operações em massa. Os backups de log continuam relevantes, mas podem não permitir um ponto no tempo dentro do backup que contém essas operações.",
+      "section": "4. Segurança, backup e recuperação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe considera habilitar READ_COMMITTED_SNAPSHOT no banco. Qual mudança conceitual está associada a essa opção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Leituras em READ COMMITTED podem usar versões de linha em vez de bloqueios compartilhados tradicionais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Toda sessão passa a usar READ UNCOMMITTED e pode ler dados sujos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Backups diferenciais passam a conter automaticamente todos os logs da cadeia.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Logins são convertidos em usuários contidos sem mapeamento no banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O índice clustered é removido e substituído por uma cópia columnstore.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com READ_COMMITTED_SNAPSHOT ligado, leituras em READ COMMITTED usam versionamento de linha em vez do comportamento padrão de bloqueios compartilhados. Isso não muda a regra de não ler dados não confirmados.",
+      "section": "3. Consultas, índices, transações e concorrência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração de transação deve ser desfeita antes de ser confirmada. Qual instrução T-SQL expressa esse encerramento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ROLLBACK TRANSACTION, que reverte o trabalho transacional ainda reversível.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "GO, que confirma a transação e inicia automaticamente outro nível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "BACKUP DATABASE, que apaga as mudanças feitas após o último full.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CREATE INDEX, que restaura os dados antes do início da sessão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ALTER ROLE, que reverte apenas os comandos DML da transação.",
+          "correct": false
+        }
+      ],
+      "explanation": "ROLLBACK TRANSACTION solicita a reversão do trabalho ainda reversível da transação. GO só separa batches, BACKUP cria cópia e CREATE INDEX ou ALTER ROLE não são instruções de rollback.",
+      "section": "2. Arquivos, grupos de arquivos e Transact-SQL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição de um backup full de banco SQL Server é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Representa os dados do banco no momento em que o backup terminou.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Contém apenas as extensões alteradas desde o último backup full.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazena somente log posterior ao último backup diferencial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É uma tabela temporária localizada em tempdb e removida ao reiniciar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É uma estrutura de índice mantida pelo Database Engine para consultas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um backup full de banco contém os dados do banco no estado em que o backup foi concluído, além de informações necessárias à recuperação. Diferenciais registram alterações desde o full-base.",
+      "section": "4. Segurança, backup e recuperação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual problema pode surgir ao manter transações abertas por tempo prolongado em um banco concorrente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Recursos e bloqueios podem ficar retidos, aumentando espera e impacto sobre outras sessões.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O modelo de recuperação muda automaticamente para SIMPLE ao atingir certo tempo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O SQL Server elimina o login que abriu a transação e apaga seus usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Todos os índices nonclustered são promovidos a índices clustered paralelos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O banco model replica a transação para cada novo banco da instância.",
+          "correct": false
+        }
+      ],
+      "explanation": "Transações longas podem manter locks e outros recursos por mais tempo, aumentando contenção e espera para sessões concorrentes. A duração não altera automaticamente o recovery model ou a estrutura de segurança.",
+      "section": "3. Consultas, índices, transações e concorrência",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para iniciar uma cadeia de backups de log após mudar uma base de SIMPLE para FULL, que providência é necessária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Realizar backup full ou diferencial de dados e depois programar backups regulares do log.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar somente GO e reiniciar o cliente para gerar os primeiros logs.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar um novo índice clustered e aguardar que ele copie o log antigo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar o banco model, que replica a cadeia para bancos já existentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Restaurar tempdb com RECOVERY para converter os registros em backups.",
+          "correct": false
+        }
+      ],
+      "explanation": "Depois da troca para FULL, um backup de dados apropriado inicia a cadeia de log; em seguida são necessários backups regulares do log. Apenas mudar a opção não cria cópias nem cadeia restaurável.",
+      "section": "4. Segurança, backup e recuperação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa manter objetos compartilhados organizados e aplicar permissões em conjunto. Que objeto SQL Server ajuda a organizar esses objetos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um schema, que funciona como contêiner lógico de objetos dentro do banco.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma instância, que é uma tabela física dentro de cada banco de usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um filegroup, que é um grupo de logins autenticados na instância.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um backup diferencial, que reúne tabelas por proprietário e permissão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um batch GO, que cria automaticamente permissões para todos os objetos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Schemas organizam objetos dentro de um banco e podem servir como escopo para permissões. Instância, filegroup, backup e separador de batch não são contêineres lógicos de objetos com esse papel.",
+      "section": "1. Instância, Database Engine e bancos de sistema",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual risco está associado a permissões concedidas além do necessário a um login e aos usuários mapeados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A identidade pode executar ações excessivas caso suas credenciais sejam usadas indevidamente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O banco model deixa de funcionar como molde de bancos novos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os arquivos MDF e LDF deixam de possuir extensões convencionais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O backup full passa a depender de um índice clustered da conta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O SQL Server passa a ignorar qualquer instrução T-SQL enviada pela sessão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Menor privilégio reduz o impacto de credenciais comprometidas ou erros de operação, pois a identidade só tem as permissões necessárias. Permissões não mudam papéis de bancos, arquivos ou backups.",
+      "section": "4. Segurança, backup e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que acontece com os objetos temporários de tempdb quando o serviço SQL Server é reiniciado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "tempdb é recriado na inicialização e não guarda dados permanentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "tempdb é convertido em master e conserva todas as tabelas temporárias.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "tempdb é restaurado do último backup full de cada banco de usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "tempdb transfere suas tabelas para msdb antes de parar o serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "tempdb mantém permanentemente seus objetos por estar em modo somente leitura.",
+          "correct": false
+        }
+      ],
+      "explanation": "tempdb é recriado quando o Database Engine inicia. Assim, objetos temporários que estavam nele não são armazenamento persistente e devem ser reconstruídos conforme a necessidade da aplicação.",
+      "section": "1. Instância, Database Engine e bancos de sistema",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa apresenta uma consequência verdadeira de escolher a chave de um índice clustered?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sua organização afeta a tabela e pode repercutir nos localizadores de índices nonclustered.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A chave é usada apenas para autenticar logins e não interfere na organização dos dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A chave define o recovery model e a periodicidade de backups de log do banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A chave determina qual banco de sistema armazenará os objetos temporários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A chave torna desnecessários backups e índices adicionais para outras consultas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O clustered organiza as páginas de dados e sua chave é relevante para a estrutura da tabela; localizadores usados por índices nonclustered podem incorporar essa chave. Ela não controla autenticação ou recuperação.",
+      "section": "3. Consultas, índices, transações e concorrência",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve o papel de um banco de usuário em uma instância do SQL Server?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Banco destinado aos objetos e dados de uma aplicação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É o único banco permitido por instância e substitui master e tempdb.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É um arquivo de log que contém somente os registros de recuperação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É o cliente que interpreta GO e envia batches ao Database Engine.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É uma role fixa que concede privilégios de servidor a qualquer login.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bancos de usuário armazenam objetos e dados das aplicações. Uma instância também contém bancos de sistema e pode hospedar vários bancos; arquivos, clientes e roles são conceitos diferentes.",
+      "section": "1. Instância, Database Engine e bancos de sistema",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para que o SQL Server mantém registros no log de transações além de armazenar páginas de dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para apoiar a recuperação e a consistência das transações do banco.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Para guardar a lista de logins e substituir o banco master da instância.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para conter exclusivamente os resultados temporários de todas as consultas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para agrupar filegroups e conceder permissões a usuários de banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para armazenar cópias completas de todos os backups diferenciais existentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O log registra informação necessária ao processamento e à recuperação de transações. Não substitui master, tempdb, filegroups ou arquivos de backup, que exercem finalidades próprias.",
+      "section": "2. Arquivos, grupos de arquivos e Transact-SQL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em T-SQL, um bloco TRY...CATCH pode atravessar o limite entre dois batches separados por GO.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. TRY...CATCH não pode atravessar batches, portanto GO entre o início do TRY e o CATCH separaria o bloco. O CATCH deve seguir imediatamente o END TRY no mesmo batch.",
+      "section": "2. Arquivos, grupos de arquivos e Transact-SQL",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "System Databases",
+      "publisher": "Microsoft Learn",
+      "reference": "Funções de master, msdb, model, Resource e tempdb.",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/databases/system-databases?view=sql-server-ver17",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Database Files and Filegroups",
+      "publisher": "Microsoft Learn",
+      "reference": "Arquivos de dados primários e secundários, log de transações e filegroups.",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/databases/database-files-and-filegroups?view=sql-server-ver17",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Transaction Locking and Row Versioning Guide",
+      "publisher": "Microsoft Learn",
+      "reference": "Níveis de isolamento, bloqueios e versionamento de linhas no Database Engine.",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/sql-server-transaction-locking-and-row-versioning-guide?view=sql-server-ver17",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Security for SQL Server Database Engine and Azure SQL Database",
+      "publisher": "Microsoft Learn",
+      "reference": "Autenticação, autorização, principais de segurança e permissões.",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/security",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Get Started with Database Engine Permissions",
+      "publisher": "Microsoft Learn",
+      "reference": "Diferença entre logins, usuários, roles e permissões no SQL Server.",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/security/authentication-access/getting-started-with-database-engine-permissions?view=sql-server-ver16",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Recovery Models (SQL Server)",
+      "publisher": "Microsoft Learn",
+      "reference": "Modelos SIMPLE, FULL e BULK_LOGGED e seus impactos em backup e recuperação.",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/backup-restore/recovery-models-sql-server?view=sql-server-ver17",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Backup overview (SQL Server)",
+      "publisher": "Microsoft Learn",
+      "reference": "Tipos de backup full, diferencial e de log e conceitos de restauração.",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/backup-restore/backup-overview-sql-server?view=sql-server-ver17",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apply Transaction Log Backups (SQL Server)",
+      "publisher": "Microsoft Learn",
+      "reference": "Requisitos e ordem cronológica para aplicar backups de log em uma restauração.",
+      "url": "https://learn.microsoft.com/en-us/sql/relational-databases/backup-restore/apply-transaction-log-backups-sql-server?view=sql-server-ver17",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "TRY...CATCH (Transact-SQL)",
+      "publisher": "Microsoft Learn",
+      "reference": "Tratamento de erros de execução com blocos TRY e CATCH em T-SQL.",
+      "url": "https://learn.microsoft.com/en-us/sql/t-sql/language-elements/try-catch-transact-sql?view=sql-server-ver17",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

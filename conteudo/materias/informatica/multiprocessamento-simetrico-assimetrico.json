@@ -1,0 +1,3109 @@
+{
+  "id": "informatica.multiprocessamento-simetrico-assimetrico",
+  "subject": "Informática",
+  "title": "Multiprocessamento simétrico e assimétrico",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Multiprocessamento simétrico e assimétrico",
+    "Multiprocessamento simétrico",
+    "Multiprocessamento assimétrico",
+    "SMP e AMP em sistemas operacionais",
+    "Arquiteturas SMP e AMP",
+    "Sistemas multiprocessados simétricos",
+    "Sistemas multiprocessados assimétricos",
+    "Processamento paralelo em SMP e AMP",
+    "Organização de múltiplos processadores",
+    "Processadores mestre e escravos",
+    "Memória compartilhada em SMP",
+    "Escalonamento em multiprocessadores",
+    "Concorrência entre processadores",
+    "Arquitetura de multiprocessamento"
+  ],
+  "scope": {
+    "covers": "Multiprocessamento simétrico (SMP) e assimétrico (AMP) no contexto de sistemas operacionais: organização dos processadores, memória e sistema operacional, distribuição de tarefas, papéis de mestre e processadores subordinados em modelos AMP, compartilhamento de recursos, paralelismo, escalonamento, comunicação e sincronização, vantagens, limitações, contenção e exemplos de uso.",
+    "excludes": "Detalhes elétricos de barramentos e caches, topologias NUMA e MPP em profundidade, implementação de escalonadores de sistemas operacionais específicos, programação paralela avançada e comparação entre fabricantes de processadores."
+  },
+  "theoryTitle": "Organização de processadores em SMP e AMP",
+  "chapters": [
+    {
+      "title": "1. O que significa multiprocessar",
+      "markdown": "### O problema que este assunto resolve\n\nUm computador com mais de um processador pode executar mais de uma sequência de instruções ao mesmo tempo. Isso é **multiprocessamento**: o sistema operacional (SO) distribui processos ou threads entre unidades de processamento disponíveis. O ganho depende de haver tarefas que possam avançar em paralelo e de o sistema conseguir coordená-las. Ter quatro processadores não torna automaticamente uma tarefa quatro vezes mais rápida: partes sequenciais, espera por entrada e saída e disputa por recursos limitam o ganho.\n\n> **Siglas e termos deste capítulo**\n> - **CPU/processador**: unidade que executa instruções; em descrições clássicas pode designar um processador físico.\n> - **Núcleo (core)**: unidade de execução dentro de um chip; vários núcleos podem implementar processamento simultâneo.\n> - **Processo**: programa em execução com recursos e estado próprios.\n> - **Thread**: fluxo de execução que pertence a um processo; threads do mesmo processo podem compartilhar memória.\n> - **SO**: sistema operacional, que controla processadores, memória e dispositivos.\n> - **Paralelismo**: execução efetivamente simultânea em mais de uma unidade; concorrência também pode ocorrer por alternância rápida em uma só unidade.\n\n### Classificação principal: quem controla os processadores\n\nA diferença cobrada entre **multiprocessamento simétrico** e **assimétrico** é a organização do controle e da atribuição de trabalho. No **SMP** (*symmetric multiprocessing*), os processadores são pares em termos de capacidade de executar tarefas do sistema: um SO comum gerencia o conjunto e pode escalonar trabalho em qualquer processador disponível. No modelo **AMP** (*asymmetric multiprocessing*), há uma divisão explícita de papéis: um processador mestre coordena ou distribui trabalho e os demais recebem funções ou tarefas determinadas.\n\n| Aspecto | SMP (simétrico) | AMP (assimétrico) |\n| --- | --- | --- |\n| Papel das CPUs | Pares para executar o trabalho do sistema | Papéis diferenciados, frequentemente mestre e subordinados |\n| Controle | SO comum distribui tarefas entre os processadores | Um controlador central pode atribuir trabalho aos demais |\n| Atribuição | Pode ser dinâmica, conforme carga e disponibilidade | Pode ser fixa por função ou dirigida pelo mestre |\n| Falha do controlador | Não há necessariamente um único processador controlador | Mestre pode ser ponto crítico, conforme o desenho |\n| Exemplo didático | Vários processadores atendem tarefas sob o mesmo SO | Mestre trata controle e delega tarefa específica a outro |\n\nAs palavras “simétrico” e “assimétrico” descrevem a relação e a distribuição de responsabilidades; não afirmam que cada processador tenha necessariamente frequência, cache ou desempenho físico idêntico. Configurações reais variam.\n\n### Não confunda multiprocessamento com multitarefa\n\nUm sistema com uma única CPU pode manter muitas tarefas concorrentes alternando rapidamente entre elas, sem que duas instruções sejam executadas simultaneamente. Em multiprocessamento, múltiplos processadores podem executar fluxos diferentes ao mesmo tempo. Um sistema SMP pode executar código do núcleo do SO em mais de um processador, desde que as estruturas compartilhadas sejam protegidas corretamente.\n\n### Como cai na prova\n\n- Se o enunciado destaca um único SO e processadores pares que podem executar tarefas diversas, pense em SMP.\n- Se aponta um processador mestre que controla e delega funções aos demais, o cenário é AMP.\n- A presença de vários processadores amplia a capacidade potencial, mas não garante aceleração proporcional para qualquer programa."
+    },
+    {
+      "title": "2. Multiprocessamento simétrico (SMP)",
+      "markdown": "### O problema que este assunto resolve\n\nNo SMP (*symmetric multiprocessing*), vários processadores compartilham recursos do sistema, especialmente memória principal, e operam sob um único sistema operacional. O SO pode executar e escalonar tarefas em qualquer processador; não há, na definição clássica, uma CPU permanentemente reservada como mestre para todo o trabalho do sistema. A documentação técnica da IBM descreve o SMP com processadores que se comunicam por memória compartilhada e usam um único sistema operacional.\n\n> **Siglas e termos deste capítulo**\n> - **Memória compartilhada**: região de memória acessível por mais de um processador.\n> - **Escalonador**: componente do SO que escolhe qual tarefa executa e em qual CPU disponível.\n> - **Kernel/núcleo do SO**: parte central que gerencia processos, memória, dispositivos e chamadas de sistema.\n> - **Seção crítica**: trecho que manipula estado compartilhado e precisa de proteção contra acesso simultâneo indevido.\n> - **Mutex/lock**: mecanismo de exclusão mútua que permite a uma tarefa por vez acessar determinado estado protegido.\n\n### Como o trabalho é distribuído\n\nO SO mantém tarefas prontas e pode despachar uma para cada processador livre. A política concreta varia: o escalonador pode considerar prioridade, afinidade, carga e disponibilidade. Uma thread pode ser movida entre CPUs ou ter afinidade configurada para favorecer o uso de determinados caches ou dispositivos. Afinidade não transforma, por si só, um sistema SMP em AMP: a arquitetura continua podendo oferecer processadores pares e controle pelo SO comum.\n\nNo SMP, um processador pode executar código de usuário enquanto outro executa uma thread do kernel. A simultaneidade exige coordenação: se duas CPUs atualizam ao mesmo tempo a mesma fila ou contador do kernel sem proteção, o estado pode ficar inconsistente. Locks, operações atômicas e protocolos de sincronização evitam determinadas corridas, embora a contenção por locks possa reduzir o paralelismo.\n\n### Memória comum: facilidade e custo\n\nUma memória acessível por todos facilita a comunicação: uma thread grava um dado e outra pode consultá-lo, respeitadas as regras de sincronização e visibilidade. Essa conveniência também cria disputa. Processadores podem competir pelo acesso à memória, ao barramento ou a estruturas compartilhadas; caches precisam manter uma visão coerente quando várias CPUs usam cópias dos mesmos dados. A coerência e o tráfego de comunicação têm custo.\n\n| Vantagem do SMP | Limite ou cuidado |\n| --- | --- |\n| O SO distribui carga entre CPUs disponíveis | Trabalho sequencial não se divide indefinidamente |\n| Processadores podem executar tarefas distintas em paralelo | Concorrência por memória, barramento e locks pode virar gargalo |\n| A memória comum simplifica a troca de dados | Acesso compartilhado exige sincronização correta |\n| Uma só imagem do SO gerencia o conjunto | SO e aplicações precisam dar suporte adequado ao paralelismo |\n\n### Quando uma CPU para\n\nO SMP pode continuar atendendo trabalho se um processador falhar e o sistema conseguir retirar esse processador do conjunto, desde que o hardware e o SO suportem essa recuperação e que não tenha falhado um recurso comum indispensável. Isso não significa tolerância automática a qualquer falha: memória, alimentação, barramento ou o próprio SO podem ser pontos comuns de falha.\n\n### Como cai na prova\n\n- “Um SO, memória compartilhada e CPUs pares” caracteriza o modelo SMP clássico.\n- “Qualquer processador pode executar código do kernel” é compatível com SMP; não existe reserva obrigatória do kernel a uma CPU única.\n- Compartilhar memória não elimina corrida: acesso concorrente a dados mutáveis precisa de sincronização."
+    },
+    {
+      "title": "3. Multiprocessamento assimétrico (AMP)",
+      "markdown": "### O problema que este assunto resolve\n\nAlguns sistemas preferem separar responsabilidades de processamento. No **AMP** (*asymmetric multiprocessing*), os processadores não ocupam papéis equivalentes: um pode atuar como **mestre**, iniciar o sistema, controlar recursos, coordenar tarefas ou tratar certas interrupções; outros podem ficar encarregados de tarefas específicas. É comum encontrar a descrição de mestre e subordinados, mas a distribuição concreta depende do projeto.\n\n> **Siglas e termos deste capítulo**\n> - **AMP**: *asymmetric multiprocessing*, multiprocessamento assimétrico.\n> - **Mestre/primário**: processador que exerce coordenação ou controle central no desenho considerado.\n> - **Subordinado/secundário**: processador que executa atribuições definidas pelo controlador ou por configuração.\n> - **Interrupção**: sinal que solicita atenção do processador para um evento, como conclusão de dispositivo.\n> - **Firmware**: software de baixo nível que inicia e configura o hardware.\n\n### Controle central e atribuições\n\nEm um arranjo mestre-subordinados didático, o mestre recebe pedidos, define ou distribui tarefas e os outros processadores executam partes designadas. A atribuição pode ser estática, por exemplo, um processador fica ligado a uma função de comunicação e outro a uma rotina de sinal; também pode haver delegação dinâmica a partir do mestre. O ponto definidor é a assimetria de papéis, e não a obrigação de uma técnica específica de comunicação.\n\nAlgumas descrições clássicas do AMP apresentam o mestre como responsável por executar o sistema operacional e os outros como executores de tarefas determinadas. Outras arquiteturas assimétricas separam serviços por processador ou destinam processadores a dispositivos e funções específicas. Portanto, não conclua que todo AMP tem exatamente um único kernel, uma única memória ou um único método de inicialização: identifique o modelo descrito pelo enunciado.\n\n### Vantagens e riscos\n\nA especialização pode simplificar o projeto de sistemas embarcados: uma CPU dedicada a controle de tempo real pode executar uma tarefa previsível, enquanto outra processa interface ou comunicação. A divisão também pode reduzir a disputa por certas estruturas compartilhadas. Em contrapartida, o mestre pode se tornar gargalo ao serializar decisões e distribuir todo o trabalho. Se ele falhar, os subordinados podem ficar sem coordenação, a menos que exista mecanismo de substituição ou recuperação. A tarefa fixada a uma CPU pode ainda deixar capacidade ociosa enquanto outra CPU está sobrecarregada.\n\n| Situação | Consequência possível no AMP |\n| --- | --- |\n| Mestre distribui cada pedido | Controle simples, mas fila central pode limitar vazão |\n| Tarefas fixadas por função | Comportamento previsível, porém menos flexível diante de carga desigual |\n| Mestre indisponível | Coordenação pode parar se não houver contingência |\n| Funções independentes | Especialização pode reduzir interferência entre cargas |\n\n### Como cai na prova\n\n- Mestre que controla e atribui tarefas aos outros é pista de AMP.\n- Processadores com funções especializadas podem melhorar previsibilidade, sem garantir melhor desempenho geral.\n- Um controlador central é potencial gargalo e ponto de falha, mas a consequência depende de redundância e do desenho concreto."
+    },
+    {
+      "title": "4. Comparação, desempenho e escolha do modelo",
+      "markdown": "### O problema que este assunto resolve\n\nSaber o nome da arquitetura é só o começo. Em questões de desempenho, é preciso identificar o tipo de carga, o recurso compartilhado e o custo de coordenação. SMP oferece flexibilidade para distribuir trabalho; AMP pode especializar funções e tornar alguns comportamentos mais previsíveis. Nenhum modelo é sempre superior.\n\n> **Siglas e termos deste capítulo**\n> - **Throughput/vazão**: quantidade de trabalho concluída por unidade de tempo.\n> - **Latência**: tempo que uma tarefa individual leva para responder.\n> - **Speedup/aceleração**: razão entre o tempo de execução em uma unidade e o tempo em várias.\n> - **Contenção**: espera causada por vários agentes disputando o mesmo recurso.\n> - **Afinidade de CPU**: preferência ou restrição para executar uma tarefa em CPUs específicas.\n> - **Carga balanceada**: distribuição de trabalho que evita CPUs ociosas enquanto outras acumulam tarefas.\n\n### O ganho não é simplesmente o número de CPUs\n\nSe uma tarefa tem parte paralelizável e parte que precisa ocorrer em sequência, a parte serial limita o ganho. A isso se somam sincronização, comunicação e disputa por recursos. Em SMP, por exemplo, muitos processadores podem esperar por um lock ou pela memória compartilhada. Em AMP, a fila do mestre ou uma atribuição rígida pode limitar o aproveitamento. Assim, o número de CPUs é capacidade potencial, não multiplicador garantido de desempenho.\n\n### Paralelismo exige trabalho independente e coordenação\n\nDuas tarefas independentes podem executar simultaneamente sem disputar os mesmos dados. Quando várias threads atualizam um contador comum, é preciso sincronizar a operação para evitar perda de atualização. A sincronização preserva a correção, mas impõe algum custo. Um bom projeto paraleliza operações independentes, reduz compartilhamento desnecessário e evita locks muito disputados.\n\n### Quadro-resumo\n\n| Critério | SMP | AMP\n| --- | --- |\n| Relação entre processadores | Pares no acesso às tarefas gerenciadas pelo SO | Papéis distintos, com especialização ou controle central |\n| Distribuição de carga | Pode ser dinâmica pelo escalonador | Pode ser centralizada ou fixada por função |\n| Comunicação típica didática | Memória compartilhada sob um SO comum | Delegação do mestre e mecanismos definidos pelo projeto |\n| Ponto de atenção | Contenção e sincronização de dados comuns | Gargalo do mestre e desequilíbrio entre funções |\n| Uso ilustrativo | Servidor geral com tarefas variadas | Sistema embarcado com funções especializadas |\n\n### Como cai na prova\n\n- Leia o cenário, não só a sigla: vários processadores e SO comum apontam a SMP; controlador e papéis fixos apontam AMP.\n- Não confunda AMP com cluster: em um cluster, nós podem ter memória e SO próprios e comunicar-se por rede; isso é organização distribuída diferente do modelo AMP local descrito aqui.\n- Mais processadores podem elevar a vazão, mas contenção, trecho serial e sincronização limitam a aceleração."
+    }
+  ],
+  "summary": "Multiprocessamento permite que vários processadores executem fluxos de instruções. No SMP, processadores pares compartilham recursos, especialmente memória, e são gerenciados por um único sistema operacional, que distribui tarefas conforme carga e disponibilidade. No AMP, há papéis diferenciados, frequentemente um mestre que coordena ou delega trabalho a processadores subordinados ou especializados. SMP favorece flexibilidade e balanceamento, mas exige sincronização e pode sofrer contenção por memória e locks. AMP pode favorecer especialização e previsibilidade, mas a coordenação central pode criar gargalo ou ponto de falha, e tarefas fixas podem desequilibrar a carga. Nenhuma arquitetura garante aceleração proporcional ao número de CPUs: trechos sequenciais, comunicação, sincronização e recursos compartilhados limitam o ganho. Concorrência não é necessariamente simultaneidade; uma CPU pode alternar tarefas sem executá-las ao mesmo tempo.",
+  "flashcards": [
+    {
+      "front": "O que significa multiprocessamento?",
+      "back": "Uso de mais de um processador para executar fluxos de instruções, potencialmente em paralelo."
+    },
+    {
+      "front": "O que caracteriza o SMP clássico?",
+      "back": "Processadores pares, recursos compartilhados e um sistema operacional comum que distribui tarefas."
+    },
+    {
+      "front": "O que caracteriza o AMP?",
+      "back": "Papéis diferenciados entre processadores, frequentemente com um mestre coordenando ou delegando trabalho."
+    },
+    {
+      "front": "SMP exige processadores fisicamente idênticos?",
+      "back": "Não. Simetria descreve a relação de controle e de atribuições, não igualdade obrigatória de todas as características físicas."
+    },
+    {
+      "front": "No SMP, quem escolhe em qual CPU executar uma tarefa?",
+      "back": "O sistema operacional, por meio do escalonador e conforme sua política."
+    },
+    {
+      "front": "O que pode fazer o processador mestre em um AMP?",
+      "back": "Iniciar ou coordenar o sistema e atribuir tarefas aos processadores subordinados, conforme o projeto."
+    },
+    {
+      "front": "O que é memória compartilhada?",
+      "back": "Memória acessível por mais de um processador, permitindo troca de dados por regiões comuns."
+    },
+    {
+      "front": "Por que dados compartilhados exigem sincronização?",
+      "back": "Acessos simultâneos podem causar corrida e deixar o estado inconsistente."
+    },
+    {
+      "front": "O que é contenção?",
+      "back": "Espera causada pela disputa de vários processadores por memória, locks, barramento ou outro recurso."
+    },
+    {
+      "front": "Qual risco de centralizar a distribuição no mestre AMP?",
+      "back": "O mestre pode virar gargalo ou ponto crítico de falha."
+    },
+    {
+      "front": "Uma thread em uma CPU e outra em CPU distinta podem executar simultaneamente?",
+      "back": "Sim, se o sistema e a carga permitirem; isso é paralelismo real."
+    },
+    {
+      "front": "Concorrência sempre significa execução simultânea?",
+      "back": "Não. Em uma única CPU, tarefas concorrentes podem apenas alternar sua execução."
+    },
+    {
+      "front": "Afinidade de CPU muda necessariamente SMP para AMP?",
+      "back": "Não. Afinidade restringe ou prefere CPUs para uma tarefa, mas não define por si só os papéis gerais da arquitetura."
+    },
+    {
+      "front": "Por que quatro CPUs não asseguram quatro vezes mais velocidade?",
+      "back": "Trechos seriais, sincronização, comunicação e contenção limitam a aceleração."
+    },
+    {
+      "front": "Qual é um benefício possível da especialização AMP?",
+      "back": "Separar funções pode favorecer previsibilidade e reduzir interferência entre certas cargas."
+    },
+    {
+      "front": "Qual é um limite de tarefas fixadas a CPUs no AMP?",
+      "back": "Pode haver desequilíbrio: uma CPU sobrecarregada enquanto outra fica ociosa."
+    },
+    {
+      "front": "O kernel pode rodar em mais de um processador SMP?",
+      "back": "Sim, desde que as estruturas compartilhadas sejam coordenadas e protegidas adequadamente."
+    },
+    {
+      "front": "Qual recurso conecta a ideia de lock a uma seção crítica?",
+      "back": "O lock assegura que apenas um fluxo por vez acesse a região protegida, conforme o protocolo usado."
+    },
+    {
+      "front": "O que mede throughput?",
+      "back": "Quantidade de trabalho concluída por unidade de tempo."
+    },
+    {
+      "front": "SMP e cluster são sinônimos?",
+      "back": "Não. Um cluster costuma reunir nós com recursos e sistemas próprios que se comunicam por rede; SMP descreve processadores sob recursos e SO compartilhados."
+    }
+  ],
+  "tips": [
+    "Guarde a pista mais forte: SO comum e CPUs pares indicam SMP; mestre delegando tarefas indica AMP.",
+    "Pergunte quem controla a distribuição de trabalho: escalonador comum ou processador com papel central.",
+    "Separe concorrência de paralelismo: alternar em uma CPU não executa instruções ao mesmo tempo.",
+    "Ao avaliar desempenho, procure parte serial, comunicação, lock disputado e gargalo de memória.",
+    "Simetria não exige chips idênticos: refere-se às funções e ao tratamento dos processadores pelo sistema.",
+    "Em AMP, verifique se há especialização, fila do mestre, balanceamento e contingência para falha."
+  ],
+  "traps": [
+    "Afirmar que SMP reserva uma CPU exclusivamente para o SO. No modelo clássico, qualquer processador pode executar tarefas do sistema sob controle comum.",
+    "Afirmar que todo AMP tem exatamente uma memória, um kernel e um protocolo iguais. A organização concreta depende da arquitetura descrita.",
+    "Tratar compartilhamento de memória como ausência de sincronização. Acesso simultâneo a dados mutáveis pode produzir corrida.",
+    "Prometer aceleração diretamente proporcional à quantidade de CPUs. Trecho serial e custos de coordenação reduzem o ganho.",
+    "Dizer que AMP sempre supera SMP por especializar CPUs. Especialização pode deixar capacidade ociosa e criar gargalos.",
+    "Confundir processadores locais em AMP com nós de um cluster. Cluster costuma envolver comunicação entre sistemas independentes por rede."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique a diferença central entre SMP e AMP.",
+      "answer": "No SMP, processadores pares compartilham recursos e um SO comum distribui tarefas. No AMP, os processadores têm papéis distintos, muitas vezes com mestre coordenador e processadores especializados ou subordinados."
+    },
+    {
+      "question": "Por que SMP usa sincronização mesmo com um único sistema operacional?",
+      "answer": "O SO ou as aplicações podem executar simultaneamente em CPUs diferentes. Se manipularem os mesmos dados sem coordenação, ocorre corrida; locks e operações atômicas protegem o estado."
+    },
+    {
+      "question": "Descreva um risco do controle central em AMP.",
+      "answer": "A distribuição de todo o trabalho pelo mestre pode formar uma fila e limitar a vazão. A falha do mestre também pode interromper a coordenação se não houver contingência."
+    },
+    {
+      "question": "Por que mais processadores não garantem aceleração linear?",
+      "answer": "Partes seriais não se dividem, e paralelismo acrescenta custos de comunicação, sincronização e contenção por recursos."
+    },
+    {
+      "question": "Diferencie concorrência de paralelismo.",
+      "answer": "Concorrência trata de tarefas que progridem intercaladas ou simultâneas. Paralelismo exige execução efetivamente simultânea em unidades distintas."
+    },
+    {
+      "question": "Como memória compartilhada ajuda e limita o SMP?",
+      "answer": "Facilita que processadores troquem dados por regiões comuns, mas cria disputa e exige coerência e sincronização quando os dados são compartilhados."
+    },
+    {
+      "question": "O que uma questão quer dizer ao chamar os processadores de pares em SMP?",
+      "answer": "Que não há a divisão assimétrica de papéis de mestre e subordinados como característica definidora; o SO comum pode distribuir tarefas entre eles."
+    },
+    {
+      "question": "Dê um exemplo de cenário favorável à especialização AMP e sua ressalva.",
+      "answer": "Em sistema embarcado, uma CPU pode tratar controle previsível e outra comunicação. A divisão pode dar previsibilidade, mas precisa evitar que uma função vire gargalo ou deixe outra CPU ociosa."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Troca entre as pistas de SMP e AMP",
+      "summary": "SMP: processadores pares sob SO comum com distribuição pelo sistema. AMP: papéis distintos, frequentemente mestre e subordinados ou processadores especializados."
+    },
+    {
+      "key": "e2",
+      "title": "Memória compartilhada sem coordenação",
+      "summary": "A memória comum facilita comunicação, mas acessos concorrentes a dados mutáveis precisam de sincronização para evitar corridas e inconsistência."
+    },
+    {
+      "key": "e3",
+      "title": "Promessa de escalabilidade linear",
+      "summary": "Trechos sequenciais, sincronização, comunicação e disputa por recursos limitam o ganho quando se adicionam processadores."
+    },
+    {
+      "key": "e4",
+      "title": "Mestre sem custo no AMP",
+      "summary": "Controle central pode simplificar distribuição e especializar tarefas, mas também formar gargalo ou ponto de falha; atribuições fixas podem desequilibrar a carga."
+    },
+    {
+      "key": "e5",
+      "title": "Concorrência confundida com simultaneidade",
+      "summary": "Uma CPU pode alternar tarefas concorrentes; paralelismo real ocorre quando unidades diferentes executam fluxos ao mesmo tempo."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um servidor possui vários processadores tratados como pares, memória compartilhada e um único sistema operacional que distribui tarefas. Qual arquitetura está descrita?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SMP: processadores pares sob um SO comum que distribui tarefas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Multiprocessamento assimétrico, com mestre exclusivo e tarefas fixadas por função.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Processamento distribuído, com cada nó mantendo sistema operacional separado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Multitarefa uniprocessada, com alternância obrigatória em um único núcleo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Execução vetorial, com uma instrução aplicada a vários dados simultaneamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "No SMP clássico, processadores pares compartilham recursos e são gerenciados por um único sistema operacional, que pode distribuir tarefas entre eles. AMP destaca papéis distintos; um cluster usa nós independentes; multitarefa uniprocessada não implica várias CPUs; execução vetorial é outra forma de paralelismo.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma máquina com SMP, a administração do sistema operacional reserva permanentemente uma CPU como mestre, impedindo que as demais executem tarefas do kernel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A característica do SMP é tratar os processadores como pares sob gerenciamento comum; mais de um pode executar código do kernel. Reservar controle central a um mestre descreve uma organização assimétrica, não uma exigência do SMP.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição diferencia melhor multiprocessamento de multitarefa em um único processador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CPUs distintas executam fluxos simultâneos; uma CPU alterna tarefas sem simultaneidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Multiprocessamento alterna tarefas em uma CPU; multitarefa exige memória compartilhada entre máquinas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Multiprocessamento elimina escalonamento; multitarefa mantém uma CPU exclusiva para o kernel.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Multiprocessamento ocorre só em clusters; multitarefa depende de vários processadores físicos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Multiprocessamento executa um processo por vez; multitarefa executa todos exatamente em paralelo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Várias CPUs permitem execução efetivamente simultânea de fluxos distintos. Uma CPU também pode sustentar tarefas concorrentes por alternância, mas essa intercalação não é paralelismo simultâneo. Escalonamento continua necessário e multiprocessamento não se restringe a clusters.",
+      "section": "1. O que significa multiprocessar",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema assimétrico, um processador mestre coordena tarefas enquanto outros processadores recebem atribuições específicas. Qual é a característica central desse arranjo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Processadores com papéis distintos, não equivalentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O compartilhamento de uma tabela de arquivos entre vários sistemas operacionais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A execução de uma instrução vetorial sobre todos os processadores disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A alternância de processos em uma única CPU sem execução concorrente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A igualdade obrigatória de frequência, cache e função entre os processadores.",
+          "correct": false
+        }
+      ],
+      "explanation": "AMP é assimétrico porque os processadores têm responsabilidades distintas; o modelo mestre-subordinados é uma forma didática comum. Compartilhar arquivos entre sistemas operacionais descreve outro contexto, e as demais opções não expressam a divisão de papéis.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma memória acessível por várias CPUs permite que elas troquem dados por regiões comuns, mas acessos concorrentes a dados mutáveis podem exigir sincronização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A memória compartilhada facilita comunicação entre processadores, mas não serializa automaticamente toda atualização. Locks, operações atômicas ou outros mecanismos podem ser necessários para evitar corridas e preservar estado consistente.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual componente normalmente decide em qual processador disponível executar uma tarefa em um sistema SMP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O escalonador do SO, conforme política e CPUs disponíveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um mestre obrigatório, fixo no hardware, que mantém todas as tarefas para si.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O controlador de memória, que escolhe a prioridade de cada processo de usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O compilador, que durante a execução move cada thread entre núcleos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A aplicação, sem participação do sistema operacional ou de seus mecanismos.",
+          "correct": false
+        }
+      ],
+      "explanation": "No SMP, o SO comum gerencia tarefas e usa o escalonador para escolher processador conforme a política implementada. Um mestre obrigatório seria uma organização AMP; controlador de memória e compilador não substituem o escalonador do SO.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A existência de vários processadores garante que qualquer programa execute em tempo inversamente proporcional à quantidade de CPUs instaladas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Partes seriais do programa não são aceleradas pela inclusão de CPUs, e sincronização, comunicação e contenção também consomem tempo. O número de processadores representa capacidade potencial, não aceleração linear garantida.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe dedica um processador a controle de tempo real e outro a comunicação de um equipamento embarcado. Que benefício pode justificar essa organização AMP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Especializar funções pode favorecer previsibilidade entre cargas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A separação elimina qualquer necessidade de coordenar dados compartilhados entre tarefas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A divisão torna todas as tarefas igualmente rápidas, mesmo quando uma delas é serial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A especialização converte automaticamente cada processador em sistema operacional independente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A atribuição fixa assegura balanceamento perfeito diante de qualquer variação de carga.",
+          "correct": false
+        }
+      ],
+      "explanation": "Papéis especializados podem favorecer previsibilidade, especialmente em sistemas embarcados. Isso não elimina toda coordenação, não acelera trechos seriais, não cria automaticamente sistemas operacionais independentes e não garante equilíbrio se a carga variar.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processador que mantém o controle central de distribuição em um sistema AMP pode tornar-se gargalo quando todos os pedidos dependem dele.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A centralização pode serializar decisões e formar uma fila no mestre. A consequência depende do volume de pedidos, da capacidade do controlador e de mecanismos de delegação ou redundância existentes.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como se chama a espera que ocorre quando diversos processadores disputam acesso à mesma memória, lock ou outro recurso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Contenção: CPUs disputam um recurso compartilhado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Afinidade, que sempre impede qualquer tarefa de mudar de processador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Preempção, que duplica automaticamente a execução de cada thread.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Interrupção, que corresponde ao término normal de todas as tarefas concorrentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fragmentação, que distribui os locks entre sistemas operacionais diferentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Contenção é a disputa por um recurso comum, que pode forçar espera e limitar o ganho do multiprocessamento. Afinidade trata da preferência por CPU; preempção retira controle de uma tarefa; interrupção sinaliza evento; fragmentação não descreve essa disputa.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SMP, mais de um processador pode executar código do núcleo do sistema operacional, desde que o acesso às estruturas comuns seja coordenado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A execução de código do kernel em múltiplas CPUs é compatível com a simetria do modelo. O sistema precisa proteger estruturas compartilhadas para impedir corridas e corrupção de estado.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação representa paralelismo efetivo em uma máquina com múltiplas CPUs?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CPUs distintas executam simultaneamente threads diferentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma CPU pausa uma tarefa e executa outra antes de voltar à primeira.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um processo aguarda a conclusão de uma operação de disco bloqueante.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O escalonador alterna prioridades, mas mantém todos os fluxos na mesma CPU.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma thread é compilada em arquivo executável sem iniciar sua execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Paralelismo efetivo existe quando unidades distintas executam fluxos simultaneamente. Alternância em uma CPU é concorrência sem simultaneidade; espera de E/S e compilação não representam dois fluxos em execução ao mesmo tempo.",
+      "section": "1. O que significa multiprocessar",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Atribuir uma tarefa a uma CPU específica por afinidade transforma, por definição, um sistema SMP em AMP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Afinidade pode restringir ou favorecer a execução de uma tarefa em certas CPUs, mas não define sozinha a relação geral de controle do sistema. Um SO comum ainda pode gerenciar processadores pares, preservando o modelo SMP.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se dois processadores incrementam sem proteção o mesmo contador compartilhado, qual problema pode ocorrer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma corrida pode perder uma atualização e deixar o contador inconsistente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O escalonador necessariamente converte o contador em duas variáveis independentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A memória compartilhada bloqueia por definição todo acesso simultâneo a uma variável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A CPU mestre transfere automaticamente uma das atualizações para uma máquina remota.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sistema passa a operar em modo uniprocessado até o contador ser reiniciado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Incrementar normalmente envolve ler, alterar e gravar. Intercalamentos simultâneos podem sobrescrever uma atualização; exclusão mútua ou operação atômica protege o contador. Memória compartilhada não serializa automaticamente acessos, e o escalonador não duplica dados por conta própria.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma vantagem possível do AMP é atribuir funções especializadas a CPUs diferentes, embora essa escolha possa diminuir a flexibilidade para redistribuir carga.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Especialização pode melhorar previsibilidade e separar tipos de trabalho. A contrapartida é que uma tarefa presa a uma CPU pode acumular enquanto outra unidade permanece ociosa, dependendo do projeto e da carga.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um SMP com quatro CPUs, uma tarefa que executa todas as instruções em sequência pode ser dividida automaticamente em quatro partes equivalentes pelo sistema operacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O SO pode escalonar tarefas e threads disponíveis, mas não transforma qualquer sequência dependente em partes independentes. O programa ou algoritmo precisa oferecer trabalho paralelizável, e dependências podem manter etapas em série.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um mestre AMP falha enquanto os demais processadores aguardam novas atribuições. Qual avaliação é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A coordenação pode parar se o projeto não oferecer substituição ou recuperação do mestre.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Os subordinados passam sempre a operar como SMP sem reconfiguração ou suporte do sistema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A memória compartilhada restaura por si mesma as decisões de escalonamento do mestre.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A falha do mestre afeta apenas o relógio, sem impacto possível na distribuição de tarefas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cada processador secundário reinicia automaticamente um sistema operacional completo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando a coordenação depende do mestre, sua falha pode impedir novas atribuições. Redundância, eleição ou recuperação podem mitigar o risco, mas não surgem automaticamente da memória compartilhada ou da presença de subordinados.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O sistema operacional de um SMP pode decidir dinamicamente qual CPU executará uma tarefa pronta, levando em conta sua política de escalonamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O SO comum gerencia o conjunto de processadores e pode distribuir tarefas conforme disponibilidade, prioridades, afinidade e outros critérios de sua política. A forma concreta varia entre sistemas.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual medida reduz o risco de duas threads corromperem uma estrutura compartilhada durante atualizações simultâneas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Proteger a seção crítica com sincronização apropriada, como lock ou operação atômica.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar a frequência do processador que primeiro leu a estrutura compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atribuir a mesma prioridade máxima a todas as threads e remover os locks.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Copiar o arquivo executável para a memória cache de cada CPU antes da atualização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desligar o escalonador enquanto o sistema operacional mantiver outras tarefas prontas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sincronização coordena o acesso à seção crítica e preserva invariantes da estrutura. Frequência, prioridade e cópia do executável não serializam atualizações de dados; desligar o escalonador não é uma solução geral e pode paralisar o sistema.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo mestre-subordinados, tarefas fixadas a uma função podem gerar desequilíbrio quando a demanda por essa função muda muito.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A especialização pode dar previsibilidade, mas uma CPU com função fixa pode ficar saturada enquanto outra está ociosa. Balanceamento e redistribuição dependem do grau de flexibilidade previsto pelo projeto.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre simetria em SMP está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela descreve o tratamento e os papéis dos processadores, sem exigir identidade física absoluta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ela exige que todos os processadores tenham frequência e cache rigorosamente iguais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela determina que apenas uma CPU execute instruções de usuário em cada instante.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela obriga cada processador a executar um sistema operacional independente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela impede o escalonador de considerar afinidade ou disponibilidade de CPU.",
+          "correct": false
+        }
+      ],
+      "explanation": "O termo descreve a relação de pares na organização e no controle do sistema, não uma igualdade absoluta de frequência, cache ou demais componentes. Várias CPUs podem executar fluxos simultâneos e continuam sob gerenciamento comum.",
+      "section": "1. O que significa multiprocessar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema com quatro CPUs sempre apresenta maior vazão que outro com duas CPUs, independentemente da carga e dos recursos disputados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O ganho depende de paralelismo disponível, custo de sincronização e capacidade dos recursos compartilhados. Uma carga serial ou limitada por memória pode não aproveitar CPUs adicionais e até sofrer mais contenção.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema contém vários nós, cada qual com memória e sistema operacional próprios, que trocam mensagens pela rede. Como esse arranjo se distingue do SMP clássico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É uma organização distribuída ou cluster, não o SMP de memória e SO comuns.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É necessariamente AMP local, pois qualquer nó que inicia uma tarefa é processador mestre.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É SMP porque todos os nós podem consultar os mesmos arquivos pela rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É multitarefa uniprocessada porque uma rede só transporta tarefas sequenciais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É execução vetorial, já que cada nó recebe uma cópia da mesma instrução.",
+          "correct": false
+        }
+      ],
+      "explanation": "No cluster, os nós podem ter recursos e SO próprios e comunicar-se por rede; isso difere do SMP clássico, em que CPUs compartilham recursos locais e um SO comum. Compartilhar arquivos por rede não transforma os nós em um único sistema SMP.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma seção crítica é um trecho que acessa estado compartilhado e pode exigir exclusão mútua para evitar atualizações conflitantes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Quando fluxos simultâneos manipulam estado comum, a seção crítica precisa de protocolo adequado para preservar consistência. Locks são um mecanismo possível, com custo de espera e contenção.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa do sistema SMP tem baixa prioridade e outra CPU está livre. Qual recurso do sistema pode colocá-la para executar naquela CPU?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O escalonador pode selecioná-la, se a política, prioridade e restrições permitirem.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A memória compartilhada escolhe a tarefa e altera automaticamente sua prioridade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma CPU subordinada solicita autorização permanente ao mestre AMP obrigatório.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O compilador redistribui o processo após o programa já estar em execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A interrupção de hardware executa a tarefa sem participação do sistema operacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cabe ao escalonador escolher tarefas e processadores conforme política, prioridade, afinidade e estado das CPUs. Memória não toma decisões de escalonamento, compilador atua antes da execução e interrupção não substitui o SO.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A sincronização pode preservar a correção de um programa paralelo, mas um lock muito disputado também pode reduzir o ganho de desempenho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O lock impede acessos conflitantes à região protegida, mas threads que aguardam o mesmo lock não executam esse trecho em paralelo. A contenção pode limitar a vazão e tornar uma aplicação paralela pouco escalável.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação paralela ficou lenta apesar de distribuir threads por várias CPUs. Qual hipótese combina com contenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "As threads disputam um lock comum e passam parte do tempo aguardando sua liberação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O escalonador criou memória principal separada para cada instrução executada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As CPUs executam simultaneamente e, por isso, deixam de compartilhar qualquer recurso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O kernel precisa executar apenas em modo mestre em toda arquitetura SMP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O uso de afinidade garante que a thread fique esperando em todos os processadores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um lock muito disputado serializa a região protegida e pode fazer várias threads esperarem, reduzindo o benefício das CPUs extras. Paralelismo não elimina recursos comuns; SMP não exige kernel restrito a um mestre.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em SMP, o sistema operacional comum pode manter filas de tarefas e despachar trabalho para processadores diferentes, sem designar necessariamente um mestre permanente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A distribuição pelo SO e a ausência de papéis fixos de mestre e subordinados são compatíveis com o SMP clássico. A implementação pode ter detalhes variados, mas não depende de um mestre exclusivo como característica definidora.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa apresenta uma consequência possível da atribuição estática de funções em AMP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma função fixa pode saturar sua CPU enquanto outra unidade fica ociosa diante de carga desigual.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O processador mestre deixa de coordenar tarefas assim que a carga varia durante a execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada processador recebe automaticamente cópia independente de toda memória compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A atribuição fixa impede qualquer tarefa de compartilhar dados com uma CPU diferente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O escalonamento passa a ocorrer dentro de cada instrução por decisão do barramento.",
+          "correct": false
+        }
+      ],
+      "explanation": "A especialização pode dar previsibilidade, mas a rigidez de funções torna mais difícil deslocar capacidade para uma CPU sobrecarregada. Ela não implica cópias automáticas de memória nem ausência de comunicação entre tarefas.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O throughput mede o tempo que uma única tarefa leva entre seu início e sua resposta, independentemente das demais tarefas concluídas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Throughput é quantidade de trabalho concluída por unidade de tempo. O tempo de uma tarefa individual corresponde à latência; as métricas podem se relacionar, mas medem aspectos diferentes.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação tem uma fase serial longa antes de iniciar o processamento paralelo. Por que adicionar CPUs pode trazer ganho modesto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A fase serial ocupa tempo que não se divide entre CPUs disponíveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O sistema operacional desativa o escalonador sempre que encontra instruções sequenciais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A fase serial transfere automaticamente todas as CPUs para a arquitetura AMP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As CPUs adicionais aumentam o tamanho do código, impedindo a execução da fase paralela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O uso de várias CPUs remove a memória compartilhada antes de cada trecho paralelo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma fase serial depende de uma sequência de operações e não pode ser repartida simplesmente pelo SO. O tempo dessa parte permanece no total, limitando o speedup mesmo que a fase seguinte use várias CPUs.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um AMP precisa usar mestre-subordinados como único desenho possível, independentemente de especialização, inicialização e comunicação adotadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Mestre e subordinados são um modelo clássico e frequente, mas a assimetria também pode ser descrita por papéis especializados e atribuições distintas. O projeto concreto define inicialização, comunicação e controle.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um exemplo de AMP, o mestre recebe pedidos de trabalho e encaminha tarefas para CPUs subordinadas. Qual efeito adverso deve ser considerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A fila de encaminhamento pode limitar a vazão se o mestre processar pedidos mais lentamente que os demais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "As CPUs subordinadas passam a executar necessariamente o sistema operacional completo em paralelo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A comunicação entre mestre e subordinados elimina a necessidade de qualquer memória local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O encaminhamento garante que toda CPU receba carga idêntica em qualquer instante.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O mestre não pode falhar enquanto existir mais de um processador subordinado ativo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se cada pedido depende de encaminhamento central e o mestre não acompanha a demanda, sua fila limita a vazão. Delegação não assegura balanceamento perfeito nem elimina falhas; detalhes de memória e execução do SO variam conforme o desenho.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um processador de um SMP falhar, os demais sempre continuam normalmente, mesmo que o defeito esteja na memória compartilhada ou no sistema operacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A retirada de uma CPU defeituosa pode ser suportada, mas não há garantia contra falhas de recursos comuns. Uma memória, alimentação, barramento ou o próprio SO compartilhado pode comprometer o conjunto.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário tende a favorecer a flexibilidade de distribuição de tarefas característica do SMP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Carga variada que o SO distribui entre CPUs livres segundo sua política.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um controlador central que mantém cada tarefa fixada a uma CPU especializada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um conjunto de máquinas remotas com memória e sistemas operacionais próprios.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma rotina estritamente serial que não pode dividir suas dependências entre unidades.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um dispositivo que só aceita uma operação de entrada e saída por vez.",
+          "correct": false
+        }
+      ],
+      "explanation": "No SMP, o SO comum pode distribuir diferentes tarefas entre CPUs disponíveis, o que se ajusta a cargas gerais variadas. Isso não garante que uma rotina serial se divida nem descreve controle fixo mestre-subordinados ou máquinas remotas.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O compartilhamento de uma estrutura de dados entre threads elimina a possibilidade de corrida quando o acesso ocorre em CPUs diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Compartilhar dados é justamente uma situação que pode produzir corrida quando operações concorrentes se intercalam. A aplicação precisa de protocolo de sincronização adequado para as operações que exigem consistência.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois processadores executam tarefas distintas, mas ambos aguardam frequentemente acesso ao barramento de memória. Qual conclusão melhor explica o desempenho observado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A disputa por recursos comuns reduz paralelismo e aumenta o tempo de espera.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O sistema passou necessariamente de SMP para AMP ao compartilhar o barramento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A memória converteu as duas tarefas em uma única thread serial do sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O escalonador está executando ambas as tarefas em um processador virtual único.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A contenção prova que os processadores não podem executar instruções simultâneas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O barramento de memória é um recurso compartilhado e sua disputa provoca contenção. As CPUs ainda podem executar instruções simultaneamente, embora esperas por esse recurso diminuam a aceleração total.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A execução de threads em paralelo pode aumentar a vazão do sistema e, ao mesmo tempo, exigir mais cuidado com sincronização de estado compartilhado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Processadores distintos podem concluir mais trabalho simultaneamente, elevando potencialmente a vazão. Porém, threads que compartilham dados precisam coordenar atualizações; a sincronização evita erros e pode ter custo de desempenho.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação distingue adequadamente latency e throughput ao avaliar um sistema multiprocessado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Latência mede tempo individual; throughput mede trabalho concluído por intervalo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Latência conta CPUs instaladas; throughput mede o tamanho da memória compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Latência mede tarefas concluídas por segundo; throughput mede espera de uma tarefa isolada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Latência existe somente em AMP; throughput só pode ser medido em SMP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Latência e throughput são nomes equivalentes para a frequência do processador mestre.",
+          "correct": false
+        }
+      ],
+      "explanation": "Latência é o tempo de resposta de uma tarefa ou operação. Throughput é o volume de trabalho completado em determinado intervalo. São métricas distintas e podem se comportar de maneira diferente sob paralelismo e contenção.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um lock protege uma seção crítica, mas pode fazer threads concorrentes aguardarem em fila quando todas precisam do mesmo recurso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A exclusão mútua impede acessos simultâneos incompatíveis à região protegida, mas os demais fluxos esperam sua liberação. Um lock muito disputado transforma parte do trabalho em sequência e limita a escalabilidade.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema embarcado, uma CPU especializada em sinais e outra em interface são necessariamente SMP porque estão no mesmo equipamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Estar no mesmo equipamento não define SMP. A especialização em funções diferentes aponta para papéis assimétricos; para classificar o sistema, é preciso observar controle, recursos e relação entre processadores.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer manter uma tarefa previsível separada de uma carga geral que varia muito. Qual argumento pode sustentar a adoção de AMP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A atribuição especializada pode isolar a tarefa previsível, desde que se avalie o equilíbrio e o controle central.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O AMP garante a mesma latência para toda carga, sem relação com comunicação ou interrupções.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A divisão torna desnecessário medir a capacidade do processador que coordena as demais tarefas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O processador dedicado passa a executar qualquer tarefa da carga geral automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O AMP remove dependências seriais do algoritmo ao designar uma CPU por função.",
+          "correct": false
+        }
+      ],
+      "explanation": "A especialização pode isolar uma atividade e tornar sua execução mais previsível. Ainda é necessário avaliar capacidade, comunicação, sobrecarga do mestre e desequilíbrio; a arquitetura não elimina dependências seriais nem garante latência uniforme.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor SMP pode continuar executando tarefas depois da perda de uma CPU se o sistema suportar a retirada dela e os recursos comuns permanecerem disponíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um sistema que suporta desativar a CPU defeituosa pode redistribuir trabalho às demais. A continuidade não é garantida para falhas de recursos comuns, como memória, barramento ou SO, nem sem suporte de hardware e software.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação mantém filas independentes e oferece muitas tarefas prontas, mas o SO distribui todas por uma CPU só. Qual ganho SMP ela deixa de explorar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A execução simultânea de tarefas independentes em outras CPUs disponíveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A alternância de contexto entre tarefas concorrentes dentro da CPU ocupada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A manutenção de um único sistema operacional para todo o computador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A proteção de dados compartilhados por locks em regiões críticas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A possibilidade de limitar uma tarefa por afinidade de processador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com tarefas independentes e outras CPUs disponíveis, distribuí-las pode permitir execução simultânea e elevar vazão. Alternância de contexto já ocorre em uma CPU; sistema operacional único, locks e afinidade são conceitos distintos do ganho não explorado.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A documentação da IBM descreve ambientes SMP como processadores que compartilham recursos de hardware, comunicam-se pela memória compartilhada e usam um único sistema operacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essa descrição aparece na documentação técnica da IBM sobre ambientes de processamento paralelo. Ela resume o SMP clássico em contraste com sistemas MPP ou clusters, em que cada processador ou nó pode ter recursos e sistema próprios.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve de forma mais completa o limite de escalabilidade de um SMP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trechos seriais e contenção podem limitar o ganho de CPUs adicionais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O escalonador permite somente uma thread por sistema operacional, ainda que haja CPUs livres.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A simetria obriga a desativar processadores adicionais assim que o kernel inicia.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A memória compartilhada replica todo dado em cada CPU e impede qualquer contenção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sistema precisa converter cada tarefa em uma instrução vetorial antes de escaloná-la.",
+          "correct": false
+        }
+      ],
+      "explanation": "A escalabilidade depende da fração paralelizável e dos custos de coordenação. Trechos seriais, locks disputados e limites de memória ou barramento podem reduzir o ganho. SMP não restringe a uma thread nem exige execução vetorial.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma interrupção de dispositivo precisa ser atendida. Em uma arquitetura AMP, qual distribuição de papéis é possível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O mestre ou uma CPU especializada pode receber e tratar esse evento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todas as CPUs precisam atender a interrupção ao mesmo tempo para preservar simetria.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O escalonador converte a interrupção em instrução vetorial para cada tarefa ativa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O processador subordinado nunca pode receber qualquer evento de dispositivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A memória compartilhada responde à interrupção sem execução de código por CPU.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em AMP, funções podem ser distribuídas de modo assimétrico, inclusive com mestre ou processador especializado tratando eventos. A atribuição depende do desenho; não há exigência de atendimento simultâneo por todas as CPUs nem a memória executa o tratamento.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em SMP, dois processadores podem executar ao mesmo tempo tarefas diferentes, ainda que compartilhem memória e sistema operacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O multiprocessamento permite paralelismo real entre CPUs. O compartilhamento de recursos exige coordenação quando há estado comum, mas não impede a execução simultânea de tarefas independentes.",
+      "section": "1. O que significa multiprocessar",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma configuração SMP, uma thread pode ser executada em qualquer CPU sem que prioridades, afinidade ou carga influenciem a escolha do escalonador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O SO pode distribuir trabalho entre processadores, mas sua política pode considerar prioridade, afinidade, carga e disponibilidade. Ser processador par não significa que qualquer tarefa seja enviada sem critérios.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual mecanismo melhor expressa a coordenação de uma atualização indivisível de variável compartilhada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma operação atômica altera o valor como unidade indivisível para outras threads.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma prioridade baixa, que impede outras CPUs de ler a variável compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma afinidade fixa, que transforma a variável global em estado privado da thread.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma interrupção periódica, que confirma toda escrita antes de sua leitura posterior.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma fila de processos, que substitui automaticamente qualquer seção crítica usada pelo programa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma operação atômica evita que a atualização composta seja observada parcialmente ou perdida por intercalamento. Prioridade e afinidade não tornam variável global privada; interrupções e filas não substituem a proteção adequada.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sistemas SMP usam necessariamente um sistema operacional diferente para cada processador, que troca mensagens pela rede local.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O SMP clássico usa um único sistema operacional que gerencia os processadores e recursos compartilhados. Múltiplos sistemas e comunicação em rede descrevem mais apropriadamente nós de um sistema distribuído ou cluster.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processador subordinado executa uma função de processamento de sinais delegada pelo mestre. Qual conceito está mais diretamente ilustrado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Especialização de tarefas em processadores com papéis assimétricos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Balanceamento dinâmico obrigatório entre CPUs equivalentes de um SMP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Multiprogramação que alterna tarefas em apenas um processador disponível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Execução vetorial de dados sob controle de uma instrução compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Replicação de máquinas virtuais com sistemas operacionais independentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "A delegação de uma função definida a um processador subordinado exemplifica papéis diferentes no AMP. Balanceamento de CPUs pares aponta para SMP; alternância, execução vetorial e replicação de máquinas são conceitos distintos.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A memória compartilhada garante que as gravações feitas por uma CPU sejam observadas em ordem correta por todas as demais, sem mecanismos de coerência ou sincronização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A memória compartilhada oferece um espaço comum, mas coerência, ordenação e sincronização dependem dos mecanismos da arquitetura e do software. O programador deve usar primitivas adequadas para estabelecer a coordenação exigida.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção descreve uma razão para manter um sistema AMP em um equipamento embarcado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Separar uma função de controle sensível ao tempo de serviços menos previsíveis pode simplificar o projeto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Distribuir qualquer algoritmo serial em todas as CPUs elimina dependências de dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fazer cada processador compartilhar exatamente o mesmo papel em todas as tarefas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Evitar o uso de sistema operacional por definição, mesmo quando o projeto utiliza um.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir que o mestre coordene as CPUs sem consumir tempo de processamento próprio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Separar funções pode simplificar a obtenção de previsibilidade em uma tarefa sensível ao tempo. Isso não elimina dependências, não exige ausência de SO e não torna gratuita a coordenação do mestre.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O compartilhamento de memória entre CPUs pode facilitar a comunicação, mas a disputa por acesso à memória também pode limitar o desempenho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma área comum facilita troca de dados, mas o barramento, os controladores e a própria memória podem ter capacidade limitada. A disputa aumenta esperas e reduz o ganho obtido com CPUs adicionais.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto apresenta processadores com funções diferentes, mas não informa detalhes de memória, sistema operacional ou método de comunicação. O que se pode concluir com segurança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Há uma organização assimétrica de papéis, mas os demais detalhes dependem da arquitetura descrita.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O sistema possui obrigatoriamente um único kernel mestre e nenhuma memória compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada processador executa um sistema operacional independente ligado por rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A comunicação ocorre obrigatoriamente por mensagens transmitidas pelo barramento PCI.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O processador de maior frequência necessariamente exerce o papel de mestre.",
+          "correct": false
+        }
+      ],
+      "explanation": "Papéis diferentes permitem classificar a organização como assimétrica, mas não determinam por si só número de kernels, memória, protocolo de comunicação ou critério de escolha do mestre. Esses detalhes não devem ser inventados sem informação do cenário.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em SMP, tarefas independentes podem ser escalonadas para CPUs distintas e executadas simultaneamente, potencialmente elevando a vazão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Se há CPUs disponíveis e trabalho independente, o escalonador pode permitir sua execução simultânea. O efeito na vazão depende da carga e pode ser limitado por recursos compartilhados ou sincronização.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição de sistema operacional corresponde ao SMP clássico apresentado pela IBM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um SO gerencia processadores que compartilham recursos e memória.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cada processador mantém seu SO próprio e envia instruções por uma rede externa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um SO mestre só pode executar em um processador, enquanto os outros não compartilham recursos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O sistema não possui memória principal, pois cada CPU opera exclusivamente com registradores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um SO independente é inicializado em cada núcleo toda vez que uma tarefa chega.",
+          "correct": false
+        }
+      ],
+      "explanation": "A descrição técnica do SMP trata vários processadores compartilhando recursos e memória sob um único sistema operacional. A separação de SO por nó é própria de ambientes distribuídos e não caracteriza o SMP clássico.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como deve ser interpretada a possibilidade de um processador do SMP falhar sem desligar imediatamente todo o computador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pode tolerar a perda de uma CPU, mas não necessariamente de recursos comuns.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A simetria torna qualquer falha de hardware transparente, incluindo memória e alimentação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O processador mestre obrigatório assume imediatamente a memória defeituosa como cópia íntegra.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O kernel deixa de precisar de sincronização porque há uma CPU a menos no sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O SO recria fisicamente o processador com defeito usando recursos das outras CPUs.",
+          "correct": false
+        }
+      ],
+      "explanation": "Algumas configurações permitem retirar uma CPU defeituosa e continuar com as restantes, mas isso depende de hardware e SO. A falha de memória, barramento, alimentação ou outro componente compartilhado pode afetar todo o sistema.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Multiprocessamento assimétrico sempre apresenta desempenho superior ao SMP, porque processadores especializados nunca ficam ociosos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Especialização pode ajudar em determinadas cargas, mas tarefas fixas podem deixar uma CPU ociosa enquanto outra está sobrecarregada. O resultado depende do perfil de trabalho, do custo de coordenação e do desenho.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma carga tem muitas tarefas independentes, mas o servidor apresenta crescimento pequeno de vazão ao adicionar CPUs. Qual investigação é mais pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Investigar contenção em memória, locks e dispositivos compartilhados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Confirmar se as tarefas independentes foram convertidas em processos necessariamente sequenciais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar o sistema operacional comum para transformar o servidor em um SMP mais flexível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Duplicar a frequência do processador mestre para que ele deixe de exercer controle central.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover a memória compartilhada, que é sempre a única causa possível de baixa vazão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mesmo com trabalho independente, contenção em recursos compartilhados ou sincronização excessiva pode limitar a escalabilidade. A investigação deve medir gargalos reais; não é necessário remover o SO ou supor que memória seja a única causa.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A presença de uma fila central de tarefas no AMP implica que todas as implementações assimétricas usam o mesmo protocolo e têm o mesmo gargalo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A fila central é um risco de desenhos com distribuição centralizada, mas AMP cobre organizações com papéis assimétricos diversos. O impacto depende do protocolo, da carga, da capacidade e de mecanismos alternativos de delegação.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual distinção deve orientar a análise quando uma questão menciona vários processadores no mesmo computador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar se são pares ou têm papéis distintos de controle e execução.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Contar apenas a quantidade de núcleos, pois o número determina sozinho SMP ou AMP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Comparar somente a frequência de clock, que define se o sistema operacional é único.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Identificar a marca do fabricante, porque cada fabricante adota apenas uma das arquiteturas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Verificar se há multitarefa, pois ela é exclusiva de sistemas com processadores assimétricos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A classificação depende da relação de controle e das funções: processadores pares gerenciados pelo SO comum apontam para SMP; papéis diferenciados apontam para AMP. Quantidade, frequência, marca ou presença de multitarefa não bastam para decidir.",
+      "section": "1. O que significa multiprocessar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em sistemas com vários processadores, o escalonador pode considerar afinidade para evitar migrações frequentes e favorecer o uso de dados já próximos à CPU.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Afinidade é uma preferência ou restrição de CPU para uma tarefa. Ela pode reduzir migrações e favorecer localidade, embora a política dependa do sistema e não altere por si só a classificação SMP/AMP.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa divide o processamento em tarefas independentes e reduz o compartilhamento de dados mutáveis. Que efeito é esperado em uma arquitetura SMP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pode haver mais paralelismo útil e menos contenção de sincronização, sem garantia de aceleração linear.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "As tarefas deixam de precisar do escalonador porque cada uma cria uma CPU própria.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A redução de compartilhamento obriga o sistema a mudar para arquitetura AMP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ausência de dados mutáveis garante que toda operação seja executada em tempo constante.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As CPUs passam a operar como máquinas de cluster com memória exclusivamente remota.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tarefas independentes facilitam execução paralela, e reduzir estado mutável comum pode diminuir disputa por locks. Ainda permanecem custos de escalonamento, comunicação e recursos, portanto não há garantia de ganho linear ou mudança de arquitetura.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O sistema operacional é executado em uma única CPU exclusiva, enquanto as demais apenas executam tarefas de usuário. Essa característica é obrigatória no SMP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. SMP não exige que o kernel fique em uma CPU exclusiva. Processadores pares podem executar código do sistema operacional em paralelo, desde que o acesso às estruturas compartilhadas seja sincronizado.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa melhorar a vazão de um serviço com muitas requisições independentes. Qual escolha pode explorar o paralelismo disponível em SMP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir que o SO distribua tarefas prontas por CPUs livres, observando a política de escalonamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Fixar todo o trabalho em uma única CPU e desativar as demais unidades.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar cada requisição após desligar o sistema operacional e a memória comum.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Duplicar todas as requisições em todas as CPUs para obter respostas idênticas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir o escalonador por um mestre AMP mesmo sem haver essa organização.",
+          "correct": false
+        }
+      ],
+      "explanation": "O SO pode distribuir requisições independentes entre CPUs disponíveis, permitindo execução simultânea e potencial aumento de vazão. Duplicar trabalho desperdiça capacidade, e desligar o SO ou inventar um mestre não é requisito do SMP.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma máquina AMP, a CPU mestre pode distribuir tarefas sem se tornar parte do caminho crítico, mesmo quando cada tarefa aguarda sua decisão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Se toda tarefa depende da decisão do mestre, o trabalho de coordenação participa do caminho crítico e pode formar gargalo. O impacto depende da taxa de pedidos e da capacidade de encaminhamento.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação exemplifica a diferença entre latência e vazão em um servidor multiprocessado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O tempo de uma requisição mede latência; requisições concluídas por segundo indicam vazão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O total de CPUs mede latência; o tamanho de cada lock expressa vazão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O tempo de uma requisição mede vazão; requisições por segundo indicam latência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O uso de memória mede latência; a prioridade máxima de uma thread define vazão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A frequência do mestre mede as duas grandezas sem observar o serviço executado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Latência mede o tempo de resposta individual; vazão mede quantidade de trabalho concluída por intervalo. Uma arquitetura pode melhorar uma métrica sem alterar a outra na mesma proporção.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma CPU mestre organiza trabalho para unidades subordinadas, mas o sistema não informa se elas compartilham memória. A classificação AMP ainda pode ser sustentada pela divisão de papéis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Papéis diferenciados e coordenação mestre-subordinados sustentam a classificação assimétrica. Memória compartilhada, modelo de kernel e protocolo de comunicação são detalhes adicionais que não foram informados.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma falha de lock deixou threads esperando em SMP. Qual diagnóstico corresponde melhor ao problema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A sincronização pode estar bloqueada ou mal gerenciada, impedindo progresso na seção protegida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A memória compartilhada foi substituída por memória exclusiva de uma máquina remota.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A arquitetura simétrica converteu automaticamente todas as threads em tarefas mestre.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O escalonador removeu a necessidade de acesso coordenado aos dados comuns.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O número de processadores reduziu a prioridade de todas as interrupções de hardware.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma thread pode aguardar indefinidamente um lock se ele não for liberado ou se houver erro no protocolo, impedindo progresso na seção crítica. A situação não altera a arquitetura SMP nem elimina a necessidade de sincronização.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma CPU mestre pode concentrar controle e distribuição em AMP; mecanismos de redundância podem reduzir, mas não apagam por definição, esse risco de centralização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A coordenação central pode ser gargalo ou ponto crítico. Redundância e recuperação melhoram a disponibilidade, mas dependem de desenho explícito e não tornam irrelevante a dependência do controlador.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática de programação ajuda a aproveitar SMP sem introduzir disputa desnecessária por estado comum?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dividir trabalho independente e limitar o compartilhamento mutável entre threads.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Fazer todas as threads atualizar continuamente a mesma variável global sem proteção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter uma única thread ativa para que o escalonador veja diversas CPUs livres.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover todo mecanismo de sincronização mesmo quando há invariantes compartilhadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar cópias completas do sistema operacional a cada chamada de função paralela.",
+          "correct": false
+        }
+      ],
+      "explanation": "Trabalho independente aumenta as oportunidades de execução simultânea; reduzir dados mutáveis compartilhados pode diminuir contenção. A proteção continua necessária para estado que precisa ser coordenado.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em todo sistema SMP, a CPU que iniciou o computador permanece como mestre durante toda a operação e as demais nunca executam o kernel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A inicialização pode começar em uma CPU, mas isso não define um mestre permanente na operação SMP. Processadores pares podem executar tarefas do kernel sob controle do SO comum.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O programa executa em um núcleo por vez, mas alterna rapidamente entre várias tarefas. Como classificar a simultaneidade nesse caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Há concorrência por intercalação, mas não paralelismo simultâneo entre essas tarefas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Há necessariamente multiprocessamento assimétrico com um mestre escondido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Há execução paralela porque a alternância faz duas instruções ocorrerem juntas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Há cluster distribuído porque o núcleo salva o estado de cada tarefa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Há memória compartilhada entre CPUs mesmo que só exista um núcleo ativo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma CPU pode alternar tarefas e dar a impressão de progresso concorrente, mas só executa uma sequência de instruções por vez. Paralelismo simultâneo exige unidades de execução distintas ativas ao mesmo tempo.",
+      "section": "1. O que significa multiprocessar",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A documentação oficial da IBM indica que sistemas SMP usam um único sistema operacional e comunicação por memória compartilhada entre processadores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação da IBM caracteriza o SMP por processadores que compartilham recursos e memória, sob um único sistema operacional. O contraste é com ambientes MPP e clusters, que distribuem recursos por nós.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre sistemas AMP deve ser evitada por extrapolar um exemplo específico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todo AMP possui exatamente um kernel mestre, memória única e subordinados sem qualquer autonomia.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um AMP pode atribuir funções diferentes a processadores conforme o desenho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma coordenação central pode criar gargalo se todas as tarefas dependerem dela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A especialização pode favorecer previsibilidade em certas cargas embarcadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A distribuição de tarefas pode ser estática ou depender da coordenação do mestre.",
+          "correct": false
+        }
+      ],
+      "explanation": "A afirmação absolutiza uma configuração particular. AMP designa papéis assimétricos, mas detalhes de kernel, memória, autonomia e comunicação dependem da arquitetura. As demais opções descrevem possibilidades e ressalvas plausíveis do modelo.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em SMP, acrescentar CPUs pode aumentar a vazão quando há trabalho paralelo, embora a latência de toda tarefa individual não caia necessariamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. CPUs adicionais podem concluir mais tarefas por intervalo quando a carga se paraleliza. Uma tarefa individual pode continuar limitada por dependências ou trecho serial, portanto vazão maior não implica redução proporcional de toda latência.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um equipamento tem um processador para interface gráfica e outro para controle de sensores, com coordenação central. Qual classificação é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "AMP, pois há funções diferentes atribuídas aos processadores.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SMP, pois todo equipamento com dois processadores usa tarefas equivalentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cluster, pois cada função de hardware corresponde a um nó de rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uniprocessamento, pois a coordenação central impede que exista mais de uma CPU.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Execução vetorial, pois sensores e interface representam dados de uma instrução.",
+          "correct": false
+        }
+      ],
+      "explanation": "A descrição destaca responsabilidades distintas e coordenação central, características de uma organização AMP. A simples existência de duas CPUs não basta para SMP, e funções de um equipamento não são nós de cluster por si só.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um AMP mestre-subordinados, processadores subordinados podem executar trabalho atribuído enquanto o mestre cuida de coordenação, conforme as regras do projeto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esse é o modelo didático de divisão assimétrica de trabalho: o mestre coordena ou distribui e os processadores subordinados executam funções delegadas. Os detalhes concretos dependem da arquitetura.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação SMP mantém tarefas prontas em uma fila geral. Qual resultado o escalonador pode produzir quando há processadores livres?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Despachar tarefas distintas para CPUs diferentes, conforme carga e política do sistema.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar todas as tarefas somente na CPU que iniciou o computador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar um sistema operacional independente para cada item da fila geral.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Duplicar cada tarefa em todas as CPUs, sem considerar sua finalidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Impedir a execução paralela até que a fila esteja completamente vazia.",
+          "correct": false
+        }
+      ],
+      "explanation": "No SMP, o SO pode distribuir tarefas prontas entre CPUs disponíveis segundo sua política e condições de carga. Isso permite paralelismo quando há trabalho independente; não exige CPU inicial exclusiva nem SO por tarefa.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arranjo AMP pode designar um processador a uma função especializada, sem que todos os processadores executem as mesmas responsabilidades.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A assimetria consiste justamente em papéis distintos. Uma CPU pode receber uma função especializada enquanto outra coordena ou executa trabalho diferente, segundo a arquitetura.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual fator pode reduzir a escalabilidade de um sistema SMP mesmo quando existem várias tarefas prontas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Contenção por memória ou locks compartilhados, que força processadores a esperar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A existência de um SO comum, que proíbe por definição toda execução concorrente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O uso de tarefas prontas, que transforma automaticamente o SMP em uniprocessador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A presença de escalonador, que elimina o acesso de qualquer CPU ao kernel.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A possibilidade de usar afinidade, que obriga todo processo a esperar por todas as CPUs.",
+          "correct": false
+        }
+      ],
+      "explanation": "A disputa por memória ou locks pode impedir que CPUs avancem ao mesmo tempo, reduzindo o ganho de tarefas prontas. Um SO comum e afinidade não proíbem automaticamente execução concorrente.",
+      "section": "4. Comparação, desempenho e escolha do modelo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um modelo AMP, a atribuição fixa de tarefas pode favorecer previsibilidade, mas pode também deixar capacidade ociosa diante de carga desigual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Funções dedicadas podem tornar o comportamento mais previsível, mas a carga pode variar e saturar apenas uma unidade. O equilíbrio depende da flexibilidade que o projeto permite.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma questão descreve processadores com funções diferentes e um controlador que encaminha trabalho. Qual classificação é melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "AMP, pois a coordenação central distribui tarefas entre processadores de papéis distintos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SMP, pois a existência de controlador é obrigatória entre CPUs pares.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cluster, pois qualquer distribuição interna equivale à comunicação em rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Multitarefa uniprocessada, porque o controlador impede várias CPUs.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Execução vetorial, por haver funções de processamento simultâneas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Papéis distintos e encaminhamento central descrevem uma organização assimétrica. SMP caracteriza processadores pares sob gestão comum; cluster depende de nós e comunicação distribuída, não apenas de distribuição interna.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema SMP, uma tarefa pronta possui afinidade por uma CPU ocupada, enquanto outra CPU está livre. Qual aspecto pode afetar a escolha do escalonador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A política pode ponderar afinidade e disponibilidade ao selecionar onde executar a tarefa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A CPU livre precisa assumir o papel de mestre e reiniciar o sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A memória compartilhada escolhe a CPU sem que o escalonador examine o estado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Afinidade converte o processo em um dispositivo de entrada e saída bloqueado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O SO deixa de usar processadores pares sempre que uma CPU fica ocupada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O escalonador pode considerar afinidade, carga e disponibilidade conforme sua política. Uma preferência por CPU não cria mestre nem impede o SO de distribuir tarefas entre processadores pares.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve melhor o efeito de uma fila mestre muito carregada em AMP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O encaminhamento central pode limitar a vazão e deixar subordinados aguardando trabalho.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A fila garante distribuição idêntica e elimina espera em todas as unidades.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A carga central faz a arquitetura operar automaticamente como SMP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O mestre deixa de participar do controle quando a fila acumula pedidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A fila transforma cada subordinado em um nó com sistema operacional remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se o mestre não encaminha trabalho com rapidez suficiente, ele se torna gargalo e subordinados podem ficar ociosos aguardando tarefas. Isso não converte a organização em SMP nem cria nós remotos.",
+      "section": "3. Multiprocessamento assimétrico (AMP)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SMP clássico, uma memória compartilhada pode servir à comunicação entre processadores, enquanto o sistema operacional comum coordena a execução das tarefas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Processadores compartilham recursos, incluindo memória, e operam sob um SO comum. A memória permite troca de dados, enquanto o escalonador e os mecanismos do SO controlam tarefas; acesso compartilhado ainda requer sincronização apropriada.",
+      "section": "2. Multiprocessamento simétrico (SMP)",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Parallel processing environments",
+      "publisher": "IBM Documentation",
+      "reference": "Descrição de SMP: recursos compartilhados, comunicação por memória compartilhada e sistema operacional único; contraste com MPP e cluster.",
+      "url": "https://www.ibm.com/docs/en/iis/11.7.0?topic=jobs-parallel-processing-environments",
+      "accessedAt": "2026-11-19"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Parallel processing topologies",
+      "publisher": "IBM Documentation",
+      "reference": "Sistemas SMP com processadores que compartilham hardware, memória e espaço em disco sob um único sistema operacional.",
+      "url": "https://www.ibm.com/docs/en/iis/11.7.0?topic=topologies-parallel-processing",
+      "accessedAt": "2026-11-19"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Oracle8 Parallel Server Concepts & Administration",
+      "publisher": "Oracle Documentation",
+      "reference": "Contraste conceitual entre fluxo central de solicitações no multiprocessamento assimétrico e caminhos independentes no simétrico; material histórico de arquitetura.",
+      "url": "https://docs.oracle.com/cd/A84055_01/EE806DOC/pdfdocs/paraserv.806/a58238.pdf",
+      "accessedAt": "2026-11-19"
+    }
+  ]
+}

@@ -1,0 +1,1772 @@
+{
+  "id": "informatica.redes-distribuicao-conteudo-cdn",
+  "subject": "Informática",
+  "title": "Redes de distribuição de conteúdo (CDN)",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Redes de distribuição de conteúdo (CDN)",
+    "Redes de entrega de conteúdo pela Internet",
+    "Content Delivery Network e distribuição web",
+    "Content Distribution Network e caches",
+    "Arquitetura de redes CDN distribuídas",
+    "Funcionamento de uma Content Delivery Network",
+    "Caches de borda em redes de conteúdo",
+    "Roteamento de requisições em CDNs",
+    "Servidores substitutos e conteúdo em cache",
+    "Interconexão entre redes CDN distintas"
+  ],
+  "scope": {
+    "covers": "Conceito, objetivos e componentes de uma rede de distribuição ou entrega de conteúdo (CDN); origem, distribuição, caches ou surrogates, request routing, pontos de presença e logs; resolução e redirecionamento de requisições; cache hit, miss, preenchimento, validade, invalidação e conteúdo dinâmico; efeitos sobre latência, tráfego de trânsito, escalabilidade, disponibilidade e experiência; limitações e segurança; interconexão entre CDNs (CDNI), papéis upstream/downstream e interfaces de roteamento, metadados, logging e controle.",
+    "excludes": "Configuração específica de fornecedores, comandos de produtos comerciais, protocolos de transporte em profundidade, operação de DNS em geral, balanceamento de carga genérico sem relação com entrega de conteúdo, streaming como assunto autônomo e políticas jurídicas de neutralidade ou direitos autorais."
+  },
+  "theoryTitle": "Como uma CDN aproxima conteúdo dos usuários",
+  "chapters": [
+    {
+      "title": "1. A arquitetura e os componentes de uma CDN",
+      "markdown": "### O problema que este assunto resolve\n\nQuando muitos usuários solicitam páginas, imagens, arquivos ou vídeos hospedados em uma origem distante, cada resposta percorre a rede até essa origem. A distância e os enlaces congestionados podem aumentar o tempo de resposta; pedidos repetidos também consomem capacidade no caminho central. Uma **rede de distribuição de conteúdo** (CDN, *Content Delivery Network* ou *Content Distribution Network*) usa elementos cooperantes, normalmente nas camadas de aplicação, para entregar conteúdo com mais eficiência. O RFC 6707 descreve uma CDN como infraestrutura que coopera nas camadas 4 a 7 e tipicamente inclui roteamento de requisições, distribuição com servidores substitutos, logging e controle da CDN.\n\n> **Siglas e termos deste capítulo**\n> - **CSP**: *Content Service Provider*, organização que oferece o conteúdo.\n> - **Origin server**: servidor de origem que mantém a cópia de referência do conteúdo.\n> - **Surrogate**: servidor da CDN que responde em nome da origem; pode atuar como cache.\n> - **PoP**: *Point of Presence*, local ou conjunto de equipamentos da CDN conectado à rede.\n> - **Request routing**: função que direciona uma requisição a um servidor adequado.\n> - **Control system**: componentes que configuram e coordenam a operação da CDN.\n\n### Os elementos e o fluxo básico\n\nO CSP publica ou disponibiliza o conteúdo na origem e configura a CDN para atender determinado nome, domínio ou conjunto de recursos. Um usuário solicita um objeto por meio de navegador, aplicativo ou outro agente. A função de roteamento escolhe um surrogate apropriado; esse servidor entrega o objeto se já tiver uma cópia válida ou busca o objeto na origem (ou em outro servidor da CDN) se não o tiver. A resposta volta ao usuário e pode ficar armazenada para requisições compatíveis posteriores.\n\n| Elemento | Papel na entrega |\n| --- | --- |\n| Origem | Mantém conteúdo de referência e atende buscas feitas pela CDN |\n| Request router | Seleciona ou indica um destino para a requisição |\n| Surrogate/cache | Atende o usuário e pode armazenar cópias próximas à rede de acesso |\n| Sistema de distribuição | Transporta ou replica objetos entre a origem e os surrogates |\n| Sistema de controle | Gerencia configuração, políticas, capacidade e coordenação |\n| Logging | Registra eventos de entrega e resultados operacionais |\n\nCDN não significa necessariamente que todos os arquivos estejam previamente copiados em todos os locais. Uma cópia pode ser obtida sob demanda, e políticas determinam por quanto tempo ela pode ser reutilizada. Um PoP pode conter um ou vários surrogates; a expressão “mais próximo” é lógica ou topológica, e não garante a menor distância geográfica em toda situação.\n\n### O que a distribuição melhora — e o que não promete\n\nAtender conteúdo em um ponto próximo pode reduzir o percurso até a origem e o volume de tráfego que atravessa enlaces centrais. Em conteúdo popular, um surrogate pode responder a muitos usuários sem buscar uma cópia nova para cada um. Distribuir capacidade por vários pontos também ajuda a absorver picos e pode oferecer caminhos alternativos em falhas. Esses ganhos dependem da localização e capacidade dos pontos, do acerto de cache, da conectividade e da configuração do conteúdo.\n\nA CDN não elimina a rede de acesso do usuário, não torna ilimitada a capacidade e não garante, por si só, disponibilidade ou baixa latência. Se o objeto não puder ser armazenado, se o cache estiver desatualizado, se o PoP estiver congestionado ou se o acesso local falhar, o usuário ainda pode sofrer demora ou indisponibilidade.\n\n### Como cai na prova\n\n- A CDN coopera entre origem, roteamento e surrogates para distribuir conteúdo.\n- O surrogate pode servir uma cópia válida ou buscar o objeto quando ocorre uma falta de cache.\n- Replicar conteúdo popular perto dos usuários pode reduzir tráfego de trânsito e latência percebida.\n- Nem toda CDN pré-carrega tudo; preenchimento sob demanda é possível.\n- “Próximo” descreve uma escolha de entrega, não uma garantia física de menor distância ou de serviço perfeito."
+    },
+    {
+      "title": "2. Roteamento, cache e atualização do conteúdo",
+      "markdown": "### O problema que este assunto resolve\n\nDistribuir cópias só funciona se cada pedido chegar a um servidor capaz de atendê-lo e se esse servidor souber quando pode reutilizar a cópia que possui. A CDN combina seleção do destino com regras de cache. A seleção pode considerar disponibilidade, localização de rede, capacidade, conteúdo solicitado e políticas do provedor. O navegador pode receber diretamente uma resposta redirecionada ou resolver um nome que, por configuração, leva a um ponto da CDN. São mecanismos possíveis; não existe um único método obrigatório para toda CDN.\n\n> **Siglas e termos deste capítulo**\n> - **Hit**: o objeto solicitado está disponível no cache e pode ser servido segundo a política vigente.\n> - **Miss**: o objeto não está no cache utilizável e precisa ser obtido de outra fonte.\n> - **TTL**: tempo de vida usado para limitar a validade de uma cópia em cache.\n> - **Invalidation/purge**: ação que torna uma cópia armazenada inelegível para uso ou solicita sua remoção.\n> - **Cache key**: critérios que identificam quais requisições podem compartilhar uma mesma cópia.\n> - **Redirect**: resposta que orienta o agente a realizar nova requisição a outro destino.\n\n### Caminhos de seleção e busca\n\nNo roteamento por DNS, a resolução do nome pode fornecer um destino associado à CDN; a resposta é influenciada por configurações de DNS, localização observada e políticas do provedor, mas caches de resolvedores podem limitar a rapidez com que mudanças se propagam. Em roteamento por redirecionamento HTTP, o primeiro ponto recebe a requisição e responde com uma instrução para o agente buscar o recurso em outro endereço. Em qualquer caso, o servidor selecionado precisa ter o objeto ou conseguir buscá-lo. A seleção pode ser repetida para outra requisição, e a resposta anterior não garante que toda sessão futura use o mesmo PoP.\n\nUm **cache hit** ocorre quando a cópia atende aos critérios de identidade e validade aplicáveis. Em um **cache miss**, o surrogate pode encaminhar uma requisição à origem, aguardar a resposta e, se as regras permitirem, guardar a cópia antes de entregá-la. Uma sequência de misses para o mesmo objeto pode ser limitada por mecanismos de coalescência de requisições, mas esse comportamento depende da implementação. A origem pode também delegar a busca a um nível intermediário da CDN.\n\n### Validade, variantes e invalidação\n\nO cache precisa distinguir representações diferentes. A chave pode envolver caminho, parâmetros de consulta, cabeçalhos selecionados, cookies ou outros elementos configurados. Uma chave mal definida pode misturar respostas que deveriam ser diferentes ou fragmentar o cache em muitas variantes. Cabeçalhos de controle de cache, TTLs, validadores e políticas do provedor ajudam a decidir se uma resposta pode ser armazenada, por quanto tempo e quando deve ser revalidada. Conteúdo personalizado ou sensível costuma exigir cuidado especial para não ser compartilhado entre usuários.\n\nUma mudança na origem não apaga automaticamente todas as cópias distribuídas. O provedor pode esperar o vencimento do TTL, realizar revalidação, emitir invalidação/purge ou publicar uma nova versão com identificador diferente. TTL curto favorece atualização mais rápida, mas aumenta contatos com a origem; TTL longo pode melhorar reutilização, mas prolongar a entrega de cópia antiga quando a atualização não é propagada.\n\n| Situação | Ação típica do surrogate |\n| --- | --- |\n| Cópia válida e chave correspondente | Servir a cópia armazenada |\n| Cópia ausente | Buscar na origem ou em nível superior e possivelmente armazenar |\n| Cópia vencida com validador | Revalidar antes de reutilizar, conforme protocolo e política |\n| Conteúdo alterado com purge solicitado | Marcar/remover a cópia e buscar a versão atual em nova solicitação |\n| Resposta personalizada ou não compartilhável | Evitar reutilização compartilhada conforme controles aplicáveis |\n\n### Como cai na prova\n\n- Hit é atendimento por uma cópia utilizável; miss pode causar busca à origem.\n- TTL controla validade, mas mudança na origem não implica invalidação instantânea em todos os PoPs.\n- DNS e redirecionamento HTTP são opções de direcionamento, não sinônimos de cache.\n- Cache key determina quais requisições compartilham uma cópia.\n- Conteúdo personalizado requer política que impeça vazamento entre usuários."
+    },
+    {
+      "title": "3. Desempenho, disponibilidade e segurança operacional",
+      "markdown": "### O problema que este assunto resolve\n\nA CDN busca servir muitas solicitações com recursos distribuídos. Para avaliar o resultado, não basta contar servidores: importam a taxa de acerto do cache, a capacidade dos PoPs, o tempo de ida e volta, o estado da origem e o percurso até o usuário. Logs e métricas ajudam a identificar em qual etapa surgem demora, erros ou respostas antigas.\n\n> **Siglas e termos deste capítulo**\n> - **Latência**: tempo decorrido entre uma ação e a resposta percebida.\n> - **Throughput**: volume de dados transferido por unidade de tempo.\n> - **Cache hit ratio**: proporção de solicitações ou bytes atendidos pelo cache, segundo a métrica adotada.\n> - **Origin offload**: redução de requisições ou tráfego que chega à origem.\n> - **DDoS**: ataque distribuído de negação de serviço.\n> - **TLS**: protocolo de proteção criptográfica da comunicação, quando configurado entre os pontos pertinentes.\n\n### Medidas e trade-offs\n\nUm hit tende a evitar uma busca completa à origem, o que pode reduzir latência e origin offload. Isso não significa que toda requisição tenha o mesmo ganho: conexão, processamento, distância, congestionamento e tamanho do objeto influenciam a experiência. A taxa de acerto depende do padrão de popularidade, da chave, do tamanho do cache, da validade e da variedade das requisições. É possível medir hits por solicitação ou por bytes; essas métricas respondem perguntas diferentes.\n\nVários PoPs podem distribuir carga, mas uma escolha ruim de destino pode levar o usuário a um ponto congestionado ou distante em termos de rede. Uma falha no surrogate pode ser contornada por nova seleção se houver capacidade e informação atualizada. Uma falha na origem pode ser mitigada para objetos ainda válidos em cache, porém conteúdo não armazenado ou que precise de validação pode continuar indisponível. Por isso, “CDN” não é sinônimo de redundância completa da aplicação.\n\n### Segurança e consistência\n\nA CDN pode terminar conexões criptografadas, aplicar controles de acesso, filtrar tráfego ou absorver parte de um ataque volumétrico, conforme serviço e configuração. Essa posição também cria responsabilidades: proteger credenciais e chaves, controlar acesso à origem, evitar que ela aceite tráfego indevido, configurar corretamente certificados e impedir que respostas privadas sejam armazenadas de modo compartilhado. Um cache exposto pode servir conteúdo adulterado ou obsoleto se a origem, a configuração ou o processo de atualização for comprometido.\n\nCache poisoning é o risco de uma entrada maliciosa ou de uma chave inadequada fazer com que conteúdo impróprio seja associado a requisições legítimas. Controles incluem restringir o que compõe a chave, tratar cabeçalhos e parâmetros de forma consistente, validar conteúdo na origem e limitar quem pode purgar ou alterar configurações. Logs auxiliam investigação e medição, mas podem conter identificadores ou dados que exigem proteção. A CDN não substitui autenticação e autorização da aplicação.\n\n### Como cai na prova\n\n- Uma taxa de acerto maior tende a reduzir buscas à origem, sem garantir sozinha baixa latência.\n- Cache pode ajudar durante falha da origem apenas para objetos utilizáveis que já estejam armazenados.\n- Segurança envolve origem, chave, conteúdo privado, certificados, credenciais e controle de invalidação.\n- Uma CDN pode mitigar certos picos e ataques, mas não é garantia absoluta contra DDoS.\n- A CDN não assume automaticamente a autenticação e autorização próprias da aplicação."
+    },
+    {
+      "title": "4. Interconexão entre CDNs (CDNI)",
+      "markdown": "### O problema que este assunto resolve\n\nUm provedor de conteúdo pode contratar uma CDN principal e, ainda assim, precisar alcançar usuários em regiões ou redes onde essa CDN não tem capacidade adequada. O RFC 6707 chama de **CDN Interconnection (CDNI)** a relação em que uma CDN presta entrega em nome de outra. A CDN que delega é chamada *upstream CDN* (uCDN); a que recebe a delegação e atende os usuários é a *downstream CDN* (dCDN). O usuário final pode receber o objeto de um surrogate da dCDN, embora a relação comercial e de controle comece na uCDN.\n\n> **Siglas e termos deste capítulo**\n> - **CDNI**: interconexão entre redes CDN para permitir que uma entregue conteúdo em nome de outra.\n> - **uCDN**: CDN upstream, que delega pedidos ou conteúdo.\n> - **dCDN**: CDN downstream, que recebe a delegação e atende o usuário final.\n> - **MI**: *Metadata Interface*, troca metadados e políticas de entrega.\n> - **RI**: *Request Routing Interface*, coordena o encaminhamento de requisições entre CDNs.\n> - **LI**: *Logging Interface*, permite intercambiar registros de entrega.\n> - **CI**: *Control Interface*, transporta operações de controle da interconexão.\n\n### Delegação e interfaces\n\nA uCDN decide que uma requisição pode ser atendida pela dCDN e encaminha ou redireciona a solicitação segundo o mecanismo acordado. Para isso, as CDNs precisam conhecer informações de roteamento, área coberta, capacidade e políticas relevantes. O framework do RFC 7336 organiza a interconexão em quatro interfaces: Request Routing, Metadata, Logging e Control. Elas representam funções de troca entre domínios; não significam que todo produto implemente uma única API universal ou que os sistemas internos de cada CDN sejam iguais.\n\nA interface de metadados permite informar condições associadas ao conteúdo e à sua entrega, como regras de acesso ou disponibilidade. A interface de roteamento participa da escolha e delegação do destino. A interface de logging trata registros de entrega entre CDNs. A interface de controle dá suporte a operações de controle da interconexão. Informações de footprint e capacidades podem ajudar a uCDN a selecionar uma dCDN que aceite o tráfego e alcance os usuários pretendidos.\n\n| Papel ou interface | Função na interconexão |\n| --- | --- |\n| uCDN | Decide ou coordena a delegação para outra CDN |\n| dCDN | Recebe a delegação e entrega ao usuário por seus surrogates |\n| Request Routing | Coordena o destino ou a delegação da requisição |\n| Metadata | Comunica metadados e políticas de entrega |\n| Logging | Troca informações de registro de entrega |\n| Control | Dá suporte às operações de controle entre CDNs |\n\n### Limites da interconexão\n\nCDNI não é simplesmente colocar duas CDNs lado a lado, nem exige compartilhar toda a infraestrutura ou os dados internos. Cada provedor mantém sua operação e coopera por interfaces e informações acordadas. A delegação precisa respeitar as condições do CSP e as capacidades anunciadas pela dCDN. Diferenças de política, disponibilidade, segurança, rastreabilidade e formato de metadados precisam ser tratadas para que a experiência continue consistente.\n\n### Como cai na prova\n\n- CDNI permite que uma CDN entregue conteúdo em nome de outra.\n- Upstream delega; downstream recebe a delegação e atende o usuário.\n- O framework define funções de roteamento, metadados, logging e controle.\n- A interconexão troca informações necessárias, sem fundir as infraestruturas.\n- Capacidade e footprint ajudam a decidir se uma CDN downstream é destino adequado."
+    }
+  ],
+  "summary": "CDN é uma infraestrutura cooperativa de entrega de conteúdo que combina origem, roteamento de requisições, distribuição, surrogates/cache, controle e logging. O roteamento escolhe um destino; o cache serve cópias válidas ou busca objetos ausentes, conforme chave, validade e política. A proximidade pode reduzir latência e tráfego para a origem, mas depende de acertos de cache, capacidade, conectividade e configuração. CDNI permite que uma CDN upstream delegue entrega a uma downstream por interfaces de roteamento, metadados, logging e controle.",
+  "flashcards": [
+    {
+      "front": "O que é uma CDN?",
+      "back": "Infraestrutura de elementos cooperantes nas camadas de aplicação que distribuem conteúdo a agentes de usuário por meio de roteamento, surrogates e funções de controle."
+    },
+    {
+      "front": "Qual é o papel do servidor de origem?",
+      "back": "Manter a cópia de referência do conteúdo e atender buscas feitas pelos servidores da CDN."
+    },
+    {
+      "front": "O que é um surrogate?",
+      "back": "Servidor da CDN que atende usuários em nome da origem e pode armazenar conteúdo em cache."
+    },
+    {
+      "front": "O que é um PoP?",
+      "back": "Ponto de presença da CDN que reúne um ou mais equipamentos conectados à rede."
+    },
+    {
+      "front": "Qual o papel do request routing?",
+      "back": "Selecionar ou indicar o servidor ou CDN apropriado para atender uma requisição."
+    },
+    {
+      "front": "O que significa cache hit?",
+      "back": "A cópia solicitada está disponível e pode ser usada segundo as regras de identidade e validade."
+    },
+    {
+      "front": "O que ocorre em um cache miss?",
+      "back": "O surrogate busca o objeto na origem ou em outro nível da CDN e pode guardá-lo, se permitido."
+    },
+    {
+      "front": "Para que serve o TTL no cache?",
+      "back": "Limita o período em que uma cópia pode ser considerada válida sem nova validação."
+    },
+    {
+      "front": "O que é cache key?",
+      "back": "Conjunto de critérios que identifica quais requisições podem reutilizar a mesma cópia."
+    },
+    {
+      "front": "O que uma invalidação ou purge faz?",
+      "back": "Torna a cópia inelegível para reutilização ou solicita sua remoção, conforme a operação disponível."
+    },
+    {
+      "front": "A mudança na origem atualiza imediatamente todos os PoPs?",
+      "back": "Não. Pode ser necessário aguardar TTL, revalidar, invalidar ou publicar nova versão."
+    },
+    {
+      "front": "Como o roteamento por DNS pode direcionar a uma CDN?",
+      "back": "A resolução do nome pode fornecer um destino associado ao serviço CDN segundo configuração e políticas."
+    },
+    {
+      "front": "Como funciona o redirecionamento HTTP para entrega CDN?",
+      "back": "Um ponto responde com instrução para o agente buscar o recurso em outro endereço."
+    },
+    {
+      "front": "Por que cópias próximas podem reduzir tráfego de trânsito?",
+      "back": "O surrogate atende pedidos sem que cada requisição atravesse os enlaces centrais até a origem."
+    },
+    {
+      "front": "Uma taxa de hit alta garante baixa latência?",
+      "back": "Não. Distância de rede, congestionamento, processamento, acesso e tamanho dos objetos também afetam a latência."
+    },
+    {
+      "front": "Como cache pode ajudar durante indisponibilidade da origem?",
+      "back": "Pode servir objetos válidos já armazenados; conteúdo ausente ou que precise ser validado pode falhar."
+    },
+    {
+      "front": "O que é origin offload?",
+      "back": "Redução de requisições ou bytes que precisam chegar ao servidor de origem."
+    },
+    {
+      "front": "O que significa upstream CDN em CDNI?",
+      "back": "A CDN que coordena ou delega a entrega de requisições a outra CDN."
+    },
+    {
+      "front": "O que significa downstream CDN?",
+      "back": "A CDN que recebe a delegação e entrega o conteúdo por seus próprios surrogates."
+    },
+    {
+      "front": "Quais são as quatro interfaces funcionais do framework CDNI?",
+      "back": "Request Routing, Metadata, Logging e Control."
+    },
+    {
+      "front": "Para que serve a interface Metadata em CDNI?",
+      "back": "Para comunicar metadados e políticas necessários à entrega do conteúdo entre CDNs."
+    },
+    {
+      "front": "Qual a função da interface Logging em CDNI?",
+      "back": "Intercambiar registros de entrega entre CDNs interconectadas."
+    }
+  ],
+  "tips": [
+    "Separe roteamento de cache: um escolhe o destino; o outro decide se uma cópia pode ser reutilizada.",
+    "Em um miss, procure a etapa de busca à origem ou a outro nível da CDN.",
+    "TTL e invalidação são mecanismos diferentes: expiração decorre do tempo; purge é uma ação solicitada.",
+    "Não transforme benefício em garantia: cache próximo pode reduzir latência, mas não remove gargalos do acesso.",
+    "Em CDNI, memorize a direção: upstream delega, downstream atende o usuário.",
+    "Associe as interfaces CDNI pelas funções: roteamento, metadados, registros e controle."
+  ],
+  "traps": [
+    "Achar que todo objeto é copiado de antemão para todos os PoPs; preenchimento sob demanda também é comum.",
+    "Confundir cache miss com falha permanente: miss pode apenas iniciar busca à origem.",
+    "Supor que alteração na origem apaga automaticamente as cópias distribuídas.",
+    "Tratar o PoP geograficamente mais próximo como necessariamente o melhor destino de rede.",
+    "Afirmar que CDN garante disponibilidade ou protege integralmente contra qualquer DDoS.",
+    "Inverter upstream e downstream ou confundir interfaces de CDNI com componentes internos de uma CDN."
+  ],
+  "activeRecall": [
+    "Desenhe o caminho de um pedido desde o agente de usuário até o surrogate e, em caso de miss, até a origem.",
+    "Explique por que conteúdo popular pode ser servido sem atravessar repetidamente a rede central.",
+    "Compare cache hit, cache miss e revalidação de uma cópia vencida.",
+    "Descreva dois mecanismos de roteamento de requisições e uma limitação de cada um.",
+    "Explique como cache key inadequada pode misturar respostas ou reduzir o aproveitamento do cache.",
+    "Relacione TTL longo e curto com atualização e carga na origem.",
+    "Diga quais objetos uma CDN pode servir se a origem ficar indisponível e quais podem falhar.",
+    "Enumere as quatro interfaces funcionais do framework CDNI e a finalidade de cada uma."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Roteamento confundido com cache",
+      "summary": "Roteamento seleciona o destino da requisição; cache verifica se o destino tem uma cópia utilizável e como obtê-la."
+    },
+    {
+      "key": "e2",
+      "title": "Validade confundida com atualização",
+      "summary": "A origem pode mudar sem atualização instantânea de todos os caches; TTL, revalidação, invalidação e versão controlam a transição."
+    },
+    {
+      "key": "e3",
+      "title": "Benefício tratado como garantia",
+      "summary": "CDN pode reduzir latência e tráfego central, mas não elimina falhas de acesso, congestionamento, origem ou aplicação."
+    },
+    {
+      "key": "e4",
+      "title": "Papéis de CDNI invertidos",
+      "summary": "A uCDN coordena ou delega; a dCDN recebe a delegação e entrega ao usuário. As interfaces cumprem funções distintas."
+    },
+    {
+      "key": "e5",
+      "title": "Cache compartilhado sem privacidade",
+      "summary": "Reutilizar resposta personalizada entre usuários pode expor dados; chave e diretivas devem refletir a natureza da resposta."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em uma CDN, qual componente mantém a cópia de referência do conteúdo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O servidor de origem, que responde às buscas encaminhadas pela rede distribuída.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O request router, que guarda necessariamente todos os objetos para atender qualquer solicitação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O sistema de logging, que transforma registros de acesso na versão oficial de cada arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O resolvedor DNS do usuário, que replica páginas completas durante cada consulta de nome.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O agente de usuário, que funciona como repositório central das cópias distribuídas pela CDN.",
+          "correct": false
+        }
+      ],
+      "explanation": "A origem mantém a cópia de referência; surrogates podem guardar cópias para acelerar entregas. Roteamento, logging e DNS não substituem a função da origem, e o dispositivo do usuário não é repositório central da CDN.",
+      "section": "1. A arquitetura e os componentes de uma CDN",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente o papel de um surrogate em uma CDN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Servidor que atende usuários em nome da origem e pode manter objetos em cache.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Servidor que cria o conteúdo original e impede que a origem participe da entrega.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Equipamento que escolhe exclusivamente os nomes de domínio usados pelo CSP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Registro de auditoria que armazena eventos, mas não envia respostas aos usuários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Agente do usuário responsável por escolher a política de cache de cada PoP.",
+          "correct": false
+        }
+      ],
+      "explanation": "O surrogate é um servidor da CDN que pode responder em nome da origem e armazenar cópias. Ele não cria necessariamente o conteúdo de referência nem se confunde com logging, DNS ou agente do usuário.",
+      "section": "1. A arquitetura e os componentes de uma CDN",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual efeito pode decorrer de servir um objeto popular por um cache próximo aos usuários?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reduzir buscas repetidas à origem e o tráfego que percorre enlaces centrais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Eliminar toda comunicação entre o usuário e sua rede de acesso local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garantir que a aplicação permaneça disponível mesmo sem conectividade do usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Impedir que a cópia armazenada precise de validade ou política de atualização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter cada requisição web em comunicação multicast sem configuração adicional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma cópia reutilizada pode evitar buscas sucessivas à origem e reduzir tráfego no núcleo. O acesso local continua necessário, e cache não elimina validade, falhas nem transforma o serviço em multicast.",
+      "section": "1. A arquitetura e os componentes de uma CDN",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação corresponde aos componentes típicos de uma CDN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Roteamento de pedidos, distribuição com surrogates, logging e sistema de controle.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente servidor de origem, navegador, impressora e sistema operacional do usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas banco de dados relacional, compilador, firewall local e serviço de correio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente resolvedores DNS públicos, sem servidores de conteúdo ou cópias distribuídas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exclusivamente enlaces físicos, sem funções de aplicação ou coordenação entre nós.",
+          "correct": false
+        }
+      ],
+      "explanation": "A descrição típica inclui request routing, sistema de distribuição com surrogates, logging e controle. A CDN tem elementos de rede e de aplicação, não apenas DNS ou enlaces físicos.",
+      "section": "1. A arquitetura e os componentes de uma CDN",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma CDN pode armazenar uma cópia em um surrogate somente depois que um usuário a solicita?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O preenchimento sob demanda é possível: diante de um miss, o surrogate busca o objeto e pode armazená-lo se as regras permitirem. Também há estratégias de pré-distribuição, mas elas não são obrigatórias para todo objeto.",
+      "section": "1. A arquitetura e os componentes de uma CDN",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um PoP é necessariamente um único servidor situado na cidade geograficamente mais próxima de cada usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um PoP pode reunir vários equipamentos e sua escolha depende de topologia, capacidade e política; proximidade geográfica não garante o melhor caminho de rede.",
+      "section": "1. A arquitetura e os componentes de uma CDN",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma CDN, o agente de usuário pode receber conteúdo de um surrogate sem buscar diretamente a origem em cada solicitação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O surrogate pode responder com uma cópia válida já armazenada. A origem será consultada quando necessário, como em um miss ou revalidação, conforme as políticas aplicáveis.",
+      "section": "1. A arquitetura e os componentes de uma CDN",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual distinção entre cache hit e cache miss está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Hit usa uma cópia utilizável; miss exige buscar o objeto em outra fonte.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Hit sempre consulta a origem; miss indica que a resposta veio do navegador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Hit significa que o DNS falhou; miss significa que o nome foi resolvido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Hit invalida a cópia antiga; miss prolonga sua validade sem contato externo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Hit e miss descrevem exclusivamente a autorização do usuário na aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Hit é atendimento por cópia utilizável. No miss, o objeto não está disponível no cache e pode ser buscado na origem ou em outro nível da CDN. Esses termos não descrevem DNS nem autorização.",
+      "section": "2. Roteamento, cache e atualização do conteúdo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a finalidade principal do TTL associado à reutilização de conteúdo em cache?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir um período de validade antes de nova validação ou expiração da cópia.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Escolher o provedor de conteúdo e transferir para ele a propriedade do objeto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Determinar quantos usuários podem acessar simultaneamente a página na origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Impedir que requisições cheguem ao surrogate durante o período configurado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apagar de imediato todas as versões do objeto em qualquer CDN conectada.",
+          "correct": false
+        }
+      ],
+      "explanation": "TTL limita por quanto tempo a resposta pode ser reutilizada antes de expirar ou precisar de validação, conforme as regras. Não escolhe o CSP, limita usuários nem invalida automaticamente outras redes.",
+      "section": "2. Roteamento, cache e atualização do conteúdo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como se denomina o evento em que o surrogate precisa obter o objeto na origem ou em outro nível da CDN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cache miss, que pode resultar no preenchimento posterior do cache.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cache hit, que sempre ocorre quando o objeto está ausente do servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Purge, que é apenas a busca inicial por um objeto nunca solicitado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Origin offload, que obriga a origem a receber toda requisição repetida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Logging, que transfere a resposta armazenada ao agente do usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cache miss é a ausência de uma cópia utilizável. O surrogate pode então buscar o objeto e armazená-lo, de acordo com as políticas. Purge é uma ação de invalidação, e logging registra eventos.",
+      "section": "2. Roteamento, cache e atualização do conteúdo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual escolha afeta quais requisições podem compartilhar uma mesma cópia armazenada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cache key, formada pelos critérios configurados para identificar a representação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A taxa de logging, que converte cada registro em chave de conteúdo reutilizável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A distância física da origem, que sozinha define a igualdade das respostas HTTP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número de PoPs, que obriga todos a servir exatamente a mesma variante.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O nome do navegador, que torna idênticas todas as respostas personalizadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A cache key identifica a representação e determina quais solicitações podem compartilhar a cópia. Critérios inadequados podem misturar respostas diferentes ou dividir o cache em excesso.",
+      "section": "2. Roteamento, cache e atualização do conteúdo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O redirecionamento HTTP e o cache são exatamente a mesma função em uma CDN.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O redirecionamento orienta o agente a buscar o recurso em outro endereço; o cache decide se uma cópia pode ser reutilizada ou precisa ser buscada. Podem participar do mesmo fluxo, mas são funções distintas.",
+      "section": "2. Roteamento, cache e atualização do conteúdo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Alterar um arquivo na origem apaga imediatamente todas as cópias em cache de qualquer PoP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A mudança na origem não remove automaticamente toda cópia distribuída. O provedor pode aguardar o TTL, revalidar, emitir invalidação ou publicar uma versão com outro identificador.",
+      "section": "2. Roteamento, cache e atualização do conteúdo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O roteamento por DNS é uma forma possível de encaminhar requisições para pontos associados a uma CDN.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A resolução pode entregar um destino associado à CDN segundo configuração e política. Caches DNS e outros fatores podem afetar a rapidez com que uma mudança de destino é observada.",
+      "section": "2. Roteamento, cache e atualização do conteúdo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer que atualizações de imagens estáticas apareçam rapidamente, mas também deseja evitar consultas excessivas à origem. Que decisão deve considerar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Equilibrar TTL, revalidação e invalidação conforme frequência de mudança e carga aceitável.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o TTL sem limite, pois conteúdo alterado é substituído automaticamente em todos os PoPs.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar toda cache, pois um surrogate não pode armazenar objetos estáticos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar apenas logs de acesso para modificar a cópia sem consultar origem ou política.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Enviar cada imagem por multicast, que invalida as cópias antigas dos usuários.",
+          "correct": false
+        }
+      ],
+      "explanation": "TTL longo melhora reutilização, mas pode manter cópias antigas; TTL curto aumenta revalidações ou buscas. Políticas de invalidação ou versionamento completam o controle, conforme o ritmo de alteração e a carga desejada.",
+      "section": "2. Roteamento, cache e atualização do conteúdo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um site varia a resposta conforme um cabeçalho de idioma, mas a CDN ignora esse cabeçalho ao formar a chave. Qual risco técnico é mais direto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usuários de idiomas distintos podem compartilhar uma representação inadequada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O servidor de origem deixa de ser capaz de armazenar a cópia de referência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A interface de logging converte o cabeçalho em uma política de roteamento global.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O TTL é automaticamente zerado em todos os PoPs a cada resposta entregue.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A CDN passa a usar multicast para distinguir as variantes da página.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se o idioma altera a representação, a chave precisa distinguir as variantes apropriadas. Ignorar esse critério pode levar um usuário a receber uma cópia destinada a outro idioma.",
+      "section": "2. Roteamento, cache e atualização do conteúdo",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma taxa de acerto de cache elevada, isoladamente, prova que toda requisição terá baixa latência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A taxa de acerto pode reduzir buscas à origem, mas latência também depende do caminho de rede, congestionamento, processamento, tamanho da resposta e conexão de acesso.",
+      "section": "3. Desempenho, disponibilidade e segurança operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que métrica representa a parcela de solicitações atendidas por cópias válidas de cache, segundo o critério de contagem adotado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cache hit ratio, que pode ser calculada por solicitações ou por bytes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "TTL médio, que mede diretamente a distância percorrida por cada pacote.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Footprint, que mede a proporção de usuários autenticados na aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Origin server, que expressa o total de arquivos distintos em todos os PoPs.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cache key, que indica o tempo de resposta em cada ponto de presença.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cache hit ratio expressa a proporção de acertos segundo uma métrica, que pode contar requisições ou bytes. TTL, footprint e chave têm significados diferentes.",
+      "section": "3. Desempenho, disponibilidade e segurança operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação explica melhor o conceito de origin offload?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Surrogates atendem cópias reutilizáveis e reduzem o volume que alcança a origem.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A CDN envia todas as solicitações à origem, mas registra somente uma delas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A origem transfere sua propriedade jurídica para cada PoP que armazena um arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O usuário deixa de usar sua rede de acesso após a primeira resposta em cache.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O servidor de logging passa a substituir o conteúdo original durante cada falha.",
+          "correct": false
+        }
+      ],
+      "explanation": "Origin offload é a redução de requisições ou bytes que chegam à origem porque cópias são atendidas por caches. Não altera a propriedade do conteúdo nem remove a necessidade de acesso do usuário.",
+      "section": "3. Desempenho, disponibilidade e segurança operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que se pode esperar se a origem ficar indisponível enquanto um objeto válido permanece em cache?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O surrogate pode servir a cópia válida, embora objetos ausentes ou que exijam validação falhem.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todos os objetos do site serão recriados automaticamente pelo sistema de logging.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A CDN garante acesso a qualquer conteúdo, mesmo sem cópia nem conectividade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A origem indisponível transforma toda resposta personalizada em cópia pública.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O roteador de requisições substitui o código da aplicação e gera respostas novas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma cópia válida já armazenada pode continuar disponível, conforme a política. Conteúdo ausente ou que precise de contato com a origem pode não ser atendido; CDN não cria conteúdo nem corrige a conectividade do usuário.",
+      "section": "3. Desempenho, disponibilidade e segurança operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chave de cache que não distingue uma resposta personalizada por usuário pode expor dados de uma pessoa a outra.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Se respostas privadas forem tratadas como equivalentes, uma cópia compartilhada pode ser entregue ao usuário errado. A política deve evitar armazenamento ou reutilização compartilhada quando a resposta for personalizada.",
+      "section": "3. Desempenho, disponibilidade e segurança operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma CDN oferece proteção completa contra qualquer ataque de negação de serviço, independentemente da configuração e capacidade contratada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A distribuição pode absorver ou mitigar certos picos, mas não é proteção absoluta. Capacidade, tipos de ataque, origem, configuração e demais dependências continuam relevantes.",
+      "section": "3. Desempenho, disponibilidade e segurança operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática reduz o risco de a origem aceitar tráfego que deveria passar pelos controles da CDN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Restringir o acesso à origem e controlar quem pode alterar políticas ou invalidar objetos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Publicar credenciais administrativas nos cabeçalhos de cada resposta cacheável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar certificados e controles de acesso para permitir qualquer caminho de rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar a mesma cache key para conteúdo público e dados privados de todos os usuários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter cópias sem validade para impedir que a origem receba requisições novas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Restringir a origem e proteger credenciais e operações da CDN reduz caminhos de acesso indevidos e alterações não autorizadas. Cache sem validade e compartilhamento de dados privados criam riscos, não controles.",
+      "section": "3. Desempenho, disponibilidade e segurança operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Logs de entrega podem apoiar diagnóstico de erros e medição de desempenho de uma CDN.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Registros operacionais ajudam a analisar solicitações, resultados e falhas. Como podem conter identificadores ou outros dados, seu acesso e retenção também precisam ser controlados.",
+      "section": "3. Desempenho, disponibilidade e segurança operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a relação entre cache key e cache poisoning?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma chave ou normalização inadequada pode associar conteúdo impróprio a pedidos legítimos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A chave garante por definição que todos os objetos foram examinados pela origem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O poisoning é uma falha de resolução DNS que sempre apaga os logs do PoP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A chave evita qualquer conteúdo malicioso sem depender da aplicação ou configuração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Poisoning é o procedimento normal de preencher um cache após um miss válido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cache poisoning envolve fazer com que uma entrada imprópria seja associada a requisições legítimas. A construção da chave e o tratamento consistente de cabeçalhos e parâmetros são controles relevantes, mas não eliminam todo risco por definição.",
+      "section": "3. Desempenho, disponibilidade e segurança operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em CDNI, qual papel cabe à downstream CDN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Receber delegação da upstream e entregar conteúdo ao usuário por seus surrogates.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter obrigatoriamente a origem do CSP e impedir a participação de outra CDN.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escolher o conteúdo editorial e definir os direitos de publicação do CSP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Operar apenas a interface de logging, sem participar da entrega ao usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Delegar requisições para a upstream, que então deixa de controlar a interconexão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A downstream CDN recebe a delegação e seus surrogates podem atender os usuários finais. A upstream coordena a delegação; nenhuma dessas funções determina os direitos editoriais do conteúdo.",
+      "section": "4. Interconexão entre CDNs (CDNI)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma relação CDNI, a CDN upstream pode delegar entrega a uma CDN downstream.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A interconexão permite que uma CDN forneça serviços de entrega em nome de outra. A downstream atende os usuários por seus surrogates conforme a delegação e as políticas acordadas.",
+      "section": "4. Interconexão entre CDNs (CDNI)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual interface CDNI tem como função trocar metadados e políticas de entrega?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Metadata Interface, que comunica informações associadas ao conteúdo e à entrega.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Logging Interface, que escolhe a variante editorial publicada pelo CSP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Control Interface, que substitui os surrogates por servidores de origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Request Routing Interface, que registra exclusivamente métricas de auditoria.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cache Key Interface, que não integra as funções do framework CDNI.",
+          "correct": false
+        }
+      ],
+      "explanation": "Metadata Interface transporta metadados e políticas pertinentes à entrega. Logging trata registros, Request Routing cuida do encaminhamento e Control apoia operações de controle.",
+      "section": "4. Interconexão entre CDNs (CDNI)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O framework CDNI descreve interfaces funcionais para roteamento, metadados, registros e controle.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As quatro interfaces funcionais são Request Routing, Metadata, Logging e Control. Elas permitem coordenação entre CDNs sem exigir que suas infraestruturas internas sejam fundidas.",
+      "section": "4. Interconexão entre CDNs (CDNI)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma CDN downstream pode ser selecionada considerando sua área de cobertura e capacidade anunciada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Informações de footprint e capacidades ajudam a determinar se a downstream é apropriada para atender os usuários e o tráfego delegado. Essa informação auxilia a decisão, sem garantir disponibilidade permanente.",
+      "section": "4. Interconexão entre CDNs (CDNI)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Qual interface CDNI é associada à troca de registros de entrega entre CDNs?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Logging Interface, voltada ao intercâmbio de informações de registro.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Metadata Interface, que escolhe por si só o PoP de cada usuário final.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Control Interface, que distribui obrigatoriamente cada objeto aos usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Request Routing Interface, usada apenas para armazenar certificados TLS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Origin Interface, que substitui todas as funções do framework de interconexão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A Logging Interface permite tratar registros de entrega entre CDNs. Roteamento, metadados e controle são funções separadas, e uma suposta Origin Interface não substitui as quatro interfaces funcionais do framework.",
+      "section": "4. Interconexão entre CDNs (CDNI)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A interconexão CDNI exige que as duas CDNs compartilhem toda sua infraestrutura interna e usem sistemas operacionais idênticos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. CDNI define cooperação por interfaces e informações acordadas. Cada provedor conserva sua operação interna; a interconexão não implica fusão de infraestrutura ou sistemas idênticos.",
+      "section": "4. Interconexão entre CDNs (CDNI)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em CDNI, a interface Request Routing participa da coordenação do destino ou da delegação de uma requisição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A interface de roteamento participa da coordenação do encaminhamento entre CDNs. Ela não é a interface cuja função principal é trocar registros ou metadados.",
+      "section": "4. Interconexão entre CDNs (CDNI)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Uma resposta personalizada por conta do usuário é armazenada em cache compartilhado e servida a contas distintas. Qual erro de projeto explica melhor o risco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A política ou a chave não separa a representação privada das respostas reutilizáveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O PoP tem capacidade excedente, o que obriga a CDN a divulgar dados privados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O TTL é curto, condição que por si só converte uma resposta em dado público.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A origem está próxima dos usuários, impedindo que o navegador mantenha conexões seguras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A interface de logging está ativa, o que torna todos os objetos armazenáveis por padrão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A resposta personalizada não pode ser reutilizada sem distinção por outros usuários. Uma chave inadequada ou política de armazenamento incorreta pode compartilhar conteúdo privado; capacidade, TTL curto e logging não justificam essa exposição.",
+      "section": "3. Desempenho, disponibilidade e segurança operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após atualização de um arquivo, alguns usuários ainda recebem a versão anterior apesar de a origem já conter a nova. Qual explicação é tecnicamente plausível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cópias em PoPs ainda válidas segundo o TTL podem não ter recebido invalidação ou nova versão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O servidor de origem replica automaticamente sua nova cópia apenas ao sistema de logging.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O cache hit garante consulta simultânea à origem em toda solicitação repetida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A downstream CDN sempre rejeita conteúdo que tenha sido publicado por uma upstream.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A mudança do arquivo elimina por definição todos os caches DNS dos clientes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Alterar a origem não invalida automaticamente cópias já distribuídas. Até expirar, revalidar ou receber purge, um cache pode servir a versão anterior conforme sua política.",
+      "section": "2. Roteamento, cache e atualização do conteúdo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um objeto não está no cache local, mas há uma cópia válida em um nível superior da mesma CDN. Qual comportamento pode ocorrer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O surrogate obtém o objeto do nível superior, evitando necessariamente nova busca à origem.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A ausência local obriga o navegador a reconstruir o arquivo usando apenas os logs.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O request router transforma o miss em purge e apaga o nível superior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O nível superior pode responder somente a consultas DNS, nunca a pedidos de conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O objeto deve ser considerado privado e a origem deixa de participar da rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma arquitetura em níveis pode permitir que o surrogate obtenha a cópia de um cache superior. A falta local não exige sempre uma ida à origem; a topologia e as políticas definem o caminho.",
+      "section": "1. A arquitetura e os componentes de uma CDN",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa escolhe TTL muito longo para conteúdo que muda frequentemente e não usa versionamento nem invalidação. Qual consequência é mais provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumenta o risco de cópias antigas permanecerem reutilizáveis por mais tempo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cada atualização será propagada instantaneamente por todos os surrogates.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O cache passa a consultar a origem em toda requisição, elevando o hit ratio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os arquivos tornam-se imutáveis e não podem ser servidos depois da publicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A upstream converte automaticamente o TTL em capacidade reservada para a downstream.",
+          "correct": false
+        }
+      ],
+      "explanation": "TTL longo mantém a cópia elegível por mais tempo. Sem invalidação, revalidação ou identificador novo, alterações frequentes podem demorar a aparecer aos usuários.",
+      "section": "2. Roteamento, cache e atualização do conteúdo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um conteúdo é entregue por uma downstream CDN em nome da CDN contratada pelo CSP. Qual leitura dos papéis é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A CDN contratada atua como upstream ao delegar, e a downstream atende o usuário.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A downstream é a origem do CSP por definição, e upstream significa agente do usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ambas são surrogates da mesma origem e, por isso, não existe delegação entre CDNs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A upstream só registra logs, enquanto a downstream define o conteúdo editorial.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A upstream é sempre o provedor de acesso do usuário e nunca uma CDN comercial.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na relação descrita, a CDN que delega é upstream e a que recebe a delegação e entrega ao usuário é downstream. Os papéis não definem quem é o CSP nem quem controla o acesso de rede do usuário.",
+      "section": "4. Interconexão entre CDNs (CDNI)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma CDN downstream anuncia que não tem capacidade para receber mais tráfego. Que informação deve influenciar a decisão da upstream?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A capacidade anunciada deve pesar na escolha de delegar ou selecionar outro destino.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A upstream deve ignorar a informação, pois CDNI não trata capacidade ou cobertura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A downstream deve receber mais tráfego para que o anúncio seja atualizado depois.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A interface Metadata substitui a capacidade e obriga encaminhamento para qualquer PoP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A interface Logging transforma o anúncio em reserva obrigatória de recursos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Capacidades anunciadas podem orientar a delegação. Se a downstream informa falta de capacidade, a upstream deve considerar outro destino ou não delegar esse tráfego; anúncio não é garantia de reserva.",
+      "section": "4. Interconexão entre CDNs (CDNI)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "Uma aplicação de entrega de conteúdo decide usar redirecionamento HTTP para levar um pedido a outro endereço. O redirecionamento, por si só, comprova que o recurso será atendido por cache válido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O redirecionamento indica ao agente outro destino, mas não prova que esse destino tenha uma cópia válida. O servidor pode ainda buscar o objeto na origem ou falhar.",
+      "section": "2. Roteamento, cache e atualização do conteúdo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma falha no PoP escolhido pode ser contornada por novo roteamento se a CDN tiver capacidade alternativa e informação atualizada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A distribuição pode permitir seleção de outro destino, desde que haja capacidade e dados atuais para orientar a decisão. A existência de CDN não garante que o failover sempre funcione.",
+      "section": "3. Desempenho, disponibilidade e segurança operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A interface Control do framework CDNI é a única interface responsável pela troca de logs de entrega.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A troca de registros é associada à Logging Interface. Control apoia operações de controle; o framework separa essas funções.",
+      "section": "4. Interconexão entre CDNs (CDNI)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma CDN pode terminar conexões criptografadas e aplicar controles, mas isso não transfere automaticamente para ela toda autenticação e autorização da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O serviço CDN pode participar da proteção de tráfego conforme sua configuração, porém a autorização para acessar recursos continua sendo responsabilidade que a aplicação precisa projetar e aplicar adequadamente.",
+      "section": "3. Desempenho, disponibilidade e segurança operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe deseja reduzir a latência, mas percebe que os pedidos ainda demoram quando os objetos são pequenos e o cache está aquecido. Qual investigação é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Examinar caminho de rede, congestionamento, processamento e conexão de acesso além da taxa de acerto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar apenas o número de logs, que reduz automaticamente o tempo de ida e volta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar a origem, pois um hit válido deixa todos os demais componentes desnecessários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o TTL, que reduz por si só a distância entre o PoP e cada usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar a cache key por uma única chave global, mesmo que haja respostas diferentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um hit reduz a necessidade de buscar a origem, mas não remove atrasos de rede, congestionamento, processamento ou acesso. Medir essas etapas ajuda a localizar o gargalo, enquanto TTL e logs não reduzem automaticamente a distância ou a latência.",
+      "section": "3. Desempenho, disponibilidade e segurança operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma CDN, o sistema de logging é o componente que escolhe o servidor de destino para cada requisição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O request routing seleciona ou indica destino. Logging registra eventos de entrega e pode apoiar análises, mas não é a função típica de escolha do servidor.",
+      "section": "1. A arquitetura e os componentes de uma CDN",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No framework CDNI, a interface Metadata tem como finalidade primária transportar registros de acesso entre as CDNs.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Metadata comunica informações e políticas associadas à entrega; a Logging Interface é que trata do intercâmbio de registros de entrega.",
+      "section": "4. Interconexão entre CDNs (CDNI)",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando há um cache miss, o surrogate necessariamente descarta a resposta obtida na origem em vez de armazená-la.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Após o miss, o surrogate pode buscar a resposta na origem e armazená-la se as regras de cache permitirem. A possibilidade de armazenamento depende da política e das características da resposta.",
+      "section": "2. Roteamento, cache e atualização do conteúdo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 6707 — Content Distribution Network Interconnection (CDNI) Problem Statement",
+      "publisher": "Internet Engineering Task Force (IETF)",
+      "reference": "Terminologia de CDN, origem, surrogate, roteamento, interconexão e benefícios do cache próximo à borda.",
+      "url": "https://www.rfc-editor.org/rfc/rfc6707.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 7336 — Framework for Content Distribution Network Interconnection (CDNI)",
+      "publisher": "Internet Engineering Task Force (IETF)",
+      "reference": "Arquitetura de interconexão entre CDNs e interfaces de roteamento, metadados, logging e controle.",
+      "url": "https://www.rfc-editor.org/rfc/rfc7336.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 8006 — Content Delivery Network Interconnection (CDNI) Metadata",
+      "publisher": "Internet Engineering Task Force (IETF)",
+      "reference": "Metadados CDNI e informações de política aplicáveis à entrega de conteúdo.",
+      "url": "https://www.rfc-editor.org/rfc/rfc8006.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 8008 — Content Delivery Network Interconnection (CDNI) Request Routing: Footprint and Capabilities Semantics",
+      "publisher": "Internet Engineering Task Force (IETF)",
+      "reference": "Semântica de footprint e capacidades para apoiar roteamento entre CDNs.",
+      "url": "https://www.rfc-editor.org/rfc/rfc8008.html",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

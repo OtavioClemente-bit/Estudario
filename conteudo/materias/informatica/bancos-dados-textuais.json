@@ -1,0 +1,1630 @@
+{
+  "id": "informatica.bancos-dados-textuais",
+  "subject": "Informática",
+  "title": "Bancos de dados textuais",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Bancos de dados textuais",
+    "Banco de dados textual e busca integral",
+    "Busca textual em bancos de dados",
+    "Pesquisa textual em banco de dados",
+    "Busca de texto completo em PostgreSQL",
+    "Full-text search em bancos de dados",
+    "Índice invertido para pesquisa textual",
+    "Indexação de documentos textuais",
+    "Análise lexical e normalização textual",
+    "Processamento de consultas textuais",
+    "Recuperação de informação textual",
+    "Relevância de resultados em pesquisa textual"
+  ],
+  "scope": {
+    "covers": "Busca textual em coleções armazenadas ou indexadas por sistemas de banco de dados: diferença entre busca literal e busca de texto completo; documentos, tokens, lexemas, stop words, normalização, stemming e análise; índice invertido e listas de ocorrências; consultas booleanas, por frase e prefixo; representação tsvector e tsquery, operador @@, funções de conversão, índices GIN e GiST, classificação de relevância, pesos e realce no PostgreSQL; campos text e analyzer, análise de índice e de consulta e BM25 no Elasticsearch; atualização, consistência, custos e limitações da pesquisa textual.",
+    "excludes": "Administração geral de SGBD, modelagem relacional completa, sintaxe SQL além dos recursos textuais exemplificados, configuração operacional detalhada de clusters, mineração de texto, aprendizado de máquina e busca vetorial."
+  },
+  "theoryTitle": "Busca textual e recuperação de informação",
+  "chapters": [
+    {
+      "title": "1. Busca literal e busca de texto completo",
+      "markdown": "### O problema que este assunto resolve\n\nUma coluna pode armazenar títulos, mensagens, contratos ou páginas inteiras. Uma busca literal, como `LIKE '%termo%'`, procura caracteres no texto; ela não entende que palavras são variações da mesma forma, não elimina palavras muito comuns e não costuma ordenar os documentos pela qualidade da correspondência. Busca de texto completo (*full-text search*) prepara documentos e consultas linguisticamente, localiza correspondências e pode ordenar resultados por relevância.\n\nO documento é a unidade recuperada: pode ser uma linha, um artigo ou um arquivo identificado por metadados. O mecanismo não precisa guardar uma cópia pesquisável idêntica ao texto original; pode manter uma representação auxiliar para acelerar a procura e depois buscar o conteúdo original para exibição.\n\n> **Siglas e termos deste capítulo**\n> - **Documento**: unidade textual que pode ser encontrada, como uma notícia ou um registro.\n> - **Token**: fragmento reconhecido pelo analisador, em geral uma palavra ou sequência alfanumérica.\n> - **Lexema**: forma normalizada usada para comparar palavras relacionadas.\n> - **Consulta**: expressão que define os termos e relações a procurar.\n> - **Recuperação de informação**: seleção e ordenação de documentos relevantes para uma consulta.\n\n### Da frase ao índice\n\nA análise costuma separar texto em tokens, normalizar letras e formas flexionadas, tratar pontuação e decidir o que fazer com palavras muito frequentes. Por exemplo, uma configuração pode reduzir “Conexões”, “conexão” e “conexões” a uma forma comum, enquanto remove artigos como “o” e “a”. Essa política depende do idioma e da aplicação: retirar uma palavra pode melhorar uma consulta geral, mas pode prejudicar buscas por expressões em que ela seja significativa.\n\n| Busca | O que compara | Uso típico | Limite principal |\n| --- | --- | --- | --- |\n| Literal | Texto e padrão de caracteres | localizar trecho exato ou prefixo | não interpreta variações linguísticas nem relevância |\n| Texto completo | termos analisados e normalizados | encontrar documentos por conceitos lexicais | depende do analisador, idioma e configuração |\n| Metadados | campos estruturados, como data e categoria | restringir e filtrar resultados | não substitui a busca no conteúdo textual |\n\nEsses mecanismos podem ser combinados: primeiro filtrar por data ou situação, depois pesquisar o conteúdo. Busca textual lexical também não é busca semântica: em regra, não deduz que palavras distintas têm significado parecido só por serem sinônimos. Um dicionário de sinônimos pode aproximar formas configuradas, mas isso é uma regra explícita.\n\n### Como cai na prova\n\n- Se o enunciado exigir variações morfológicas e ordenação por relevância, a busca literal com `LIKE` não resolve sozinha; procure o recurso de texto completo.\n- Não confunda token (fragmento extraído) com lexema (forma normalizada) nem documento com consulta.\n- Retirar stop words é uma decisão de análise, não uma garantia universal: idioma e aplicação importam."
+    },
+    {
+      "title": "2. Análise textual e índice invertido",
+      "markdown": "### O problema que este assunto resolve\n\nSem uma estrutura auxiliar, localizar um termo em milhões de documentos pode exigir examinar muitos textos. Um índice invertido muda a organização: em vez de guardar somente documento → palavras, mantém termo → documentos em que aparece. Assim, para consultar “contrato”, o sistema acessa a lista associada a esse termo e combina as listas dos demais termos.\n\n> **Siglas e termos deste capítulo**\n> - **Índice invertido**: mapa de termos para documentos que os contêm.\n> - **Lista de postings (ocorrências)**: documentos associados a um termo, possivelmente com frequência e posições.\n> - **Analisador**: sequência de componentes que transforma texto em termos indexáveis.\n> - **Tokenizador**: componente que divide o texto em tokens.\n> - **Stop word**: palavra frequente que uma configuração pode omitir do índice.\n> - **Stemming**: redução aproximada de formas flexionadas a um radical.\n\n### Anatomia e decisões do analisador\n\nUm índice invertido costuma conter um vocabulário de termos e uma lista de ocorrências para cada termo. A lista pode guardar identificadores de documentos e, se a busca exigir, frequência do termo e posições no documento. Posições permitem verificar proximidade e frases; frequência e características do documento podem contribuir para a pontuação. Guardar informação adicional aumenta o espaço e o custo de atualização, mas permite consultas mais ricas.\n\nUm analisador pode combinar caracteres de entrada, tokenização, filtros de minúsculas, remoção de acentos, stop words, stemming ou sinônimos. A mesma frase pode produzir índices diferentes com configurações diferentes. No Elasticsearch, o analisador de índice atua ao indexar o campo e o analisador de busca processa a consulta; devem produzir termos compatíveis. Uma mudança de analisador normalmente requer reindexar os documentos para que o índice reflita a nova regra.\n\nO stemming é uma redução linguística aproximada, não uma prova de equivalência semântica. “Correndo” e “correr” podem ser aproximados por regras; “carro” e “automóvel” não se tornam equivalentes sem um recurso de sinônimos ou outra técnica. A remoção de acentos ou pontuação também pode unir formas que a aplicação desejaria distinguir.\n\n| Informação no posting | Possibilidade que favorece | Custo ou cuidado |\n| --- | --- | --- |\n| Identificador do documento | recuperar quais documentos contêm o termo | ocupa espaço proporcional às ocorrências |\n| Frequência do termo | ponderar repetição no documento | repetição não significa sempre maior utilidade |\n| Posição do termo | busca por frase e proximidade | aumenta tamanho e trabalho de indexação |\n\n### Como cai na prova\n\n- A direção do índice invertido é termo → lista de documentos, não documento → lista completa de termos.\n- Posição é necessária para verificar ordem e proximidade com precisão; uma lista sem posição não distingue facilmente frase de mera coocorrência.\n- Configuração incompatível entre análise de índice e de consulta pode fazer o termo digitado não coincidir com o termo armazenado."
+    },
+    {
+      "title": "3. Consultas, vetores e operadores no PostgreSQL",
+      "markdown": "### O problema que este assunto resolve\n\nO PostgreSQL oferece busca textual integrada. `tsvector` representa um documento preparado para pesquisa: uma lista ordenada de lexemas distintos, opcionalmente com posições e pesos. `tsquery` representa os lexemas e operadores da consulta. O operador `@@` testa se o vetor corresponde à consulta.\n\n> **Siglas e termos deste capítulo**\n> - **tsvector**: representação pesquisável de um documento, com lexemas e informação opcional de posição/peso.\n> - **tsquery**: expressão textual normalizada que descreve o que procurar.\n> - **GIN**: tipo de índice geral invertido, apropriado para acelerar correspondências textuais.\n> - **GiST**: tipo de índice de busca generalizada que também pode indexar busca textual, com propriedades distintas.\n> - **Regconfig**: configuração de busca textual, incluindo regras e dicionários linguísticos.\n\n### Preparar e consultar\n\n`to_tsvector(configuração, documento)` analisa o texto, gera tokens e os reduz a lexemas com posições. A configuração seleciona regras linguísticas. `to_tsquery` converte uma expressão que usa sintaxe de consulta; `plainto_tsquery` interpreta texto simples como termos combinados; `phraseto_tsquery` prepara uma consulta por frase; `websearch_to_tsquery` aceita sintaxe de consulta amigável semelhante à de buscadores. A escolha afeta como a entrada do usuário é interpretada.\n\nEm `tsquery`, `&` exige ambos os termos, `|` aceita um ou outro, `!` nega, e `<->` exige lexemas adjacentes na ordem indicada. O operador `<N>` permite uma distância específica. O `@@` responde verdadeiro ou falso para correspondência; ele não é, por si, uma ordenação por relevância.\n\nExemplo conceitual: transformar o título e o corpo de uma notícia em `tsvector`, converter “banco & textual” em `tsquery` e testar `vetor @@ consulta`. Para evitar que um campo nulo elimine a composição, aplicações podem tratar valores nulos antes de concatenar campos. Pesos podem marcar título como mais importante que corpo, e funções de ranking podem usar esses rótulos.\n\n### Índices, relevância e apresentação\n\nUm índice GIN é uma escolha comum para consultas de correspondência em `tsvector`; ele acelera a seleção de candidatos, com custo de armazenamento e manutenção. GiST também oferece índice textual, mas não deve ser tratado como intercambiável em todas as consultas e cargas. Índices precisam ser atualizados quando os dados mudam; uma coluna armazenada ou índice funcional exige que expressão e configuração sejam coerentes com a busca.\n\n`ts_rank` calcula pontuação com base na frequência dos lexemas correspondentes, podendo considerar pesos. `ts_rank_cd` considera também a proximidade dos lexemas (densidade de cobertura), por isso depende de posições. As funções entregam uma pontuação útil para ordenar, mas não uma verdade universal sobre relevância. `ts_headline` pode produzir trecho de texto com correspondências destacadas para apresentação.\n\n### Como cai na prova\n\n- `tsvector` é o documento preparado; `tsquery` é a consulta; `@@` compara os dois.\n- `&`, `|`, `!` e `<->` representam AND, OR, NOT e frase adjacente.\n- GIN/GiST aceleram busca; `ts_rank`/`ts_rank_cd` pontuam; não misture as funções."
+    },
+    {
+      "title": "4. Relevância, consistência e uso em sistemas de busca",
+      "markdown": "### O problema que este assunto resolve\n\nUma pesquisa pode encontrar milhares de documentos. A ordenação ajuda a mostrar primeiro os candidatos mais úteis. Em mecanismos como Elasticsearch, a busca de texto completo analisa a consulta, compara seus tokens ao índice invertido e calcula um `_score`. A similaridade padrão documentada é Okapi BM25, que considera frequência do termo, frequência documental e comprimento do documento.\n\n> **Siglas e termos deste capítulo**\n> - **Relevância**: estimativa de utilidade de um documento para determinada consulta.\n> - **BM25**: função de similaridade lexical que pondera sinais de termos e documentos.\n> - **Score**: pontuação usada para ordenar documentos, não probabilidade automática de acerto.\n> - **Reindexação**: reconstrução do índice a partir dos documentos e regras desejadas.\n> - **Consistência do índice**: correspondência entre conteúdo atual e representação pesquisável.\n\n### O que a pontuação significa\n\nBM25 tende a atribuir importância a termos que aparecem com frequência em um documento, mas reduz o peso de termos comuns em muitos documentos e leva em conta o tamanho do documento. Isso não é simplesmente contar palavras: a raridade do termo na coleção e o comprimento alteram o resultado. O escore serve para ordenar resultados dentro de uma consulta; comparar escores de consultas distintas como se fossem probabilidades equivalentes pode ser enganoso.\n\nNo PostgreSQL, `ts_rank` e `ts_rank_cd` são opções de pontuação distintas. A segunda incorpora proximidade entre lexemas, enquanto a primeira se baseia em frequência e pesos. Aplicações podem combinar relevância textual com filtros ou sinais adicionais, como data, mas a regra deve ser definida pelo caso de uso.\n\n### Atualização e escolhas de projeto\n\nHá um compromisso entre consulta rápida e custo de escrita: manter o índice exige trabalho quando documentos são inseridos, removidos ou alterados. Sistemas que atualizam índices de forma assíncrona podem apresentar atraso entre salvar o texto e encontrá-lo. Reindexar pode ser necessário depois de alterar regras de análise, mapeamentos ou campos indexados. Planejar idioma, campos, stop words, sinônimos e posições antes da implantação evita surpresas nos resultados.\n\nBusca lexical é adequada quando a consulta deve localizar termos e suas formas normalizadas. Para localizar conteúdo semanticamente parecido sem compartilhar palavras, são necessários recursos semânticos adicionais; não se deve presumir que stemming ou BM25 reconheça significado. Similarmente, a indexação textual não substitui filtros estruturados por data, identificador ou estado.\n\n### Como cai na prova\n\n- BM25 não é mera contagem: frequência do termo, frequência documental e comprimento influenciam a pontuação.\n- Score maior indica maior relevância estimada na ordenação daquela busca, não certeza de resposta correta.\n- Alterar analisador sem reconstruir o índice deixa os termos antigos sob as regras anteriores; considerar reindexação."
+    }
+  ],
+  "summary": "Bancos de dados textuais preparam documentos e consultas para localizar conteúdo por termos normalizados, em vez de apenas comparar sequências literais. Analisadores extraem tokens, aplicam regras linguísticas e produzem lexemas; índices invertidos mapeiam cada termo aos documentos e, quando necessário, suas frequências e posições. No PostgreSQL, tsvector representa o documento, tsquery a consulta e @@ testa correspondência; GIN/GiST indexam, enquanto ts_rank e ts_rank_cd pontuam resultados. No Elasticsearch, análise compatível de índice e consulta alimenta busca no índice invertido e BM25 ordena por relevância estimada. Configuração linguística, consistência de atualização, custo do índice e distinção entre busca lexical e semântica são centrais.",
+  "flashcards": [
+    {
+      "front": "O que é busca de texto completo?",
+      "back": "Técnica que analisa documentos e consultas para localizar termos linguísticos e, muitas vezes, ordenar documentos por relevância."
+    },
+    {
+      "front": "O que distingue LIKE de full-text search?",
+      "back": "LIKE compara padrões de caracteres; full-text search usa termos analisados, normalização e estruturas de busca textual."
+    },
+    {
+      "front": "O que é um token?",
+      "back": "Fragmento produzido pela análise do texto, frequentemente uma palavra ou sequência de caracteres."
+    },
+    {
+      "front": "O que é um lexema?",
+      "back": "Forma normalizada usada para equiparar variantes linguísticas durante indexação e consulta."
+    },
+    {
+      "front": "O que é índice invertido?",
+      "back": "Estrutura que associa cada termo aos documentos em que ocorre, podendo guardar frequência e posição."
+    },
+    {
+      "front": "Para que servem posições em postings?",
+      "back": "Permitem verificar ordem, proximidade e correspondência por frase."
+    },
+    {
+      "front": "O que é stop word?",
+      "back": "Palavra frequente que uma configuração pode remover para reduzir ruído ou tamanho do índice."
+    },
+    {
+      "front": "O que faz stemming?",
+      "back": "Reduz formas flexionadas a uma forma aproximada comum, sem garantir equivalência semântica."
+    },
+    {
+      "front": "O que representa tsvector?",
+      "back": "Documento preparado para busca, formado por lexemas e informação opcional de posição e peso."
+    },
+    {
+      "front": "O que representa tsquery?",
+      "back": "Consulta processada composta por lexemas e operadores de busca textual."
+    },
+    {
+      "front": "O que significa @@ no PostgreSQL?",
+      "back": "Testa se um tsvector corresponde a uma tsquery, produzindo resultado booleano."
+    },
+    {
+      "front": "Quais operadores booleanos aparecem em tsquery?",
+      "back": "& para AND, | para OR e ! para NOT."
+    },
+    {
+      "front": "O que faz <-> em tsquery?",
+      "back": "Procura lexemas adjacentes na ordem indicada, isto é, uma frase."
+    },
+    {
+      "front": "Para que serve to_tsvector?",
+      "back": "Analisa um documento textual e o converte em tsvector com lexemas e posições."
+    },
+    {
+      "front": "Como diferem plainto_tsquery e phraseto_tsquery?",
+      "back": "A primeira trata texto simples como termos; a segunda preserva a relação de frase entre lexemas."
+    },
+    {
+      "front": "Qual o uso típico de GIN na busca textual?",
+      "back": "Indexar tsvector para acelerar consultas de correspondência textual."
+    },
+    {
+      "front": "O que mede ts_rank?",
+      "back": "Uma pontuação de correspondência baseada na frequência dos lexemas e pesos definidos."
+    },
+    {
+      "front": "Como ts_rank_cd difere de ts_rank?",
+      "back": "Considera densidade/proximidade dos lexemas e precisa de suas posições."
+    },
+    {
+      "front": "O que faz ts_headline?",
+      "back": "Gera trecho do documento com ocorrências da consulta destacadas para exibição."
+    },
+    {
+      "front": "Qual similaridade padrão é documentada no Elasticsearch?",
+      "back": "Okapi BM25, que considera frequência do termo, frequência documental e tamanho do documento."
+    },
+    {
+      "front": "Por que analisar consulta e documento de modo compatível?",
+      "back": "Para que as formas de termo geradas na consulta coincidam com as armazenadas no índice."
+    },
+    {
+      "front": "O que pode exigir reindexação?",
+      "back": "Alteração das regras do analisador ou do mapeamento que muda os termos armazenados."
+    },
+    {
+      "front": "Score é probabilidade de acerto?",
+      "back": "Não. É uma pontuação de ordenação relativa segundo a função configurada."
+    },
+    {
+      "front": "Busca lexical encontra necessariamente sinônimos?",
+      "back": "Não. Sinônimos dependem de dicionário/regra configurada ou de recursos semânticos adicionais."
+    }
+  ],
+  "tips": [
+    "Associe tsvector ao documento e tsquery à consulta.",
+    "Memorize a direção do índice invertido: termo aponta para documentos.",
+    "Separe correspondência (`@@`) de pontuação (`ts_rank`).",
+    "Lembre que busca por frase precisa preservar posições ou informação equivalente.",
+    "Em Elasticsearch, confira compatibilidade entre analyzer de índice e de busca.",
+    "BM25 ordena por relevância estimada, combinando sinais do termo e do documento."
+  ],
+  "traps": [
+    "Tratar LIKE como se fizesse stemming, stop words e ranking automaticamente.",
+    "Confundir token bruto com lexema normalizado.",
+    "Afirmar que o índice invertido mapeia cada documento para os termos; a direção é a oposta.",
+    "Achar que @@ ordena resultados: ele testa correspondência.",
+    "Afirmar que BM25 reconhece significado ou sinônimos sem configuração adicional.",
+    "Alterar análise e presumir que um índice já construído se adapta sem reindexação."
+  ],
+  "activeRecall": [
+    "Explique por que uma busca literal pode falhar ao procurar variações de uma palavra.",
+    "Desenhe um índice invertido para três documentos e dois termos compartilhados.",
+    "Diferencie token, lexema e stop word com exemplos próprios.",
+    "Explique como posições no índice viabilizam busca por frase.",
+    "Descreva o fluxo de texto bruto até o tsvector no PostgreSQL.",
+    "Compare a função de tsvector, tsquery e @@.",
+    "Explique a diferença entre AND, OR, NOT e operador de frase em tsquery.",
+    "Compare GIN, ts_rank e ts_headline por suas funções.",
+    "Explique por que uma alteração do analisador pode exigir reindexação.",
+    "Descreva os sinais considerados por BM25 e o significado de score."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confundir busca literal com busca textual",
+      "summary": "Busca literal não faz por si só análise linguística e ranking de relevância.",
+      "description": "Busca por padrão de caracteres não realiza por si só análise linguística, normalização e classificação por relevância."
+    },
+    {
+      "key": "e2",
+      "title": "Inverter documento e consulta no PostgreSQL",
+      "summary": "tsvector representa documento; tsquery representa a consulta processada.",
+      "description": "tsvector representa o documento preparado e tsquery expressa a consulta; @@ verifica a correspondência."
+    },
+    {
+      "key": "e3",
+      "title": "Confundir índice e ranking",
+      "summary": "Índices aceleram localização; funções de ranking pontuam os resultados encontrados.",
+      "description": "GIN/GiST ajudam a localizar correspondências; funções de ranking calculam ordenação de relevância."
+    },
+    {
+      "key": "e4",
+      "title": "Presumir equivalência semântica automática",
+      "summary": "Stemming aproxima variantes, mas não deduz automaticamente sinônimos e significados.",
+      "description": "Stemming normaliza variantes aproximadas, mas sinônimos e significado exigem configuração ou técnicas adicionais."
+    },
+    {
+      "key": "e5",
+      "title": "Ignorar consistência do analisador",
+      "summary": "Análise de índice e consulta deve ser compatível para os termos coincidirem.",
+      "description": "A análise da consulta deve ser compatível com a análise de indexação; alterações podem requerer reconstrução do índice."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "A busca de texto completo pode normalizar formas de palavras e ordenar documentos por relevância, recursos que uma busca literal por padrão não oferece por si só.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A busca textual prepara documentos e consultas com análise linguística e pode pontuar correspondências. Uma condição LIKE compara o padrão de caracteres e não realiza automaticamente stemming, remoção de stop words ou ranking.",
+      "section": "1. Busca literal e busca de texto completo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No índice invertido, cada documento aponta para uma lista de todos os termos que aparecem nele, sendo essa a organização que dá nome à estrutura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Essa descrição é documento para termos. No índice invertido, a consulta parte do termo e chega à lista de documentos que o contêm, frequentemente acompanhada de frequência ou posições.",
+      "section": "2. Análise textual e índice invertido",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um token é uma unidade extraída do texto, enquanto um lexema corresponde à forma normalizada usada para comparar variantes linguísticas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O analisador divide o texto em tokens e pode normalizá-los em lexemas. Por exemplo, flexões distintas podem ser reduzidas a uma forma comum, conforme a configuração do idioma.",
+      "section": "1. Busca literal e busca de texto completo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Stop words são necessariamente preservadas em todo índice textual, pois o mecanismo precisa considerar cada palavra da frase para encontrar documentos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma configuração pode remover palavras muito frequentes, chamadas stop words, para reduzir ruído ou o índice. A escolha depende do idioma e da aplicação, pois a remoção também pode afetar expressões relevantes.",
+      "section": "2. Análise textual e índice invertido",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Posições de lexemas em uma lista de ocorrências ajudam o mecanismo a identificar termos adjacentes e consultas por frase.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Posições preservam a localização relativa dos termos no documento. Sem elas, a mera presença de duas palavras não informa se estavam juntas ou em qual ordem.",
+      "section": "2. Análise textual e índice invertido",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PostgreSQL, `tsquery` armazena o documento inteiro pré-processado, ao passo que `tsvector` descreve os termos solicitados pelo usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A associação está invertida: `tsvector` representa o documento pesquisável e `tsquery` representa a consulta processada. O operador `@@` testa se há correspondência entre eles.",
+      "section": "3. Consultas, vetores e operadores no PostgreSQL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O operador `@@` do PostgreSQL testa a correspondência entre um vetor textual e uma consulta, retornando um valor booleano.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `@@` responde se a representação do documento satisfaz a consulta. O operador não é uma função de ordenação por relevância; para isso há funções como `ts_rank`.",
+      "section": "3. Consultas, vetores e operadores no PostgreSQL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma `tsquery`, `&` combina termos com OR e `|` exige que os dois termos ocorram no documento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `&` significa AND e exige ambos os termos; `|` significa OR e aceita qualquer uma das alternativas. A troca dos operadores altera o conjunto de documentos encontrados.",
+      "section": "3. Consultas, vetores e operadores no PostgreSQL",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A expressão `a <-> b` em uma consulta textual do PostgreSQL procura os lexemas em sequência adjacente, na ordem especificada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O operador FOLLOWED BY `<->` exige que as ocorrências estejam em posições consecutivas, formando a relação de frase. Um teste de coocorrência sem posições não expressa essa exigência.",
+      "section": "3. Consultas, vetores e operadores no PostgreSQL",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um índice GIN pode acelerar consultas de correspondência em vetores textuais, embora sua manutenção e seu armazenamento tenham custo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. GIN é uma opção comum para indexar `tsvector` e reduzir o trabalho de busca. O ganho de leitura vem acompanhado de espaço e manutenção quando o conteúdo muda.",
+      "section": "3. Consultas, vetores e operadores no PostgreSQL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A função `ts_rank_cd` pode considerar a proximidade entre lexemas e, para isso, depende da informação de posição presente no vetor textual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A classificação por cover density incorpora a proximidade das ocorrências. Se o vetor não conservar posições úteis, essa função não dispõe da informação necessária para esse cálculo.",
+      "section": "3. Consultas, vetores e operadores no PostgreSQL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "BM25 atribui pontuação considerando apenas quantas vezes o termo pesquisado aparece no documento, sem considerar a coleção ou o tamanho do texto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. BM25 considera frequência do termo no documento, frequência documental na coleção e comprimento do documento. Por isso não equivale a uma contagem bruta de ocorrências.",
+      "section": "4. Relevância, consistência e uso em sistemas de busca",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pontuação de relevância é uma estimativa para ordenar resultados e não representa, automaticamente, a probabilidade de o documento responder corretamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O score expressa a avaliação produzida pela função de similaridade para ordenar resultados da busca. Interpretá-lo como probabilidade calibrada exige uma definição adicional que o score, por si, não fornece.",
+      "section": "4. Relevância, consistência e uso em sistemas de busca",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A troca do analisador de um campo muda retroativamente os termos já gravados no índice, dispensando qualquer reconstrução dos documentos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O índice existente foi produzido pelas regras anteriores. Para que os documentos reflitam a nova análise, normalmente é preciso reindexá-los; só mudar a regra de consulta pode deixar formas incompatíveis.",
+      "section": "4. Relevância, consistência e uso em sistemas de busca",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Stemming pode aproximar formas flexionadas, mas não transforma automaticamente palavras de sentidos relacionados em sinônimos pesquisáveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Stemming aplica regras para reduzir formas de uma palavra a um radical aproximado. A relação entre palavras distintas, como “automóvel” e “carro”, depende de sinônimos configurados ou de outro recurso semântico.",
+      "section": "2. Análise textual e índice invertido",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa encontrar documentos sobre “conexões” mesmo quando o texto usa “conexão”, e ordenar os resultados. Qual recurso é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Busca textual com análise linguística e função de relevância para os documentos encontrados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Comparação literal por igualdade, aplicada ao texto integral de cada documento armazenado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Filtro pelo tamanho do documento, seguido da apresentação dos registros na ordem de inserção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Índice de chave primária, usado para equiparar automaticamente as flexões de cada palavra.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Restrição de unicidade no campo textual, para agrupar termos com grafia semelhante.",
+          "correct": false
+        }
+      ],
+      "explanation": "A análise textual pode normalizar formas flexionadas e uma função de ranking pode ordenar correspondências. Igualdade literal, tamanho, chave primária e unicidade não fornecem esses dois recursos de busca textual.",
+      "section": "1. Busca literal e busca de texto completo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual estrutura acelera a procura de termos ao associar cada termo indexado aos documentos em que ele aparece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Índice invertido, com listas de documentos associadas a cada termo do vocabulário.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Tabela de hash de documentos, com um texto integral repetido para cada consulta recebida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Árvore de chaves primárias, com a sequência de tokens guardada somente na aplicação cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Índice de bitmap temporal, relacionando cada data de inclusão aos termos do usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Lista de consultas anteriores, usada para percorrer os registros na ordem de acesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "O índice invertido parte do termo e mantém os documentos que o contêm, evitando varrer integralmente todos os textos para cada busca. As demais estruturas descritas não representam essa relação termo-documento.",
+      "section": "2. Análise textual e índice invertido",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PostgreSQL, qual tipo representa o documento já preparado para busca textual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`tsvector`, que contém lexemas do documento e pode registrar posições e pesos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`tsquery`, que armazena o corpo original do documento e seus metadados relacionais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`regconfig`, que guarda todas as linhas pesquisáveis em formato de postings.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`ts_rank`, que converte o texto bruto em uma estrutura persistente de documentos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`ts_headline`, que registra cada lexema e sua frequência na coleção indexada.",
+          "correct": false
+        }
+      ],
+      "explanation": "`tsvector` é a representação pesquisável do documento. `tsquery` descreve a consulta; `regconfig` seleciona configuração linguística; `ts_rank` pontua e `ts_headline` prepara um trecho para exibição.",
+      "section": "3. Consultas, vetores e operadores no PostgreSQL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual operador verifica se um documento representado por `tsvector` satisfaz uma consulta `tsquery`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`@@`, que retorna verdadeiro ou falso para a correspondência textual consultada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`<->`, que devolve diretamente a pontuação final ordenada dos documentos correspondentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`ts_rank`, que faz a comparação booleana entre o texto bruto e a configuração do idioma.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`to_tsvector`, que apenas testa a consulta sem converter o texto de entrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`ts_headline`, que valida o índice e retorna o identificador do documento mais relevante.",
+          "correct": false
+        }
+      ],
+      "explanation": "O operador `@@` testa correspondência entre documento e consulta. `<->` é um operador de frase; `ts_rank` pontua, `to_tsvector` converte documento e `ts_headline` prepara trecho destacado.",
+      "section": "3. Consultas, vetores e operadores no PostgreSQL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual operador de `tsquery` exige que os dois termos sejam encontrados na correspondência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`&`, que combina lexemas com a condição lógica AND na consulta textual.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`|`, que exige que ambos os lexemas apareçam simultaneamente no vetor pesquisado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`!`, que exige presença do termo negado junto com cada ocorrência positiva.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`<->`, que aceita qualquer um dos termos mesmo quando um deles não aparece.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`@@`, que combina duas palavras como alternativa inclusiva dentro da consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "`&` representa AND e exige que as condições combinadas sejam satisfeitas. `|` é OR, `!` nega um lexema, `<->` expressa frase e `@@` testa a relação entre vetor e consulta.",
+      "section": "3. Consultas, vetores e operadores no PostgreSQL",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta deve encontrar a expressão “banco textual” com os termos em posições consecutivas e nessa ordem. Qual operador atende ao requisito no PostgreSQL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`<->`, que exige os lexemas em sequência adjacente na ordem da expressão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`|`, que exige que as duas palavras ocorram sem nenhum termo intermediário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`&`, que preserva a ordem original e a distância exata entre os lexemas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`!`, que localiza termos consecutivos ao excluir documentos com palavras extras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`@@`, que identifica frase exata sem receber uma representação de consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "`<->` expressa FOLLOWED BY adjacente, conservando a ordem e a proximidade da frase. AND só exige presença dos termos, OR aceita uma alternativa e `@@` é o operador de correspondência geral.",
+      "section": "3. Consultas, vetores e operadores no PostgreSQL",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Elasticsearch, qual função a análise de índice e a análise de busca desempenham?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A primeira processa o campo indexado e a segunda processa os termos digitados para buscar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A primeira ordena o resultado e a segunda reconstrói o armazenamento físico do documento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A primeira analisa somente filtros numéricos e a segunda converte score em probabilidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A primeira remove todos os termos do documento e a segunda os restaura durante a consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A primeira cria sinônimos automaticamente e a segunda limita a busca a termos exatos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O analisador de índice transforma o texto do campo em termos armazenados. O analisador de busca processa a consulta; a compatibilidade entre ambos permite que os termos resultantes correspondam.",
+      "section": "2. Análise textual e índice invertido",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual fator distingue uma busca textual lexical de uma busca semântica por significado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A busca lexical opera sobre termos analisados e não deduz, sozinha, sinônimos não configurados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A busca lexical sempre compreende conceitos relacionados, mesmo sem palavras ou regras em comum.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A busca semântica apenas compara caracteres e não pode relacionar expressões de sentido próximo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A busca lexical requer que cada documento tenha exatamente o mesmo número de palavras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A busca semântica é obtida automaticamente pela remoção de artigos e sinais de pontuação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Busca lexical compara termos e suas formas processadas. Sinônimos podem ser introduzidos por configuração, mas a equivalência semântica não decorre automaticamente de remover stop words ou pontuação.",
+      "section": "1. Busca literal e busca de texto completo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação PostgreSQL quer recuperar documentos correspondentes e depois apresentá-los por uma pontuação textual. Qual par de recursos combina essas tarefas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `@@` para correspondência e `ts_rank` para calcular uma pontuação de ordenação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar `ts_headline` para selecionar linhas e `to_tsvector` para calcular a pontuação final.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `ts_rank_cd` para criar o índice e `@@` para destacar as ocorrências no texto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar GIN para pontuar documentos e `tsquery` para ordenar por data de inserção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `to_tsquery` para decidir relevância e `tsvector` para filtrar metadados numéricos.",
+          "correct": false
+        }
+      ],
+      "explanation": "`@@` seleciona documentos que satisfazem a consulta e `ts_rank` fornece pontuação textual para ordenar os correspondentes. `ts_headline` formata trechos; GIN indexa e as funções de conversão preparam entradas.",
+      "section": "3. Consultas, vetores e operadores no PostgreSQL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema deve aceitar uma busca simples digitada pelo usuário e convertê-la em consulta textual sem exigir que ele conheça a sintaxe de operadores. Qual função do PostgreSQL foi projetada para esse tipo de entrada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`plainto_tsquery`, que trata texto simples como termos e os normaliza para consulta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`to_tsvector`, que transforma qualquer frase de usuário em consulta com operador booleano.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`ts_headline`, que converte entrada do usuário em sequência persistente de lexemas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`ts_rank_cd`, que interpreta texto livre e escolhe os termos mais frequentes da coleção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`phraseto_tsquery`, que converte todas as buscas simples em uma disjunção de palavras.",
+          "correct": false
+        }
+      ],
+      "explanation": "`plainto_tsquery` converte texto simples em uma consulta processada com normalização. `to_tsvector` prepara documentos; `ts_headline` apresenta trechos; `ts_rank_cd` pontua; `phraseto_tsquery` preserva a relação de frase.",
+      "section": "3. Consultas, vetores e operadores no PostgreSQL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um índice textual registra lexemas e posições para priorizar os termos de título sobre os do corpo. Qual mecanismo do PostgreSQL permite marcar essa diferença no vetor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atribuir pesos aos lexemas por campo e usar esses rótulos na função de ranking.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aplicar `!` aos lexemas do corpo, convertendo todos eles em condições negativas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `@@` para marcar o título como correspondência e o corpo como não indexado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Configurar stop words para que todos os termos do título tenham pontuação máxima.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eliminar posições do vetor e ordenar as linhas conforme o tamanho do título.",
+          "correct": false
+        }
+      ],
+      "explanation": "O `tsvector` pode rotular ocorrências com pesos, frequentemente usados para distinguir título e corpo. A função de ranking pode atribuir importância diferente a esses pesos; os operadores e stop words têm outra finalidade.",
+      "section": "3. Consultas, vetores e operadores no PostgreSQL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um campo recebe inserções e atualizações frequentes, e consultas textuais devem localizar rapidamente documentos que contenham lexemas específicos. Qual avaliação sobre GIN é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "GIN pode acelerar a busca de correspondência, mas o índice exige espaço e manutenção nas alterações.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "GIN elimina o custo das atualizações porque o índice textual não precisa acompanhar os documentos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "GIN calcula a relevância sem consultar a expressão de busca ou os vetores indexados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "GIN é um analisador linguístico que converte automaticamente texto entre idiomas distintos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "GIN substitui as colunas de texto e armazena somente as consultas executadas pelo usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "GIN é um tipo de índice geral invertido usado para acelerar correspondências textuais. Como qualquer índice que representa os dados, consome armazenamento e precisa ser mantido diante de alterações; ele não é analisador nem função de ranking.",
+      "section": "3. Consultas, vetores e operadores no PostgreSQL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa mostrar um trecho do documento com as palavras encontradas destacadas. Qual função de busca textual do PostgreSQL atende à apresentação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`ts_headline`, que gera uma versão abreviada do texto com correspondências realçadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`ts_rank`, que substitui o corpo pelo conjunto ordenado de lexemas coincidentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`to_tsquery`, que produz o fragmento original com todas as palavras em destaque.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`tsvector`, que realiza a renderização visual do texto e os estilos da interface.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`@@`, que seleciona a janela de caracteres e devolve o trecho formatado ao usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "`ts_headline` produz uma apresentação abreviada com os trechos que correspondem à consulta destacados. Ranking calcula pontuação, conversores preparam entradas e `@@` testa correspondência.",
+      "section": "3. Consultas, vetores e operadores no PostgreSQL",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe indexa documentos sem posições, mas precisa ordenar por proximidade entre termos. Qual diagnóstico é tecnicamente adequado para o PostgreSQL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`ts_rank_cd` precisa de posições para considerar densidade; o vetor deve preservar essa informação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`ts_rank_cd` recupera posições ausentes a partir da ordem alfabética dos lexemas no vetor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`ts_rank` calcula necessariamente a distância dos termos e dispensa toda posição registrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "GIN reconstrói as posições originais durante cada busca, sem armazenar dados de ocorrência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`tsquery` guarda as posições do documento e pode substituir o vetor na classificação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A classificação de cover density usa proximidade das ocorrências e requer informação posicional. A ordenação alfabética do vocabulário não revela em que local os lexemas apareciam no documento.",
+      "section": "3. Consultas, vetores e operadores no PostgreSQL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao atualizar um documento, o texto aparece imediatamente na tabela, mas ainda não é encontrado por uma busca em um serviço cujo índice é atualizado assincronamente. Qual explicação é mais provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Há atraso de consistência entre a gravação do documento e a atualização do índice de busca.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O score de relevância impede a indexação até que o documento tenha muitas consultas registradas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "BM25 exige que todo texto seja convertido em chave primária antes da primeira consulta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Stop words bloqueiam a busca de qualquer documento que tenha sido alterado recentemente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O analisador de busca remove documentos atualizados até a reindexação integral do banco relacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando a atualização do índice é assíncrona, pode haver uma janela entre salvar o documento e torná-lo pesquisável. Atraso de indexação não decorre do score, da chave primária nem de stop words.",
+      "section": "4. Relevância, consistência e uso em sistemas de busca",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pesquisa no Elasticsearch deve considerar termos raros mais discriminantes e compensar documentos longos. Qual algoritmo padrão da similaridade textual documentada atende a essa descrição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Okapi BM25, que considera frequência do termo, frequência documental e comprimento do documento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Hash de conteúdo, que ordena apenas pelo identificador binário do texto armazenado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Operador `@@`, que soma posições de todos os tokens e normaliza pelo tamanho da consulta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Índice GIN, que calcula raridade estatística e retorna os documentos por pontuação decrescente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Stemming Snowball, que mede frequência na coleção e gera pontuação de relevância numérica.",
+          "correct": false
+        }
+      ],
+      "explanation": "A similaridade padrão documentada do Elasticsearch é Okapi BM25. Ela usa sinais como frequência do termo no documento, frequência documental e comprimento; GIN é um tipo de índice PostgreSQL e stemming é normalização.",
+      "section": "4. Relevância, consistência e uso em sistemas de busca",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe deseja que termos diferentes, mas configurados como sinônimos, recuperem os mesmos documentos. Qual medida resolve essa necessidade em uma busca lexical?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar um dicionário ou regra de sinônimos compatível com a análise da consulta e do índice.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar a frequência de consulta dos termos, para que o mecanismo deduza o sentido equivalente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover todas as posições do índice, pois sinônimos são inferidos pela ordem das palavras.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o operador AND por OR, fazendo qualquer par de termos funcionar como sinônimo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar stemming em toda palavra, o que reconhece automaticamente conceitos lexicalmente distintos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sinônimos lexicais exigem uma regra ou dicionário configurado e coerência entre indexação e busca. Stemming reduz variantes de uma forma, mas não infere por si só a relação entre palavras distintas.",
+      "section": "2. Análise textual e índice invertido",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um índice PostgreSQL guarda o vetor produzido com configuração de idioma que reduz plurais. A consulta é convertida com configuração diferente, que não produz os mesmos lexemas. Qual é o risco principal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A incompatibilidade de análise pode fazer palavras equivalentes produzirem termos distintos e não coincidirem.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O `@@` converte os dois lados para a mesma configuração, independente de como foram construídos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A diferença de configuração transforma toda consulta em frase exata e ignora os lexemas do índice.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A função de ranking substitui a análise da consulta e recupera automaticamente as formas flexionadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A configuração aplicada ao vetor altera retroativamente o texto original e atualiza sua coluna armazenada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A configuração determina como texto bruto vira lexemas. Se documento e consulta forem processados de forma incompatível, a representação pesquisada pode não coincidir; `@@` compara as entradas e não corrige automaticamente a divergência.",
+      "section": "3. Consultas, vetores e operadores no PostgreSQL",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um requisito combina os termos “dados” e “texto”, aceita que haja até dois lexemas entre eles e mantém a ordem. Como expressar a relação de proximidade na `tsquery`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar o operador FOLLOWED BY com distância explícita, como `<N>`, entre os lexemas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar `&`, que preserva a ordem e limita automaticamente o espaço entre as palavras.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `|`, que procura ambos os termos em posições próximas e na sequência indicada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `!`, que admite termos intermediários e define a distância máxima da expressão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `@@`, que codifica a distância entre lexemas dentro do próprio operador booleano.",
+          "correct": false
+        }
+      ],
+      "explanation": "A família FOLLOWED BY aceita uma distância explícita `<N>` entre lexemas; `<->` equivale à adjacência. AND não fixa ordem nem distância, OR aceita alternativa e os demais não codificam proximidade.",
+      "section": "3. Consultas, vetores e operadores no PostgreSQL",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um campo de texto foi indexado com remoção de acentos. Para manter a mesma política ao processar os termos consultados no Elasticsearch, qual escolha de projeto é mais consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar análise de busca compatível com a normalização usada durante a indexação do campo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Deixar a consulta sem análise, pois o índice invertido ignora a forma dos termos digitados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar um filtro de data, que faz a consulta recuperar automaticamente grafias sem acento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ativar BM25, que remove acentos da consulta e altera os termos já registrados no índice.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar o tokenizador de índice, mantendo toda frase como um único lexema indivisível.",
+          "correct": false
+        }
+      ],
+      "explanation": "A consulta precisa ser processada de modo compatível com os termos que foram indexados. BM25 calcula relevância e não substitui filtros de análise; um filtro estruturado não normaliza grafias.",
+      "section": "2. Análise textual e índice invertido",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação usa `ts_rank_cd` para desempatar documentos em que as palavras consultadas aparecem próximas. Qual característica da representação textual é necessária para essa decisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O vetor deve conservar posições dos lexemas para a função avaliar proximidade e densidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A consulta deve conter somente stop words, pois elas delimitam as posições entre os termos úteis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O índice precisa guardar exclusivamente a ordem alfabética, que indica a distância no texto original.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O vetor deve remover todas as posições e armazenar apenas o número de documentos da tabela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A aplicação deve substituir o ranking por `@@`, que retorna a densidade de cada correspondência.",
+          "correct": false
+        }
+      ],
+      "explanation": "A função de cover density considera a proximidade das ocorrências e depende da informação posicional. Ordem alfabética ou contagem total de documentos não reconstrói a localização dos termos no texto.",
+      "section": "3. Consultas, vetores e operadores no PostgreSQL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe pretende usar o valor de `_score` do Elasticsearch como percentual de chance de que cada resultado contenha a resposta correta. Qual interpretação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O score ordena pela similaridade calculada, mas não é probabilidade calibrada de correção.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O score é um percentual fixo de acerto e pode ser comparado diretamente entre consultas distintas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O score conta documentos ausentes do índice e mede a completude do banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O score representa a quantidade de bytes do documento após a remoção de stop words.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O score é calculado pelo analisador e prova que os termos encontrados têm o mesmo significado.",
+          "correct": false
+        }
+      ],
+      "explanation": "`_score` é um valor de similaridade usado para ordenar resultados segundo a consulta e o algoritmo. Sem calibração específica, não representa chance percentual nem certeza semântica.",
+      "section": "4. Relevância, consistência e uso em sistemas de busca",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de mudar o mapeamento de análise de um campo textual, o índice antigo continua contendo os termos gerados pelas regras anteriores. Qual ação faz os documentos refletirem a nova análise?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reconstruir o índice a partir dos documentos sob as regras de análise atualizadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar uma consulta por frase, que reescreve todos os postings durante a leitura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar somente o analisador de busca e esperar que o índice adapte seus termos armazenados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar ranking BM25, que substitui os tokens antigos antes de produzir pontuação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover os metadados estruturados, porque eles controlam as regras linguísticas já indexadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os termos armazenados foram gerados na indexação segundo a configuração anterior. Reindexar aplica as novas regras aos documentos; mudar a análise de consulta não reescreve os postings já existentes.",
+      "section": "4. Relevância, consistência e uso em sistemas de busca",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um motor precisa ponderar um termo que aparece muitas vezes em um documento, mas também reconhecer que ele é comum em quase toda a coleção. Qual explicação descreve melhor BM25?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Combina frequência local do termo, frequência documental na coleção e comprimento do documento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usa somente a frequência local, de modo que termos comuns sempre dominam a ordenação final.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usa a posição do termo no alfabeto e a data de inclusão, ignorando conteúdo e tamanho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conta quantas vezes o documento foi aberto e transforma esse total em score textual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remove palavras frequentes e aplica stemming, sem calcular qualquer valor de relevância.",
+          "correct": false
+        }
+      ],
+      "explanation": "BM25 considera frequência do termo no documento e a raridade do termo na coleção, além de normalizar pelo comprimento documental. Portanto, não se limita à contagem bruta, nem é apenas um analisador.",
+      "section": "4. Relevância, consistência e uso em sistemas de busca",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema concatena título e corpo em um único vetor, mas deseja dar maior peso a ocorrências no título sem perder a busca pelo corpo. Qual abordagem atende ao requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Marcar as ocorrências de cada campo com pesos distintos e usar pesos no cálculo de ranking.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover todos os termos do corpo antes da indexação e contar somente caracteres do título.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Separar os campos com OR, pois esse operador atribui automaticamente mais valor ao título.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar `@@` ao título e corpo, já que o operador escolhe qual campo é mais importante.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `ts_headline` para configurar o peso estatístico e armazenar esse ranking no vetor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pesos podem marcar as ocorrências do título e do corpo no `tsvector`; funções de ranking podem tratá-los com importâncias diferentes. Operadores de consulta testam correspondência e `ts_headline` atua na apresentação.",
+      "section": "3. Consultas, vetores e operadores no PostgreSQL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL 18 — Introdução à busca de texto completo",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Busca textual, normalização, stop words, dicionários, tsvector, tsquery e índice textual",
+      "url": "https://www.postgresql.org/docs/current/textsearch-intro.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL 18 — Tipos de busca textual",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Representação tsvector, posições, pesos, operadores booleanos e operador de frase em tsquery",
+      "url": "https://www.postgresql.org/docs/current/datatype-textsearch.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL 18 — Controle da busca textual",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Conversão de documentos e consultas, ranking, ts_rank, ts_rank_cd e apresentação de trechos",
+      "url": "https://www.postgresql.org/docs/current/textsearch-controls.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL 18 — Índices para busca textual",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Aceleração de busca textual com índices GIN e GiST",
+      "url": "https://www.postgresql.org/docs/current/textsearch-indexes.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Elasticsearch — Full-text search",
+      "publisher": "Elastic",
+      "reference": "Analisadores, índice invertido, busca textual e algoritmo de similaridade BM25",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/full-text-search.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Elastic — Index and search analysis",
+      "publisher": "Elastic",
+      "reference": "Análise do texto durante indexação e durante processamento da consulta",
+      "url": "https://www.elastic.co/docs/manage-data/data-store/text-analysis/index-search-analysis",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

@@ -1,0 +1,2439 @@
+{
+  "id": "mecanica.maquinas-cnc-programacao-operacao-setup",
+  "subject": "Mecânica",
+  "title": "Máquinas CNC: programação, operação e setup",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Máquinas CNC: programação e setup",
+    "Programação de centros de usinagem CNC",
+    "Operação de torno CNC",
+    "Setup de máquinas CNC",
+    "Códigos G e M em máquinas CNC",
+    "Fixação de peças em CNC",
+    "Ajuste de ferramentas em CNC",
+    "Zeramento de peças e ferramentas CNC",
+    "Leitura de programa CNC",
+    "Centros de usinagem e tornos CNC",
+    "Preparação de máquinas de comando numérico",
+    "Programação e operação de CNC: códigos G e M; leitura e interpretação de programas. Setup de máquinas: fixação de peças; ajuste de ferramentas; zeramento."
+  ],
+  "scope": {
+    "covers": "Princípios e componentes de centros de usinagem e tornos CNC; eixos, referências e coordenadas; leitura de blocos e programas; funções G e M usuais, modos absolutos e incrementais, avanço, rotação, ferramenta, compensações e ciclos; planejamento e execução segura; setup, fixação de peças, ajuste e identificação de ferramentas, medição de offsets e zeramento da peça e da máquina.",
+    "excludes": "Programação avançada de macros e sistemas específicos de fabricantes, cálculo completo de parâmetros de corte, manutenção elétrica/eletrônica, metrologia avançada, normas de segurança detalhadas e fabricação de peças por um processo ou material específico. Códigos e procedimentos dependentes do fabricante devem ser confirmados no manual do controle e da máquina."
+  },
+  "theoryTitle": "Do desenho à primeira peça: CNC, programa e setup",
+  "chapters": [
+    {
+      "title": "1. Máquinas CNC: centros de usinagem e tornos",
+      "markdown": "### O problema que este assunto resolve\n\nUma máquina CNC transforma instruções numéricas em movimento controlado de eixos e funções auxiliares. O programa descreve trajetórias e condições de corte; a máquina, as ferramentas, a fixação e os offsets precisam corresponder ao plano. CNC significa comando numérico computadorizado. O comando executa blocos do programa, mas não identifica sozinho se a peça foi presa corretamente ou se a ferramenta montada é a prevista.\n\n> **Siglas e termos deste capítulo**\n> - **CNC**: comando numérico computadorizado.\n> - **Eixo linear**: movimento em linha reta, normalmente X, Y ou Z.\n> - **Eixo rotativo**: movimento angular, normalmente designado A, B ou C.\n> - **Centro de usinagem**: máquina que realiza operações como fresamento, furação e mandrilamento, geralmente com troca de ferramentas.\n> - **Torno CNC**: máquina em que a peça gira no eixo-árvore enquanto a ferramenta avança para usinar, em geral, superfícies de revolução.\n> - **Eixo-árvore**: conjunto que gira a peça no torno ou a ferramenta em muitos centros de usinagem.\n\n### Duas arquiteturas frequentes\n\nNo centro de usinagem vertical típico, a ferramenta gira no eixo-árvore e a peça fica presa à mesa. X e Y posicionam a ferramenta no plano da mesa; Z aproxima ou afasta a ferramenta. Um centro horizontal muda a orientação do eixo-árvore e pode facilitar acesso a várias faces. Trocador automático de ferramentas permite selecionar ferramentas diferentes no mesmo ciclo. Centros com eixos rotativos ampliam o acesso, mas exigem configuração e programação compatíveis.\n\nNo torno CNC convencional, a peça é presa à placa e gira; a ferramenta fica em uma torre e se desloca. X representa o movimento transversal e Z acompanha o eixo de rotação da peça. Em muitos tornos, X é programado em diâmetro: um deslocamento radial de 1 mm pode corresponder a 2 mm de variação na coordenada diametral. Isso depende da configuração do controle. A torre indexa ferramentas de torneamento, furação ou corte.\n\n| Aspecto | Centro de usinagem | Torno CNC convencional |\n| --- | --- | --- |\n| Quem normalmente gira | Ferramenta | Peça |\n| Geometria típica | Faces, cavidades, furos e prismas | Cilindros, cones, faces e perfis de revolução |\n| Eixos mais comuns | X, Y e Z | X e Z |\n| Fixação usual | Morsa, grampos, placa ou dispositivo | Placa, pinça ou contraponto, conforme a peça |\n\n### Componentes e limites práticos\n\nO comando lê blocos; os acionamentos movem os eixos; o eixo-árvore fornece rotação; o magazine e o trocador guardam/trocam ferramentas, quando presentes; e o sistema de refrigeração conduz fluido para a zona de corte. A área de trabalho, curso dos eixos, rotação máxima, capacidade de carga, cone do eixo-árvore e tipo de torre ou magazine limitam o que pode ser executado. Uma trajetória válida no programa pode colidir com placa, morsa, ferramenta ou porta-ferramenta se o setup real não foi considerado.\n\n### Como cai na prova\n\n- A diferença essencial: no torno, em geral, a peça gira; no centro de usinagem, em geral, gira a ferramenta.\n- A letra dos eixos e o modo de programar X em torno dependem do controle; não se deve presumir que todos usam a mesma convenção.\n- CNC automatiza movimentos programados, mas não elimina a necessidade de selecionar ferramenta, conferir fixação, definir zeros e validar o percurso."
+    },
+    {
+      "title": "2. Blocos, coordenadas e códigos G e M",
+      "markdown": "### O problema que este assunto resolve\n\nPara ler um programa, identifique cada bloco e pergunte: que movimento ou estado ele solicita, em que sistema de coordenadas, com qual ferramenta e sob quais condições? Um bloco costuma reunir palavras formadas por endereço e valor: N para número de sequência (quando usado), G para função preparatória, X/Y/Z para coordenadas, F para avanço, S para rotação, T para ferramenta e M para função auxiliar. A sintaxe e as funções específicas variam entre controles.\n\n> **Siglas e termos deste capítulo**\n> - **Bloco**: linha ou unidade de execução do programa.\n> - **Modal**: função que permanece ativa em blocos seguintes até ser substituída ou cancelada.\n> - **Absoluto**: coordenadas medidas a partir da origem ativa.\n> - **Incremental**: deslocamento medido a partir da posição atual.\n> - **Avanço (F)**: velocidade de avanço programada, em unidade definida pelo modo de operação.\n> - **Rotação (S)**: valor de velocidade do eixo-árvore conforme o modo do controle.\n\n### Interpretação de um trecho\n\nConsidere, apenas como exemplo didático de controle compatível: `G90 G54 G00 X0 Y0`; `T02 M06`; `S1500 M03`; `G43 H02 Z25. M08`; `G01 Z-2. F120.`. G90 seleciona coordenadas absolutas; G54 escolhe um sistema de coordenadas de trabalho; G00 pede posicionamento rápido; T02 seleciona a ferramenta 2 e M06 solicita a troca; S1500 define rotação e M03 liga o eixo-árvore no sentido horário; G43 H02 aplica uma compensação de comprimento; M08 liga refrigeração; G01 com F120 comanda avanço linear. Os significados de alguns M-codes, a sequência exigida e unidades dependem da máquina/controle. O trecho não é um programa pronto para rodar.\n\nG00 é movimento de posicionamento rápido; não é avanço de corte. G01 interpola uma reta com avanço programado. G02 e G03 comandam arcos em sentidos horário e anti-horário no plano selecionado, com parâmetros de centro ou raio conforme o controle. G17/G18/G19 selecionam planos em controles comuns. G90/G91 selecionam, respectivamente, programação absoluta e incremental em muitos controles. Códigos G podem ser modais, agrupados em famílias mutuamente exclusivas, ou não modais; a tabela do fabricante define o comportamento exato.\n\nCódigos M comandam funções auxiliares da máquina. Exemplos amplamente encontrados em controles tipo Haas/Fanuc incluem M03/M04 para rotação em sentidos opostos, M05 para parar o eixo-árvore, M08/M09 para ligar/desligar refrigerante, M00 para parada programada, M01 para parada opcional e M30 para fim e reinicialização do programa. Não trate esses exemplos como universais: fabricantes atribuem funções próprias a diversos M-codes e a máquina pode exigir intertravamentos específicos.\n\n### Ordem de leitura que reduz erros\n\n1. Confira início, unidades, plano, modo absoluto/incremental e cancelamentos relevantes.\n2. Localize ferramenta, corretor/offset, rotação e sentido do eixo-árvore.\n3. Acompanhe coordenadas, avanço e movimentos rápidos; distinga aproximação de corte.\n4. Verifique refrigeração, ciclos, pausas, trocas e condições de encerramento.\n5. Relacione os valores ao zero de peça e à geometria/posição real do dispositivo.\n\n### Como cai na prova\n\n- G01 é interpolação linear com avanço; G00 é posicionamento rápido.\n- Um código modal continua valendo até cancelamento ou substituição compatível.\n- M03 não define a trajetória; é função auxiliar de acionamento do eixo-árvore em controles que adotam essa convenção.\n- Leia o programa de cima para baixo, mantendo o estado modal e verificando os offsets chamados."
+    },
+    {
+      "title": "3. Leitura de programas de centro e torno CNC",
+      "markdown": "### O problema que este assunto resolve\n\nUm programa só faz sentido quando se conhece a máquina, a origem, a ferramenta e a sequência de operações. Ler não é apenas traduzir cada código isoladamente: é reconstruir o percurso, prever aproximações e saídas, identificar estados persistentes e notar pontos em que uma troca de ferramenta ou mudança de sistema altera a interpretação.\n\n> **Siglas e termos deste capítulo**\n> - **Ciclo fixo**: ciclo pré-programado para uma operação repetitiva, como furação ou desbaste, com parâmetros próprios do comando.\n> - **Compensação de ferramenta**: correção geométrica ou de desgaste aplicada pelo controle.\n> - **Plano de segurança**: posição de aproximação/retração escolhida para evitar colisões.\n> - **Bloco de segurança**: conjunto inicial de comandos para explicitar estados importantes; conteúdo não é universal.\n\n### O que observar em um centro de usinagem\n\nConfira se a ferramenta indicada no programa está instalada na posição correta e se o H chamado corresponde ao seu comprimento medido. A trajetória de fresamento é normalmente descrita em X/Y/Z, com o plano e o zero de trabalho coerentes com a peça. O corretor de raio (frequentemente D) e a ativação/cancelamento de compensação devem ser lidos junto da entrada e saída do contorno. Em furação, ciclos fixos podem reunir aproximação, avanço, retração e retorno; os endereços e o comportamento variam por controle. Uma chamada de ciclo não dispensa conferir profundidade, plano inicial, plano R, passo e forma de retorno.\n\n### O que observar em um torno\n\nA ferramenta selecionada e seu corretor precisam corresponder à posição na torre. O programa costuma percorrer X e Z, mas o sentido de X, a programação em raio/diâmetro e a convenção de coordenadas devem ser verificados no controle. Em ciclos de torneamento, identifique o perfil, a profundidade de passe, a retração e a sobremetal deixada para acabamento. Compensação do raio de ponta pode ser necessária em perfis cônicos ou curvos; direção de compensação e orientação da pastilha afetam o resultado. Não confunda a rotação da peça com o avanço da ferramenta.\n\n### Modos, unidades e estados herdados\n\nAntes de executar, procure estados que alteram a leitura: polegadas ou milímetros, absoluto ou incremental, plano ativo, coordenadas de trabalho, rotação constante ou velocidade de corte constante, avanço por minuto ou por rotação, compensações e refrigeração. Esses modos podem permanecer ativos. Um bloco com coordenada Z, por exemplo, pode deslocar para um valor absoluto ou para um incremento a partir da posição atual. A mesma sequência numérica, portanto, pode produzir trajetórias distintas.\n\n### Simulação e primeira peça\n\nUse a visualização gráfica e os recursos de bloco a bloco/avanço reduzido conforme os procedimentos do fabricante. Simulação ajuda a encontrar erros de trajetória, mas depende da representação fiel de ferramentas e fixações e não prova que offsets, material e montagem reais estejam corretos. Na primeira execução, mantenha distância da zona de risco, confirme o percurso em condições controladas e interrompa diante de ruído, vibração, alarme ou movimento inesperado.\n\n### Como cai na prova\n\n- Interpretar um bloco requer conservar os modos ativos dos blocos anteriores.\n- Ferramenta T, corretor H/D e origem de trabalho cumprem papéis diferentes.\n- Ciclo fixo é uma forma condensada de comandar movimentos repetitivos; seus parâmetros dependem do controle."
+    },
+    {
+      "title": "4. Setup: fixação, ferramentas e zeramento",
+      "markdown": "### O problema que este assunto resolve\n\nO setup liga o modelo programado à máquina concreta. Inclui prender a peça, instalar e medir ferramentas e estabelecer referências. Se qualquer uma dessas relações estiver errada, a máquina pode usinar fora de posição, danificar ferramenta/peça ou criar risco. Faça o setup de acordo com o procedimento da máquina, do dispositivo e da ferramenta; os exemplos abaixo descrevem princípios, não substituem o manual nem a análise de risco local.\n\n> **Siglas e termos deste capítulo**\n> - **Origem de máquina**: referência definida pelo sistema de medição da máquina após retorno ao ponto de referência/home.\n> - **Zero de peça**: origem de trabalho escolhida no desenho/programa e registrada em um sistema como G54.\n> - **Offset de trabalho**: transformação entre o zero de peça e a referência da máquina.\n> - **Offset geométrico da ferramenta**: medida que relaciona a ponta/aresta à referência do porta-ferramenta.\n> - **Wear offset**: pequena correção de desgaste usada para ajustar dimensão sem alterar a geometria básica.\n> - **Batimento**: variação radial de uma superfície em relação ao eixo de rotação.\n\n### Fixação da peça\n\nEscolha morsa, placa, pinça, grampos ou dispositivo conforme forma, material, esforços e acesso da ferramenta. Limpe superfícies de apoio e contato: cavacos entre peça e morsa inclinam ou deslocam a peça. Apoie a peça sem balanço excessivo, use elementos de apoio adequados e confira que grampos não invadam o percurso da ferramenta. Em torno, confirme assentamento e aperto apropriados na placa/pinça, comprimento de pega suficiente e ausência de interferência com torre e contraponto. Peça longa pode requerer apoio adicional. Verifique centragem/alinhamento quando a tolerância e a operação exigirem. Nunca estime aperto por um valor universal; use dispositivo e procedimento adequados à aplicação.\n\n### Ferramentas e corretores\n\nCompare a lista do programa com a montagem: número/posição, tipo, diâmetro, comprimento, orientação e condição de corte. Prenda ferramenta e porta-ferramenta corretamente; em centro, meça comprimento e, quando aplicável, diâmetro. No torno, registre geometria de cada aresta na torre e orientação correta; confirme também raio de ponta quando o controle o usar. Um corretor geométrico descreve a ferramenta montada; um corretor de desgaste corrige pequenas diferenças observadas na peça. Não use o desgaste para esconder ferramenta errada, montagem solta ou offset grosseiramente incorreto.\n\n### Zeramento em três referências\n\nPrimeiro, retorne os eixos ao ponto de referência/home segundo a máquina: isso estabelece a referência de máquina, não o zero da peça. Segundo, escolha o zero de trabalho no desenho, por exemplo um canto/face acessível em fresamento ou a face e linha de centro definidas para torneamento; meça ou apalpe a peça e registre os valores no sistema de trabalho chamado pelo programa. Terceiro, meça os offsets das ferramentas: no centro, o comprimento da ferramenta em relação à face de referência; no torno, as geometrias X/Z de cada ferramenta em relação ao sistema da torre. A rotina de toque, palpador, preset ou ferramenta de medição varia. A peça e ferramenta devem estar no estado de referência previsto pelo procedimento.\n\n### Conferência anterior ao ciclo\n\nCompare desenho, programa, ferramenta, sistema de trabalho e fixação. Confira unidades, posição segura, sentido de rotação, limites de curso e interferências. Faça simulação, execução em bloco a bloco e aproximação controlada conforme permitido pelo comando e pelo procedimento local. Observe a primeira peça e meça características críticas; corrija offsets de forma rastreável. Um zero errado não se corrige alterando ao acaso coordenadas do programa.\n\n### Como cai na prova\n\n- Home/reference estabelece referência de máquina; G54 ou equivalente define uma origem de trabalho.\n- Offset de comprimento da ferramenta não é o mesmo que offset de trabalho.\n- Fixação deve resistir aos esforços sem deformar a peça ou obstruir o percurso; limpeza e apoio são parte do setup."
+    }
+  ],
+  "summary": "Centros de usinagem normalmente giram a ferramenta e trabalham peças presas à mesa; tornos CNC normalmente giram a peça e avançam ferramentas em X/Z. Programas são sequências de blocos com estados modais, coordenadas, avanços, rotações e funções auxiliares. G00/G01/G02/G03 descrevem movimentos usuais; M-codes acionam funções da máquina e podem variar por fabricante. Ler um programa exige rastrear unidades, absoluto/incremental, plano, zero de trabalho, ferramenta e compensações. No setup, fixe e apoie a peça, confira ferramenta e corretores, retorne à referência de máquina, defina o zero da peça e meça os offsets das ferramentas. Simulação e primeira execução controlada complementam, mas não substituem, a conferência física.",
+  "flashcards": [
+    {
+      "front": "Em um centro de usinagem típico, o que gira?",
+      "back": "A ferramenta gira no eixo-árvore; a peça costuma ficar presa à mesa."
+    },
+    {
+      "front": "Em um torno CNC convencional, o que gira?",
+      "back": "A peça gira no eixo-árvore e a ferramenta avança para usiná-la."
+    },
+    {
+      "front": "Quais eixos são comuns em centro vertical?",
+      "back": "X e Y posicionam no plano da mesa; Z aproxima/afasta a ferramenta."
+    },
+    {
+      "front": "Quais eixos são comuns em torno CNC?",
+      "back": "X transversal e Z ao longo do eixo de rotação da peça."
+    },
+    {
+      "front": "O que contém um bloco CNC?",
+      "back": "Palavras de endereço e valores que comandam movimentos, modos ou funções."
+    },
+    {
+      "front": "O que significa função modal?",
+      "back": "Permanece ativa em blocos seguintes até ser substituída ou cancelada."
+    },
+    {
+      "front": "O que distingue G00 de G01?",
+      "back": "G00 posiciona em rápido; G01 interpola linearmente com avanço programado."
+    },
+    {
+      "front": "Para que servem G02 e G03 em controles comuns?",
+      "back": "Interpolação circular horária e anti-horária no plano selecionado."
+    },
+    {
+      "front": "O que selecionam G90 e G91 em convenções comuns?",
+      "back": "Programação absoluta e incremental, respectivamente."
+    },
+    {
+      "front": "O que costuma representar F?",
+      "back": "Avanço programado, interpretado conforme modo e unidades do controle."
+    },
+    {
+      "front": "O que costuma representar S?",
+      "back": "Comando de velocidade do eixo-árvore, conforme modo do controle."
+    },
+    {
+      "front": "Qual a função geral de códigos M?",
+      "back": "Comandar funções auxiliares da máquina, como spindle, refrigeração e parada."
+    },
+    {
+      "front": "Por que conferir o manual para M-codes?",
+      "back": "A atribuição de funções pode variar entre fabricantes e configurações."
+    },
+    {
+      "front": "O que é zero de máquina?",
+      "back": "Referência do sistema da máquina, estabelecida no retorno ao ponto de referência."
+    },
+    {
+      "front": "O que é zero de peça?",
+      "back": "Origem de trabalho escolhida no desenho e usada para programar a peça."
+    },
+    {
+      "front": "O que relaciona G54 ou equivalente?",
+      "back": "Um sistema de coordenadas de trabalho com a referência da máquina."
+    },
+    {
+      "front": "O que mede offset de comprimento no centro?",
+      "back": "A posição axial da ferramenta em relação à referência definida pelo setup."
+    },
+    {
+      "front": "Qual a diferença entre geometria e desgaste?",
+      "back": "Geometria registra a ferramenta montada; desgaste faz pequenos ajustes dimensionais."
+    },
+    {
+      "front": "Por que limpar a morsa e a peça antes de fixar?",
+      "back": "Cavacos nas superfícies podem inclinar, deslocar ou marcar a peça."
+    },
+    {
+      "front": "O que a simulação não garante?",
+      "back": "Que fixação, offsets, ferramenta e condições reais estejam corretos."
+    },
+    {
+      "front": "O que é batimento?",
+      "back": "Variação radial de uma superfície em relação ao eixo de rotação."
+    },
+    {
+      "front": "Qual o risco de confundir absoluto com incremental?",
+      "back": "A trajetória muda, pois as coordenadas passam a partir de referências diferentes."
+    },
+    {
+      "front": "O que deve ser comparado antes do ciclo?",
+      "back": "Desenho, programa, ferramenta, offset de trabalho e fixação real."
+    },
+    {
+      "front": "O que faz um trocador automático?",
+      "back": "Seleciona/troca ferramentas do magazine conforme comando e configuração da máquina."
+    },
+    {
+      "front": "Por que conferir X em torno?",
+      "back": "O controle pode programar X em diâmetro ou raio, conforme configuração."
+    }
+  ],
+  "tips": [
+    "Ao ler um bloco, carregue mentalmente os modos modais que vieram antes dele.",
+    "Separe referência de máquina, origem de trabalho e offset de ferramenta: são relações distintas.",
+    "Siga a ferramenta no percurso e identifique aproximação, corte, retração e troca.",
+    "Compare número de ferramenta e corretor chamados com a lista de setup e a montagem real.",
+    "Trate exemplos de G/M como dependentes do controle; valide a tabela do fabricante.",
+    "Após fixar e zerar, use simulação e uma primeira execução controlada prevista no procedimento local."
+  ],
+  "traps": [
+    "Confundir G00 de posicionamento rápido com avanço de corte G01.",
+    "Supor que retornar ao home define automaticamente o zero da peça.",
+    "Tratar G54 como corretor de comprimento da ferramenta.",
+    "Achar que M-codes têm atribuição idêntica em todas as máquinas.",
+    "Presumir que coordenadas incrementais partem da origem do desenho.",
+    "Considerar a simulação prova suficiente de que o setup físico não colidirá."
+  ],
+  "activeRecall": [
+    "Compare quem gira no centro de usinagem e no torno CNC.",
+    "Explique como G90 e G91 mudam a interpretação das coordenadas.",
+    "Leia em voz alta um bloco com G01, X, Z e F: o que cada parte descreve?",
+    "Por que um M-code deve ser conferido no manual da máquina?",
+    "Descreva a diferença entre referência de máquina e zero de trabalho.",
+    "Quais verificações de fixação evitam deslocamento e colisão?",
+    "Diferencie offset geométrico e corretor de desgaste.",
+    "Que verificações físicas permanecem necessárias depois de uma simulação?"
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Mistura entre zero de máquina e zero de peça",
+      "summary": "Referência de máquina e origem da peça são referências distintas, definidas em etapas diferentes do setup.",
+      "description": "Home estabelece referência da máquina; origem de trabalho é definida separadamente no setup e chamada pelo programa."
+    },
+    {
+      "key": "e2",
+      "title": "Confusão entre ferramenta e origem de trabalho",
+      "summary": "Offsets de ferramenta e de trabalho corrigem relações geométricas diferentes e devem ser conferidos separadamente.",
+      "description": "Offset de ferramenta corrige sua geometria; offset de trabalho relaciona a origem programada à referência da máquina."
+    },
+    {
+      "key": "e3",
+      "title": "Leitura sem conservar estados modais",
+      "summary": "Modos ativos de unidades, coordenadas, plano e compensação podem alterar o significado dos blocos seguintes.",
+      "description": "Unidades, coordenadas, plano e compensações podem permanecer ativos e alterar blocos subsequentes."
+    },
+    {
+      "key": "e4",
+      "title": "Universalização de códigos de máquina",
+      "summary": "Convenções usuais de códigos não garantem atribuições idênticas em todos os controles e configurações.",
+      "description": "Alguns códigos comuns têm convenções conhecidas, mas atribuições e detalhes variam conforme controle e fabricante."
+    },
+    {
+      "key": "e5",
+      "title": "Confiança excessiva na simulação",
+      "summary": "Uma trajetória simulada não confirma automaticamente a condição física da peça, ferramenta, fixação ou offsets.",
+      "description": "A simulação não substitui conferência da fixação real, ferramenta, offsets, material e procedimento de primeira execução."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um centro de usinagem vertical típico, qual componente gira durante o fresamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A ferramenta gira no eixo-árvore e a peça fica presa à mesa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A peça gira na placa e a ferramenta fica parada na torre.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A mesa gira continuamente e a ferramenta apenas avança em Z.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ferramenta permanece fixa enquanto a peça gira entre os eixos X e Y.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O magazine gira a peça e também determina o avanço de corte.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em um centro vertical comum, o eixo-árvore gira a ferramenta, enquanto a peça é presa à mesa ou a um dispositivo. A peça girando na placa descreve o torno; mesa rotativa e magazine não definem esse princípio geral.",
+      "section": "1. Máquinas CNC: centros de usinagem e tornos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um torno CNC convencional, a peça gira no eixo-árvore e a ferramenta percorre os eixos de trabalho para produzir superfícies de revolução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. No torno convencional, a peça presa à placa ou pinça gira; a ferramenta montada na torre avança, normalmente em X e Z. Essa cinemática difere do centro de usinagem típico, no qual gira a ferramenta.",
+      "section": "1. Máquinas CNC: centros de usinagem e tornos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um centro vertical, qual associação de eixos é a mais usual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "X e Y posicionam no plano da mesa; Z aproxima ou afasta a ferramenta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "X e Z giram a peça; Y controla o avanço angular do eixo-árvore.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A e B são sempre lineares; X é o eixo exclusivo do magazine.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Z define o zero de peça e por isso não pode comandar movimento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Y controla somente o refrigerante; X e Z permanecem fixos durante o corte.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em muitos centros verticais, X e Y correspondem ao plano da mesa e Z ao movimento axial da ferramenta. Eixos rotativos podem existir, mas A/B não são necessariamente lineares e Z continua sendo um eixo de movimento.",
+      "section": "1. Máquinas CNC: centros de usinagem e tornos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a diferença funcional mais comum entre centro de usinagem e torno CNC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "No centro gira a ferramenta; no torno, em geral, gira a peça.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "No centro só há furação; no torno só há retificação cilíndrica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O centro não usa ferramentas de corte; o torno usa apenas fresas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "No torno a peça fica sempre imóvel e o eixo-árvore movimenta a torre.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As duas máquinas têm necessariamente a mesma cinemática e fixação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A distinção típica está em quem gira: ferramenta em muitos centros, peça em tornos convencionais. Centros realizam diversas operações e tornos usam ferramentas de torneamento; as alternativas que limitam as operações ou igualam a cinemática estão incorretas.",
+      "section": "1. Máquinas CNC: centros de usinagem e tornos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A designação X de um torno CNC garante, em qualquer controle, que a coordenada esteja programada em diâmetro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Muitos tornos permitem programação diametral em X, mas a convenção depende do controle e de sua configuração. É preciso conferir o manual e o modo ativo antes de interpretar valores ou deslocamentos.",
+      "section": "1. Máquinas CNC: centros de usinagem e tornos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual papel cabe ao trocador automático de ferramentas de um centro equipado com magazine?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retirar do magazine e instalar a ferramenta solicitada pelo comando.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Medir automaticamente o zero da peça sem apalpador nem referência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Determinar a rotação e o avanço ideais para qualquer material.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir a fixação da peça e corrigir o alinhamento da morsa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter os movimentos rápidos em movimentos de corte programados.",
+          "correct": false
+        }
+      ],
+      "explanation": "O trocador movimenta ferramentas entre magazine e eixo-árvore conforme a chamada e a configuração da máquina. Ele não escolhe parâmetros de corte, mede automaticamente a peça nem substitui o setup.",
+      "section": "1. Máquinas CNC: centros de usinagem e tornos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma trajetória válida no programa pode colidir se a fixação real diferir da configuração considerada na programação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Morsa, grampos, placa, contraponto e porta-ferramenta ocupam espaço real. Se sua posição não foi considerada, a trajetória programada pode ser geometricamente válida e ainda assim atingir esses elementos.",
+      "section": "1. Máquinas CNC: centros de usinagem e tornos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que caracteriza melhor um bloco de programa CNC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma unidade de instruções com endereços e valores para movimento ou estado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um registro permanente do desgaste medido após cada peça produzida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma coordenada de máquina que substitui todos os offsets de trabalho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma ferramenta física armazenada em cada posição do magazine.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma sequência que contém exclusivamente comentários sem execução possível.",
+          "correct": false
+        }
+      ],
+      "explanation": "O bloco reúne palavras de endereço e valores, como G, X, Z, F ou M, que instruem movimento ou estado. Não é o registro de desgaste, uma ferramenta física nem necessariamente um comentário.",
+      "section": "2. Blocos, coordenadas e códigos G e M",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em controles comuns, G00 solicita posicionamento rápido, enquanto G01 comanda interpolação linear com avanço programado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essa é a distinção usual: G00 para posicionamento rápido e G01 para movimento linear com avanço. Velocidades e detalhes de execução dependem da máquina; G00 não deve ser tratado como avanço de corte.",
+      "section": "2. Blocos, coordenadas e códigos G e M",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde a G02 e G03 em controles usuais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Interpolação circular horária e anti-horária no plano selecionado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Seleção de unidade métrica e cancelamento do avanço por rotação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ligamento e parada do eixo-árvore em sentidos opostos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escolha de zero de peça e medição automática do comprimento da ferramenta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Movimento rápido e parada programada do magazine de ferramentas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em convenções comuns, G02 e G03 comandam interpolação circular horária e anti-horária no plano ativo. Seleção do plano e parâmetros do arco dependem do controle; spindle e offsets são outras funções.",
+      "section": "2. Blocos, coordenadas e códigos G e M",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma convenção usual, o que muda ao alternar de G90 para G91?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A coordenada passa de absoluta para incremental a partir da posição atual.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O eixo-árvore passa de rotação horária para refrigeração externa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A ferramenta deixa de usar corretor e passa a usar zero de máquina.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O avanço deixa de ser programável e passa a ser definido pela morsa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A máquina troca o plano XY pelo plano XZ sem comando adicional.",
+          "correct": false
+        }
+      ],
+      "explanation": "G90 costuma indicar coordenadas absolutas em relação à origem ativa; G91 indica incrementos em relação à posição corrente. Não selecionam spindle, ferramenta, avanço nem plano.",
+      "section": "2. Blocos, coordenadas e códigos G e M",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função modal continua ativa em blocos seguintes até ser substituída ou cancelada, conforme as regras do grupo do controle.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A modalidade faz com que certas funções permaneçam no estado do programa sem repetição em cada bloco. A persistência e os grupos de compatibilidade devem ser confirmados no manual do controle.",
+      "section": "2. Blocos, coordenadas e códigos G e M",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No bloco de exemplo `G01 X20. F100`, qual leitura é adequada em um controle compatível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Interpolar linearmente até X20 com avanço programado de 100.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Girar a ferramenta a 100 rpm e selecionar a ferramenta número 20.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Retornar ao zero de máquina em rápido e parar o eixo-árvore.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ligar refrigeração e medir automaticamente a origem no eixo X.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar um arco horário de raio 20 com avanço não definido.",
+          "correct": false
+        }
+      ],
+      "explanation": "G01 solicita interpolação linear; X indica a coordenada de destino sob o modo ativo e F especifica o avanço. A unidade e se X é absoluto ou incremental dependem dos estados previamente selecionados.",
+      "section": "2. Blocos, coordenadas e códigos G e M",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em controles que seguem a convenção comum, M03 pode comandar rotação do eixo-árvore no sentido horário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. M03 é um exemplo comum de comando de rotação horária, mas a atribuição de M-codes não deve ser presumida universal; confirme a documentação da máquina e o sentido adequado à ferramenta/operação.",
+      "section": "2. Blocos, coordenadas e códigos G e M",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve melhor a função geral dos códigos M?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comandar funções auxiliares da máquina, como spindle, refrigeração ou parada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Definir sempre a geometria do perfil e a posição de cada ponto de corte.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter coordenadas absolutas em incrementais sem alterar o estado modal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir todas as palavras F e S por valores calculados pelo comando.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registrar o zero de peça e medir a ferramenta sem dispositivo de medição.",
+          "correct": false
+        }
+      ],
+      "explanation": "M-codes normalmente acionam funções auxiliares, por exemplo spindle ou refrigerante em controles compatíveis. A trajetória e coordenadas são descritas por outras palavras; os detalhes de cada M-code dependem do fabricante.",
+      "section": "2. Blocos, coordenadas e códigos G e M",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um trecho com M08, pode-se concluir sem consultar o manual que qualquer máquina CNC ligará exatamente o mesmo circuito de refrigeração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. M08 é frequentemente associado à refrigeração em controles conhecidos, mas circuitos, opções e atribuições podem variar. O operador deve confirmar o código e a configuração descritos no manual da máquina.",
+      "section": "2. Blocos, coordenadas e códigos G e M",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No exemplo `T02 M06`, qual interpretação é mais provável em um centro com trocador compatível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Selecionar a ferramenta 2 e solicitar sua troca no eixo-árvore.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Selecionar o zero de trabalho 2 e cancelar a ferramenta instalada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ligar o eixo-árvore a 2 rpm e parar o avanço por minuto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar compensação de raio D2 e retornar todos os eixos ao home.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar a segunda operação de torneamento em modo incremental.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em muitos centros, T seleciona o número da ferramenta e M06 solicita a troca. O comportamento depende da máquina e do comando, e o offset geométrico apropriado ainda deve estar correto.",
+      "section": "2. Blocos, coordenadas e códigos G e M",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "G00 é a função indicada para remover material com avanço de corte controlado em qualquer máquina CNC.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. G00 é usado para posicionamento rápido; G01 é o exemplo usual de interpolação linear com avanço programado. O percurso rápido deve ser planejado para não atravessar material ou dispositivos.",
+      "section": "2. Blocos, coordenadas e códigos G e M",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência de leitura ajuda a interpretar um programa antes da execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ver estados iniciais, ferramenta, origem, movimentos, parâmetros e encerramento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ler somente os números X e Z e ignorar os modos anteriores do programa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar primeiro para descobrir unidades, sentido de rotação e zero ativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Procurar o maior código M, pois ele sempre define todo o percurso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conferir apenas o último bloco, pois os demais são comentários informativos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A leitura exige identificar estados, ferramenta e offsets, acompanhar movimentos e parâmetros e verificar encerramento. Ignorar estados herdados ou executar para descobri-los cria riscos de trajetória e colisão.",
+      "section": "3. Leitura de programas de centro e torno CNC",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A chamada de um ciclo fixo dispensa verificar profundidade, plano de aproximação e forma de retração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Ciclos condensam movimentos repetitivos, mas seus endereços e comportamento variam conforme o controle. Profundidade, plano inicial/R, passo e retorno continuam precisando de interpretação e conferência.",
+      "section": "3. Leitura de programas de centro e torno CNC",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao interpretar um programa de fresamento, o corretor H costuma estar associado a qual dado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comprimento da ferramenta medido para a posição chamada pelo programa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Origem de trabalho que desloca simultaneamente todos os eixos da máquina.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Diâmetro externo da peça que será preso na morsa durante a operação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Velocidade de corte que substitui os endereços S e F do bloco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Raio de ponta da ferramenta de torno usado em todo centro vertical.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em convenções comuns de fresamento, H seleciona o corretor de comprimento de ferramenta usado com a compensação correspondente. A associação exata é configurável e não se confunde com o zero de trabalho G54.",
+      "section": "3. Leitura de programas de centro e torno CNC",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O corretor D chamado em uma operação de contorno pode estar relacionado ao raio ou diâmetro da ferramenta, conforme o controle e a convenção de compensação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Em muitos controles, D seleciona dados de compensação lateral da ferramenta, mas a interpretação exata do valor e a ativação da compensação devem ser verificadas no manual e no programa.",
+      "section": "3. Leitura de programas de centro e torno CNC",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma coordenada Z isolada pode ser insuficiente para prever a posição comandada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É necessário saber o modo absoluto/incremental e a origem ativa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Z só pode ser interpretado depois de remover todos os códigos M.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O número de ferramenta determina sozinho se Z é positivo ou negativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A coordenada sempre mede distância a partir da porta da máquina.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O avanço F transforma automaticamente qualquer Z em posição de máquina.",
+          "correct": false
+        }
+      ],
+      "explanation": "A coordenada depende do modo ativo e do sistema de trabalho, além da convenção da máquina. Sem esses estados, o mesmo valor pode indicar um ponto absoluto ou um deslocamento incremental diferente.",
+      "section": "3. Leitura de programas de centro e torno CNC",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A visualização gráfica de um programa prova que a peça está fixada corretamente e que nenhum grampo real será atingido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A simulação ajuda a avaliar a trajetória representada, mas pode não conter a geometria real da fixação e não verifica aperto, alinhamento ou offsets físicos. A conferência no setup continua necessária.",
+      "section": "3. Leitura de programas de centro e torno CNC",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um programa de torno, qual conjunto é mais característico para acompanhar o perfil axial da peça?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Movimentos coordenados em X e Z, com rotação da peça no eixo-árvore.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Movimentos em A e B, com peça estacionária e fresa no magazine.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente coordenadas Y e Z, sem rotação nem ferramenta de corte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Posições de magazine e morsa, sem comandos de coordenadas lineares.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Coordenadas de ferramenta H e D, que substituem todo o contorno X/Z.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tornos convencionais descrevem perfis principalmente em X e Z enquanto a peça gira. A torre e os corretores identificam ferramenta e geometria, mas não substituem as coordenadas do perfil.",
+      "section": "3. Leitura de programas de centro e torno CNC",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um ciclo de desbaste de torno, quais itens merecem atenção ao interpretar os parâmetros?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Perfil, profundidade de passe, retração e sobremetal para acabamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente o número da placa, pois o ciclo calcula o perfil automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas o código de fim, porque avanço e rotação são ignorados em ciclos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O comprimento da ferramenta H do centro, sem considerar a torre do torno.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A posição do magazine, que substitui as coordenadas de X e Z.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ciclos de desbaste usam um perfil e parâmetros de passe/retração, e podem deixar material para acabamento. Os endereços concretos variam entre comandos, mas placa e magazine não substituem esses dados.",
+      "section": "3. Leitura de programas de centro e torno CNC",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o programa chama G54, esse código normalmente seleciona um sistema de coordenadas de trabalho, e não um corretor de comprimento de ferramenta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Em controles comuns, G54 seleciona um dos sistemas de trabalho, relacionando a origem programada à máquina. Corretores de ferramenta são selecionados por endereços próprios, como H em convenções de fresamento.",
+      "section": "3. Leitura de programas de centro e torno CNC",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação demonstra uma leitura incorreta do estado modal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Interpretar um destino como absoluto sem conferir se G91 continua ativo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conferir o plano selecionado antes de interpretar uma interpolação circular.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Verificar se unidades e avanço correspondem ao programa e ao material.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Relacionar o corretor chamado à ferramenta instalada na torre.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Consultar a tabela do fabricante para compreender um M-code opcional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ignorar G91 ativo faz interpretar incrementos como coordenadas absolutas, alterando a posição prevista. As demais ações são verificações adequadas para reconstruir os estados do programa.",
+      "section": "3. Leitura de programas de centro e torno CNC",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ferramenta com comprimento medido corretamente pode ser usada com qualquer número H sem conferir o programa, pois o comando identifica a ferramenta pelo formato.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O número de ferramenta e o corretor chamado precisam corresponder ao registro e à ferramenta montada. O controle não deve ser presumido capaz de reconhecer automaticamente a geometria apenas pelo formato.",
+      "section": "3. Leitura de programas de centro e torno CNC",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um centro de usinagem tem ciclo fixo de furação com plano de retorno configurado. O que o operador deve fazer antes de executar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conferir profundidade, plano de aproximação, passo e comportamento de retorno.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Assumir que o ciclo sempre retorna ao home após cada furo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar o avanço porque ciclos fixos não usam parâmetros de corte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar G54 por H de comprimento, pois o ciclo exige um único offset.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar em rápido até o fundo para validar a posição final.",
+          "correct": false
+        }
+      ],
+      "explanation": "O ciclo resume movimentos, mas seus parâmetros controlam aproximação, avanço, profundidade e retorno. Assumir retorno ao home ou usar rápido até o fundo ignora a semântica do ciclo e cria risco.",
+      "section": "3. Leitura de programas de centro e torno CNC",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção descreve uma fixação apropriada de peça em uma morsa de fresamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apoiar em superfícies limpas, reduzir balanço e manter grampos fora do percurso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Deixar cavacos sob a peça para aumentar o atrito e corrigir a altura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Prender somente uma quina, permitindo que o avanço complete o assentamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Colocar o grampo sobre a trajetória para impedir vibração durante o corte.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Evitar qualquer apoio adicional, mesmo quando a peça longa fica em balanço.",
+          "correct": false
+        }
+      ],
+      "explanation": "Superfícies limpas e apoio adequado ajudam a assentar e estabilizar a peça; grampos precisam ficar fora do percurso. Cavacos inclinam a peça, e avanço de corte não deve ser usado para assentar a fixação.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Cavacos presos entre a peça e uma superfície de apoio podem alterar o assentamento e a posição da peça.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um cavaco pode criar apoio falso, inclinar ou deslocar a peça e comprometer dimensões e segurança. Limpar as superfícies de contato é parte do setup.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a função do retorno ao ponto de referência da máquina?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Estabelecer a referência de máquina dos eixos conforme a rotina do fabricante.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Definir por si só a origem da peça no canto escolhido do desenho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Medir o comprimento de cada ferramenta no magazine sem contato ou sensor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Prender a peça na mesa e eliminar a necessidade de offset de trabalho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cancelar todos os limites de curso e permitir movimento além da máquina.",
+          "correct": false
+        }
+      ],
+      "explanation": "Home/reference permite ao controle reconhecer a referência da máquina segundo seu sistema. O zero da peça e os offsets das ferramentas são definidos separadamente durante o setup.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de retornar os eixos ao home, o zero de trabalho chamado no programa ainda precisa ser definido ou confirmado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A referência de máquina não escolhe automaticamente a origem do desenho. O sistema de trabalho precisa refletir o zero físico escolhido e ser o mesmo chamado pelo programa.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que representa o zero de peça no setup?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A origem de trabalho escolhida no desenho e registrada para o programa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A posição de repouso do magazine, sem relação com coordenadas da peça.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O comprimento total da ferramenta medido desde a porta do operador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A marca de rotação zero do eixo-árvore em qualquer orientação de montagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O limite final de curso que impede o uso de coordenadas absolutas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Zero de peça é a origem programada escolhida a partir do desenho e localizada na peça real. Ela é registrada em um sistema de trabalho; não equivale ao home nem ao comprimento da ferramenta.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O offset de trabalho e o offset de comprimento da ferramenta descrevem exatamente a mesma relação geométrica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Offset de trabalho relaciona a origem programada com a referência da máquina; offset de ferramenta relaciona a geometria da ferramenta ao referencial de montagem/medição. São correções diferentes.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um centro de usinagem, qual procedimento estabelece o comprimento de ferramenta para o corretor chamado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Medir a ferramenta pela rotina disponível e registrar o valor no corretor correspondente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Copiar o valor do zero G54, pois ferramenta e peça compartilham um único offset.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar o diâmetro nominal da fresa como comprimento em todos os eixos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir o comprimento pela posição do magazine, sem medir nem consultar preset.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ajustar somente o desgaste até que a ferramenta alcance o home.",
+          "correct": false
+        }
+      ],
+      "explanation": "O comprimento deve ser medido pela rotina definida para a máquina, com apalpador, preset ou método previsto, e associado ao corretor que o programa chama. G54 não substitui o offset de ferramenta.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pequeno corretor de desgaste pode ser usado para ajustar uma dimensão medida, desde que ferramenta, geometria e montagem estejam corretas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O corretor de desgaste serve a ajustes finos acompanhados por medição. Ele não deve mascarar ferramenta errada, montagem solta ou offset geométrico grosseiramente incorreto.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um torno CNC, qual conferência é essencial ao preparar ferramentas na torre?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Associar cada estação à ferramenta e registrar sua geometria e orientação corretas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar um único corretor para todas as arestas, independentemente da estação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Medir somente o diâmetro da placa e usar esse valor em X e Z.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar orientação da pastilha, pois o controle deduz pelo material da peça.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registrar o zero de trabalho como se fosse o raio de ponta de cada ferramenta.",
+          "correct": false
+        }
+      ],
+      "explanation": "A estação selecionada precisa corresponder à ferramenta montada; geometria e orientação afetam a posição da ponta e a interpretação do programa. Um único corretor genérico não representa todas as ferramentas.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma peça longa presa em torno pode exigir apoio adicional quando a geometria e os esforços geram balanço ou instabilidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A necessidade de contraponto ou outro apoio depende do comprimento, rigidez, pega e operação. O setup precisa manter a peça estável e livre de interferências, usando o dispositivo apropriado.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a sequência conceitual correta para relacionar peça e ferramenta ao programa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Referenciar a máquina, definir zero de trabalho e medir offsets das ferramentas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Medir desgaste, apagar o home e deixar a origem ser calculada pelo avanço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir G54 como comprimento da ferramenta e home como zero do desenho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar o programa em rápido e usar o ponto de colisão como origem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fixar a peça depois da medição e deslocar o magazine para compensar.",
+          "correct": false
+        }
+      ],
+      "explanation": "A rotina conceitual separa referência de máquina, origem de trabalho e geometria das ferramentas. Os procedimentos concretos variam, mas não se deve substituir essas referências por movimento de teste ou por offsets trocados.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na primeira peça, medir uma característica crítica pode revelar erro de offset e orientar uma correção rastreável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A inspeção da primeira peça compara o resultado real com o desenho e pode indicar correção de offset, após confirmar ferramenta e setup. Ajustes devem ser controlados e registrados conforme o processo.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção reúne verificações sensatas antes do primeiro ciclo após o setup?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conferir unidades, ferramenta, offsets, fixação, percurso e posição segura.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conferir apenas o nome do programa, pois o comando valida todo o setup.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o avanço para que qualquer folga seja removida durante o corte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar limites e intertravamentos para observar melhor a trajetória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Retirar a peça da fixação e manter o ciclo para comparar coordenadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conferência relaciona programa e condição física: estados, ferramenta, offsets, aperto, interferências e aproximação. A máquina não valida por si só se o setup corresponde ao desenho.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A peça deve ser fixada de modo compatível com geometria e esforços, sem balanço desnecessário nem interferência no caminho da ferramenta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A fixação precisa resistir aos esforços e permitir o percurso planejado. Balanço excessivo pode reduzir rigidez; grampos ou dispositivos na trajetória podem causar colisão. A escolha concreta depende da peça e da operação.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual abordagem é adequada quando a primeira execução apresenta posição inesperada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Interromper e conferir modo, origem, offsets, ferramenta e fixação antes de ajustar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Alterar coordenadas aleatoriamente até que a ferramenta alcance a peça.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar a rotação para que o controle reconheça o zero correto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar o movimento, pois a simulação já confirmou a trajetória real.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apagar todos os corretores e continuar usando somente coordenadas de máquina.",
+          "correct": false
+        }
+      ],
+      "explanation": "Movimento inesperado exige interromper e diagnosticar estados, origem de trabalho, offsets e condição física. Alterações aleatórias podem criar colisões; rotação não corrige coordenadas e simulação não valida o setup real.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma configuração de torno que programa X em diâmetro, uma diferença de 2 mm no valor X representa necessariamente um deslocamento radial de 2 mm.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Em programação diametral, a diferença indicada em X representa variação de diâmetro; o deslocamento radial correspondente pode ser metade desse valor. A convenção deve ser confirmada no controle.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao selecionar um sistema de trabalho no programa, qual condição deve corresponder ao setup?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O zero físico medido deve corresponder ao sistema e aos valores chamados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O sistema pode ser escolhido sem relação com a origem definida no desenho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O zero de trabalho deve sempre coincidir com o limite de curso da máquina.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O corretor da ferramenta substitui o sistema de trabalho em todos os eixos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A posição do grampo determina automaticamente qual G54 será usado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O programa e o setup precisam usar o mesmo sistema de trabalho, cujos valores localizam a origem escolhida no desenho. Um código de seleção não mede a peça nem deriva automaticamente o zero da fixação.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se a ferramenta estiver montada na estação errada da torre, um corretor numericamente plausível garante o perfil correto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Número da estação, ferramenta montada, orientação e corretor precisam corresponder. Um valor plausível em outro registro não garante a geometria nem a orientação corretas e pode deslocar a aresta de corte.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que não se deve corrigir um zero incorreto alterando coordenadas do programa ao acaso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque a origem e os offsets devem ser diagnosticados contra o setup real.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Porque coordenadas não podem ser editadas em nenhum controle CNC.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque o avanço F muda automaticamente quando se altera uma coordenada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque o sistema de trabalho controla apenas o sentido da refrigeração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque um programa sempre recalcula o zero pelo comprimento da ferramenta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se a posição está errada, é preciso verificar a origem física, o sistema selecionado e os offsets. Mudanças arbitrárias podem deslocar toda a trajetória e mascarar o erro de setup, comprometendo outras peças e operações.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual informação costuma ser indicada pela palavra F em um bloco de corte?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O avanço programado, interpretado segundo o modo ativo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O número físico da ferramenta que está montada no magazine.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A origem da máquina calculada a partir da face frontal da peça.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O sentido horário ou anti-horário do eixo-árvore principal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A quantidade de grampos que deve ser usada para prender a peça.",
+          "correct": false
+        }
+      ],
+      "explanation": "F representa o avanço programado, e sua unidade depende do modo do controle, como avanço por minuto ou por rotação. Não seleciona ferramenta, origem, sentido do spindle nem fixação.",
+      "section": "2. Blocos, coordenadas e códigos G e M",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A palavra S costuma especificar a velocidade do eixo-árvore, mas seu modo de interpretação deve ser conferido no programa e no controle.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. S é comumente usada para comandar velocidade do spindle, mas a rotação pode ser direta ou relacionada à velocidade de corte conforme estados ativos. Não se deve inferir o modo sem ler o programa.",
+      "section": "2. Blocos, coordenadas e códigos G e M",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Antes de chamar uma ferramenta em um centro, qual correspondência precisa ser conferida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ferramenta instalada e corretor chamado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A cor do porta-ferramenta com a unidade de medida selecionada no comando.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O valor de G54 com o sentido de rotação do eixo-árvore principal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A posição do grampo com o endereço F usado no primeiro bloco de corte.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O número de eixos da máquina com o número de blocos do programa.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ferramenta solicitada, o item realmente instalado e o corretor registrado devem coincidir. A cor do porta-ferramenta ou os outros pares indicados não validam essa associação.",
+      "section": "3. Leitura de programas de centro e torno CNC",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa pode conter estados modais ativos mesmo quando o bloco atual não repete explicitamente o código que os selecionou.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A modalidade mantém determinadas funções em vigor até substituição ou cancelamento compatível. Por isso a interpretação de um bloco depende também dos anteriores.",
+      "section": "3. Leitura de programas de centro e torno CNC",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual elemento pode limitar a adequação de uma peça a um centro de usinagem específico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Envelope e capacidade da máquina.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A quantidade de linhas em branco entre os blocos de programa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O nome atribuído ao zero de trabalho na tela de offsets.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A existência de comentários que descrevam a ferramenta em português.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A presença de um código de parada no final do programa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Curso, carga, envelope e interferências físicas determinam se a máquina pode acomodar e percorrer a peça com segurança. Formatação ou idioma dos comentários não alteram a capacidade mecânica.",
+      "section": "1. Máquinas CNC: centros de usinagem e tornos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um centro horizontal pode oferecer acesso a várias faces da peça mediante configuração e indexação compatíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A orientação horizontal do eixo-árvore e a mesa/dispositivo adequado podem facilitar acesso a diferentes faces. Isso depende da máquina, do dispositivo e da programação de eixos disponíveis.",
+      "section": "1. Máquinas CNC: centros de usinagem e tornos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao prender uma peça em placa de torno, qual avaliação é mais importante para a estabilidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pega e apoio compatíveis com a operação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente o comprimento do programa e a quantidade de linhas N.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A cor da placa e a unidade usada para expressar o avanço F.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A posição do magazine, mesmo em torno sem magazine de ferramentas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A orientação da tela de gráficos, independentemente da fixação física.",
+          "correct": false
+        }
+      ],
+      "explanation": "Fixação de torno exige assentamento e pega compatíveis com a peça e a operação; peças longas podem precisar de apoio. Comprimento do programa ou interface gráfica não asseguram estabilidade.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O desgaste da ferramenta e sua geometria básica devem ser registrados como se fossem necessariamente a mesma correção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Geometria registra a ferramenta montada e seu referencial; desgaste permite pequenos ajustes dimensionais. Separá-los facilita controle e diagnóstico de alterações na peça.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que risco decorre de usar um zero de trabalho diferente daquele selecionado no programa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A trajetória pode ser deslocada em relação à peça real.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O eixo-árvore passa automaticamente a trabalhar em sentido inverso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O controle converte todos os movimentos em coordenadas incrementais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ferramenta altera seu diâmetro físico antes do primeiro corte.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sistema elimina os limites de curso e desliga os acionamentos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se a origem medida não corresponder ao sistema chamado, as coordenadas serão referenciadas a outra posição e a trajetória ficará deslocada na peça. Isso pode gerar dimensão incorreta ou colisão.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A escolha de avanço deve ser interpretada considerando a unidade ou o modo de avanço ativo no controle.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um mesmo endereço F pode representar avanço por minuto ou por rotação, conforme o modo ativo. Ler apenas o número sem verificar esse estado pode levar a uma condição de corte muito diferente da prevista.",
+      "section": "2. Blocos, coordenadas e códigos G e M",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a razão para manter ferramentas e suportes fora da trajetória programada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Evitar interferência e colisão durante aproximação, corte e retração.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Permitir que o controle calcule sozinho o comprimento correto da ferramenta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o número de eixos sem modificar a configuração da máquina.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter todos os deslocamentos rápidos em avanços de acabamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eliminar a necessidade de conferir a posição do zero da peça.",
+          "correct": false
+        }
+      ],
+      "explanation": "Porta-ferramentas, grampos e dispositivos podem ser atingidos mesmo que a trajetória da aresta pareça correta. O envelope e as aproximações/retrações precisam considerar os elementos físicos da montagem.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Simulação gráfica pode ajudar a encontrar erros de trajetória, mas depende de representar ferramenta e fixação de modo fiel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma simulação é útil para visualizar movimentos, mas omissões ou geometria incorreta de dispositivos limitam sua capacidade de detectar colisões. É preciso conferir o setup real e executar conforme procedimento controlado.",
+      "section": "3. Leitura de programas de centro e torno CNC",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que indica a verificação do plano ativo antes de ler uma interpolação circular?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quais eixos formam o plano em que o arco será interpretado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Qual ferramenta está no magazine e quanto mede seu comprimento axial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Qual mordente da morsa está mais próximo do operador da máquina.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Qual origem física será criada automaticamente pelo código do arco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Qual função M será executada ao fim do programa principal.",
+          "correct": false
+        }
+      ],
+      "explanation": "O plano ativo determina quais eixos compõem a interpolação circular. Sem essa informação, não é possível reconstruir corretamente o arco; ferramenta, morsa e função de fim são dados diferentes.",
+      "section": "3. Leitura de programas de centro e torno CNC",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um torno, o corretor de raio de ponta pode afetar a fidelidade de um perfil cônico ou curvo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Quando o controle aplica compensação da ponta, raio e orientação da ferramenta afetam o caminho efetivo da aresta. A necessidade e a chamada da compensação dependem do perfil e do controle.",
+      "section": "3. Leitura de programas de centro e torno CNC",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual informação sobre a fixação deve ser comparada ao programa antes de rodar uma peça?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O espaço ocupado pelo dispositivo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O número de caracteres do comentário no cabeçalho do programa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A ordem alfabética do nome das ferramentas cadastradas no controle.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A tela de alarmes usada na última manutenção preventiva da máquina.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A cor do material na ilustração, sem conferir a peça montada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A posição e o volume de morsa, placa, grampos e apoios devem ser compatíveis com o envelope varrido pela ferramenta, inclusive nas retrações. Dados de interface ou comentários não substituem essa conferência.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "M00 e M01 podem representar formas de parada em controles conhecidos, sendo M01 normalmente associado à parada opcional habilitada pelo operador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essa é uma convenção encontrada em controles comuns, mas deve ser verificada no manual da máquina. A parada opcional depende da função/opção correspondente habilitada no comando.",
+      "section": "2. Blocos, coordenadas e códigos G e M",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o zero foi medido em uma face da peça, mas o desenho programa a partir da face oposta, o que precisa ocorrer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir a transformação/offset para que o zero programado corresponda ao desenho.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Trocar G01 por M03 para inverter a origem sem alterar coordenadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar os offsets de ferramenta e manter a peça onde está presa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar o avanço F como distância entre as duas faces da peça.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o número de ferramenta até que a origem corresponda à face.",
+          "correct": false
+        }
+      ],
+      "explanation": "A origem de trabalho precisa representar a referência definida pelo desenho. Se a medição foi feita em outro ponto, registre a transformação adequada no sistema de trabalho conforme procedimento, sem trocar funções de movimento, rotação ou ferramenta.",
+      "section": "4. Setup: fixação, ferramentas e zeramento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Mill - Part Setup: Work Offsets e Set a Tool Offset",
+      "publisher": "Haas Automation",
+      "reference": "Zeramento de peça, sistemas de trabalho e medição de comprimento de ferramenta em centro de usinagem",
+      "url": "https://legacy-aem.haascnc.com/content/haascnc/en/service/online-operator-s-manuals/mill-operator-s-manual/mill---part-setup.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Lathe - Part Setup",
+      "publisher": "Haas Automation",
+      "reference": "Fixação, referência de máquina, offsets de ferramenta e origem de trabalho em torno CNC",
+      "url": "https://haascnc.com/service/online-operator-s-manuals/lathe-operator-s-manual/lathe---part-setup",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Mill - G-Codes",
+      "publisher": "Haas Automation",
+      "reference": "Funções G de posicionamento, interpolação, planos e compensação em fresadora CNC",
+      "url": "https://legacy-aem.haascnc.com/service/online-operator-s-manuals/mill-operator-s-manual/mill---g-codes.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Lathe Operator's Manual - NGC - 2025",
+      "publisher": "Haas Automation",
+      "reference": "Programação, G-codes, M-codes, operações e offsets em torno CNC",
+      "url": "https://www.haascnc.com/content/dam/haascnc/en/service/manual/operator/english---lathe-ngc---operator%27s-manual---2025.pdf",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Mill - M-Codes",
+      "publisher": "Haas Automation",
+      "reference": "Funções auxiliares e lista de códigos M para o controle Haas de fresadora",
+      "url": "https://legacy-aem.haascnc.com/service/online-operator-s-manuals/mill-operator-s-manual/mill---m-codes.html",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

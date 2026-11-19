@@ -1,0 +1,1990 @@
+{
+  "id": "informatica.mesh-app-service-architecture-masa",
+  "subject": "Informática",
+  "title": "Mesh app and service architecture (MASA)",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Mesh app and service architecture (MASA)",
+    "Mesh App and Service Architecture",
+    "Arquitetura MASA de aplicações e serviços",
+    "Arquitetura em malha de apps e serviços",
+    "Arquitetura de aplicações em malha",
+    "MASA e aplicações multiexperiência",
+    "MASA com APIs mediadas e serviços",
+    "Arquitetura multiexperiência e serviços",
+    "Mediated APIs na arquitetura MASA",
+    "Serviços multigranulares da MASA"
+  ],
+  "scope": {
+    "covers": "Conceito MASA; experiências multicanais; mediação por APIs, gateway e BFF; serviços de granularidades distintas; microsserviços, minisserviços e macroserviços; chamadas síncronas, eventos e mensageria; descoberta, segurança, observabilidade, implantação e escalabilidade; benefícios e custos.",
+    "excludes": "Configuração de produtos específicos, protocolos proprietários, implementação de domínio particular e história comercial de fornecedores."
+  },
+  "theoryTitle": "Aplicações, APIs e serviços conectados em MASA",
+  "chapters": [
+    {
+      "title": "1. Conceito e dimensões da MASA",
+      "markdown": "### O problema que este assunto resolve\n\nUm serviço digital pode ser acessado por site, aplicativo móvel, assistente de voz, terminal ou dispositivo conectado. Reproduzir a mesma regra em cada canal leva a inconsistências e torna mudanças caras. **Mesh App and Service Architecture (MASA)** descreve uma arquitetura distribuída que conecta experiências, APIs mediadas e serviços componíveis. O termo é associado ao Gartner; o portal de interoperabilidade da Comissão Europeia registra também a forma *Meshed Application and Service Architecture*.\n\n> **Siglas e termos deste capítulo**\n> - **MASA**: Mesh App and Service Architecture.\n> - **Multiexperiência (MX)**: interação por canais, dispositivos e modalidades variados.\n> - **API**: contrato pelo qual um software solicita operações ou dados a outro.\n> - **Componibilidade**: capacidade de combinar funcionalidades existentes em novas soluções.\n\n### Três dimensões relacionadas\n\nA arquitetura integra experiências digitais; mediação entre consumidores e capacidades por APIs; e serviços de granularidades diversas. Um serviço de identidade, por exemplo, pode apoiar portal, app e quiosque, embora cada canal tenha apresentação própria.\n\n| Dimensão | Exemplo | Questão arquitetural |\n|---|---|---|\n| Experiência | Web, app, voz, IoT | Como usuário ou dispositivo interage? |\n| Mediação | API gateway, BFF | Como se acessam capacidades e se aplicam políticas? |\n| Serviços | Identidade, pedidos, estoque | Que responsabilidade é oferecida e com qual autonomia? |\n\n“Malha” não significa todos os serviços chamarem todos diretamente. Contratos, descoberta, gateways, identidade e telemetria evitam uma rede incontrolável de dependências. MASA é uma orientação arquitetural, não produto ou protocolo; pode integrar sistemas legados e novos serviços.\n\n### Como cai na prova\n\n- Canais variados, APIs mediadas e serviços combináveis apontam a MASA.\n- Não se exige que tudo vire microsserviço nem que todos os canais tenham a mesma interface.\n- Composição continua exigindo segurança, contratos e governança."
+    },
+    {
+      "title": "2. APIs, gateway e BFF",
+      "markdown": "### O problema que este assunto resolve\n\nUm app móvel pode precisar de resposta menor que o portal, enquanto parceiro externo só deve acessar operações limitadas. Mediação esconde a topologia interna e oferece contratos adequados a cada consumidor.\n\n> **Siglas e termos deste capítulo**\n> - **API externa**: interface publicada a apps, parceiros ou outros consumidores fora do serviço.\n> - **API interna**: contrato destinado à comunicação organizacional entre componentes.\n> - **API gateway**: ponto de entrada que encaminha chamadas e pode aplicar políticas comuns.\n> - **BFF**: Backend for Frontend, backend ajustado a uma família de clientes.\n\n### Responsabilidades e compatibilidade\n\nGateway pode rotear, autenticar, limitar taxa, terminar TLS e agregar chamadas. Não deve concentrar toda lógica de negócio. BFF compõe respostas para um canal, por exemplo reduzindo chamadas do app móvel. Um gateway pode encaminhar a BFFs; criar um para cada cliente aumenta custo e deve ter justificativa.\n\nContratos precisam evoluir sem quebrar consumidores implantados em outros ritmos. Campos opcionais, testes de contrato, versionamento e período de descontinuação ajudam. Remover campo usado ou alterar semântica pode quebrar cliente mesmo que o endpoint continue respondendo.\n\n| Necessidade | Recurso | Cuidado |\n|---|---|---|\n| Entrada e roteamento comuns | Gateway | Evitar lógica de domínio excessiva |\n| Resposta adaptada ao canal | BFF | Não duplicar regra de negócio |\n| Mudança incompatível | Versão/transição | Inventariar consumidores ativos |\n\n### Como cai na prova\n\n- Gateway é entrada e política transversal; BFF adapta composição ao cliente.\n- Agregação reduz conversas do consumidor, mas depende dos serviços e pode sofrer falha parcial.\n- API mediada não torna operação automaticamente segura: autorização permanece necessária."
+    },
+    {
+      "title": "3. Granularidade e comunicação entre serviços",
+      "markdown": "### O problema que este assunto resolve\n\nDividir tudo em componentes diminutos pode criar tráfego e coordenação excessivos; manter um bloco grande pode dificultar autonomia de equipes. MASA admite serviços com diferentes tamanhos, guiados por coesão, limites de negócio e necessidades reais de implantação.\n\n> **Siglas e termos deste capítulo**\n> - **Microsserviço**: serviço autônomo, implantável separadamente, alinhado a capacidade delimitada.\n> - **Minisserviço**: granularidade intermediária.\n> - **Macroserviço**: serviço de capacidade mais ampla que pode agregar funções relacionadas.\n> - **Evento**: registro de um fato ocorrido, publicado para consumidores interessados.\n> - **Consistência eventual**: visões convergem após propagação assíncrona.\n\n### Tamanho é decisão, não objetivo\n\nSeparar pagamento e catálogo pode fazer sentido por regras, dados e ritmos diferentes. Criar um serviço por campo de uma entidade costuma produzir chamadas sem fronteira útil. Microsserviços permitem escala e implantação independentes, mas aumentam desafios de descoberta, consistência, monitoramento e operação. Nomes mini/macro não fixam tamanho universal.\n\n### Síncrono e assíncrono\n\nEm chamada HTTP síncrona, consumidor aguarda; lentidão do destino pode elevar latência. Timeouts, limites de repetição, circuit breaker e idempotência ajudam. Em fluxo de evento, produtor publica, por exemplo, “pedido confirmado”; estoque e entrega podem reagir independentemente. O produtor não precisa conhecer consumidores, mas entrega, duplicidade, ordenação e convergência precisam ser tratadas. Transação entre bancos independentes não vira ACID global só por usar API; Saga coordena etapas e compensações. Identificadores de correlação e rastreamento distribuído auxiliam diagnóstico.\n\n### Como cai na prova\n\n- MASA aceita granularidade variada, não exige decomposição máxima.\n- Eventos reduzem dependência temporal, mas introduzem processamento assíncrono.\n- Timeout não prova que a operação não ocorreu; repetição deve ser segura."
+    },
+    {
+      "title": "4. Operação, segurança e limites",
+      "markdown": "### O problema que este assunto resolve\n\nUma jornada pode atravessar gateway, BFF, serviços, broker e bancos. Saber apenas que o site está no ar não localiza falhas. Operação e segurança distribuídas fazem parte do desenho.\n\n> **Siglas e termos deste capítulo**\n> - **Service mesh**: infraestrutura que gerencia aspectos do tráfego entre serviços, conforme a implementação.\n> - **mTLS**: TLS mútuo, com autenticação de ambas as pontas.\n> - **Telemetria**: métricas, logs e rastreamentos de execução.\n> - **Identificador de correlação**: valor propagado para associar registros da mesma solicitação.\n\n### Malha de serviços não é MASA\n\nService mesh pode fornecer descoberta, políticas de tráfego, criptografia mútua, balanceamento e telemetria entre workloads. Ela trata principalmente comunicação serviço a serviço. MASA abrange composição de aplicações, experiências, APIs e serviços. É possível usar um sem o outro.\n\nAutenticação verifica identidade; autorização decide ações permitidas; criptografia protege o canal; auditoria registra operações. mTLS não concede permissão de negócio por si só. Propagar correlação ajuda a reconstruir jornadas. Observe latência, erros, saturação, atraso em filas e mensagens rejeitadas.\n\n### Benefícios e custos\n\nComponibilidade pode acelerar novos canais, integrar parceiros e permitir implantações independentes. Também aumenta contratos, pontos de falha e trabalho operacional. Avalie automação, testes, segurança, monitoramento e autonomia de equipes. Para sistema pequeno e estável, módulos coesos podem ser mais simples que serviços distribuídos.\n\n### Como cai na prova\n\n- Service mesh gerencia tráfego interno; não define experiência multicanal.\n- mTLS não substitui autorização por operação.\n- Benefícios de autonomia têm custos de coordenação e operação."
+    }
+  ],
+  "summary": "MASA conecta experiências digitais multicanais, APIs mediadas e serviços componíveis de granularidades diversas. Gateway fornece entrada e políticas; BFF adapta a composição ao canal. Serviços podem ser micro, mini ou macro segundo coesão e autonomia, sem meta de fragmentação máxima. Chamadas síncronas aguardam resposta; eventos desacoplam produtor e consumidor, mas exigem tratar duplicidade, entrega e consistência eventual. Microsserviços trazem autonomia e também complexidade de descoberta, segurança, observabilidade e operação. Service mesh trata comunicação entre workloads e é distinta de MASA. A escolha deve ponderar componibilidade e custo operacional.",
+  "flashcards": [
+    {
+      "front": "O que significa MASA?",
+      "back": "Mesh App and Service Architecture: arquitetura que conecta experiências, APIs mediadas e serviços componíveis."
+    },
+    {
+      "front": "Quais dimensões centrais articula?",
+      "back": "Experiências multicanais, mediação por APIs e serviços de granularidades diferentes."
+    },
+    {
+      "front": "O que é multiexperiência?",
+      "back": "Interação por canais e modalidades variados, como web, app, voz, chat e IoT."
+    },
+    {
+      "front": "MASA exige microsserviços em toda parte?",
+      "back": "Não; admite serviços de tamanhos diferentes e sistemas existentes."
+    },
+    {
+      "front": "O que faz API gateway?",
+      "back": "Oferece entrada e pode rotear chamadas e aplicar políticas transversais."
+    },
+    {
+      "front": "O que caracteriza BFF?",
+      "back": "Backend composto para necessidades de uma família de clientes."
+    },
+    {
+      "front": "Gateway e BFF são equivalentes?",
+      "back": "Não; gateway centraliza entrada e políticas, BFF adapta respostas ao canal."
+    },
+    {
+      "front": "O que um contrato de API descreve?",
+      "back": "Operações, dados, erros e regras de compatibilidade entre consumidor e serviço."
+    },
+    {
+      "front": "O que distingue chamada síncrona e evento?",
+      "back": "Na chamada o cliente aguarda; evento é processado assincronamente por interessados."
+    },
+    {
+      "front": "O que registra um evento?",
+      "back": "Um fato ocorrido, como pedido confirmado."
+    },
+    {
+      "front": "Como escolher granularidade de serviço?",
+      "back": "Pelas capacidades coesas, autonomia e necessidades de mudança, ponderando custo distribuído."
+    },
+    {
+      "front": "Qual custo comum de microsserviços?",
+      "back": "Mais desafios de descoberta, consistência, telemetria e implantação."
+    },
+    {
+      "front": "O que é consistência eventual?",
+      "back": "As visões convergem após propagação assíncrona, sem atualização simultânea."
+    },
+    {
+      "front": "Para que serve identificador de correlação?",
+      "back": "Relaciona logs e rastreamentos de etapas da mesma requisição."
+    },
+    {
+      "front": "O que service mesh costuma gerenciar?",
+      "back": "Aspectos de comunicação entre serviços, como tráfego, identidade e telemetria."
+    },
+    {
+      "front": "Service mesh é requisito de MASA?",
+      "back": "Não; são conceitos distintos."
+    },
+    {
+      "front": "O que mTLS proporciona?",
+      "back": "Proteção do canal e autenticação mútua das pontas configuradas."
+    },
+    {
+      "front": "mTLS substitui autorização?",
+      "back": "Não; identidade autenticada ainda precisa ter ações autorizadas."
+    },
+    {
+      "front": "O que precisa ser tratado ao consumir eventos?",
+      "back": "Entrega, duplicidade, ordenação quando relevante e mensagens inválidas."
+    },
+    {
+      "front": "Por que contratos precisam de compatibilidade?",
+      "back": "Consumidores evoluem em ritmos diferentes e mudanças podem quebrar clientes ativos."
+    },
+    {
+      "front": "Uma API mediada garante segurança?",
+      "back": "Não; autenticação, autorização e validação ainda são necessárias."
+    },
+    {
+      "front": "O que é BFF móvel?",
+      "back": "Backend que ajusta composição e formato da resposta às necessidades do app móvel."
+    },
+    {
+      "front": "Qual risco da agregação no gateway?",
+      "back": "Pode concentrar lógica, dependências e se tornar gargalo."
+    },
+    {
+      "front": "Timeout confirma falha da operação?",
+      "back": "Não; o destino pode ter concluído a ação sem resposta chegar ao cliente."
+    }
+  ],
+  "tips": [
+    "Associe MASA a experiências, APIs mediadas e serviços componíveis.",
+    "Gateway é entrada e política; BFF atende necessidades de um canal.",
+    "Granularidade útil depende de coesão e autonomia, não de contagem de serviços.",
+    "Chamada síncrona espera resposta; evento anuncia fato para processamento posterior.",
+    "Service mesh trata tráfego entre workloads; MASA é arquitetura mais ampla.",
+    "Autenticação, autorização, criptografia e auditoria resolvem problemas diferentes."
+  ],
+  "traps": [
+    "Chamar MASA de protocolo ou produto específico.",
+    "Supor que todo componente deve ser microsserviço minúsculo.",
+    "Confundir gateway e BFF como responsabilidade idêntica.",
+    "Afirmar que evento garante entrega exatamente uma vez ou consistência imediata.",
+    "Tratar mTLS como permissão para qualquer ação.",
+    "Supor que distribuição elimina acoplamento e falhas."
+  ],
+  "activeRecall": [
+    {
+      "question": "Quais dimensões MASA conecta?",
+      "answer": "Experiências digitais, APIs mediadas e serviços de vários tamanhos."
+    },
+    {
+      "question": "Como gateway reduz dependência da topologia?",
+      "answer": "Apresenta entrada contratual e encaminha chamadas aos serviços."
+    },
+    {
+      "question": "Quando BFF pode ser útil?",
+      "answer": "Quando canais distintos precisam de composição ou formatos próprios."
+    },
+    {
+      "question": "Qual custo acompanha autonomia de microsserviços?",
+      "answer": "Maior complexidade de comunicação, consistência, segurança e operação."
+    },
+    {
+      "question": "Que desafios surgem com eventos?",
+      "answer": "Entrega, repetição, duplicidade, ordenação e consistência assíncrona."
+    },
+    {
+      "question": "Como distinguir service mesh e MASA?",
+      "answer": "Mesh gerencia comunicação interna; MASA conecta experiências, APIs e serviços."
+    },
+    {
+      "question": "Como evoluir API sem quebrar consumidores?",
+      "answer": "Preservar compatibilidade, testar contratos e planejar transição de mudanças incompatíveis."
+    },
+    {
+      "question": "Como diagnosticar uma jornada distribuída?",
+      "answer": "Correlacionar logs e rastreamentos, observando métricas de latência e erros."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "MASA não exige microsserviços para tudo",
+      "summary": "A arquitetura aceita granularidades diversas e integra sistemas existentes; importa a componibilidade por capacidades."
+    },
+    {
+      "key": "e2",
+      "title": "Gateway e BFF têm papéis diferentes",
+      "summary": "Gateway oferece entrada e políticas transversais; BFF adapta composição a um tipo de cliente. Podem coexistir."
+    },
+    {
+      "key": "e3",
+      "title": "Evento não é resposta imediata",
+      "summary": "Eventos desacoplam produtores e consumidores, mas exigem tratar repetição, entrega e convergência assíncrona."
+    },
+    {
+      "key": "e4",
+      "title": "Service mesh tem escopo de tráfego",
+      "summary": "Mesh pode controlar comunicação de workloads; não define canais de experiência nem contratos de negócio."
+    },
+    {
+      "key": "e5",
+      "title": "Controles de segurança são complementares",
+      "summary": "Criptografia protege canal, autenticação verifica identidade e autorização delimita ações."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "MASA conecta experiências digitais, APIs mediadas e serviços de granularidades distintas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. MASA combina experiências digitais, mediação por APIs e serviços componíveis para que capacidades sejam usadas por diferentes canais. Isso descreve uma orientação arquitetural ampla e não exige um produto ou protocolo específico.",
+      "section": "1. Conceito e dimensões da MASA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para ser MASA, uma solução precisa converter cada sistema existente em microsserviço independente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. MASA pode integrar sistemas existentes por contratos e mediação, e admite serviços de tamanhos distintos. Converter cada sistema em microsserviço aumentaria custo e complexidade sem ser requisito da arquitetura.",
+      "section": "1. Conceito e dimensões da MASA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço de identidade usado por portal, app e quiosque exemplifica capacidade compartilhada por experiências diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Portal, aplicativo e quiosque podem oferecer interações próprias enquanto reutilizam a capacidade de identidade por um contrato. A experiência muda conforme o canal, mas a lógica compartilhada não precisa ser copiada em cada interface.",
+      "section": "1. Conceito e dimensões da MASA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A palavra malha exige que cada componente chame diretamente todos os demais, sem contratos publicados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A ideia de malha não exige conexões diretas de todos para todos. Contratos, mediação e descoberta delimitam as dependências e permitem alterar componentes sem propagar mudanças indiscriminadamente pela arquitetura.",
+      "section": "1. Conceito e dimensões da MASA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "App de voz e aplicativo móvel podem ter experiências diferentes sobre capacidades de negócio compartilhadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Multiexperiência reconhece que voz e aplicativo móvel são modalidades diferentes e podem apresentar fluxos próprios. O que pode ser compartilhado são capacidades e serviços de negócio, não necessariamente a navegação ou a interface visual.",
+      "section": "1. Conceito e dimensões da MASA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "MASA é protocolo de rede obrigatório para transportar chamadas entre aplicativos e serviços.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. MASA descreve uma abordagem arquitetural para relacionar aplicações, APIs e serviços, não um protocolo de transporte obrigatório. Uma implementação pode combinar chamadas por API, mensageria e sistemas já existentes conforme cada necessidade.",
+      "section": "1. Conceito e dimensões da MASA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "APIs mediadas podem permitir que consumidores usem capacidades sem conhecer a topologia interna completa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma API mediada oferece ao consumidor um contrato para acessar a capacidade, escondendo detalhes como localização e arranjo dos serviços internos. Assim, a topologia pode evoluir sem exigir que cada cliente conheça todas as dependências.",
+      "section": "1. Conceito e dimensões da MASA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Compartilhar serviços entre portal e app exige que ambos tenham os mesmos formulários e navegação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Compartilhar uma capacidade de negócio não obriga portal e aplicativo a usar os mesmos formulários ou a mesma navegação. Cada canal pode ajustar a interação ao dispositivo e ao contexto, mantendo contratos comuns com os serviços.",
+      "section": "1. Conceito e dimensões da MASA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um API gateway pode rotear chamadas e aplicar políticas comuns na fronteira da API.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O gateway pode concentrar a entrada das APIs, encaminhar solicitações conforme rotas e aplicar políticas transversais, como limites de chamadas. Ele não precisa absorver as regras de negócio que pertencem aos serviços de domínio.",
+      "section": "2. APIs, gateway e BFF",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "BFF é backend moldado às necessidades de uma família específica de clientes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O Backend for Frontend é moldado para atender uma família de clientes, como o app móvel, podendo agregar ou adaptar dados para esse canal. Ele pode ficar atrás de um gateway, pois as responsabilidades dos dois componentes são diferentes.",
+      "section": "2. APIs, gateway e BFF",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Gateway e BFF são sempre o mesmo componente e não podem coexistir.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O gateway costuma tratar entrada, roteamento e políticas comuns, enquanto o BFF ajusta a composição da resposta às necessidades de um cliente. Eles podem coexistir, com o gateway encaminhando chamadas para BFFs distintos.",
+      "section": "2. APIs, gateway e BFF",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Remover campo usado por clientes ativos pode quebrá-los mesmo que o endpoint continue respondendo HTTP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um endpoint ainda pode responder normalmente e, mesmo assim, quebrar clientes se remover um campo que eles utilizam. Compatibilidade depende do contrato e do significado dos dados, por isso mudanças precisam considerar consumidores ativos.",
+      "section": "2. APIs, gateway e BFF",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Autenticação no gateway elimina autorização nos serviços para operações internas sensíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Autenticação no gateway identifica quem entrou, mas não decide automaticamente quais operações e recursos essa identidade pode acessar em cada serviço. A autorização precisa continuar protegendo ações internas sensíveis.",
+      "section": "2. APIs, gateway e BFF",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço amplo pode participar de MASA se expuser capacidade componível por contrato.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. MASA não impõe que todo serviço seja minúsculo: um serviço mais amplo pode participar se expuser uma capacidade coesa por contrato. A granularidade deve considerar autonomia, limites de responsabilidade e custo de dependências.",
+      "section": "3. Granularidade e comunicação entre serviços",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Chamada síncrona garante que lentidão do serviço chamado nunca afete o cliente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Em uma chamada síncrona, o consumidor aguarda a resposta do destino e pode sofrer sua demora ou indisponibilidade. Timeouts, limites de repetição e isolamento ajudam a conter a propagação, mas não eliminam esse vínculo temporal.",
+      "section": "3. Granularidade e comunicação entre serviços",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Eventos podem desacoplar produtor e consumidores, mas exigem tratar duplicidade e consistência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um evento permite que o produtor publique um fato sem aguardar cada consumidor, reduzindo dependência temporal direta. Como o processamento é assíncrono, ainda é preciso planejar entrega, possíveis duplicatas e convergência das informações.",
+      "section": "3. Granularidade e comunicação entre serviços",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma loja publica ‘pedido confirmado’ para estoque e entrega reagirem sem chamadas individuais do produtor. Qual mecanismo descreve o caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Chamada síncrona em série, que aguarda cada resposta do serviço consumidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Evento assíncrono permite reações sem chamadas individuais do produtor.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "BFF de canal, que transforma a tela do cliente em banco de estoque.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Service mesh, que armazena o pedido como registro comercial permanente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "API externa, que exige ao usuário coordenar cada serviço interno.",
+          "correct": false
+        }
+      ],
+      "explanation": "Publicação e assinatura permitem ao produtor anunciar que o pedido foi confirmado sem chamar individualmente estoque e entrega. Cada consumidor reage de forma assíncrona; por isso, a solução deve tratar entrega, reprocessamento e possíveis duplicatas.",
+      "section": "3. Granularidade e comunicação entre serviços",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Equipe quer um endereço público, roteamento por caminho e limite de chamadas. Qual componente atende melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "API gateway, com entrada comum, roteamento por caminho e políticas para as chamadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "BFF móvel, que substitui serviços e centraliza toda persistência comercial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Broker de eventos, que responde sincronamente a toda consulta HTTP recebida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Serviço de domínio, que replica sua interface dentro de cada cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Malha de dados, que converte automaticamente contratos incompatíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gateway corresponde à necessidade de um ponto de entrada com roteamento por caminho e políticas como limite de chamadas. BFF adapta respostas a um canal específico, enquanto broker distribui mensagens assíncronas e não substitui essa fronteira de API.",
+      "section": "2. APIs, gateway e BFF",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "App móvel precisa agregar perfil, saldo e notificações em resposta própria, diferente do portal. Qual desenho é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Expor cada banco aos clientes e deixar toda composição diretamente na interface.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "BFF móvel, que compõe respostas para o app sem transferir as regras de domínio.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Transferir regras de negócio ao gateway para que serviços não validem operações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Publicar evento por carregamento e aguardar retorno síncrono do broker.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Instalar service mesh no telefone para agregar dados sem backend.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um BFF do app pode reunir perfil, saldo e notificações em um formato adequado ao cliente móvel, reduzindo chamadas e adaptando a resposta. As regras e os dados de domínio continuam pertencendo aos serviços responsáveis por essas capacidades.",
+      "section": "2. APIs, gateway e BFF",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual evolução de API tende a preservar melhor consumidores ativos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover campo em uso e avisar clientes somente depois da implantação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Alterar semântica mantendo o nome da operação e a resposta HTTP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adicionar campo opcional, testar contratos e planejar a retirada de elementos antigos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Implantar gateway e serviço juntos, supondo atualização simultânea dos clientes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Renomear endpoint e registrar aviso apenas no log do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Adicionar um campo opcional costuma preservar clientes que não o conhecem, desde que o contrato mantenha compatibilidade. Remover ou alterar elementos já consumidos exige identificar clientes afetados e planejar uma migração ou descontinuação gradual.",
+      "section": "2. APIs, gateway e BFF",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Compra passa por gateway, pedidos, pagamento e estoque. O que ajuda a reunir registros da mesma jornada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Identificador de correlação propagado nos logs e rastreamentos das etapas da jornada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Versão distinta de endpoint para cada tentativa de chamada interna.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cópia dos bancos de todos os serviços guardada no gateway.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "BFF por operação, sem compartilhar metadados entre etapas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Evento global que desativa logs quando o processamento termina.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um identificador de correlação propagado entre gateway e serviços permite relacionar registros produzidos em etapas diferentes da mesma compra. Com essa associação, logs e rastreamentos ajudam a localizar onde ocorreu lentidão ou erro.",
+      "section": "4. Operação, segurança e limites",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A organização quer controlar tráfego entre workloads, aplicar mTLS e observar chamadas internas. Qual tecnologia tem escopo direto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Service mesh, que gerencia tráfego e identidade na comunicação interna entre workloads.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "BFF web, que converte navegação do portal em operações do catálogo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "API externa, que descreve campos visíveis na tela de atendimento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Evento de domínio, que define todas as permissões organizacionais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Macroserviço de apresentação que elimina comunicação entre workloads.",
+          "correct": false
+        }
+      ],
+      "explanation": "Service mesh tem escopo direto na comunicação entre workloads, podendo apoiar tráfego, autenticação mútua e observabilidade interna. Ela não substitui contratos de negócio nem define, por si, como apps e experiências são compostos na MASA.",
+      "section": "4. Operação, segurança e limites",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Serviços usam mTLS com certificados válidos. Qual conclusão é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "mTLS autentica as pontas e protege o tráfego; permissões de negócio seguem avaliadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O destino deve aceitar qualquer operação porque certificado concede autorização universal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Certificados eliminam validação de entradas e auditoria de ações sensíveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "mTLS cifra somente dados armazenados e não protege tráfego entre serviços.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Autenticação mútua impede que identidade válida envie solicitação malformada.",
+          "correct": false
+        }
+      ],
+      "explanation": "mTLS cifra a comunicação e autentica mutuamente as pontas que apresentam certificados válidos. Isso não determina quais operações cada identidade pode executar; autorização, validação de requisições e auditoria continuam necessárias.",
+      "section": "4. Operação, segurança e limites",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Tela consulta vários serviços e fica lenta quando um destino atrasa. Qual consideração orienta composição por BFF?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Agregação reduz chamadas do cliente, mas requer limites de tempo e tratamento de falhas parciais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Agregação torna operação atômica e elimina latência de rede entre serviços.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "BFF deve assumir dados de todos os domínios para remover dependências.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cliente deve repetir chamadas sem limite até todos os destinos responderem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Service mesh transforma chamadas remotas em consultas locais sem risco.",
+          "correct": false
+        }
+      ],
+      "explanation": "O BFF pode agregar chamadas e simplificar o consumo pela tela, mas a resposta ainda depende dos serviços consultados. Timeout, latência e falha parcial precisam de tratamento para que um destino lento não comprometa toda a experiência.",
+      "section": "2. APIs, gateway e BFF",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma solicitação de compra pode ser repetida após timeout e duplicar cobrança. Qual prática ajuda?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Chave de idempotência registrada pelo serviço e associada ao resultado da operação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Identificador novo em cada tentativa para evitar colisão de registros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover timeout para o cliente aguardar indefinidamente qualquer resposta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Publicar cobrança em todos os tópicos e aceitar a primeira resposta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Delegar semântica ao gateway, que não precisa entender a operação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma chave idempotente permite reconhecer que uma solicitação repetida corresponde à mesma operação e evita criar uma segunda cobrança. A proteção depende da semântica e do registro da operação no domínio, não apenas de uma repetição automática no gateway.",
+      "section": "3. Granularidade e comunicação entre serviços",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Equipe avalia dividir catálogo em dezenas de serviços minúsculos. Qual critério é mais consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dividir sempre que possível, pois quantidade maior reduz automaticamente acoplamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escolher fronteiras por coesão e autonomia, ponderando o custo da operação distribuída.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Evitar toda separação, pois MASA exige aplicação monolítica para todos os canais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar um serviço por tabela mesmo que operações exijam longas cadeias de chamadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Determinar tamanho apenas pela linguagem de programação de cada componente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A divisão deve seguir capacidades coesas e necessidades reais de autonomia ou mudança. Criar dezenas de serviços minúsculos apenas aumenta chamadas e coordenação; contar componentes não demonstra que as fronteiras reduziram acoplamento.",
+      "section": "3. Granularidade e comunicação entre serviços",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Notificações estão indisponíveis após confirmação do pedido. Qual desenho tolera melhor o cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Evento durável, reprocessamento idempotente e monitoração de atrasos e mensagens rejeitadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apagar evento logo após publicar, sem confirmação do broker de mensagens.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Obrigar cada consumidor a responder sincronamente antes de confirmar pedidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar conteúdo do evento em cada tentativa para impedir duplicidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar gateway público como armazenamento permanente e dispensar a fila.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma fila ou mecanismo durável pode reter notificações enquanto o consumidor está indisponível, e o reprocessamento permite retomá-las depois. Monitorar atrasos e tratar duplicatas é necessário para não perder o evento nem produzir efeitos repetidos.",
+      "section": "3. Granularidade e comunicação entre serviços",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Compra reserva estoque e cobra pagamento em serviços com bancos próprios. Qual afirmação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Chamadas REST tornam a operação uma transação ACID global sem mecanismo distribuído.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Saga coordena as etapas e as compensações entre serviços com bancos independentes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Gateway transforma bancos distintos em transação local automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eventos garantem gravações simultâneas sem recuperação de falhas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Service mesh armazena cópias e reverte qualquer alteração comercial.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando cada serviço controla seu próprio banco, uma Saga coordena as etapas e prevê ações compensatórias para falhas posteriores. Usar HTTP ou eventos para comunicar os serviços não transforma seus bancos em uma única transação ACID global.",
+      "section": "3. Granularidade e comunicação entre serviços",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "App, site e parceiro precisam compartilhar capacidades sem conhecer endpoints internos. Qual desenho atende?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publicar APIs mediadas por contratos e encaminhar chamadas às capacidades responsáveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Entregar credenciais de banco a cada canal para dispensar contratos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Duplicar todas as regras em cada aplicativo e sistema parceiro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Expor todas as portas de serviço e deixar consumidor descobrir funções.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Unificar a aparência e exigir que parceiros usem a tela do app.",
+          "correct": false
+        }
+      ],
+      "explanation": "APIs mediadas dão a app, site e parceiro contratos controlados para consumir capacidades sem depender dos endereços internos de cada serviço. A mediação também permite aplicar políticas de acesso e adaptar a composição conforme os consumidores.",
+      "section": "1. Conceito e dimensões da MASA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que sinais ajudam a localizar degradação em jornada distribuída?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Métricas de latência e erros, logs correlacionados e rastreamentos das etapas percorridas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Contagem de telas implantadas, sem observar chamadas ou resultados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Arquivo de configuração do gateway como prova isolada do runtime.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Número de repositórios como substituto da monitoração de execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Captura da tela do usuário para identificar automaticamente o serviço falho.",
+          "correct": false
+        }
+      ],
+      "explanation": "Métricas mostram tendências como latência e taxa de erro, logs registram eventos detalhados e rastreamentos conectam etapas de uma solicitação. A combinação desses sinais ajuda a localizar a degradação em uma jornada que atravessa serviços.",
+      "section": "4. Operação, segurança e limites",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sistema pequeno e estável tem equipe enxuta e baixa necessidade de implantação independente. Qual decisão é razoável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adotar muitos microsserviços logo, pois arquitetura distribuída reduz trabalho operacional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ponderar componibilidade e custos, mantendo módulos coesos se distribuir não se justificar.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Descartar contratos e segurança porque apenas grandes empresas governam APIs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar service mesh como substituta de automação e responsabilidade operacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Separar um serviço por tela para garantir toda mudança independente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Separar em serviços traz custos de comunicação, implantação, monitoramento e consistência. Para um sistema pequeno e estável, módulos coesos no mesmo processo podem atender bem quando não há necessidade concreta de escala ou implantação independente.",
+      "section": "4. Operação, segurança e limites",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço notifica múltiplos consumidores sem codificar chamadas individuais. Qual opção é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publicar o evento em tópico ou broker para que consumidores interessados reajam de forma independente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Chamar cada consumidor em série com endereços embutidos no produtor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar BFF por consumidor e mover regra de negócio aos clientes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Expor tabela do produtor para cada consumidor consultar alterações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter eventos em transações atômicas por gateway de borda.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com publicação e assinatura, o serviço produtor anuncia um evento e vários consumidores interessados podem reagir sem chamadas codificadas individualmente. A entrega, o reprocessamento e o tratamento de duplicatas ainda precisam ser projetados.",
+      "section": "3. Granularidade e comunicação entre serviços",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa distingue MASA de service mesh?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "MASA compõe experiências, APIs e serviços; mesh trata comunicação entre workloads internos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "MASA cifra conexões internas; mesh define canais de atendimento por voz.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MASA é protocolo de mensagens; mesh é modelo de dados de negócio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "São nomes equivalentes para o mesmo produto de gateway.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mesh substitui APIs externas e define a experiência de cada app.",
+          "correct": false
+        }
+      ],
+      "explanation": "MASA abrange a composição de experiências, APIs mediadas e serviços. Service mesh é uma infraestrutura voltada a aspectos de comunicação entre serviços, portanto pode apoiar uma solução MASA, mas não é equivalente à arquitetura completa.",
+      "section": "4. Operação, segurança e limites",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Pedido foi confirmado, mas painel de estoque atualiza alguns instantes depois por evento. Como se caracteriza?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Consistência eventual, com convergência das visões após o processamento assíncrono do evento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Atomicidade local, com todas as bases atualizadas simultaneamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Versionamento de API que faz painel ler contrato anterior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Autenticação mútua que converge os dados por certificados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Agregação do gateway que prova ausência de fila.",
+          "correct": false
+        }
+      ],
+      "explanation": "O evento pode ser processado depois da confirmação, então a visão de estoque não precisa mudar no mesmo instante que o pedido. Esse atraso caracteriza consistência eventual; a interface deve comunicar um estado coerente durante a propagação.",
+      "section": "3. Granularidade e comunicação entre serviços",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Parceiro consulta somente pedidos autorizados, enquanto serviços internos permanecem privados. Qual abordagem favorece a fronteira?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "API mediada com autenticação e autorização.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Expor toda API interna e confiar no comportamento do parceiro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Entregar conta de banco compartilhada para evitar contrato de consulta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exigir mesh e identidade administrativa no ambiente do parceiro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir acesso direto a todos os tópicos da organização.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma API externa mediada pode expor apenas a consulta necessária ao parceiro, aplicando autenticação e autorização apropriadas. Os serviços internos continuam protegidos e não precisam divulgar seus endpoints ou operações completas.",
+      "section": "2. APIs, gateway e BFF",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Operação pública será removida, embora clientes antigos ainda a usem. Qual sequência reduz risco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Inventariar, migrar e retirar após transição.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover primeiro e avisar depois, pois gateway recompõe contratos automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter nome e alterar significado sem informar consumidores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar validação para clientes antigos enviarem qualquer formato.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Duplicar bancos por cliente sem prazo ou monitoramento da migração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Antes de remover a operação, é preciso identificar clientes que ainda a utilizam, oferecer uma alternativa e coordenar a migração até a descontinuação. Um gateway pode rotear chamadas, mas não altera automaticamente o código nem a semântica esperada pelos clientes.",
+      "section": "2. APIs, gateway e BFF",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sensores IoT publicam alertas consumidos por manutenção e análise. Qual característica favorece o desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Produtores e consumidores evoluem por contrato de evento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cada sensor deve chamar todos os serviços em sequência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A malha garante resposta síncrona imediata a qualquer evento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gateway elimina decisão sobre quem pode publicar ou consumir dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eventos obrigam todos os serviços a usar mesma linguagem e banco.",
+          "correct": false
+        }
+      ],
+      "explanation": "A publicação de alertas permite distribuir o mesmo fato a manutenção e análise sem que o sensor conheça individualmente cada consumidor. O fluxo ainda precisa de controle de acesso, governança dos contratos e observação da entrega.",
+      "section": "3. Granularidade e comunicação entre serviços",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma capacidade coesa usa macroserviço, e domínios que requerem autonomia fina usam microsserviços. Como avaliar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Granularidade variada com fronteiras e contratos claros.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É incompatível porque todos os serviços devem ter mesmo tamanho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Macroserviços não podem expor APIs nem participar de composição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É obrigatório substituir tudo por aplicação monolítica legada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É adequado somente se serviços compartilharem código e banco.",
+          "correct": false
+        }
+      ],
+      "explanation": "MASA admite capacidades em granularidades distintas, definidas por coesão, autonomia e custo de dependências. Um macroserviço pode ser adequado a uma fronteira coesa, enquanto microsserviços podem atender domínios que precisam de evolução independente.",
+      "section": "3. Granularidade e comunicação entre serviços",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Gateway agrega perfil e pedidos. Como evitar concentrar nele regras de negócio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Regras e dados nos serviços de domínio.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Mover todas as regras ao gateway para dispensar validação nos serviços.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fazer gateway escrever diretamente em cada banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Proibir qualquer agregação mesmo quando clientes fazem muitas chamadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter gateway em broker e armazenar todo histórico comercial.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gateway ou BFF pode agregar respostas na fronteira para simplificar o cliente, mas isso não transfere a propriedade das regras e dos dados de domínio. Mantê-los nos serviços responsáveis evita transformar a camada de entrada em um núcleo de negócio centralizado.",
+      "section": "2. APIs, gateway e BFF",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Service mesh repete automaticamente chamadas. Que aspecto ainda depende da semântica de negócio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Idempotência.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Tamanho da fonte móvel antes da nova tentativa de rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gateway pode dispensar validação após configurar repetição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eventos devem ser ordenados alfabeticamente pelos consumidores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Certificados TLS guardam resultado da operação para evitar repetição.",
+          "correct": false
+        }
+      ],
+      "explanation": "A chamada pode ter sido executada mesmo que a resposta se perca, então uma repetição pode duplicar uma cobrança ou criação. A segurança depende de idempotência e de uma chave da operação segundo sua semântica, não apenas da configuração da service mesh.",
+      "section": "4. Operação, segurança e limites",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual decisão é adequada para chamadas autenticadas entre identidades de workload?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autenticar e autorizar por privilégio mínimo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Confiar em qualquer chamada interna porque rede privada não pode ser falsificada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar cifra do canal como substituta de permissão do usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conceder papel administrativo permanente a todo serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar auditoria se tráfego passa por gateway.",
+          "correct": false
+        }
+      ],
+      "explanation": "Autenticar identifica o workload que faz a chamada, e autorizar restringe as operações permitidas ao que ele precisa executar. Estar em uma rede interna não prova legitimidade nem justifica conceder acesso irrestrito a todos os serviços.",
+      "section": "4. Operação, segurança e limites",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Descoberta e balanceamento entre réplicas bastam para classificar qualquer solução como MASA?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim, pois descoberta equivale à composição de experiências e APIs.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Não; recursos operacionais não definem a MASA.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Sim, se cada réplica usar DNS distinto e banco compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não, porque MASA proíbe balanceamento e exige chamadas diretas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim, pois qualquer aplicação distribuída é automaticamente multiexperiência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Descoberta e balanceamento ajudam a localizar e distribuir tráfego entre réplicas, mas são capacidades operacionais. Isoladamente, não demonstram a integração de experiências, APIs mediadas e serviços componíveis que caracteriza a abordagem MASA.",
+      "section": "1. Conceito e dimensões da MASA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quatro serviços não compartilham identificador de uma solicitação que falhou. Qual ajuste facilita diagnóstico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Propagar correlação e rastreamento distribuído.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desativar logs locais e guardar apenas registro de deploy do app.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gerar identificador diferente por etapa para impedir associação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar gateways sem capturar tempos nem códigos de erro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mover serviços ao mesmo repositório e presumir que falha desaparece.",
+          "correct": false
+        }
+      ],
+      "explanation": "Propagar um identificador de correlação e coletar rastreamentos distribuídos permite relacionar as etapas da mesma solicitação, junto a logs e métricas. Colocar código em um repositório comum não revela o comportamento nem as falhas durante a execução.",
+      "section": "4. Operação, segurança e limites",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sistema legado é exposto por API adaptadora enquanto capacidades novas são construídas. Isso pode integrar MASA?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim, por mediação com contratos e limites.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Não, MASA permite somente microsserviços escritos do zero.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não, todo legado deve ser removido antes de criar API externa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sim, desde que legado compartilhe diretamente dados com todos os canais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim, se adaptador substituir autenticação e autorização dos consumidores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um adaptador pode expor uma capacidade do legado por contrato e controlar como ela é acessada pelos consumidores. MASA permite compor sistemas existentes com novos serviços; reescrever toda a aplicação antes de integrá-la não é requisito.",
+      "section": "1. Conceito e dimensões da MASA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta simples pede aceite imediato; outro processo pode levar minutos. Qual desenho reconhece essa diferença?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Curto síncrono; longo assíncrono com estado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter conexão aberta nos dois casos até todo serviço concluir.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter ambos em eventos sem confirmação nem estado ao consumidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fazer gateway executar o processo longo e todas as regras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar BFF como substituto de persistência e recuperação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma consulta ou operação breve pode responder de forma síncrona, enquanto um processo demorado pode confirmar que foi aceito e continuar em segundo plano. Expor estado ou enviar notificação posterior informa ao consumidor como acompanhar sua conclusão.",
+      "section": "3. Granularidade e comunicação entre serviços",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual benefício potencial de componibilidade não promete resultado automático?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Recombinar capacidades em novos canais e integrações.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Qualquer mudança será implantada sem teste ou coordenação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "APIs eliminam monitoramento de falhas e disponibilidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Componentes garantem consistência imediata de todos os dados distribuídos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Service mesh elimina custos de segurança e manutenção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Capacidades acessíveis por contratos reutilizáveis podem ser recombinadas para criar canais ou integrações. Esse potencial não elimina a necessidade de testes e monitoramento, nem impede falhas e custos de operar componentes distribuídos.",
+      "section": "4. Operação, segurança e limites",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Parceiro precisa consultar apenas situação de pedido. Qual fronteira é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "API externa limitada e autorizada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Publicar API interna completa e confiar que parceiro use só uma operação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dar acesso de escrita ao banco para dispensar contrato.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exigir identidade administrativa do parceiro na service mesh.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Duplicar dados sem política de atualização no app parceiro.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fronteira externa deve oferecer somente a consulta de situação de pedido de que o parceiro precisa, com autenticação e autorização adequadas. Publicar toda a API interna ampliaria a superfície de acesso sem necessidade funcional.",
+      "section": "2. APIs, gateway e BFF",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Cliente recebe timeout, mas destino pode ter concluído operação. Qual orientação é mais segura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Consultar estado ou repetir idempotentemente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Timeout prova que destino não recebeu chamada, então repetir não traz risco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Service mesh garante que repetição de negócio ocorre exatamente uma vez.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gateway apaga execução anterior do banco ao receber nova chamada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Resposta tardia deve ser ignorada e dados considerados consistentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O destino pode concluir a operação e perder apenas a resposta no caminho, portanto timeout não confirma que nada ocorreu. Consultar o estado ou repetir usando uma chave idempotente ajuda a evitar efeitos duplicados.",
+      "section": "3. Granularidade e comunicação entre serviços",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Serviços têm implantação independente, mas nenhum contrato ou monitoramento comum. Qual conclusão é razoável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Planejar contratos comuns, telemetria, segurança e operação entre os serviços.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Implantação independente garante compatibilidade e observabilidade automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ausência de contrato é desejável porque serviços descobrem interfaces em execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gateway substitui documentação, versionamento e monitoramento de todo serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dividir novamente até nenhuma dependência de comunicação existir.",
+          "correct": false
+        }
+      ],
+      "explanation": "Implantação independente pode dar autonomia às equipes, mas os serviços ainda precisam de contratos, segurança e observabilidade para operar juntos. Sem monitoramento comum, fica difícil correlacionar falhas e entender o impacto sobre uma jornada distribuída.",
+      "section": "4. Operação, segurança e limites",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Meshed Application and Service Architecture",
+      "publisher": "Comissão Europeia — Interoperable Europe Portal",
+      "reference": "Definição de MASA e componentes de aplicações, serviços e APIs mediadas",
+      "url": "https://interoperable-europe.ec.europa.eu/collection/elise-european-location-interoperability-solutions-e-government/glossary/term/meshed-application-and-service-architecture",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MASA: Create Agile Application Architecture With Composable Apps, APIs and Services",
+      "publisher": "Gartner",
+      "reference": "Resumo de pesquisa sobre arquitetura componível e abordagem API-centric",
+      "url": "https://www.gartner.com/en/documents/5693919",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "API design",
+      "publisher": "Microsoft Learn — Azure Architecture Center",
+      "reference": "Desenho, compatibilidade, versionamento e APIs em microsserviços",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/microservices/design/api-design",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Use API gateways in microservices",
+      "publisher": "Microsoft Learn — Azure Architecture Center",
+      "reference": "Gateway, roteamento, agregação e políticas transversais",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/microservices/design/gateway",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Design patterns for microservices",
+      "publisher": "Microsoft Learn — Azure Architecture Center",
+      "reference": "Gateway, BFF, Saga e comunicação entre serviços",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/microservices/design/patterns",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Event-driven architectures",
+      "publisher": "Google Cloud Documentation",
+      "reference": "Produtores, roteadores e consumidores de eventos; assincronia e entrega",
+      "url": "https://docs.cloud.google.com/eventarc/advanced/docs/event-driven-architectures",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

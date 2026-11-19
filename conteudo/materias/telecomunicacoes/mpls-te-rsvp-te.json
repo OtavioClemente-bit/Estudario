@@ -1,0 +1,1746 @@
+{
+  "id": "telecomunicacoes.mpls-te-rsvp-te",
+  "subject": "Telecomunicações",
+  "title": "MPLS-TE e RSVP-TE",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "MPLS-TE e RSVP-TE",
+    "MPLS Traffic Engineering",
+    "Engenharia de tráfego MPLS",
+    "RSVP-TE para túneis LSP",
+    "Sinalização RSVP em MPLS-TE",
+    "Túneis de engenharia MPLS",
+    "LSP com caminho explícito",
+    "Reserva de recursos em MPLS",
+    "MPLS com RSVP para tráfego",
+    "Caminhos TE com sinalização RSVP"
+  ],
+  "scope": {
+    "covers": "Objetivos e conceitos de MPLS Traffic Engineering; LSPs TE, ingresso e egresso; roteamento por restrições, caminhos explícitos e implícitos, afinidade de recursos, banda e prioridades; RSVP-TE como extensão de sinalização; sequência Path/Resv, LABEL_REQUEST/LABEL, ERO/RRO, estado soft, refresh, erros, teardown, preempção e rerroteamento make-before-break.",
+    "excludes": "Configuração específica de fabricantes, sintaxe CLI, engenharia de tráfego GMPLS, LSP ponto-multiponto e detalhes de protocolos de roteamento fora de sua interação com MPLS-TE."
+  },
+  "theoryTitle": "Engenharia de tráfego e sinalização de túneis MPLS",
+  "chapters": [
+    {
+      "title": "1. O que MPLS-TE resolve",
+      "markdown": "### O problema que este assunto resolve\n\nO roteamento IP convencional escolhe caminhos principalmente pela métrica do protocolo de roteamento. Isso pode deixar enlaces preferidos congestionados enquanto caminhos alternativos permanecem subutilizados. **MPLS Traffic Engineering (MPLS-TE)** permite controlar como determinados agregados de tráfego atravessam o domínio, considerando topologia, capacidade disponível, políticas e objetivos operacionais. O objetivo é otimizar uso de recursos e desempenho, sem confundir engenharia de tráfego com criação de banda física.\n\n> **Siglas e termos deste capítulo**\n> - **MPLS**: Multiprotocol Label Switching, encaminhamento de pacotes por rótulos.\n> - **TE**: Traffic Engineering, engenharia de tráfego.\n> - **LSR**: roteador comutador de rótulos, participante do domínio MPLS.\n> - **LSP**: Label Switched Path, caminho unidirecional comutado por rótulos.\n> - **LSP TE**: LSP cujos caminho e atributos atendem objetivos ou restrições de engenharia de tráfego.\n> - **IGP**: protocolo interno de roteamento, como OSPF ou IS-IS, que fornece a topologia e métricas do domínio.\n\n### Como se escolhe um caminho\n\nUm LSP pode seguir o caminho calculado pelo roteamento convencional ou receber um caminho explícito. Um sistema de cálculo ou o próprio ingresso pode considerar banda não reservada, custos, políticas e classes administrativas dos enlaces. O **roteamento por restrições** primeiro elimina caminhos que não atendem às condições e então escolhe entre os que restam. Um caminho explícito pode listar saltos obrigatórios (*strict*) e trechos que permitem saltos intermediários (*loose*). A sinalização instala o caminho, mas não substitui a coleta e distribuição de informações de topologia e recursos.\n\n| Conceito | Função | O que não significa |\n| --- | --- | --- |\n| Métrica IGP | Preferir caminhos conforme custo de roteamento | Medir necessariamente congestionamento ou banda disponível |\n| Roteamento por restrições | Selecionar caminho que satisfaça requisitos | Reservar capacidade por si só |\n| LSP TE | Direcionar um fluxo pelo caminho sinalizado | Ser sempre o caminho IP de menor custo |\n| Reserva | Registrar compromisso de recursos no caminho | Criar capacidade física adicional |\n\nUm **traffic trunk** é o agregado lógico de tráfego que se deseja transportar; ele não é sinônimo de LSP. Um trunk pode usar mais de um LSP, e um LSP pode carregar tráfego de mais de um serviço conforme projeto e política. O ingresso classifica o tráfego e o associa ao túnel; os LSRs intermediários encaminham usando rótulos.\n\n### Como cai na prova\n\nMPLS-TE pode desviar tráfego do caminho IGP mais curto para evitar gargalos, cumprir políticas e distribuir carga. Não se conclui que todo túnel reserva banda: o RFC de RSVP-TE permite LSP explicitamente roteado com ou sem reserva. Tampouco se deve atribuir ao RSVP o cálculo universal do caminho: computação e sinalização são funções distintas.\n"
+    },
+    {
+      "title": "2. Recursos, restrições e atributos TE",
+      "markdown": "### O problema que este assunto resolve\n\nConhecer apenas o destino não basta para escolher um caminho que respeite banda, latência operacional ou separação de classes de enlaces. MPLS-TE associa atributos a enlaces e túneis para que uma decisão de rota possa considerar recursos e políticas. As informações de engenharia são divulgadas pelo IGP com extensões TE; um cálculo de caminho consome essas informações, enquanto o protocolo de sinalização verifica e instala a solicitação nos saltos.\n\n> **Siglas e termos deste capítulo**\n> - **TED**: banco de dados de engenharia de tráfego, visão de atributos e recursos dos enlaces.\n> - **CSPF**: constrained shortest path first, cálculo de caminho mais curto sujeito a restrições.\n> - **BW**: bandwidth, banda associada a enlace, túnel ou requisição.\n> - **Afinidade**: seleção ou exclusão de enlaces segundo atributos administrativos.\n> - **Preempção**: retirada de uma reserva de prioridade inferior para acomodar outra de prioridade superior.\n\n### Capacidade disponível e afinidade\n\nUma rota TE pode exigir uma quantidade de banda; o teste relevante é a banda não reservada para a prioridade aplicável ao longo de todos os enlaces do caminho. A soma de reservas e os limites de engenharia precisam respeitar a capacidade configurada. A admissão em cada salto evita tratar uma rota matematicamente curta como viável quando falta recurso. A reserva é controle lógico: oversubscription ou políticas de compartilhamento podem fazer a banda anunciada não equivaler a capacidade física exclusiva.\n\nA afinidade permite classificar enlaces, por exemplo, por política administrativa, e incluir ou excluir classes no caminho. Isso não é criptografia nem isolamento automático de tráfego. O operador precisa atribuir corretamente as classes e formular a condição de inclusão/exclusão. Um caminho que satisfaz a banda, mas atravessa enlace proibido pela política, não é admissível.\n\nPrioridade de setup define a precedência para estabelecer uma nova LSP; prioridade de holding define a precedência para manter uma já estabelecida quando há disputa. No modelo do RSVP-TE, valores menores representam maior prioridade. Uma LSP de maior precedência pode preemptar uma reserva de menor precedência se a política e os recursos assim permitirem. Preempção não é simples reordenação: pode interromper tráfego da LSP desalojada.\n\n### Como cai na prova\n\nNão confunda computar um caminho com reservar seus recursos. O CSPF filtra e escolhe segundo a TED; RSVP-TE sinaliza o LSP e solicita a reserva. Também não troque setup por holding: o primeiro governa admissão/preempção no estabelecimento; o segundo, a proteção de uma reserva já ativa. Afinidade expressa política de enlaces, não propriedade física do pacote.\n"
+    },
+    {
+      "title": "3. RSVP-TE: estabelecimento do LSP",
+      "markdown": "### O problema que este assunto resolve\n\nMPLS precisa distribuir rótulos coerentes salto a salto para que um túnel encaminhe tráfego. RSVP-TE estende RSVP para sinalizar LSPs, carregar rota explícita, pedir a alocação de rótulos e, quando solicitado, reservar recursos. Em um estabelecimento comum, o ingresso envia **Path** em direção ao egresso; a resposta **Resv** retorna pelo estado criado e leva rótulos e informações de reserva.\n\n> **Siglas e termos deste capítulo**\n> - **RSVP**: Resource Reservation Protocol, protocolo de controle para sinalizar reservas.\n> - **Path**: mensagem enviada no sentido ingresso–egresso para criar estado de caminho.\n> - **Resv**: mensagem de reserva que retorna no sentido egresso–ingresso.\n> - **ERO**: Explicit Route Object, sequência de nós abstratos que especifica o caminho desejado.\n> - **LABEL_REQUEST**: objeto Path que pede associação de rótulo e indica protocolo de camada de rede.\n> - **LABEL**: objeto Resv que informa o rótulo a usar no salto correspondente.\n\n### Caminho de ida e volta da sinalização\n\nO ingresso inicia a sessão com Path. O **ERO**, se presente, orienta o encaminhamento da mensagem por sequência de nós explicitamente indicada; cada nó processa o objeto e mantém estado para a sessão. O Path inclui **LABEL_REQUEST** para solicitar associação de rótulo. Ao receber o pedido, o egresso aloca o rótulo e o inclui em Resv. Cada LSR intermediário usa o rótulo recebido no sentido downstream para instalar a associação local e anuncia, no Resv enviado upstream, o rótulo apropriado ao vizinho anterior. Assim, as mensagens percorrem sentidos opostos, enquanto os pacotes de dados seguem o LSP no sentido ingress–egress.\n\n| Mensagem/objeto | Direção típica | Papel\n| --- | --- |\n| Path | Ingresso para egresso | Estabelece estado, anuncia características do emissor e pode carregar ERO e LABEL_REQUEST |\n| Resv | Egresso para ingresso | Confirma reserva e transporta objetos LABEL no retorno |\n| ERO | Dentro de Path | Guia o caminho explícito |\n| RRO | Pode ser acumulado na sinalização | Registra nós/rota observada para diagnóstico e gestão |\n| PathErr / ResvErr | De volta à origem relevante | Comunica problema de caminho ou reserva |\n\nO ERO pode conter subobjetos **strict**, em que o próximo salto tem de ser o indicado, e **loose**, em que o caminho pode incluir roteadores intermediários antes do nó indicado. ERO expressa o caminho pretendido; **RRO** (*Record Route Object*) registra a rota observada. Usar RRO ajuda a comparar a rota efetiva com a planejada, mas não é a mesma função do ERO. A presença de objeto de pedido de rótulo sem suporte em algum nó pode causar PathErr e falha de estabelecimento.\n\nRSVP-TE pode estabelecer LSP explicitamente roteado sem reserva de recursos. Quando se pede banda, cada salto verifica a requisição segundo seus recursos e política. Portanto, o simples recebimento de Path não garante que o túnel foi estabelecido; o resultado de sinalização, incluindo Resv ou erro, precisa ser acompanhado.\n\n### Como cai na prova\n\nDecore o fluxo lógico: Path desce e solicita; Resv volta e fornece os rótulos/reserva. ERO especifica, RRO registra. A reserva de banda é opcional no conceito de LSP explicitamente roteado, embora seja central em muitos usos TE.\n"
+    },
+    {
+      "title": "4. Estado RSVP, manutenção e mudanças de rota",
+      "markdown": "### O problema que este assunto resolve\n\nO estado RSVP não depende de uma conexão de transporte permanente entre os roteadores. RSVP mantém **soft state**: mensagens de refresh renovam periodicamente o estado de caminho e reserva. Se as atualizações deixam de chegar, o estado expira e é removido. Mensagens de teardown também podem remover estado de modo explícito. Esse desenho permite recuperação após perda de estado, mas exige refresh e tratamento de temporizadores.\n\n> **Siglas e termos deste capítulo**\n> - **Soft state**: estado temporário renovado por atualizações periódicas e removido ao expirar.\n> - **Refresh**: mensagem periódica que conserva o estado RSVP ativo.\n> - **Teardown**: remoção sinalizada de estado de caminho ou reserva.\n> - **Make-before-break**: estabelecer o novo LSP antes de retirar o antigo.\n> - **LSP ID**: identificador que permite distinguir instâncias e apoiar rerroteamento.\n\n### Erros, preempção e rerroteamento\n\nErros podem ser comunicados por PathErr ou ResvErr; uma tentativa que não obtém recursos em um salto não equivale a reserva bem-sucedida. A política de preempção pode liberar capacidade removendo LSP de menor prioridade, mas a consequência operacional é interrupção do serviço desalojado. Planejamento de prioridade e proteção de tráfego são, portanto, decisões operacionais.\n\nNo rerroteamento **make-before-break**, o ingresso sinaliza uma nova instância do LSP com identificador próprio e novo ERO, enquanto continua renovando o LSP antigo. Se o novo caminho recebe Resv, o tráfego pode migrar para ele e só então o antigo é removido. Em trechos compartilhados, a operação pode reaproveitar recursos para evitar reservar em duplicidade durante a transição. Se o caminho novo falhar, o antigo continua disponível enquanto mantido. Isso reduz interrupção, mas não assegura sucesso se não houver recursos para a rota nova.\n\nRSVP usa sinalização de controle; não transporta os dados das aplicações. O estado RSVP também não transforma o protocolo em algoritmo de roteamento: a topologia e o cálculo de rota continuam a depender de mecanismos e políticas próprios. Os refreshes não são confirmações de que a aplicação está saudável; indicam manutenção de estado da sessão.\n\n### Como cai na prova\n\nSe refresh deixa de chegar, o estado soft expira. No make-before-break, primeiro se tenta instalar o caminho novo, mantém-se o antigo durante a tentativa e troca-se o tráfego após sucesso. Cuidado com a alternativa que diz que o LSP antigo é retirado antes da confirmação: isso descreve break-before-make e cria janela de indisponibilidade.\n"
+    }
+  ],
+  "summary": "MPLS-TE controla a distribuição de tráfego em LSPs segundo topologia, recursos e políticas; pode usar caminhos explícitos e roteamento por restrições. RSVP-TE estende RSVP para sinalizar túneis LSP. Path vai do ingresso ao egresso e pode levar ERO e LABEL_REQUEST; Resv retorna e leva LABELs e informações de reserva. ERO expressa caminho desejado, enquanto RRO registra rota observada. Recursos podem ser reservados ou não. O estado RSVP é soft e precisa de refresh. Prioridades permitem preempção conforme política, e make-before-break instala a nova rota antes de retirar a antiga.",
+  "flashcards": [
+    {
+      "front": "Qual problema operacional MPLS-TE procura enfrentar?",
+      "back": "Concentração de tráfego em caminhos escolhidos pelo IGP, mesmo quando há rotas alternativas subutilizadas, por meio de controle de caminho e recursos."
+    },
+    {
+      "front": "O que é um LSP?",
+      "back": "Um caminho unidirecional de roteadores MPLS que encaminham pacotes por rótulos."
+    },
+    {
+      "front": "LSP e traffic trunk são sinônimos?",
+      "back": "Não. O trunk é um agregado lógico de tráfego; o LSP é o caminho comutado por rótulos que pode transportá-lo."
+    },
+    {
+      "front": "O que faz o roteamento por restrições?",
+      "back": "Descarta caminhos que não satisfazem requisitos, como banda ou política, e seleciona entre os viáveis."
+    },
+    {
+      "front": "Qual é o papel da TED?",
+      "back": "Manter atributos TE de enlaces, como recursos e classes administrativas, usados na computação do caminho."
+    },
+    {
+      "front": "O que é CSPF?",
+      "back": "Cálculo de caminho mais curto sujeito às restrições de engenharia de tráfego."
+    },
+    {
+      "front": "MPLS-TE cria capacidade física?",
+      "back": "Não. Reserva e controle são lógicos; não aumentam a capacidade do enlace."
+    },
+    {
+      "front": "O que é afinidade de enlace?",
+      "back": "Atributo administrativo para incluir ou excluir classes de enlaces durante a seleção da rota."
+    },
+    {
+      "front": "Qual a diferença entre setup e holding priority?",
+      "back": "Setup governa precedência para estabelecer a LSP; holding governa a proteção da LSP já estabelecida contra preempção."
+    },
+    {
+      "front": "Em RSVP-TE, que valores de prioridade indicam maior precedência?",
+      "back": "Valores numericamente menores representam maior prioridade."
+    },
+    {
+      "front": "Qual o sentido típico do Path?",
+      "back": "Do ingresso para o egresso do LSP."
+    },
+    {
+      "front": "Qual o sentido típico do Resv?",
+      "back": "Do egresso de volta ao ingresso, seguindo o estado de Path."
+    },
+    {
+      "front": "Para que serve LABEL_REQUEST?",
+      "back": "Solicita associação de rótulo e indica o protocolo de camada de rede transportado."
+    },
+    {
+      "front": "Em qual mensagem o rótulo é anunciado de volta?",
+      "back": "No objeto LABEL transportado em mensagem Resv."
+    },
+    {
+      "front": "O que expressa o ERO?",
+      "back": "Uma sequência de nós abstratos que guia o caminho explicitamente roteado."
+    },
+    {
+      "front": "O que faz um subobjeto strict do ERO?",
+      "back": "Exige que o próximo salto siga o nó indicado, sem saltos intermediários não especificados nesse trecho."
+    },
+    {
+      "front": "O que faz um subobjeto loose do ERO?",
+      "back": "Permite roteadores intermediários até alcançar o nó indicado."
+    },
+    {
+      "front": "Qual a diferença entre ERO e RRO?",
+      "back": "ERO orienta o caminho desejado; RRO registra a rota observada na sinalização."
+    },
+    {
+      "front": "O que significa soft state no RSVP?",
+      "back": "Estado temporário mantido por refresh periódico e removido quando deixa de ser renovado."
+    },
+    {
+      "front": "Como funciona make-before-break?",
+      "back": "Sinaliza e confirma o novo LSP antes de migrar o tráfego e retirar o LSP antigo."
+    },
+    {
+      "front": "RSVP-TE sempre reserva banda?",
+      "back": "Não. Pode estabelecer LSP explicitamente roteado com ou sem reserva de recursos."
+    },
+    {
+      "front": "O que ocorre se um nó não puder atender à sinalização?",
+      "back": "Pode emitir mensagem de erro, como PathErr ou ResvErr, e a sessão pode falhar."
+    },
+    {
+      "front": "Qual é o efeito possível da preempção?",
+      "back": "Uma reserva de menor prioridade pode ser retirada para abrir recursos a outra de maior prioridade."
+    },
+    {
+      "front": "RSVP é protocolo de encaminhamento de dados?",
+      "back": "Não. É protocolo de controle/sinalização; o tráfego de usuário segue o LSP."
+    }
+  ],
+  "tips": [
+    "Associe Path ao sentido ingresso–egresso e Resv ao retorno egresso–ingresso.",
+    "ERO guia a rota; RRO a registra. O nome ajuda: Explicit Route versus Record Route.",
+    "Separe cálculo de sinalização: CSPF escolhe conforme restrições; RSVP-TE instala e reserva quando requerido.",
+    "No make-before-break, o LSP antigo permanece até a confirmação do novo.",
+    "Prioridade numericamente menor significa maior precedência no modelo RSVP-TE.",
+    "Não conclua que todo LSP TE reserva banda: a rota explícita e a reserva são capacidades distintas."
+  ],
+  "traps": [
+    "Tratar RSVP-TE como protocolo que decide sozinho todos os caminhos da rede.",
+    "Dizer que Path leva a resposta de reserva ou que Resv inicia o caminho no ingresso.",
+    "Confundir a rota pedida no ERO com a rota observada no RRO.",
+    "Supor que afinidade de enlace fornece segurança ou capacidade física adicional.",
+    "Inverter prioridades: o número menor tem maior precedência.",
+    "Remover o LSP antigo antes de confirmar o novo numa operação make-before-break."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique a diferença entre o caminho IGP e um LSP TE.",
+      "answer": "O caminho IGP decorre das métricas do protocolo de roteamento; um LSP TE pode ser calculado e sinalizado para atender restrições de recursos e políticas, mesmo fora do caminho IGP preferido."
+    },
+    {
+      "question": "Descreva a sequência de sinalização e rótulos de RSVP-TE.",
+      "answer": "O ingresso envia Path com LABEL_REQUEST e possivelmente ERO; o egresso aloca LABEL e responde em Resv pelo estado criado, e os nós instalam as associações no retorno."
+    },
+    {
+      "question": "Como banda e afinidade afetam a seleção de rota?",
+      "answer": "Banda exige recursos não reservados adequados ao longo do caminho; afinidade inclui ou exclui classes administrativas de enlaces."
+    },
+    {
+      "question": "Compare ERO e RRO.",
+      "answer": "ERO especifica os nós pretendidos; RRO acumula informação sobre a rota observada para registro e gestão."
+    },
+    {
+      "question": "O que distingue setup priority de holding priority?",
+      "answer": "A primeira influencia a admissão e possível preempção durante o estabelecimento; a segunda define a precedência de manutenção de reservas existentes."
+    },
+    {
+      "question": "Por que RSVP mantém soft state?",
+      "answer": "Refreshes periódicos mantêm o estado; se param, os temporizadores expiram e o estado é removido, favorecendo recuperação de informação perdida."
+    },
+    {
+      "question": "Descreva make-before-break e sua vantagem.",
+      "answer": "Sinaliza novo LSP enquanto mantém o antigo; após Resv bem-sucedido, migra o tráfego e remove o antigo, reduzindo a interrupção."
+    },
+    {
+      "question": "O que MPLS-TE não faz por si só?",
+      "answer": "Não cria banda física, não substitui o IGP nem garante que a sinalização será aceita quando recursos ou políticas não permitirem."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Cálculo e sinalização confundidos",
+      "summary": "IGP/TED e CSPF sustentam conhecimento e cálculo de rota; RSVP-TE sinaliza o LSP e a reserva solicitada. Não são a mesma função."
+    },
+    {
+      "key": "e2",
+      "title": "Objetos ERO e RRO trocados",
+      "summary": "ERO carrega caminho explícito desejado em Path; RRO registra a rota percorrida."
+    },
+    {
+      "key": "e3",
+      "title": "Ordem de Path, Resv e rótulo invertida",
+      "summary": "Path segue do ingresso ao egresso; Resv retorna, levando LABEL. LABEL_REQUEST solicita a associação."
+    },
+    {
+      "key": "e4",
+      "title": "Precedência e reserva mal interpretadas",
+      "summary": "Prioridade menor tem maior precedência; setup e holding têm papéis diferentes. Reserva é possível, mas não obrigatória para todo LSP explicitamente roteado."
+    },
+    {
+      "key": "e5",
+      "title": "Estado soft e rerroteamento confundidos",
+      "summary": "Refresh conserva estado RSVP. Make-before-break confirma o novo LSP antes de migrar tráfego e retirar o antigo."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "MPLS-TE pode encaminhar um agregado por um caminho diferente daquele preferido pela métrica IGP. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A engenharia de tráfego permite controlar a rota de LSPs para considerar recursos e políticas, em vez de depender somente do caminho preferido pelo IGP.",
+      "section": "1. O que MPLS-TE resolve",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um LSP e um traffic trunk representam necessariamente o mesmo objeto: ambos são o caminho físico de um único fluxo entre dois roteadores. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. LSP é o caminho comutado por rótulos; traffic trunk é um agregado lógico de tráfego. Um trunk pode usar mais de um LSP, e um LSP pode carregar mais de um agregado conforme a política.",
+      "section": "1. O que MPLS-TE resolve",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No roteamento por restrições, um caminho que não satisfaz uma exigência de banda pode ser descartado antes da escolha da rota viável. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O cálculo sujeito a restrições filtra caminhos que não atendem aos requisitos e seleciona entre os restantes; a métrica curta, isoladamente, não torna a rota admissível.",
+      "section": "1. O que MPLS-TE resolve",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A sinalização RSVP-TE substitui a necessidade de obter informações de topologia e recursos, pois calcula a rota global a partir do Path. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. RSVP-TE instala e sinaliza o LSP, mas não substitui a distribuição de informações de topologia nem os mecanismos que calculam o caminho segundo a política.",
+      "section": "1. O que MPLS-TE resolve",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual objetivo caracteriza melhor MPLS-TE em uma rede com enlaces congestionados e rotas alternativas subutilizadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concentrar todos os fluxos no menor custo IGP para manter uma única rota ativa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Controlar caminhos de LSP segundo recursos e políticas para distribuir tráfego.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituir os protocolos de roteamento e remover a necessidade de conhecer a topologia.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar a capacidade física dos enlaces pela inclusão de rótulos nos pacotes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Impedir qualquer mudança de rota depois que o tráfego entra no domínio MPLS.",
+          "correct": false
+        }
+      ],
+      "explanation": "MPLS-TE direciona LSPs considerando critérios como capacidade e política, permitindo distribuir carga. Não altera a capacidade física nem elimina roteamento e atualização de topologia.",
+      "section": "1. O que MPLS-TE resolve",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa excluir enlaces reservados a uma classe administrativa específica. Qual recurso TE corresponde a esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "RRO, pois ele remove do domínio todo nó que aparece no caminho observado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Afinidade de recursos, aplicada como inclusão ou exclusão de classes de enlaces.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "LABEL_REQUEST, que seleciona os enlaces pelo protocolo de camada de rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Refresh RSVP, que bloqueia enlaces cuja atualização chegou depois do prazo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Teardown, que converte as classes administrativas em rótulos de encaminhamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Afinidades expressam política sobre quais classes de enlaces podem integrar o caminho. RRO registra rota, LABEL_REQUEST pede rótulo, refresh mantém estado e teardown remove estado.",
+      "section": "2. Recursos, restrições e atributos TE",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "CSPF usa restrições de engenharia para calcular um caminho, enquanto RSVP-TE sinaliza a instalação do LSP escolhido. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cálculo de rota e sinalização são funções diferentes: o cálculo seleciona uma rota admissível e RSVP-TE comunica a solicitação aos nós do caminho.",
+      "section": "2. Recursos, restrições e atributos TE",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A reserva de banda de um LSP cria capacidade física adicional no enlace quando a soma dos pedidos supera a taxa da interface. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Reserva e admissão são controles lógicos sobre recursos configurados; não alteram a capacidade física da interface. A engenharia precisa respeitar limites e políticas de compartilhamento.",
+      "section": "2. Recursos, restrições e atributos TE",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo de prioridade RSVP-TE, o valor numérico menor indica precedência maior. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. As prioridades usam valores em que números menores representam maior precedência; isso importa para admissão e preempção.",
+      "section": "2. Recursos, restrições e atributos TE",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A prioridade de holding define principalmente a precedência de uma nova tentativa de estabelecimento, enquanto setup protege uma reserva já ativa. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Setup priority diz respeito à precedência para estabelecer a LSP; holding priority diz respeito à manutenção da LSP existente e à possibilidade de preempção.",
+      "section": "2. Recursos, restrições e atributos TE",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar dois caminhos, um tem menor custo IGP mas não atende à banda pedida; o outro satisfaz a banda e a política. Como o cálculo sujeito a restrições deve tratar o caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolher sempre o caminho de menor custo IGP, pois restrições não alteram a métrica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Considerar inviável o caminho sem banda e selecionar entre as rotas que atendam aos requisitos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Somar a banda requerida ao custo IGP e instalar ambos os caminhos simultaneamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Enviar Resv pelo caminho mais curto e deixar cada nó decidir a política depois.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar a banda e aplicar afinidade somente após concluir a instalação do túnel.",
+          "correct": false
+        }
+      ],
+      "explanation": "Roteamento por restrições exclui rotas que não atendem requisitos como banda ou política. A preferência por custo só se aplica entre caminhos admissíveis; RSVP-TE não transforma uma rota inviável em viável.",
+      "section": "2. Recursos, restrições e atributos TE",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma LSP com prioridade de setup maior pode, conforme política e recursos, preemptar uma reserva de menor precedência. Qual leitura dos valores está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A LSP com o número de prioridade menor tem maior precedência.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A LSP com o número maior sempre toma recursos da que tem número menor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Setup e holding indicam somente a ordem lexicográfica dos nós no ERO.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A preempção troca os rótulos sem alterar a reserva de recursos existente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Prioridade só é avaliada depois do encerramento do túnel pelo egresso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Valores menores representam maior precedência. Uma solicitação de prioridade superior pode causar preempção conforme política, o que pode interromper a LSP desalojada.",
+      "section": "2. Recursos, restrições e atributos TE",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente a relação entre reserva RSVP-TE e estabelecimento de um LSP explicitamente roteado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todo LSP com ERO precisa reservar banda em cada enlace, sem exceção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um LSP explicitamente roteado pode ser sinalizado com ou sem reserva de recursos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Reserva só ocorre quando o caminho não contém nenhum salto explícito.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A reserva é feita pelo IGP antes que o ingresso envie qualquer mensagem RSVP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O ingresso reserva banda apenas no primeiro enlace, pois os demais usam rótulos.",
+          "correct": false
+        }
+      ],
+      "explanation": "As extensões RSVP-TE admitem LSPs explicitamente roteados com ou sem reserva. Rótulos não eliminam a verificação de recursos nos saltos quando há pedido de reserva.",
+      "section": "2. Recursos, restrições e atributos TE",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um ERO, um trecho loose permite que roteadores intermediários sejam usados para alcançar o nó indicado. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um subobjeto loose não exige que o nó indicado seja o próximo salto imediato; o encaminhamento pode passar por nós intermediários.",
+      "section": "3. RSVP-TE: estabelecimento do LSP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "ERO e RRO são objetos equivalentes: ambos ordenam os roteadores que o Path deve atravessar antes de iniciar a sessão. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. ERO especifica o caminho desejado; RRO registra a rota observada na sinalização. O primeiro orienta e o segundo documenta.",
+      "section": "3. RSVP-TE: estabelecimento do LSP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No estabelecimento comum de um LSP RSVP-TE, Path segue do ingresso ao egresso e Resv retorna pelo estado criado no caminho. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Path cria estado no sentido downstream; Resv retorna no sentido upstream seguindo esse estado e transporta os objetos de reserva e rótulo.",
+      "section": "3. RSVP-TE: estabelecimento do LSP",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "LABEL_REQUEST é normalmente enviado no Resv pelo ingresso para solicitar que o egresso escolha um caminho. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. LABEL_REQUEST é incluído no Path para solicitar associação de rótulo e indicar o protocolo de camada de rede; o rótulo é carregado no LABEL em Resv.",
+      "section": "3. RSVP-TE: estabelecimento do LSP",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Path leva LABEL_REQUEST, que solicita associação de rótulo; o Resv correspondente pode retornar o objeto LABEL. Qual sequência está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Path desce com pedido; Resv sobe com o rótulo alocado para o LSP.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Resv desce com pedido; Path sobe com o rótulo escolhido pelo egresso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Path e Resv seguem ambos do ingresso ao egresso, sem objetos de rótulo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RRO pede o rótulo e ERO retorna a associação no sentido upstream.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O IGP devolve LABEL_REQUEST em um anúncio de enlace ao ingresso.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Path segue em direção ao egresso com LABEL_REQUEST. O egresso aloca rótulo e devolve LABEL no Resv, que retorna pelo estado criado.",
+      "section": "3. RSVP-TE: estabelecimento do LSP",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual objeto deve ser usado para pedir uma rota explícita em uma mensagem Path?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RRO, que ordena os saltos pretendidos para a sinalização futura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ERO, que carrega sequência de nós abstratos do caminho desejado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "LABEL, que descreve a banda reservada em cada enlace do túnel.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ResvErr, que define a rota antes de qualquer tentativa de estabelecimento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Refresh, que lista os roteadores que devem ser atravessados em seguida.",
+          "correct": false
+        }
+      ],
+      "explanation": "ERO é o Explicit Route Object e pode ser transportado em Path para guiar um caminho explicitamente roteado. RRO registra rota, e LABEL informa associação de rótulo.",
+      "section": "3. RSVP-TE: estabelecimento do LSP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao receber LABEL_REQUEST compatível, o egresso pode alocar um rótulo e incluí-lo em mensagem Resv referente ao Path. Qual função descreve isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "LABEL_REQUEST pede a associação, e LABEL informa o rótulo no retorno Resv.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "RRO aloca o rótulo no ingresso e o ERO o confirma no egresso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PathErr fornece o rótulo e ResvErr confirma o caminho explícito.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O IGP encapsula o rótulo no ERO antes da computação de banda.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O ingresso escolhe rótulo global e o impõe em todos os saltos do domínio.",
+          "correct": false
+        }
+      ],
+      "explanation": "LABEL_REQUEST pede uma associação local de rótulo e LABEL retorna a associação correspondente. Rótulos são tratados salto a salto, e os objetos ERO/RRO têm funções de rota diferentes.",
+      "section": "3. RSVP-TE: estabelecimento do LSP",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em relação ao estabelecimento de um túnel, qual situação caracteriza falha em vez de confirmação de sucesso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Path percorreu a rota e cada salto registrou o estado sem responder ainda.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um nó não suporta LABEL_REQUEST e envia PathErr para a origem.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O egresso retorna Resv com LABEL e a reserva solicitada foi admitida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O RRO registra os nós visitados e o túnel permanece estabelecido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O ingresso recebe Resv pelo caminho inverso após instalar a nova LSP.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um nó incapaz de processar o objeto necessário pode enviar PathErr, fazendo falhar o estabelecimento. Resv com LABEL é retorno de instalação, enquanto RRO registra rota.",
+      "section": "3. RSVP-TE: estabelecimento do LSP",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a diferença operacional entre ERO e RRO em uma sessão RSVP-TE?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "ERO especifica o trajeto pretendido; RRO acumula informação da rota percorrida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "ERO informa a reserva confirmada; RRO aloca o rótulo para o próximo salto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ERO é usado somente no egresso; RRO é usado somente pelo protocolo IGP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ERO remove estado RSVP; RRO mantém a reserva após cessarem os refreshes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ERO transporta o tráfego de usuário; RRO transporta dados de aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "ERO orienta o caminho explícito; RRO registra os nós/trechos observados e é útil à gestão. Nenhum dos dois transporta dados da aplicação nem substitui LABEL.",
+      "section": "3. RSVP-TE: estabelecimento do LSP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um nó intermediário não consegue alocar ou suportar o rótulo pedido, o Path pode receber mensagem de erro e o ingresso deve considerar que a LSP não foi confirmada. Qual alternativa descreve o caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "PathErr pode reportar o problema, sem equivaler a uma confirmação Resv.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "RRO confirma automaticamente a LSP e converte o erro em nova prioridade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Resv sempre sinaliza sucesso, mesmo que não exista rótulo disponível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O ingress ignora a falha porque LABEL_REQUEST não afeta a instalação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Teardown é resposta positiva que devolve ao ingresso o rótulo escolhido.",
+          "correct": false
+        }
+      ],
+      "explanation": "PathErr comunica problema no estabelecimento. A confirmação de reserva e rótulo vem no retorno Resv; a ausência de erro por si só não deve ser confundida com a conclusão do procedimento.",
+      "section": "3. RSVP-TE: estabelecimento do LSP",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O estado RSVP é soft state e pode expirar se as mensagens periódicas de refresh cessarem. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. RSVP renova o estado periodicamente; sem refresh, o temporizador expira e o estado é removido automaticamente. Esse mecanismo também permite que os nós eliminem estado que deixou de ser mantido pela sessão.",
+      "section": "4. Estado RSVP, manutenção e mudanças de rota",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "RSVP mantém estado permanente mesmo sem atualização, e apenas um comando administrativo pode removê-lo. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. RSVP usa soft state, renovado por mensagens periódicas de refresh. Quando elas deixam de chegar, o temporizador expira e o estado é removido; uma mensagem de teardown também pode removê-lo explicitamente.",
+      "section": "4. Estado RSVP, manutenção e mudanças de rota",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No make-before-break, o ingresso sinaliza o novo LSP e continua mantendo o antigo até que o novo seja confirmado. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O antigo permanece ativo enquanto a nova instância é estabelecida; após Resv bem-sucedido, o tráfego pode migrar e o túnel anterior ser retirado.",
+      "section": "4. Estado RSVP, manutenção e mudanças de rota",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em make-before-break, o ingresso deve retirar primeiro a rota antiga, para só então enviar Path pelo novo caminho. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O novo LSP é sinalizado enquanto o antigo continua mantido. A retirada antecipada caracteriza uma transição break-before-make e pode causar interrupção.",
+      "section": "4. Estado RSVP, manutenção e mudanças de rota",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta Resv recebida para a nova instância permite migrar tráfego e depois retirar o LSP antigo no procedimento make-before-break. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A confirmação Resv do novo LSP permite ao ingresso transferir o tráfego; após a transição, a instância antiga pode ser encerrada.",
+      "section": "4. Estado RSVP, manutenção e mudanças de rota",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "RSVP transporta os pacotes de usuário dentro de Path e Resv, que atuam como mensagens de dados no caminho estabelecido. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. RSVP é protocolo de controle e sinalização; Path e Resv configuram estado e recursos. Os pacotes de usuário são encaminhados no LSP por MPLS.",
+      "section": "4. Estado RSVP, manutenção e mudanças de rota",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "PathErr ou ResvErr podem comunicar problemas encontrados durante a sinalização de caminho ou de reserva. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. RSVP-TE utiliza mensagens de erro para informar problemas no processamento do caminho ou da reserva; elas não equivalem a uma resposta positiva.",
+      "section": "4. Estado RSVP, manutenção e mudanças de rota",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se os refreshes de uma sessão deixam de chegar e não há teardown, qual comportamento é esperado para o estado RSVP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O estado permanece indefinidamente enquanto existir uma etiqueta MPLS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O estado expira após o temporizador e é removido automaticamente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O estado é convertido em rota IGP estática pelo roteador de egresso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O egresso envia LABEL_REQUEST novo em cada pacote de usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O RRO reinicia a reserva mesmo sem mensagens de atualização.",
+          "correct": false
+        }
+      ],
+      "explanation": "Soft state precisa de refresh periódico. Na ausência de atualizações, o estado expira; o rótulo não é mecanismo de renovação RSVP.",
+      "section": "4. Estado RSVP, manutenção e mudanças de rota",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rota precisa ser alterada sem interromper o fluxo durante a instalação. Qual sequência descreve make-before-break?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retirar o túnel atual, calcular depois o novo e enviar Resv ao final.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Instalar o novo, confirmar Resv, migrar o tráfego e retirar o antigo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Enviar teardown ao egresso e reutilizar o mesmo caminho sem sinalização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Bloquear refresh do túnel atual antes de verificar recursos na nova rota.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o RRO no pacote de dados e dispensar uma nova instância RSVP.",
+          "correct": false
+        }
+      ],
+      "explanation": "Make-before-break mantém o LSP atual durante a tentativa, confirma o novo por Resv, migra o tráfego e só então remove o antigo. Isso reduz a janela de interrupção.",
+      "section": "4. Estado RSVP, manutenção e mudanças de rota",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O novo LSP sinalizado em make-before-break falha por falta de banda. Qual consequência decorre do procedimento bem planejado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O LSP antigo pode continuar ativo enquanto a nova tentativa é abandonada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O antigo precisa ser removido, pois qualquer Path substitui o túnel anterior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A banda é criada automaticamente pelo RRO quando o Resv não chega.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O erro converte o ERO em uma rota IGP com recursos ilimitados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A falta de banda só pode ser tratada reiniciando todos os LSRs do domínio.",
+          "correct": false
+        }
+      ],
+      "explanation": "A vantagem da estratégia é conservar o caminho antigo até o novo ser confirmado. Se a nova tentativa falha, o tráfego continua no LSP mantido, sujeito às condições desse caminho.",
+      "section": "4. Estado RSVP, manutenção e mudanças de rota",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual papel cabe ao RRO em uma análise de caminho de LSP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registrar informação de rota observada para gestão e comparação com o caminho pretendido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir Path e instalar uma reserva de banda nos nós intermediários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir a sequência obrigatória de saltos no cálculo do CSPF.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transportar os dados de usuário no sentido ingresso–egresso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover o estado de soft automaticamente a cada refresh enviado.",
+          "correct": false
+        }
+      ],
+      "explanation": "RRO registra os nós/trechos observados na sinalização e pode apoiar diagnóstico. ERO define caminho pretendido; RSVP sinaliza estado e MPLS encaminha os dados.",
+      "section": "3. RSVP-TE: estabelecimento do LSP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Path percorreu o domínio, mas o ingresso ainda não recebeu resposta Resv. Qual conclusão é tecnicamente mais segura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A LSP está confirmada porque o Path foi transmitido até o egresso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O estabelecimento ainda não está confirmado pelo retorno de reserva.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A ausência de Resv prova que o RRO substituiu a banda pedida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O ingresso pode enviar dados sem estado de rótulos nos saltos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O protocolo IGP confirma automaticamente todas as associações LABEL.",
+          "correct": false
+        }
+      ],
+      "explanation": "Path cria e propaga estado no sentido downstream, mas a resposta Resv confirma a reserva/associações de rótulos no sentido upstream. O Path isolado não demonstra conclusão bem-sucedida.",
+      "section": "3. RSVP-TE: estabelecimento do LSP",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência separa corretamente cálculo, sinalização e encaminhamento de dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CSPF calcula a rota; RSVP-TE sinaliza o LSP; MPLS encaminha os pacotes por rótulos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "MPLS calcula a TED; Path encaminha os dados; CSPF devolve os rótulos ao egresso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RRO calcula a banda; IGP carrega os dados; Resv escolhe a política do domínio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RSVP encaminha dados; MPLS reserva banda; ERO calcula toda a topologia física.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "LABEL_REQUEST calcula a rota; RRO sinaliza a sessão; Path comuta pacotes de usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "CSPF é um mecanismo de cálculo sujeito a restrições; RSVP-TE instala/sinaliza a LSP; os pacotes são encaminhados por MPLS usando rótulos. As funções se complementam sem se confundirem.",
+      "section": "1. O que MPLS-TE resolve",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um operador quer comprovar a rota realmente usada e compará-la ao trajeto explicitamente solicitado. Que objetos ajudam a distinguir intenção e observação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "ERO registra a rota real e RRO limita a banda para o cálculo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ERO indica o caminho pretendido e RRO registra os nós observados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "LABEL_REQUEST indica o caminho real e LABEL define as afinidades de enlace.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PathErr registra a rota pretendida e ResvErr distribui a TED.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Refresh contém a topologia completa e teardown descreve o caminho observado.",
+          "correct": false
+        }
+      ],
+      "explanation": "ERO é usado para explicitar o trajeto desejado, enquanto RRO pode acumular dados sobre os nós por onde a sinalização passou. Eles apoiam comparação entre intenção e resultado.",
+      "section": "3. RSVP-TE: estabelecimento do LSP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um tráfego é redirecionado com make-before-break, mas a documentação afirma que essa técnica garante sempre sucesso mesmo quando não há recurso no caminho novo. Qual avaliação procede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Correta, pois a presença do LSP antigo cria banda adicional na rota nova.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Incorreta, pois o novo caminho precisa ser admitido; manter o antigo reduz impacto, não cria recursos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Correta, pois ERO ignora restrições após a primeira reserva RSVP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Incorreta, pois make-before-break remove o antigo antes de enviar o Path novo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Correta, pois RRO transforma a tentativa sem recursos em reserva compartilhada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Make-before-break diminui interrupção mantendo o caminho antigo durante a tentativa, mas não garante que a nova rota tenha recursos ou seja aceita. A capacidade precisa existir e a política de admissão precisa permitir o LSP.",
+      "section": "4. Estado RSVP, manutenção e mudanças de rota",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao receber Path sem RRO, os Resv subsequentes continuam obrigados a transportar a rota observada solicitada anteriormente. Qual afirmação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim, porque RRO é obrigatório em todo Resv, mesmo sem pedido de registro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Não; sem solicitação de registro no Path, os Resv seguintes não devem conter RRO.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Sim, porque LABEL_REQUEST e RRO são o mesmo objeto de estado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não; isso também impede o envio de LABEL no retorno da reserva.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim, mas somente se o ERO tiver todos os saltos em modo loose.",
+          "correct": false
+        }
+      ],
+      "explanation": "O RFC 3209 estabelece que Path sem RRO indica que o emissor não solicita mais registro; Resv subsequente não deve conter RRO. Isso não remove a função de LABEL na resposta de reserva.",
+      "section": "3. RSVP-TE: estabelecimento do LSP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma LSP de menor prioridade pode ser desalojada quando uma solicitação de precedência superior precisa de recursos, conforme as políticas de preempção. Que efeito deve ser considerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Possível interrupção ou rerroteamento do tráfego que perdeu a reserva.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumento automático da banda física do enlace para atender ambas as sessões.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conversão do Resv em pacote de aplicação no sentido downstream.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remoção permanente da rota IGP em todos os demais roteadores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativação obrigatória de todo ERO do domínio por causa da disputa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Preempção libera recursos retirando uma reserva de menor precedência; por isso pode afetar o tráfego transportado por aquela LSP. Planejamento de prioridades é uma decisão operacional relevante.",
+      "section": "2. Recursos, restrições e atributos TE",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre o papel do RSVP está correta em MPLS-TE?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É protocolo de controle que sinaliza sessões e recursos, não carrega os dados da aplicação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É protocolo de encaminhamento de usuário que substitui a comutação por rótulos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É algoritmo de cálculo que constrói sozinho a TED sem apoio do IGP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É formato de encapsulamento que aumenta a capacidade da interface física.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É mecanismo de segurança que autentica automaticamente todos os pacotes MPLS.",
+          "correct": false
+        }
+      ],
+      "explanation": "RSVP é usado para sinalizar e manter estado de controle. Os dados de usuário são encaminhados pela rede MPLS com base nos rótulos instalados.",
+      "section": "4. Estado RSVP, manutenção e mudanças de rota",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As mensagens Path e Resv seguem em sentidos opostos durante o estabelecimento de um LSP ponto a ponto. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Path segue em direção ao egresso e cria estado ao longo do percurso; Resv retorna ao ingresso usando esse estado para sinalizar a reserva e os rótulos.",
+      "section": "3. RSVP-TE: estabelecimento do LSP",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja confirmar se o túnel novo foi estabelecido antes de transferir tráfego. Qual evidência de sinalização é mais diretamente pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A chegada de Path ao egresso, ainda sem qualquer mensagem de retorno.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma resposta Resv recebida no ingresso para a nova sessão do LSP.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A presença de um ERO no arquivo de configuração do roteador ingress.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma rota IGP para o endereço do egresso, sem estado RSVP associado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma entrada RRO antiga, registrada antes da tentativa de rerroteamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Resv de retorno confirma a resposta da nova sessão e o estabelecimento dos objetos correspondentes. Path transmitido ou rota IGP disponível, isoladamente, não demonstra que a reserva e as associações de rótulo foram instaladas.",
+      "section": "3. RSVP-TE: estabelecimento do LSP",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador quer reduzir a chance de que uma LSP crítica seja removida para acomodar outra solicitação. Que atributo deve revisar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Holding priority, que define a precedência de manutenção da reserva ativa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "RRO, que impede todos os roteadores de encaminhar outros túneis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "LABEL_REQUEST, que solicita a mesma capacidade em todos os enlaces.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ERO loose, que torna a reserva imune à política de admissão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Refresh interval, que transforma uma sessão em prioridade absoluta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Holding priority participa da política de manutenção e preempção das LSPs já estabelecidas. Ela deve ser analisada junto à prioridade de setup e à política do domínio; não torna a sessão imune a falhas ou limites físicos.",
+      "section": "2. Recursos, restrições e atributos TE",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um LSP antigo continua funcionando enquanto se tenta um novo caminho explícito. Qual afirmação descreve corretamente o efeito do novo ERO?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O ERO novo orienta a tentativa de rota para a nova instância do LSP.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O ERO novo remove o túnel antigo antes da primeira mensagem RSVP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O ERO novo transporta os pacotes de usuário durante a troca de rota.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O ERO novo converte a sessão RSVP em anúncio de topologia IGP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O ERO novo garante banda mesmo sem admissão dos roteadores do caminho.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na nova tentativa, o ERO define o trajeto pretendido para a instância nova. Ele não carrega dados, não substitui anúncios IGP e não remove o LSP antigo nem garante admissão de recursos.",
+      "section": "4. Estado RSVP, manutenção e mudanças de rota",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Requirements for Traffic Engineering Over MPLS (RFC 2702)",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Objetivos de TE, atributos de traffic trunks e recursos, roteamento sujeito a restrições e preempção",
+      "url": "https://www.rfc-editor.org/rfc/rfc2702.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RSVP-TE: Extensions to RSVP for LSP Tunnels (RFC 3209)",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Sinalização de LSPs, Path/Resv, LABEL_REQUEST/LABEL, ERO/RRO, rerroteamento, prioridades e atributos de sessão",
+      "url": "https://www.rfc-editor.org/rfc/rfc3209.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Resource ReSerVation Protocol (RSVP), Version 1 Functional Specification (RFC 2205)",
+      "publisher": "IETF / RFC Editor",
+      "reference": "Reservas unidirecionais, natureza de controle, soft state, refresh e expiração",
+      "url": "https://www.rfc-editor.org/rfc/rfc2205.html",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

@@ -1,0 +1,1976 @@
+{
+  "id": "estatistica.processos-gaussianos",
+  "subject": "Estatística",
+  "title": "Processos gaussianos",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Processos Gaussianos",
+    "Processo gaussiano em estatística",
+    "Processos gaussianos em estatística",
+    "Regressão com processo gaussiano",
+    "Regressão por processos gaussianos",
+    "Modelos gaussianos de funções",
+    "Inferência com processos gaussianos",
+    "Kernel de processo gaussiano",
+    "Covariância em processo gaussiano",
+    "Processo gaussiano para regressão"
+  ],
+  "scope": {
+    "covers": "Definição de processo gaussiano como distribuição sobre funções por meio de distribuições gaussianas finito-dimensionais; função média e função de covariância/kernel; kernels válidos, estacionariedade e exemplos; prior e posterior; regressão gaussiana com ruído, predição da média e da variância, verossimilhança marginal e escolha de hiperparâmetros; classificação por processo gaussiano; interpretação probabilística, aplicações e custo computacional.",
+    "excludes": "Demonstrações avançadas de teoria de processos estocásticos, processos gaussianos profundos, métodos esparsos especializados, implementação completa de otimizadores e análise de séries temporais fora do enquadramento por processos gaussianos."
+  },
+  "theoryTitle": "Processos gaussianos: distribuições sobre funções e predição",
+  "chapters": [
+    {
+      "title": "1. O que é um processo gaussiano",
+      "markdown": "### O problema que este assunto resolve\n\nEm regressão, não se quer apenas traçar uma curva pelos dados: também interessa representar quais curvas são plausíveis antes de observar os dados e quanta incerteza resta depois. Um **processo gaussiano** (PG) é uma distribuição de probabilidade sobre funções. Em vez de escolher uma única forma funcional com número fixo de coeficientes, especificam-se propriedades probabilísticas dos valores da função em qualquer conjunto finito de entradas.\n\n> **Siglas e termos deste capítulo**\n> - **PG (processo gaussiano)**: coleção de variáveis aleatórias cuja distribuição conjunta, em qualquer conjunto finito de entradas, é gaussiana multivariada.\n> - **Entrada**: ponto em que a função é avaliada, como um vetor de características ou um instante.\n> - **Função média**: valor esperado da função em cada entrada.\n> - **Kernel ou função de covariância**: descreve covariâncias entre valores da função em pares de entradas.\n> - **Prior**: distribuição sobre funções antes de condicionar nos dados observados.\n\n### Definição por conjuntos finitos\n\nEscreve-se \\(f(x)\\sim\\mathcal{GP}(m(x), k(x,x'))\\). Isso significa que, para quaisquer entradas \\(x_1,\\ldots,x_n\\), o vetor \\([f(x_1),\\ldots,f(x_n)]^T\\) tem uma distribuição normal multivariada, com média \\([m(x_1),\\ldots,m(x_n)]^T\\) e matriz de covariância cuja entrada \\((i,j)\\) é \\(k(x_i,x_j)\\). A definição não afirma que a função sorteada seja uma curva suave: a regularidade depende do kernel escolhido.\n\nA média pode ser zero por conveniência, especialmente quando os dados foram centralizados, mas não precisa ser zero. O kernel codifica semelhança: se duas entradas têm covariância alta, os valores da função nelas tendem a variar juntos sob o prior. Covariância não é, em geral, uma afirmação causal nem prova de que duas observações sejam iguais.\n\n### O kernel como peça estrutural\n\nPara qualquer conjunto de entradas, a matriz formada por \\(k(x_i,x_j)\\) deve ser simétrica e positiva semidefinida. Essa condição garante que ela possa servir como matriz de covariância. Um kernel inválido pode produzir variâncias negativas ou uma distribuição conjunta impossível.\n\n| Kernel | Intuição típica | Consequência comum no modelo |\n| --- | --- | --- |\n| RBF ou squared exponential | Similaridade cai suavemente com a distância | Funções muito suaves, com derivadas de todas as ordens |\n| Matérn | Similaridade local com controle de regularidade | Suavidade ajustável pelo parâmetro de forma |\n| Linear | Covariância cresce com produtos entre entradas | Tendência linear em relação às características |\n| Periodic | Similaridade se repete em intervalos | Padrões que voltam a cada período |\n\nEssas interpretações dependem da parametrização e de combinações entre kernels. Soma de kernels representa componentes aditivos; produto pode representar interação entre padrões.\n\n### Como cai na prova\n\n- A definição exige gaussianidade conjunta para **todo conjunto finito** de entradas, não apenas uma marginal normal isolada.\n- A média e o kernel determinam as distribuições finito-dimensionais do processo.\n- O kernel deve gerar matrizes de covariância positivas semidefinidas.\n- O termo gaussiano não obriga a função média a ser zero nem determina, sozinho, a suavidade das trajetórias.",
+      "section": "1. O que é um processo gaussiano"
+    },
+    {
+      "title": "2. Regressão e atualização bayesiana",
+      "markdown": "### O problema que este assunto resolve\n\nNa regressão com PG, observa-se um conjunto de pares de entrada e resposta e atualiza-se a distribuição sobre funções. O resultado não é apenas uma curva ajustada: em cada entrada de interesse há uma distribuição preditiva, com média e variância. Essa incerteza é especialmente informativa em regiões pouco cobertas pelos dados.\n\n> **Siglas e termos deste capítulo**\n> - **Treino**: dados observados usados para condicionar o prior.\n> - **Ruído de observação**: variação entre a resposta observada e o valor latente da função.\n> - **Posterior**: distribuição sobre funções depois de observar os dados.\n> - **Matriz de Gram**: matriz de covariâncias do kernel calculada entre entradas de uma amostra.\n> - **Variância preditiva**: medida da dispersão da distribuição preditiva em uma entrada.\n\n### Prior, observação e posterior\n\nUm modelo de regressão comum supõe \\(y_i=f(x_i)+\\epsilon_i\\), com ruído gaussiano independente \\(\\epsilon_i\\sim\\mathcal{N}(0,\\sigma_n^2)\\). Se as respostas de treino forem reunidas no vetor \\(y\\), sua covariância é \\(K+\\sigma_n^2 I\\): a matriz de kernel entre entradas mais a variância do ruído na diagonal. A notação ajuda a distinguir o processo latente das medições ruidosas.\n\nCondicionar a gaussiana conjunta das respostas observadas e do valor em uma nova entrada produz a distribuição posterior. Com kernel conhecido e ruído gaussiano, o cálculo é analítico: a média posterior é uma combinação ponderada das respostas de treino; a covariância posterior reduz a incerteza onde as observações informam a função. Perto de pontos de treino, a incerteza latente costuma diminuir; longe deles, tende a se aproximar da incerteza do prior, conforme o kernel.\n\nA variância da resposta futura pode incluir também o ruído de observação. Portanto, é preciso distinguir a incerteza sobre \\(f(x_*)\\), a função latente, da incerteza sobre uma nova medição \\(y_*\\), que soma o ruído. Confundir as duas leva a intervalos preditivos mal interpretados.\n\n### O que significa uma predição\n\nA média posterior é uma estimativa central, não uma garantia de que o valor verdadeiro coincidirá com ela. A variância posterior mede dispersão sob as hipóteses do modelo, inclusive o kernel e seus parâmetros. Intervalos construídos pela distribuição preditiva dependem dessas hipóteses; não corrigem automaticamente erro de especificação ou dados enviesados.\n\n### Como cai na prova\n\n- O condicionamento atualiza o prior e produz posterior, em vez de escolher arbitrariamente uma curva única.\n- Em regressão gaussiana, ruído independente soma \\(\\sigma_n^2 I\\) à matriz de kernel das observações.\n- A média preditiva não é a mesma coisa que a incerteza: o PG fornece ambas.\n- A incerteza da função latente e a de uma nova observação diferem pela parcela de ruído de medição.",
+      "section": "2. Regressão e atualização bayesiana"
+    },
+    {
+      "title": "3. Hiperparâmetros, kernels e custo",
+      "markdown": "### O problema que este assunto resolve\n\nO kernel traduz suposições sobre como a função varia. Seus parâmetros — chamados **hiperparâmetros** — podem controlar escala de variação, amplitude e ruído. Escolhê-los mal produz uma curva excessivamente rígida, oscilatória ou confiante. O ajuste é parte do modelo, e não um detalhe puramente computacional.\n\n> **Siglas e termos deste capítulo**\n> - **Hiperparâmetro**: parâmetro do prior ou do kernel, como comprimento de escala e amplitude.\n> - **Comprimento de escala**: distância característica em que a correlação do kernel decai.\n> - **Verossimilhança marginal**: probabilidade dos dados observados depois de integrar os valores latentes da função.\n> - **Cholesky**: fatoração de matriz positiva definida usada para resolver sistemas lineares e calcular determinantes.\n> - **Regularização numérica**: ajuste pequeno na diagonal para estabilizar cálculos, distinto do ruído substantivo do processo.\n\n### Como o comprimento de escala muda o ajuste\n\nNum kernel RBF, um comprimento de escala curto faz a correlação cair rapidamente com a distância: observações próximas influenciam uma vizinhança menor e o modelo admite mudanças rápidas. Um comprimento longo mantém correlação a distâncias maiores e favorece funções mais lentas. A amplitude controla a escala vertical das variações. Esses efeitos dependem da escala das características; padronizar entradas pode tornar a interpretação mais útil.\n\nO kernel pode ser escolhido com base em conhecimento do fenômeno ou ajustado pelos dados. Uma abordagem clássica maximiza a verossimilhança marginal (ou seu logaritmo) em relação aos hiperparâmetros. Ela equilibra ajuste aos dados e complexidade do prior por meio da integração sobre as funções latentes. Ainda assim, a otimização pode encontrar máximos locais; múltiplas inicializações e exame de resíduos podem ser úteis.\n\n### Custo da regressão gaussiana exata\n\nA regressão exata normalmente precisa formar e fatorar uma matriz de covariância de dimensão igual ao número de observações. A fatoração densa custa aproximadamente \\(O(n^3)\\) operações e \\(O(n^2)\\) memória. Por isso, o método torna-se oneroso em amostras grandes. Aproximações esparsas, inducing points e estruturas especiais podem reduzir custo, mas alteram o procedimento e introduzem escolhas adicionais.\n\nCholesky é usado porque a matriz de covariância regularizada deve ser positiva definida e a fatoração é numericamente mais estável que inverter a matriz explicitamente. Uma pequena diagonal chamada jitter pode ajudar a lidar com arredondamento e quase singularidade. Ela não deve ser confundida automaticamente com uma estimativa física do ruído.\n\n### Como cai na prova\n\n- Comprimento de escala menor no RBF implica correlação que decai mais depressa com a distância.\n- A verossimilhança marginal ajusta hiperparâmetros sem tratar a função latente como um vetor fixo de parâmetros.\n- A regressão exata tem custo cúbico em número de observações e armazenamento quadrático em implementação densa.\n- Inverter explicitamente a matriz não é a operação numérica recomendada; usam-se fatorações e soluções de sistemas.",
+      "section": "3. Hiperparâmetros, kernels e custo"
+    },
+    {
+      "title": "4. Classificação, usos e limites",
+      "markdown": "### O problema que este assunto resolve\n\nNem toda resposta é numérica e contínua. Para classificar, um processo gaussiano pode modelar uma função latente e transformar seus valores em probabilidades de classe por uma função de ligação, como a logística ou a probit. Como a transformação não preserva a gaussianidade, a posterior geralmente deixa de ter forma fechada e requer aproximação.\n\n> **Siglas e termos deste capítulo**\n> - **Classificação**: previsão de rótulos ou probabilidades de categorias.\n> - **Função latente**: função contínua não observada que determina a probabilidade de classe.\n> - **Função de ligação**: transformação que leva valores reais a probabilidades, como sigmoide logística ou CDF normal.\n> - **Inferência aproximada**: método numérico que aproxima uma posterior que não pode ser calculada em forma fechada.\n> - **Extrapolação**: previsão fora da região de entradas bem representada nos dados.\n\n### Da função latente à classe\n\nNo classificador por PG, primeiro se atribui prior gaussiano à função latente \\(f(x)\\). Depois uma ligação transforma \\(f(x)\\) em probabilidade de classe. A classe prevista pode ser obtida a partir da probabilidade, mas a própria probabilidade é mais informativa quando os custos de erro variam. Na classificação binária, ligações logística e probit são opções comuns. A não linearidade faz com que a distribuição posterior de \\(f\\), condicionada aos rótulos, em geral não seja gaussiana; métodos como Laplace ou aproximações variacionais podem ser utilizados.\n\n### Onde ajuda e onde exige cuidado\n\nPGs são úteis quando a quantidade de dados é pequena ou moderada e a quantificação de incerteza importa: calibração de experimentos, otimização bayesiana e interpolação espacial são exemplos. A escolha do kernel expressa estrutura relevante — periodicidade, suavidade ou tendência linear —, mas essa flexibilidade também torna o resultado sensível às hipóteses adotadas.\n\nA incerteza preditiva não protege contra todas as formas de erro. Se o kernel não representa o fenômeno, se há mudança de distribuição ou se os dados têm erro sistemático, o modelo pode continuar confiante e errar. Em extrapolação, o comportamento é determinado pelo prior e pelo kernel, e não por informação observada inexistente. Para grandes conjuntos, o custo exato pode ser proibitivo.\n\n### Como cai na prova\n\n- A classificação transforma a função latente em probabilidades por uma ligação; não é simplesmente regressão gaussiana direta sobre rótulos.\n- Inferência de classificação costuma exigir aproximação, pois a ligação não gaussiana elimina a solução fechada usual.\n- Intervalos e variâncias são condicionais às hipóteses do kernel e não garantem proteção contra viés ou mudança de distribuição.\n- O PG exato é particularmente atraente em conjuntos moderados e pode ser caro em conjuntos grandes.",
+      "section": "4. Classificação, usos e limites"
+    }
+  ],
+  "summary": "Um processo gaussiano é uma distribuição sobre funções definida pelo requisito de que qualquer conjunto finito de avaliações tem distribuição gaussiana multivariada. A função média determina a média pontual e o kernel determina covariâncias; o kernel deve ser simétrico e positivo semidefinido. Na regressão, observa-se y=f(x)+ruído gaussiano, soma-se a variância do ruído à diagonal da matriz de kernel e condiciona-se a gaussiana conjunta para obter posterior, média e variância preditivas. A incerteza sobre a função latente difere da incerteza de uma observação que inclui ruído. Hiperparâmetros como amplitude e comprimento de escala controlam o comportamento do kernel e podem ser ajustados pela verossimilhança marginal. A regressão exata requer fatoração densa, com custo cúbico em número de observações e memória quadrática. Em classificação, uma função latente passa por uma ligação logística ou probit, e a inferência costuma ser aproximada. As previsões dependem das hipóteses do kernel e a incerteza não elimina erros de especificação ou mudança de distribuição.",
+  "flashcards": [
+    {
+      "front": "Qual é a definição de um processo gaussiano?",
+      "back": "Uma coleção de variáveis aleatórias em que todo conjunto finito de avaliações da função tem distribuição gaussiana multivariada."
+    },
+    {
+      "front": "O que determina a função média m(x)?",
+      "back": "O valor esperado do processo em cada entrada x."
+    },
+    {
+      "front": "O que representa o kernel k(x,x')?",
+      "back": "A covariância entre as avaliações da função nas entradas x e x'."
+    },
+    {
+      "front": "Qual condição uma função de kernel precisa satisfazer?",
+      "back": "Gerar matrizes simétricas e positivas semidefinidas para conjuntos finitos de entradas."
+    },
+    {
+      "front": "O que significa prior sobre funções?",
+      "back": "A distribuição de funções especificada antes de condicionar nos dados observados."
+    },
+    {
+      "front": "No modelo y=f(x)+ruído, o que é f?",
+      "back": "A função latente que representa a relação subjacente entre entrada e resposta."
+    },
+    {
+      "front": "Como o ruído gaussiano independente aparece na matriz de treino?",
+      "back": "Como a parcela sigma_n ao quadrado vezes a matriz identidade, somada à matriz de kernel."
+    },
+    {
+      "front": "O que é a posterior do processo?",
+      "back": "A distribuição sobre funções depois de incorporar as observações de treino."
+    },
+    {
+      "front": "O que fornece uma previsão de PG além da estimativa central?",
+      "back": "Uma distribuição preditiva, incluindo média e variância ou covariância."
+    },
+    {
+      "front": "Qual diferença há entre incerteza latente e incerteza de nova observação?",
+      "back": "A observação inclui também a variância do ruído de medição; a função latente não."
+    },
+    {
+      "front": "Que efeito tem um comprimento de escala curto no kernel RBF?",
+      "back": "A correlação decai rapidamente com a distância e o modelo admite mudanças locais rápidas."
+    },
+    {
+      "front": "Que efeito típico tem um comprimento de escala longo no RBF?",
+      "back": "Mantém correlação por distâncias maiores e favorece variações mais lentas."
+    },
+    {
+      "front": "Para que serve a amplitude de um kernel?",
+      "back": "Controla a escala vertical típica das variações da função."
+    },
+    {
+      "front": "O que é verossimilhança marginal?",
+      "back": "A probabilidade dos dados observados após integrar os valores latentes da função."
+    },
+    {
+      "front": "Por que a regressão exata com PG pode ser cara?",
+      "back": "A fatoração densa da matriz de covariância tem custo aproximado cúbico e memória quadrática no número de observações."
+    },
+    {
+      "front": "Por que se usa fatoração de Cholesky?",
+      "back": "Para resolver sistemas e obter determinantes de matrizes de covariância positivas definidas de modo estável."
+    },
+    {
+      "front": "O que é jitter em cálculos com PG?",
+      "back": "Pequeno ajuste diagonal para estabilidade numérica, que não equivale necessariamente ao ruído físico."
+    },
+    {
+      "front": "Como um classificador por PG produz probabilidade?",
+      "back": "Aplica uma função de ligação, como logística ou probit, a uma função latente."
+    },
+    {
+      "front": "Por que classificação com PG costuma usar inferência aproximada?",
+      "back": "A ligação não linear torna a posterior latente geralmente não gaussiana e sem forma fechada."
+    },
+    {
+      "front": "O que determina previsões em regiões sem dados?",
+      "back": "As hipóteses do prior e do kernel, pois não há observações locais que informem a função."
+    }
+  ],
+  "tips": [
+    "Ao reconhecer a definição, verifique se a propriedade vale para qualquer conjunto finito de entradas.",
+    "Separe os papéis: média descreve expectativa pontual; kernel descreve covariância entre pontos.",
+    "Em regressão com ruído independente, procure a parcela diagonal sigma_n ao quadrado vezes I.",
+    "No RBF, diminua o comprimento de escala e pense em correlação que cai mais depressa.",
+    "Ao comparar previsões, distinga a variância da função latente do ruído de uma futura medição.",
+    "Em classificação, identifique a função latente e a ligação antes de afirmar que a posterior é gaussiana."
+  ],
+  "traps": [
+    "Afirmar que basta cada avaliação individual ser normal: o processo requer gaussianidade conjunta para todo conjunto finito.",
+    "Tratar qualquer matriz simétrica como kernel válido: ela também precisa ser positiva semidefinida.",
+    "Dizer que kernel mede causalidade: ele especifica covariância sob o modelo, não uma relação causal.",
+    "Somar ruído à incerteza latente sem distinguir o alvo: a variância observacional inclui ruído, a latente não.",
+    "Interpretar comprimento de escala curto como maior suavidade: no RBF ele permite variações mais rápidas.",
+    "Supor que a ligação logística mantém gaussiana a posterior de classificação: a inferência geralmente perde forma fechada."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique a definição finito-dimensional de processo gaussiano.",
+      "answer": "Para qualquer seleção finita de entradas, o vetor das avaliações da função tem distribuição gaussiana multivariada. Sua média vem da função média e sua matriz de covariância é construída pelo kernel."
+    },
+    {
+      "question": "Por que o kernel precisa ser positivo semidefinido?",
+      "answer": "Porque cada matriz gerada em um conjunto de entradas deve ser uma matriz de covariância possível; positividade semidefinida garante variâncias não negativas e uma gaussiana conjunta válida."
+    },
+    {
+      "question": "Descreva como o ruído entra na regressão com processo gaussiano.",
+      "answer": "Com y=f(x)+ruído gaussiano independente, a covariância dos dados observados é K mais sigma_n ao quadrado I. Condicionar essa gaussiana conjunta fornece a distribuição posterior e as predições."
+    },
+    {
+      "question": "Diferencie a predição da função latente e de uma observação futura.",
+      "answer": "A primeira descreve incerteza sobre f(x). A resposta observada futura soma a essa incerteza a variância de ruído da medição."
+    },
+    {
+      "question": "Como comprimento de escala e amplitude afetam o RBF?",
+      "answer": "O comprimento de escala controla a rapidez com que a correlação cai com distância; a amplitude controla a escala vertical da variação."
+    },
+    {
+      "question": "O que se otimiza pela verossimilhança marginal?",
+      "answer": "Hiperparâmetros do prior/kernel, avaliando a probabilidade dos dados após integrar valores latentes da função."
+    },
+    {
+      "question": "Por que a regressão gaussiana exata tem limite de escala?",
+      "answer": "A matriz densa entre n observações exige aproximadamente O(n ao cubo) operações de fatoração e O(n ao quadrado) memória."
+    },
+    {
+      "question": "Resuma a classificação por processo gaussiano.",
+      "answer": "Um prior gaussiano é colocado numa função latente; uma ligação logística ou probit a converte em probabilidades de classe. A posterior geralmente é não gaussiana e requer aproximação."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Definição confundida com normalidade marginal",
+      "summary": "Um processo gaussiano exige gaussianidade conjunta de cada conjunto finito de avaliações, determinada por função média e kernel."
+    },
+    {
+      "key": "e2",
+      "title": "Kernel inválido ou interpretação exagerada",
+      "summary": "Kernel precisa produzir matrizes simétricas positivas semidefinidas e representa covariância, não causalidade."
+    },
+    {
+      "key": "e3",
+      "title": "Ruído e incerteza preditiva misturados",
+      "summary": "A variância da resposta futura inclui o ruído de observação; a variância da função latente não."
+    },
+    {
+      "key": "e4",
+      "title": "Hiperparâmetros e custo ignorados",
+      "summary": "Comprimento de escala controla decaimento da correlação; a regressão exata densa custa aproximadamente O(n³) e memória O(n²)."
+    },
+    {
+      "key": "e5",
+      "title": "Classificação tratada como regressão gaussiana fechada",
+      "summary": "A ligação transforma a função latente em probabilidade e, por sua não linearidade, a inferência de classificação costuma ser aproximada."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Qual propriedade define um processo gaussiano em um domínio de entradas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada trajetória observada é uma função linear com coeficientes normais independentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Todo vetor finito de avaliações da função tem distribuição gaussiana conjunta.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A média da função é zero e a variância é igual em qualquer entrada do domínio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As entradas do domínio são amostradas de uma distribuição normal multivariada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A resposta em cada entrada é independente das respostas nas demais entradas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A definição é finito-dimensional: para qualquer conjunto finito de entradas, as avaliações correspondentes formam um vetor gaussiano multivariado. Média zero, linearidade e independência não são requisitos gerais.",
+      "section": "1. O que é um processo gaussiano",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em f(x) ~ GP(m(x), k(x,x')), o que descreve diretamente k(x,x')?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A probabilidade de que x seja a causa de x'.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A covariância entre os valores da função nas entradas x e x'.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A inclinação determinística da função entre as duas entradas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A distância euclidiana obrigatória entre x e x'.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A probabilidade marginal de observar exatamente o valor x'.",
+          "correct": false
+        }
+      ],
+      "explanation": "O kernel é a função de covariância do processo: k(x,x') = Cov(f(x), f(x')). Ele pode depender da distância, mas não é por definição distância nem medida causal.",
+      "section": "1. O que é um processo gaussiano",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que requisito torna um kernel admissível como função de covariância?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A matriz de kernel em qualquer conjunto finito deve ser simétrica e positiva semidefinida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A matriz de kernel deve ter somente entradas estritamente positivas e distintas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A diagonal da matriz deve ser zero para não contar a variância marginal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A matriz deve ter determinante igual a um para normalizar as covariâncias.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A covariância deve depender apenas do índice das observações, nunca de suas entradas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma matriz de covariância válida é simétrica e positiva semidefinida. Essa condição vale para as matrizes produzidas pelo kernel em qualquer conjunto finito de pontos; não exige entradas estritamente positivas nem determinante unitário.",
+      "section": "1. O que é um processo gaussiano",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de uma função média m(x)=0 em um processo gaussiano significa que toda função possível é identicamente zero.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Média zero significa que o valor esperado em cada entrada é zero antes de observar dados. As funções sorteadas podem variar, pois a covariância do kernel determina dispersão e dependência entre pontos.",
+      "section": "1. O que é um processo gaussiano",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo é gaussiano se cada avaliação individual tem distribuição normal, ainda que os vetores de avaliações conjuntas não sejam gaussianos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Normalidade marginal isolada não basta. A definição exige que qualquer vetor finito de avaliações tenha distribuição gaussiana multivariada, o que também especifica a dependência conjunta entre pontos.",
+      "section": "1. O que é um processo gaussiano",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um kernel que gera matriz de covariância com autovalor negativo pode falhar como prior gaussiano válido para esse conjunto de entradas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma matriz de covariância deve ser positiva semidefinida, portanto não pode ter autovalor negativo. Se isso ocorre, a matriz não define a covariância de uma gaussiana válida naquele conjunto de pontos.",
+      "section": "1. O que é um processo gaussiano",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual interpretação é mais adequada para uma covariância alta entre f(x) e f(x') no prior?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O modelo supõe que os dois valores tendem a variar juntos, conforme escala e sinal da covariância.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Os dois valores são necessariamente iguais em todas as funções possíveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A entrada x causa a entrada x' com probabilidade proporcional à covariância.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A função tem inclinação constante e conhecida no intervalo entre x e x'.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O ruído de observação das duas medições é obrigatoriamente correlacionado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Covariância alta expressa dependência no prior entre as avaliações, com o sentido dado pelo sinal. Não implica igualdade exata, causalidade, derivada fixa ou correlação obrigatória entre ruídos de medição.",
+      "section": "1. O que é um processo gaussiano",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O kernel RBF costuma associar entradas próximas a covariâncias maiores, com queda suave conforme aumenta a distância.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A forma usual do RBF depende da distância entre as entradas e produz covariância que decai suavemente à medida que essa distância cresce.",
+      "section": "1. O que é um processo gaussiano",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual kernel é construído para representar semelhança que se repete em intervalos regulares?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Kernel linear, que representa somente produtos entre as características.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Kernel periódico, parametrizado para repetir a covariância a cada período.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Kernel de ruído branco, que elimina dependência entre todos os pontos distintos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Kernel Matérn, que sempre impõe ciclos exatos de duração fixa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Kernel constante, cuja covariância cresce com a ordem temporal dos dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um kernel periódico representa padrões que se repetem em intervalos. O linear não impõe ciclos, o Matérn controla regularidade e o kernel constante não depende da ordem temporal.",
+      "section": "1. O que é um processo gaussiano",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A suavidade das trajetórias de um processo gaussiano é determinada, em parte, pelo kernel escolhido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Diferentes kernels impõem diferentes estruturas de covariância e regularidade. Por exemplo, o RBF favorece trajetórias muito suaves, enquanto a família Matérn permite controlar a regularidade.",
+      "section": "1. O que é um processo gaussiano",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se dois kernels válidos são somados, a soma pode representar a combinação de componentes de covariância sob as condições usuais de não negatividade dos coeficientes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Combinações aditivas de kernels válidos com coeficientes não negativos continuam positivas semidefinidas. A soma permite representar componentes como tendência e periodicidade no mesmo modelo.",
+      "section": "1. O que é um processo gaussiano",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise usa o prior de processo gaussiano antes de condicionar nas observações de treino. Como se chama essa distribuição inicial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A verossimilhança condicional, calculada depois de fixar todos os valores latentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A distribuição posterior, que já incorpora as respostas observadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O prior sobre funções, definido antes de incorporar os dados observados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O resíduo preditivo, calculado a partir das previsões fora da amostra.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A matriz de desenho, formada exclusivamente pelas respostas medidas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O prior é a distribuição sobre funções antes de observar as respostas de treino. Ao condicionar esse prior nos dados, obtém-se a posterior.",
+      "section": "2. Regressão e atualização bayesiana",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo de regressão y_i=f(x_i)+epsilon_i, o termo f(x_i) representa a resposta observada com todo o ruído já incluído.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. f(x_i) é o valor latente da função; epsilon_i representa o ruído de observação. A resposta medida y_i combina os dois termos.",
+      "section": "2. Regressão e atualização bayesiana",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sob ruído gaussiano independente de variância sigma_n ao quadrado, qual é a covariância das respostas de treino?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A matriz de kernel K somada a sigma_n ao quadrado vezes a identidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A matriz de kernel K multiplicada pela matriz de entradas X.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A matriz identidade subtraída de K para remover covariâncias cruzadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A matriz de kernel K com a diagonal sempre substituída por zeros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma matriz diagonal formada somente pelas respostas observadas y.",
+          "correct": false
+        }
+      ],
+      "explanation": "O ruído independente acrescenta variância apenas à diagonal, resultando em K + sigma_n² I. A matriz K continua descrevendo covariâncias do processo latente entre as entradas.",
+      "section": "2. Regressão e atualização bayesiana",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de observar dados de treino, a distribuição do processo condicionada a esses dados é chamada posterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A posterior resulta de atualizar o prior sobre funções com as observações. Ela descreve quais funções permanecem plausíveis depois dos dados.",
+      "section": "2. Regressão e atualização bayesiana",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação distingue corretamente a predição latente da predição de uma observação futura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A predição latente inclui ruído de medição e a observação futura o remove.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ambas têm sempre a mesma variância, qualquer que seja o ruído especificado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A observação futura inclui ruído de medição além da incerteza sobre a função latente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A predição latente não depende dos dados de treino após o ajuste do kernel.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A observação futura é determinística quando o prior tem média conhecida.",
+          "correct": false
+        }
+      ],
+      "explanation": "A resposta futura observada combina a função latente e o ruído de medição. Por isso sua variância preditiva inclui a variância latente mais a parcela de ruído, ao contrário da predição de f(x*) isoladamente.",
+      "section": "2. Regressão e atualização bayesiana",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em geral, condicionar um processo gaussiano de regressão em dados próximos a x* reduz a incerteza latente naquela região, sob o kernel e o modelo assumidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Observações informativas restringem as funções plausíveis perto das entradas observadas, reduzindo com frequência a variância posterior latente. A magnitude depende do kernel e do ruído.",
+      "section": "2. Regressão e atualização bayesiana",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A média posterior do processo gaussiano é uma estimativa central, mas não garante que a resposta futura seja igual ao valor previsto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A média é o centro da distribuição preditiva sob o modelo. A resposta pode diferir dela, e a variância preditiva representa parte dessa incerteza.",
+      "section": "2. Regressão e atualização bayesiana",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao escolher um kernel, qual propriedade do fenômeno pode ser representada diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma estrutura como periodicidade, escala de suavidade ou tendência linear entre entradas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O valor exato de cada resposta futura, sem depender de observações ou ruído.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A regra de amostragem das respostas, que sempre torna os dados independentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A distribuição causal entre as variáveis, mesmo sem hipóteses adicionais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A complexidade da função objetivo do otimizador, sem alterar a covariância.",
+          "correct": false
+        }
+      ],
+      "explanation": "O kernel expressa suposições sobre dependência e regularidade, como periodicidade, suavidade ou tendência linear. Ele não determina valores futuros exatos nem estabelece causalidade sozinho.",
+      "section": "1. O que é um processo gaussiano",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer modelar respostas com padrão anual que se repete ao longo do tempo. Qual estrutura de kernel é diretamente pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Kernel linear, pois sua covariância repete exatamente os valores a cada ano.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Kernel periódico, eventualmente combinado com outro componente de tendência.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Kernel de ruído independente, que preserva a sequência temporal observada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Kernel RBF curto, que impõe uma repetição exata no calendário anual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Kernel constante, que atribui variância diferente a cada ciclo anual.",
+          "correct": false
+        }
+      ],
+      "explanation": "A periodicidade é representada por kernel periódico. Ele pode ser combinado com tendência ou componentes locais; o RBF não impõe repetição exata e o kernel linear não codifica ciclos.",
+      "section": "1. O que é um processo gaussiano",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um prior de processo gaussiano, por si só, deve ser interpretado como uma distribuição sobre funções, não como uma única curva estimada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O prior atribui probabilidades a possíveis funções. A curva média ou uma amostra do processo são resumos ou realizações, não a distribuição inteira.",
+      "section": "2. Regressão e atualização bayesiana",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o kernel supõe pouca correlação entre regiões distantes, a variância posterior longe dos dados pode voltar a se aproximar da variância do prior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Quando pontos distantes têm pouca covariância com os dados observados, esses dados informam pouco sobre a função naquela região. A incerteza tende então ao nível do prior, conforme o kernel adotado.",
+      "section": "2. Regressão e atualização bayesiana",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regressão com processo gaussiano fornece incerteza preditiva condicional às hipóteses do kernel e do modelo de ruído.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A distribuição preditiva é calculada sob as hipóteses adotadas para média, kernel, hiperparâmetros e ruído. Ela não corrige automaticamente especificação inadequada ou dados enviesados.",
+      "section": "2. Regressão e atualização bayesiana",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No kernel RBF, como a interpretação muda se o comprimento de escala é reduzido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A correlação decai em distâncias menores e são admitidas variações mais rápidas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A correlação permanece constante em todo o domínio e elimina variação local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A função passa a ser exatamente periódica com o comprimento como período.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O processo perde gaussianidade e deixa de definir distribuições conjuntas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A variância de observação diminui sem alterar a covariância entre entradas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um comprimento menor faz a similaridade do RBF cair mais rapidamente com a distância. Assim, as avaliações ficam menos correlacionadas a distâncias curtas e o processo admite mudanças mais rápidas.",
+      "section": "3. Hiperparâmetros, kernels e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual método pode ser usado para ajustar hiperparâmetros de kernel em regressão gaussiana?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Maximizar a verossimilhança marginal dos dados em relação aos hiperparâmetros.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Minimizar o determinante da matriz de entradas sem consultar as respostas observadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fixar cada valor latente na média e excluir a estrutura de covariância do ajuste.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escolher o kernel que produz variância nula em todos os pontos de treino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ajustar apenas o número de observações, mantendo qualquer kernel inalterado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma estratégia comum otimiza a verossimilhança marginal, que avalia a probabilidade dos dados após integrar a função latente. A otimização pode ter máximos locais e não torna irrelevante a escolha de kernel.",
+      "section": "3. Hiperparâmetros, kernels e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A verossimilhança marginal considera os dados depois de integrar os valores latentes da função sob o modelo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A verossimilhança marginal integra a função latente e expressa a probabilidade dos dados em função dos hiperparâmetros. Esse critério é usado para ajustar parâmetros do kernel e do ruído.",
+      "section": "3. Hiperparâmetros, kernels e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ordem de custo descreve tipicamente a fatoração densa da matriz de covariância na regressão gaussiana exata?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O(n) operações e O(1) memória, independentemente da quantidade de observações.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O(n²) operações e O(n) memória para armazenar todas as covariâncias.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O(n³) operações e O(n²) memória em implementação densa usual.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O(2ⁿ) operações e O(2ⁿ) memória em toda implementação exata possível.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O(log n) operações e O(n³) memória para calcular a posterior.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fatoração densa de uma matriz n por n tem custo cúbico e requer armazenamento quadrático. Esse custo explica por que aproximações e estruturas especiais são usadas em conjuntos grandes.",
+      "section": "3. Hiperparâmetros, kernels e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na implementação numérica da regressão gaussiana, a inversão explícita da matriz de covariância é geralmente preferida à fatoração de Cholesky.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. É usual resolver sistemas lineares por fatoração, como Cholesky para matrizes positivas definidas, em vez de formar explicitamente a inversa. Isso tende a ser mais estável numericamente.",
+      "section": "3. Hiperparâmetros, kernels e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pequeno jitter acrescentado à diagonal pode melhorar a estabilidade numérica sem representar necessariamente o ruído físico do processo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Jitter é um ajuste numérico pequeno usado para lidar com arredondamento ou matrizes quase singulares. Ele não deve ser automaticamente interpretado como estimativa da variabilidade física das observações.",
+      "section": "3. Hiperparâmetros, kernels e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um classificador por processo gaussiano tem qual estrutura probabilística básica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Prior sobre função latente, seguido de ligação que produz probabilidades de classe.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Prior diretamente sobre rótulos discretos com covariância gaussiana entre categorias.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Regressão linear fechada nos rótulos sem função de ligação ou incerteza.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma matriz de distâncias normalizadas que escolhe a classe mais próxima.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma distribuição gaussiana sobre os próprios nomes das categorias observadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O modelo atribui um prior gaussiano à função latente real e transforma seus valores em probabilidades por uma ligação, como logística ou probit. Os rótulos categóricos não são diretamente variáveis gaussianas.",
+      "section": "4. Classificação, usos e limites",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é uma consequência da ligação logística ou probit na classificação por processo gaussiano?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A posterior latente geralmente não é gaussiana e requer inferência aproximada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A posterior se torna sempre gaussiana exata por causa da transformação não linear.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A covariância do kernel desaparece depois que os rótulos são observados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A classificação passa a ter a mesma solução fechada da regressão gaussiana ruidosa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As probabilidades previstas deixam de depender das entradas de teste.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ligação não linear torna a posterior condicionada aos rótulos geralmente não gaussiana. Como não há em geral solução fechada igual à da regressão gaussiana, usam-se aproximações, como Laplace ou variacionais.",
+      "section": "4. Classificação, usos e limites",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A incerteza preditiva de um processo gaussiano garante que previsões permaneçam confiáveis mesmo sob mudança de distribuição ou kernel inadequado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A incerteza é condicional às hipóteses do modelo. Um kernel inadequado, dados enviesados ou mudança de distribuição podem levar a previsões erradas e até excessivamente confiantes.",
+      "section": "4. Classificação, usos e limites",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma região de extrapolação sem dados próximos, qual fator tem papel central no comportamento previsto pelo processo gaussiano?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A forma do prior e do kernel, pois a região não é diretamente informada pelas observações.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A média amostral das respostas, que determina exatamente a função fora do domínio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A variância do ruído de treino, que cria observações em todas as entradas ausentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A fatoração de Cholesky, que impõe uma tendência linear universal na extrapolação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ligação logística, que elimina a dependência do kernel em qualquer classificação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sem dados locais, a extrapolação é guiada principalmente pelo prior, pela função média e pelo kernel. O cálculo numérico não impõe uma tendência universal, e ruído não substitui observações ausentes.",
+      "section": "4. Classificação, usos e limites",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Processos gaussianos podem ser úteis em otimização bayesiana quando se deseja modelar uma função desconhecida e sua incerteza.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O processo fornece uma distribuição preditiva para a função objetivo, com média e incerteza. Esses elementos ajudam a escolher novas avaliações equilibrando regiões promissoras e pouco conhecidas.",
+      "section": "4. Classificação, usos e limites",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A regressão exata por processo gaussiano é sempre a escolha mais barata para conjuntos de dados muito grandes, porque não estima coeficientes explícitos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A ausência de um vetor fixo de coeficientes não remove o custo matricial. A regressão exata densa exige fatoração de custo cúbico e memória quadrática no número de observações.",
+      "section": "3. Hiperparâmetros, kernels e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma curva prevista com baixa variância posterior prova que o kernel escolhido descreve corretamente o fenômeno real.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Baixa variância expressa confiança condicional ao modelo e aos dados. Ela não demonstra que as hipóteses do kernel são corretas nem exclui erro sistemático ou mudança de distribuição.",
+      "section": "4. Classificação, usos e limites",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa compara corretamente uma regressão e uma classificação por processo gaussiano?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Regressão gaussiana ruidosa admite posterior preditiva fechada; classificação com ligação costuma precisar de aproximação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ambas produzem sempre posterior gaussiana exata, pois usam o mesmo kernel de covariância.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Classificação não usa função latente, enquanto regressão exige rótulos discretos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Regressão ignora ruído, mas classificação modela ruído como kernel periódico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A classificação dispensa o kernel porque a ligação já mede semelhança entre entradas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com observações gaussianas e kernel conhecido, a regressão admite condicionamento gaussiano analítico. Em classificação, a ligação não linear sobre a função latente normalmente torna a posterior não gaussiana e exige aproximação.",
+      "section": "4. Classificação, usos e limites",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na regressão exata com matriz densa, dobrar o número de observações pode elevar substancialmente o custo de fatoração, pois este cresce aproximadamente com o cubo de n.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A fatoração densa tem custo aproximado O(n³); dobrar n multiplica esse termo dominante por cerca de oito. A memória da matriz também cresce quadraticamente.",
+      "section": "3. Hiperparâmetros, kernels e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função média não nula pode ser usada em um processo gaussiano quando o conhecimento prévio sugere uma tendência sistemática.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A definição permite uma função média geral m(x), não apenas zero. Uma tendência conhecida ou especificada pode entrar na média, enquanto o kernel descreve covariâncias em torno dela.",
+      "section": "1. O que é um processo gaussiano",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso pode reduzir o custo em conjuntos grandes, embora introduza aproximação ou escolhas adicionais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Métodos esparsos ou inducing points que representam a covariância por estrutura reduzida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover o kernel e manter a regressão exata com todas as observações originais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Calcular todas as entradas da matriz densa em paralelo sem alterar memória necessária.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fixar a posterior em variância zero para evitar fatorar a matriz de covariância.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter as respostas contínuas em rótulos sem mudar a complexidade matricial.",
+          "correct": false
+        }
+      ],
+      "explanation": "Métodos esparsos e inducing points aproximam a estrutura completa usando representações menores, reduzindo o custo em troca de escolhas e erro de aproximação. Apenas paralelizar o cálculo denso não elimina armazenamento quadrático.",
+      "section": "3. Hiperparâmetros, kernels e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função de ligação logística ou probit transforma valores reais da função latente em probabilidades que ficam entre zero e um.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Ambas as ligações mapeiam a função latente real para uma probabilidade válida. A classificação então usa essas probabilidades para descrever a incerteza sobre a classe.",
+      "section": "4. Classificação, usos e limites",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A estimativa de hiperparâmetros pela verossimilhança marginal elimina a necessidade de avaliar se o kernel faz sentido para o problema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A otimização ajusta parâmetros dentro da estrutura escolhida, mas não garante que essa estrutura represente o fenômeno. Conhecimento do domínio e avaliação preditiva continuam relevantes.",
+      "section": "3. Hiperparâmetros, kernels e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma covariância negativa entre duas avaliações é sempre inválida, pois toda entrada de uma matriz de covariância precisa ser positiva.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Covariâncias fora da diagonal podem ser negativas; o requisito é que a matriz completa seja simétrica e positiva semidefinida. Variâncias diagonais são não negativas.",
+      "section": "1. O que é um processo gaussiano",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário favorece o uso de processo gaussiano em vez de escolher apenas uma previsão pontual sem incerteza?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma aplicação com amostra moderada em que a incerteza da função e a escolha de novas avaliações importam.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um conjunto massivo em que custo cúbico é obrigatório e não existe qualquer restrição de memória.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma tarefa em que a resposta é conhecida exatamente para toda entrada ainda não observada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um estudo causal em que se deseja inferir causa apenas da covariância do kernel.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma aplicação que exige ignorar todas as hipóteses sobre dependência entre entradas.",
+          "correct": false
+        }
+      ],
+      "explanation": "PGs são atraentes quando se quer uma distribuição preditiva e a incerteza importa, por exemplo em otimização bayesiana ou calibração experimental. O custo exato e as hipóteses do kernel ainda precisam ser considerados.",
+      "section": "4. Classificação, usos e limites",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O kernel Matérn oferece uma família em que se pode controlar a regularidade típica das funções, ao contrário de concluir que todo kernel impõe a mesma suavidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A família Matérn inclui um parâmetro que controla regularidade, permitindo trajetórias menos suaves que as favorecidas pelo RBF usual. A escolha do kernel afeta propriedades das funções plausíveis.",
+      "section": "1. O que é um processo gaussiano",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o papel principal da matriz de Gram em regressão com processo gaussiano?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registrar covariâncias do kernel entre pares das entradas observadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenar somente os rótulos de classe previstos para cada observação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conter a inversa da matriz de desenho e os coeficientes lineares estimados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir a função média e fixar a posterior sem consultar as respostas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Guardar exclusivamente a variância do ruído, sem covariâncias cruzadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A matriz de Gram tem entradas k(x_i,x_j) e organiza as covariâncias entre todas as entradas de treino. No modelo com ruído independente, soma-se à sua diagonal a variância do ruído.",
+      "section": "2. Regressão e atualização bayesiana",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma previsão probabilística de classificação pode ser mais útil que apenas o rótulo quando decisões diferentes têm custos diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A probabilidade prevista conserva informação sobre confiança e permite aplicar limiares ou custos de decisão próprios da aplicação, em vez de reduzir tudo imediatamente a um rótulo.",
+      "section": "4. Classificação, usos e limites",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Combinar componentes de kernel pode representar um padrão periódico junto com uma tendência lenta quando a estrutura aditiva é adequada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A soma de kernels válidos pode representar componentes aditivos: por exemplo, um componente periódico e outro de tendência suave. A escolha precisa refletir a estrutura plausível dos dados.",
+      "section": "1. O que é um processo gaussiano",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em classificação binária por processo gaussiano, os rótulos observados são normalmente tratados como avaliações gaussianas diretas da função latente, sem transformação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A função latente é real, mas uma ligação como logística ou probit a converte em probabilidade para os rótulos categóricos. Essa transformação também torna a inferência mais complexa.",
+      "section": "4. Classificação, usos e limites",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A distribuição posterior de um processo gaussiano pode ser resumida por média e covariância, que em geral dependem tanto dos dados quanto do kernel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. No condicionamento gaussiano, os dados observados e as covariâncias do kernel determinam média e covariância posterior. Esses resumos descrevem as distribuições das avaliações futuras sob o modelo.",
+      "section": "2. Regressão e atualização bayesiana",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao observar um novo ponto de treino em regressão gaussiana, qual operação probabilística atualiza as funções plausíveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Condicionar a distribuição conjunta do processo aos valores observados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir o kernel pela matriz identidade e manter todas as previsões anteriores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover a função média e tratar as entradas como respostas medidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ordenar os dados por resposta e declarar a curva resultante como posterior.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somar variância de ruído às covariâncias entre todas as entradas distintas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A atualização é condicionamento: a gaussiana conjunta dos valores latentes e observados é condicionada nos dados de treino, produzindo a posterior. A covariância do kernel permanece parte do modelo.",
+      "section": "2. Regressão e atualização bayesiana",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual efeito típico se espera ao aumentar a amplitude do kernel, mantendo os outros parâmetros fixos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumenta a escala vertical típica das variações permitidas para a função.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Transforma qualquer kernel em periodicidade exata, mesmo sem parâmetro de período.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reduz a dimensão efetiva da amostra e a memória da matriz de Gram sem aproximações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Retira o ruído de observação das respostas, embora a amplitude só ajuste a covariância latente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Faz a função deixar de definir gaussianas conjuntas válidas para conjuntos finitos de entradas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A amplitude controla a escala vertical ou variância típica das funções no prior. Ela não determina periodicidade, tamanho da amostra ou variância do ruído observacional.",
+      "section": "3. Hiperparâmetros, kernels e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma equipe pode padronizar as entradas antes de ajustar o comprimento de escala de um kernel?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para tornar a escala de distâncias entre características mais comparável na parametrização.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Para garantir que a posterior de uma classificação com ligação não linear permaneça gaussiana.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para transformar o ruído de observação em uma relação causal entre características e respostas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para eliminar a necessidade de verificar se o kernel produz matrizes positivas semidefinidas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para reduzir exatamente o custo cúbico da fatoração, sem aproximação ou alteração do algoritmo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Comprimentos de escala são interpretados em relação às distâncias de entrada. Padronizar características pode colocá-las em escalas comparáveis; isso não altera por si só a classe de inferência nem elimina o custo matricial.",
+      "section": "3. Hiperparâmetros, kernels e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente uma aproximação esparsa para processo gaussiano?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Resume dependências por pontos representativos para reduzir cálculos e armazenamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Calcula a matriz densa completa entre todos os dados e mantém o custo exato original.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remove a distribuição preditiva inteira e devolve apenas coeficientes lineares fixos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Torna todas as respostas de treino independentes entre si, qualquer que seja o kernel adotado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Garante inferência exata sem aproximação para qualquer quantidade de observações disponível.",
+          "correct": false
+        }
+      ],
+      "explanation": "Métodos esparsos podem usar pontos representativos, frequentemente chamados inducing points, para resumir a estrutura e reduzir custo. Em troca, há aproximação e decisões adicionais; não se mantém necessariamente a inferência exata.",
+      "section": "3. Hiperparâmetros, kernels e custo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em classificação, qual interpretação é apropriada para a probabilidade prevista para uma classe?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É a probabilidade de classe induzida pela função latente e pela ligação adotada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É a covariância do ruído gaussiano entre duas respostas contínuas observadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É o valor determinístico do rótulo, sem depender dos dados de treino.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É a verossimilhança marginal do kernel, sempre igual à frequência da classe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É o comprimento de escala transformado em proporção de observações futuras.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ligação transforma a função latente em uma probabilidade condicional de classe. A probabilidade é uma previsão do modelo, não a covariância do ruído nem um rótulo certo antes de observar os dados.",
+      "section": "4. Classificação, usos e limites",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Gaussian Processes for Machine Learning",
+      "publisher": "MIT Press; Carl Edward Rasmussen e Christopher K. I. Williams",
+      "reference": "Livro disponibilizado online com capítulos sobre regressão, kernels, classificação, ajuste de modelos e aproximações.",
+      "url": "https://gaussianprocess.org/gpml/chapters/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Gaussian Processes",
+      "publisher": "scikit-learn",
+      "reference": "Documentação técnica de regressão e classificação por processos gaussianos, kernels, predição e limitações de escalabilidade.",
+      "url": "https://scikit-learn.org/stable/modules/gaussian_process.html",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

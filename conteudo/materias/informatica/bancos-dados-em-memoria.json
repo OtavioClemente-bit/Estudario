@@ -1,0 +1,2231 @@
+{
+  "id": "informatica.bancos-dados-em-memoria",
+  "subject": "Informática",
+  "title": "Arquitetura de dados: bancos de dados em memória",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Arquitetura de Dados: Banco de dados em memória",
+    "Banco de dados em memória",
+    "Bancos de dados em memória principal",
+    "Arquitetura de banco de dados em memória",
+    "Sistemas de gerenciamento de banco em memória",
+    "Banco de dados residente na memória RAM",
+    "Persistência em bancos de dados em memória",
+    "Durabilidade de banco de dados em memória",
+    "Redis como banco de dados em memória",
+    "SAP HANA em memória e armazenamento persistente",
+    "Oracle TimesTen In-Memory Database",
+    "Organização de dados em memória principal"
+  ],
+  "scope": {
+    "covers": "Fundamentos e arquitetura de bancos de dados em memória: uso de RAM como local de trabalho principal, latência e limites de capacidade; distinção entre banco em memória, cache, armazenamento em disco e banco embarcado; organização por linhas e colunas, compressão, índices e estruturas de dados; persistência, logs, snapshots, checkpoints, recuperação, replicação, alta disponibilidade e durabilidade; exemplos verificáveis em Redis, SAP HANA e Oracle TimesTen; critérios de escolha, consistência, concorrência, segurança, monitoramento e riscos operacionais.",
+    "excludes": "Administração detalhada de versões comerciais, sintaxe completa de comandos de cada produto, dimensionamento numérico de hardware e comparação aprofundada de bancos relacionais, NoSQL ou sistemas de arquivos em memória."
+  },
+  "theoryTitle": "Como um banco de dados trabalha em memória sem abrir mão da recuperação",
+  "chapters": [
+    {
+      "title": "1. O que significa manter o banco em memória",
+      "markdown": "### O problema que este assunto resolve\n\nDiscos e armazenamento persistente conservam dados sem energia, mas acessar cada registro neles pode acrescentar latência. Um banco de dados em memória mantém o conjunto de trabalho, ou ao menos suas estruturas mais acessadas, na memória principal (RAM) para atender leituras e escritas com menos operações de entrada e saída. A memória não é mágica: tem capacidade finita, custa mais por unidade de armazenamento do que muitos discos e normalmente perde seu conteúdo quando o processo ou o equipamento deixa de funcionar.\n\n> **Siglas e termos deste capítulo**\n> - **RAM**: memória principal de acesso rápido, cujo conteúdo comum não sobrevive ao desligamento.\n> - **SGBD**: sistema gerenciador de banco de dados, responsável por armazenar, consultar e proteger dados.\n> - **I/O**: operações de entrada e saída entre o sistema e dispositivos como discos.\n> - **Conjunto de trabalho**: dados e estruturas que o sistema precisa manter disponíveis para as operações atuais.\n> - **Latência**: tempo entre uma solicitação e a resposta.\n> - **Cache**: cópia de dados usada para acelerar acesso; pode ser descartável se houver uma fonte confiável para reconstruí-la.\n\n### Caminho de uma leitura e de uma escrita\n\nEm um desenho simplificado, a aplicação envia uma consulta ao SGBD. O motor localiza páginas, registros ou estruturas na RAM e executa a operação. Se os dados não cabem na memória, o projeto precisa escolher o que permanece residente, o que será removido ou descarregado e como tratar um acesso que exige buscar informação em armazenamento persistente. Assim, “em memória” descreve a arquitetura de acesso principal, não a inexistência de disco.\n\n| Aspecto | Banco em memória | Banco centrado em disco |\n| --- | --- | --- |\n| Local de trabalho frequente | RAM | Páginas lidas e gravadas em armazenamento persistente |\n| Vantagem típica | Menos latência de acesso aos dados residentes | Maior capacidade econômica e persistência direta |\n| Limite importante | Capacidade e custo da memória; volatilidade | Latência de I/O e desempenho do dispositivo |\n| Durabilidade | Depende de log, snapshot, checkpoint e cópias | Depende também de log, cópias e configuração |\n\nUm banco em memória pode gravar registros de recuperação em disco. Antes de confirmar uma transação ao cliente, um sistema que promete durabilidade precisa tornar recuperável a escrita segundo sua política: por exemplo, registrar log em armazenamento persistente, replicar de forma adequada ou combinar mecanismos. Se a confirmação ocorre antes de a informação estar protegida contra falha, há uma janela de perda potencial.\n\n### Banco, cache e banco embarcado não são sinônimos\n\nUm **cache** pode manter cópias temporárias e aceitar que sejam descartadas e recalculadas. Um banco de dados mantém estado de negócio e precisa de regras claras para consistência, concorrência, recuperação e cópia de segurança. Redis pode ser empregado como cache ou como armazenamento primário persistente, conforme arquitetura e configuração; a palavra “em memória” por si só não informa se o dado pode ser perdido.\n\n**Embarcado** descreve a forma de implantação: o mecanismo roda junto da aplicação ou no mesmo processo, sem exigir um servidor de banco remoto. **Em memória** descreve onde o conjunto de trabalho é mantido para processamento. Um banco pode ser embarcado e baseado em arquivo, ou ser um serviço de rede cujo conjunto de trabalho reside em RAM.\n\n### Como cai na prova\n\n- “Em memória” tende a reduzir a latência de acesso aos dados residentes; não significa velocidade ilimitada nem capacidade infinita.\n- RAM é volátil, mas um banco em memória pode sobreviver a reinícios usando armazenamento persistente e recuperação.\n- Cache é um uso possível, não a definição de banco em memória. Diferencie finalidade, fonte autoritativa e política de perda.\n- Banco embarcado diz respeito à implantação; não conclua que ele necessariamente guarda os dados só na RAM."
+    },
+    {
+      "title": "2. Organização dos dados e trabalho do motor",
+      "markdown": "### O problema que este assunto resolve\n\nO banco precisa organizar o conjunto residente de modo que as operações comuns encontrem e processem dados sem trabalho desnecessário. Há escolhas de representação, acesso, compressão e concorrência; “colocar tudo na RAM” não elimina o custo de localizar registros, coordenar escritas ou caber na capacidade disponível.\n\n> **Siglas e termos deste capítulo**\n> - **OLTP**: processamento transacional on-line, com muitas operações curtas de leitura e escrita.\n> - **OLAP**: processamento analítico, com consultas que percorrem e agregam muitos valores.\n> - **Índice**: estrutura auxiliar que acelera buscas ao custo de espaço e trabalho de atualização.\n> - **Store por linha**: valores de um registro ficam agrupados.\n> - **Store por coluna**: valores de uma coluna ficam agrupados.\n> - **Compressão**: representação que reduz o espaço ocupado pelos dados.\n\n### Linhas e colunas atendem padrões diferentes\n\nEm armazenamento por linhas, os campos de um registro ficam próximos. Isso costuma combinar com operações transacionais que localizam um cliente ou pedido e leem ou atualizam vários de seus campos. Em armazenamento por colunas, valores da mesma coluna são agrupados, o que pode reduzir leitura e aproveitar repetição em consultas analíticas que varrem poucas colunas de muitas linhas. O padrão de consulta, a taxa de atualização, a compressão e o motor determinam o resultado: não há regra de que uma organização seja sempre mais rápida.\n\nO SAP HANA documenta tabelas row store e column store. Seu armazenamento em memória pode servir a cargas transacionais e analíticas no mesmo sistema, mas as duas organizações têm características diferentes. Banco em memória não equivale a banco exclusivamente colunar, e colunares não são necessariamente em memória.\n\n| Escolha | Favorece com frequência | Custo ou cautela |\n| --- | --- | --- |\n| Por linha | Ler ou alterar vários campos de poucos registros | Uma análise de poucas colunas pode trazer campos que não serão usados |\n| Por coluna | Agregar poucas colunas sobre muitos registros | Escritas e reconstrução de registros podem ter perfil diferente |\n| Índice adicional | Localizar dados por um predicado recorrente | Usa memória e precisa acompanhar inserções, alterações e remoções |\n| Compressão | Reduzir a ocupação e o tráfego de memória | Consome CPU para codificar ou decodificar, conforme o método |\n\n### Capacidade, localidade e custo\n\nA RAM física é finita. Além dos dados, o processo usa memória para índices, metadados, buffers, conexões e operações temporárias. Um conjunto residente que cresce sem planejamento pode pressionar o sistema operacional, provocar paginação, expulsar dados úteis ou levar a falhas de alocação. Paginação pode fazer um sistema que parecia “em memória” voltar a depender de I/O lento. Monitorar consumo, tamanho dos índices, taxa de acertos e latência evita confundir falta de capacidade com problema de consulta.\n\nUma estrutura eficiente também aproveita localidade: dados acessados juntos podem ser dispostos de modo a reduzir buscas e movimentação. Ainda assim, índices demais aumentam espaço e tornam cada escrita mais custosa; índices de menos podem obrigar varreduras. O desenho deve refletir consultas e atualizações reais.\n\n### Concorrência e integridade\n\nMuitos clientes podem disputar as mesmas chaves ou linhas. O SGBD precisa coordenar operações por mecanismos como controle de concorrência otimista ou pessimista, bloqueios, versões ou isolamento transacional. A permanência em RAM não torna operações concorrentes automaticamente seguras nem elimina leituras inconsistentes. A aplicação também precisa definir o que fazer em retentativas e falhas parciais.\n\n### Como cai na prova\n\n- Linha costuma favorecer acesso a registros; coluna costuma favorecer varredura e agregação de poucas colunas. São tendências ligadas à carga, não leis absolutas.\n- Índice acelera certos acessos, mas consome espaço e encarece manutenção de escrita.\n- Compressão pode diminuir o volume residente, com custo de processamento; não é garantia de redução de latência em todo caso.\n- Mais memória não substitui modelagem, controle de concorrência nem monitoramento."
+    },
+    {
+      "title": "3. Durabilidade: log, snapshot e checkpoint",
+      "markdown": "### O problema que este assunto resolve\n\nSe a RAM perde seu conteúdo com uma queda de energia, como reconstruir o estado confirmado? O banco combina estruturas residentes com registros persistentes e procedimentos de reinicialização. Os mecanismos têm nomes parecidos, mas papéis distintos: um log descreve operações; um snapshot registra uma imagem; um checkpoint aproxima o estado de trabalho e o armazenamento persistente.\n\n> **Siglas e termos deste capítulo**\n> - **Durabilidade**: propriedade ACID segundo a qual uma transação confirmada deve sobreviver a falha conforme as garantias anunciadas.\n> - **WAL/log**: registro persistente de alterações usado para recuperação.\n> - **Snapshot**: fotografia do conjunto de dados em um instante.\n> - **Checkpoint**: ponto de sincronização que grava estado alterado e limita trabalho de recuperação.\n> - **fsync**: solicitação para que dados pendentes sejam sincronizados ao armazenamento, sujeita às garantias da pilha de I/O.\n> - **RDB/AOF**: no Redis, snapshot em arquivo e log append-only, respectivamente.\n\n### RDB e AOF no Redis\n\nA documentação oficial do Redis descreve RDB como snapshots pontuais do conjunto de dados. Um arquivo compacto pode ser útil para recuperação e cópia; porém, se o servidor parar antes do próximo snapshot, as alterações posteriores a ele podem não estar no arquivo. O intervalo de snapshots, portanto, influencia o ponto recuperável.\n\nAOF registra operações de escrita e pode reconstruir o estado reaplicando-as na inicialização. A política de sincronização influencia o compromisso entre desempenho e perda após falha: sincronizar a cada escrita oferece proteção diferente de sincronizar periodicamente ou deixar a sincronização ao sistema operacional. O log pode crescer e passar por reescrita para compactar a sequência em uma base equivalente ao estado atual. RDB e AOF podem ser combinados; quando ambos estão habilitados, a documentação informa que a recuperação usa o AOF por ser a cópia mais completa.\n\n### Savepoints e recuperação no SAP HANA; checkpoints no TimesTen\n\nNo SAP HANA, dados em memória não dispensam persistência. A documentação descreve savepoints que descarregam dados alterados da memória para volumes de dados. Volumes de log registram mudanças para recuperação, de modo que a recuperação combina estado persistido e registros necessários. Um savepoint não é sinônimo de backup: ele integra o mecanismo de persistência do banco, enquanto cópias de segurança atendem recuperação de cenários mais amplos, como perda de armazenamento.\n\nA documentação do Oracle TimesTen descreve checkpoints em arquivos e logs de transação: para recuperar alterações confirmadas depois do último checkpoint, o sistema usa técnicas de logging convencional. O padrão ilustra que um banco chamado “in-memory” pode usar arquivos persistentes para reinicialização e durabilidade.\n\n| Mecanismo | Registra principalmente | Recuperação típica |\n| --- | --- | --- |\n| Log de operações | Alterações em sequência | Reaplicar operações desde uma base válida |\n| Snapshot | Estado em um instante | Carregar aquela imagem; alterações posteriores dependem de outro mecanismo |\n| Checkpoint/savepoint | Estado alterado sincronizado em ponto definido | Começar de estado persistido e aplicar registros posteriores necessários |\n| Backup | Cópia preservada para desastre ou restauração | Restaurar cópia e, conforme o produto, avançar com logs |\n\n### Durabilidade não é sinônimo de disponibilidade\n\nDurabilidade trata de preservar escritas confirmadas. Alta disponibilidade trata de continuar atendendo apesar de certas falhas. Uma réplica pode aumentar disponibilidade, mas se replicar uma exclusão acidental também, ela não substitui backup. Persistência local pode permitir recuperação após reinício, mas não protege de toda perda do host ou do volume. É necessário escolher RPO (perda de dados tolerável) e RTO (tempo para voltar), configurar mecanismos compatíveis e ensaiar restauração.\n\n### Como cai na prova\n\n- RDB é fotografia; AOF é sequência de escritas. Confundir os dois leva a respostas erradas sobre perda e reconstrução.\n- Snapshot isolado não garante as alterações ocorridas depois dele.\n- Checkpoint ou savepoint não é automaticamente backup externo nem réplica.\n- A confirmação de escrita depende da política concreta de persistência e sincronização; “em RAM” não responde sozinha sobre durabilidade."
+    },
+    {
+      "title": "4. Resiliência, topologia e decisão de arquitetura",
+      "markdown": "### O problema que este assunto resolve\n\nUma instância rápida ainda pode falhar, ficar sem espaço ou receber uma carga diferente da prevista. A arquitetura deve cobrir a falha do processo, da máquina, do armazenamento e da rede; também deve controlar quais dados são autoritativos, como réplicas convergem e quem pode consultar ou alterar o conteúdo.\n\n> **Siglas e termos deste capítulo**\n> - **Replicação**: manutenção de cópias de dados em nós distintos.\n> - **Failover**: transferência do papel de atendimento a outro nó após falha.\n> - **RPO**: ponto de recuperação, isto é, quantidade de dados que se aceita perder em um desastre.\n> - **RTO**: objetivo de tempo para restabelecer o serviço.\n> - **Sharding/particionamento**: divisão do conjunto em partes distribuídas.\n> - **Eviction**: remoção de dados de acordo com uma política quando há pressão de memória.\n\n### Replicação e recuperação são complementares\n\nA replicação pode manter uma cópia em outro processo ou máquina e facilitar continuidade. Ela não significa automaticamente que toda escrita está persistida em mídia durável, nem que a réplica está sempre atualizada no instante da falha. É preciso verificar confirmação de replicação, atraso, eleição de primário, prevenção de split brain e comportamento de failover no produto específico. Uma cópia assíncrona pode estar atrasada; uma síncrona pode aumentar latência e ainda precisa de tratamento para falhas correlacionadas.\n\nBackup é uma cópia recuperável separada, preservada com política de retenção. Um backup deve ser testado: arquivo existente sem procedimento de restauração validado não prova que o serviço pode ser recuperado. Replicação e backup protegem contra conjuntos diferentes de incidentes.\n\n### Expiração e remoção\n\nEm cache e em bancos chave-valor, uma chave pode ter prazo de expiração (TTL). Também pode haver política de eviction quando a memória chega ao limite. Expirar é remover pela regra temporal; eviction é remover para administrar capacidade conforme política configurada. Se o dado é autoritativo, removê-lo pode ser perda de negócio; se é uma cópia reconstruível, pode ser aceitável. A aplicação precisa tolerar cache miss e reconstruir ou buscar a fonte primária.\n\n### Segurança e operação\n\nDados residentes continuam sujeitos a controle de acesso, criptografia em trânsito e, conforme risco, proteção em repouso, segregação de rede, autenticação, auditoria e atualização. RAM não torna um dado invisível a processos autorizados, despejos de memória, logs ou backups. Operacionalmente, acompanhe memória usada e disponível, latência, erros, evictions, persistência pendente, atraso de réplica, taxa de recuperação e espaço de log. Alertas devem medir o risco real, não apenas se o processo está ativo.\n\n### Quando faz sentido\n\nBancos em memória combinam com baixa latência, sessões, contadores, filas, dados de negociação ou análises que se beneficiam de acesso residente, desde que capacidade, durabilidade e custo sejam adequados. Para dados volumosos e frios, guardar tudo em RAM pode ser caro. Uma arquitetura híbrida pode manter índices e dados quentes em memória e persistir o conjunto completo em armazenamento mais econômico. Se o dado for temporário, um cache pode ser simples; se for fonte oficial, a escolha deve incluir persistência, backup, replicação, segurança e procedimento de recuperação.\n\n### Como cai na prova\n\n- Réplica não é backup: exclusão e corrupção podem ser propagadas.\n- TTL remove pela idade configurada; eviction responde à política de pressão de capacidade.\n- “Tem failover” não permite inferir zero perda ou zero indisponibilidade; consulte as garantias da topologia.\n- Escolha a arquitetura pela carga, conjunto residente, custo, consistência e objetivos de recuperação, não só pelo rótulo “rápido”."
+    }
+  ],
+  "summary": "Banco de dados em memória mantém na RAM o conjunto de trabalho para reduzir latência, mas memória é finita e volátil. “Em memória” não significa necessariamente sem disco, cache descartável ou banco embarcado. Organização por linha tende a favorecer acesso a registros; organização por coluna tende a favorecer varreduras analíticas de poucas colunas; índices e compressão trocam espaço, CPU e custo de escrita. A durabilidade depende da implementação: Redis oferece snapshots RDB e log AOF com políticas de sincronização; SAP HANA usa volumes de dados, log e savepoints para persistir dados residentes; Oracle TimesTen usa checkpoints e logs para recuperação. Replicação pode ajudar no failover, mas não substitui backup nem prova persistência de cada confirmação. TTL expira dados pelo tempo; eviction remove segundo política de capacidade. Planeje memória, concorrência, consistência, segurança, monitoramento, RPO/RTO e testes de restauração.",
+  "flashcards": [
+    {
+      "front": "O que caracteriza um banco em memória?",
+      "back": "A RAM é o local de trabalho principal para dados ou estruturas acessadas, reduzindo operações de I/O no caminho frequente."
+    },
+    {
+      "front": "RAM comum é volátil?",
+      "back": "Sim. Seu conteúdo não é, por si só, preservado após desligamento ou perda de energia."
+    },
+    {
+      "front": "Banco em memória significa ausência de disco?",
+      "back": "Não. Logs, snapshots, checkpoints, backups e dados frios podem usar armazenamento persistente."
+    },
+    {
+      "front": "Banco em memória e cache são sinônimos?",
+      "back": "Não. Cache é uma finalidade de cópia aceleradora; um banco em memória pode ser armazenamento primário durável."
+    },
+    {
+      "front": "O que define banco embarcado?",
+      "back": "A implantação junto da aplicação, sem necessariamente ser um servidor remoto independente."
+    },
+    {
+      "front": "Quando armazenamento por linha ajuda?",
+      "back": "Em acessos transacionais que leem ou alteram vários campos de poucos registros."
+    },
+    {
+      "front": "Quando armazenamento por coluna ajuda?",
+      "back": "Em análises que percorrem muitos registros, mas precisam de poucas colunas."
+    },
+    {
+      "front": "Qual o custo de índices adicionais?",
+      "back": "Consomem memória e precisam ser mantidos em inserções, alterações e remoções."
+    },
+    {
+      "front": "O que um snapshot RDB registra no Redis?",
+      "back": "Uma fotografia do conjunto de dados em determinado ponto no tempo."
+    },
+    {
+      "front": "O que registra o AOF do Redis?",
+      "back": "Operações de escrita que podem ser reaplicadas para reconstruir o estado."
+    },
+    {
+      "front": "Como a política de fsync afeta AOF?",
+      "back": "Controla frequência de sincronização e o compromisso entre desempenho e janela potencial de perda."
+    },
+    {
+      "front": "Para que serve um checkpoint?",
+      "back": "Sincroniza estado a armazenamento persistente e pode reduzir o trabalho de recuperação posterior."
+    },
+    {
+      "front": "O que é savepoint no SAP HANA?",
+      "back": "Operação que descarrega alterações da memória para volumes de dados persistentes."
+    },
+    {
+      "front": "Como o TimesTen recupera transações após checkpoint?",
+      "back": "Usa arquivos de checkpoint e registros de transação posteriores necessários à recuperação."
+    },
+    {
+      "front": "Checkpoint é backup?",
+      "back": "Não. É parte da persistência/recuperação do banco; backup é cópia preservada para restauração."
+    },
+    {
+      "front": "Replicação substitui backup?",
+      "back": "Não. Erros lógicos e exclusões podem se propagar às réplicas."
+    },
+    {
+      "front": "O que significa TTL?",
+      "back": "Tempo de vida atribuído a um dado ou chave até expirar."
+    },
+    {
+      "front": "TTL e eviction diferem como?",
+      "back": "TTL remove pelo tempo; eviction remove segundo política de capacidade ou pressão de memória."
+    },
+    {
+      "front": "O que é RPO?",
+      "back": "Objetivo que indica quanto de dado se aceita perder ao recuperar de um desastre."
+    },
+    {
+      "front": "O que é RTO?",
+      "back": "Objetivo de tempo para restaurar o serviço após interrupção."
+    },
+    {
+      "front": "Por que medir memória disponível?",
+      "back": "Para detectar pressão, risco de paginação, evictions e falhas de alocação antes da indisponibilidade."
+    },
+    {
+      "front": "Compressão sempre diminui latência?",
+      "back": "Não. Pode reduzir ocupação e tráfego, mas requer CPU para codificação e decodificação."
+    }
+  ],
+  "tips": [
+    "Ao ler ‘em memória’, pergunte onde fica o conjunto de trabalho e qual mecanismo preserva escritas confirmadas.",
+    "Separe persistência de alta disponibilidade: recuperação local, réplica e backup cobrem falhas diferentes.",
+    "Associe RDB a fotografia e AOF a log reaplicável; depois confira intervalo, sincronização e recuperação.",
+    "Associe row store a registros e column store a varreduras analíticas, mantendo as palavras ‘tende’ e ‘conforme a carga’.",
+    "Ao avaliar capacidade, inclua dados, índices, metadados e memória temporária, não só o tamanho lógico dos registros.",
+    "Diferencie TTL de eviction e confira se um cache miss pode ser atendido pela fonte autoritativa."
+  ],
+  "traps": [
+    "‘RAM é volátil, logo todo banco em memória perde sempre todos os dados.’ Falso: logs, snapshots e checkpoints podem permitir recuperação.",
+    "‘Banco em memória não usa armazenamento persistente.’ Falso: persistência é uma decisão arquitetural e pode usar disco ou outros meios duráveis.",
+    "‘RDB e AOF são ambos cópias idênticas do estado atual.’ Falso: um é snapshot pontual; outro registra escritas para reaplicação.",
+    "‘Column store é superior a row store em qualquer consulta.’ Falso: o padrão de acesso e a carga determinam vantagens e custos.",
+    "‘Uma réplica é cópia de segurança suficiente.’ Falso: corrupção e exclusões podem ser replicadas; backup requer retenção e teste de restauração.",
+    "‘TTL e eviction são a mesma regra de remoção.’ Falso: expiração é temporal, eviction responde à política de capacidade."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique por que um banco em memória ainda pode precisar de disco.",
+      "answer": "Para logs, snapshots, checkpoints, backup, recuperação e armazenamento econômico de dados que não precisam ficar residentes."
+    },
+    {
+      "question": "Compare RDB e AOF no Redis.",
+      "answer": "RDB registra imagens em pontos no tempo; AOF registra operações de escrita reaplicáveis. Cada estratégia tem custos e janela de recuperação próprios."
+    },
+    {
+      "question": "Como savepoints participam da persistência do SAP HANA?",
+      "answer": "Gravam dados alterados da memória em volumes de dados; registros de log complementam a recuperação das alterações."
+    },
+    {
+      "question": "Por que TimesTen contradiz a ideia de banco em memória sem arquivos?",
+      "answer": "Seu mecanismo usa arquivos de checkpoint e logs de transação para recuperar dados e transações após reinício."
+    },
+    {
+      "question": "Dê um caso em que row store seja adequado e outro para column store.",
+      "answer": "Row store para localizar e atualizar vários campos de um pedido; column store para somar poucas métricas ao longo de muitos pedidos."
+    },
+    {
+      "question": "Como diferenciar réplica, backup e cache?",
+      "answer": "Réplica acompanha dados para cópia/continuidade; backup preserva cópia restaurável; cache mantém cópia aceleradora que pode ser reconstruída."
+    },
+    {
+      "question": "Quais riscos surgem quando o conjunto não cabe na RAM?",
+      "answer": "Paginação, eviction, maior latência, falha de alocação ou indisponibilidade, conforme o sistema e sua configuração."
+    },
+    {
+      "question": "Que relação há entre TTL, eviction e cache miss?",
+      "answer": "TTL expira por idade, eviction libera memória segundo política e cache miss exige buscar ou reconstruir o valor ausente."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Volatilidade confundida com ausência de durabilidade",
+      "summary": "RAM é volátil, mas bancos em memória podem persistir dados por logs, snapshots, checkpoints e cópias. Verifique a política real de confirmação e recuperação."
+    },
+    {
+      "key": "e2",
+      "title": "Snapshot, log e checkpoint tratados como iguais",
+      "summary": "Snapshot é imagem pontual; log registra operações; checkpoint sincroniza estado para reduzir recuperação. Backup é cópia independente para restauração."
+    },
+    {
+      "key": "e3",
+      "title": "Réplica confundida com backup ou garantia de zero perda",
+      "summary": "Replicação pode facilitar continuidade, mas atraso, confirmação, falhas correlacionadas e propagação de erros precisam ser considerados; backup preservado e testado continua necessário."
+    },
+    {
+      "key": "e4",
+      "title": "Organização por linha e coluna generalizada",
+      "summary": "Row store costuma atender registros transacionais; column store costuma favorecer varredura analítica. Carga, escrita, índices e compressão definem o resultado."
+    },
+    {
+      "key": "e5",
+      "title": "Expiração e pressão de memória confundidas",
+      "summary": "TTL remove por idade; eviction remove segundo política de capacidade. Ambas exigem avaliar a fonte autoritativa e como tratar dado ausente."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um sistema mantém na RAM os dados consultados frequentemente e usa armazenamento persistente para recuperação. Como classificar melhor esse desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É necessariamente um cache sem estado durável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pode ser um banco em memória com persistência complementar.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "É um banco embarcado, pois usa RAM local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É um banco exclusivamente em disco, pois mantém arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É um sistema sem recuperação, pois a RAM é volátil.",
+          "correct": false
+        }
+      ],
+      "explanation": "A classificação depende do local de trabalho principal: manter o conjunto frequente em RAM caracteriza o uso em memória, mesmo com persistência complementar. Persistência não transforma o mecanismo em cache nem define implantação embarcada.",
+      "section": "1. O que significa manter o banco em memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A RAM comum conserva seus dados depois que o servidor perde energia, dispensando qualquer mecanismo de recuperação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. RAM comum é volátil; sua conservação após uma falha depende de mecanismos como log, snapshot, checkpoint e armazenamento persistente.",
+      "section": "1. O que significa manter o banco em memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer reduzir o tempo de leitura de sessões que são reconstruíveis a partir de outro serviço. Qual uso é mais direto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar um cache em memória e prever como recarregar valores ausentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar um backup como mecanismo de consulta para cada sessão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desligar a fonte autoritativa depois de carregar as sessões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformar cada sessão em arquivo imutável no armazenamento frio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter cópias em RAM sem definir resposta a cache miss, supondo que a ausência nunca ocorra.",
+          "correct": false
+        }
+      ],
+      "explanation": "Como os valores podem ser reconstruídos, o cache reduz a latência e a aplicação pode buscar a fonte quando ocorrer cache miss. Backup não serve como caminho normal de consulta, e manter cópias sem plano de ausência deixa lacuna operacional.",
+      "section": "1. O que significa manter o banco em memória",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um banco embarcado é definido por rodar junto da aplicação; essa característica, sozinha, não determina que seus dados residam apenas em RAM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Embarcado descreve a forma de implantação e pode haver banco embarcado baseado em arquivo. Banco em memória descreve a localização do conjunto de trabalho, conceitos independentes.",
+      "section": "1. O que significa manter o banco em memória",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação transacional localiza um pedido e atualiza vários de seus campos. Qual organização tende a agrupar dados úteis para esse acesso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazenamento por linha, que mantém campos do registro agrupados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenamento por coluna, que separa todos os campos do registro e os mantém sempre juntos para atualizar a linha como unidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Snapshot pontual, que substitui a organização dos registros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Log append-only, que mantém os valores no formato de consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eviction temporal, que agrupa campos por ordem de atualização.",
+          "correct": false
+        }
+      ],
+      "explanation": "Row store tende a favorecer leitura ou atualização de vários campos de um registro. Snapshot, log e eviction tratam de persistência ou remoção, não substituem a organização dos dados para consulta.",
+      "section": "2. Organização dos dados e trabalho do motor",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta analítica agrega uma coluna de vendas sobre milhões de linhas. Qual organização pode evitar ler campos não solicitados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazenamento por coluna, conforme o padrão de leitura analítica.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenamento por linha, pois cada campo exige um arquivo separado e essa disposição sempre reduz o espaço em qualquer carga.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Log de transação, pois agrega operações sem consultar os dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cache de sessão, pois substitui o conjunto analítico persistido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Checkpoint, pois mantém apenas a coluna usada na consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Column store agrupa valores de uma coluna e pode ser eficiente ao varrer muitas linhas usando poucas colunas. O ganho depende da carga; log e checkpoint têm funções de recuperação, não de organização analítica.",
+      "section": "2. Organização dos dados e trabalho do motor",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Índices adicionais podem acelerar buscas específicas, mas ocupam memória e precisam ser atualizados quando os registros mudam.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um índice troca espaço e trabalho de manutenção por acesso potencialmente mais rápido. Criar índices indiscriminadamente pode elevar o custo de escrita e o consumo de memória.",
+      "section": "2. Organização dos dados e trabalho do motor",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de compressão em memória garante redução de latência em qualquer carga, sem exigir processamento adicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Compressão pode reduzir ocupação e tráfego de memória, mas pode consumir CPU ao codificar e decodificar. O efeito na latência depende do método e da carga.",
+      "section": "2. Organização dos dados e trabalho do motor",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O conjunto residente excede a RAM disponível. Qual sintoma é plausível se o sistema passa a paginar dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumento de I/O e de latência ao buscar páginas fora da RAM.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Eliminação automática da necessidade de índices no banco, mesmo quando consultas seletivas continuam buscando registros por predicados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garantia de que todo dado passa a ficar mais próximo da CPU.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conversão de todas as transações em operações somente de leitura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Persistência imediata de cada escrita sem política configurada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Paginação pode fazer o sistema recorrer a armazenamento e elevar I/O e latência, contrariando a expectativa de acesso residente. Ela não elimina índices nem configura durabilidade transacional.",
+      "section": "2. Organização dos dados e trabalho do motor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Manter as tabelas em RAM elimina a necessidade de coordenar transações simultâneas que alteram a mesma linha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A residência em RAM não elimina concorrência. O SGBD ainda precisa coordenar leitores e escritores e aplicar as garantias de isolamento e integridade definidas.",
+      "section": "2. Organização dos dados e trabalho do motor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Redis oferece persistência RDB, que registra fotografias do conjunto em pontos no tempo. Qual risco permanece se uma falha ocorre antes do próximo snapshot?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escritas posteriores à última fotografia podem não estar nela.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Toda fotografia se converte automaticamente em log de cada escrita e reproduz comandos futuros antes de sua execucao.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A recuperação reconstitui operações futuras ainda não executadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O snapshot apaga qualquer cópia persistente anterior à falha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O conjunto deixa de poder ser carregado para a memória.",
+          "correct": false
+        }
+      ],
+      "explanation": "RDB é uma fotografia pontual. Alterações feitas após o instante registrado só serão recuperáveis se outro mecanismo as preservou; o snapshot não é um log contínuo.",
+      "section": "3. Durabilidade: log, snapshot e checkpoint",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Redis, o AOF registra operações de escrita que podem ser reaplicadas durante a reconstrução do estado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Append Only File registra escritas e pode reconstruir o conjunto reaplicando os comandos. A frequência de sincronização afeta a janela potencial de perda.",
+      "section": "3. Durabilidade: log, snapshot e checkpoint",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação requer AOF com sincronização a cada escrita. Qual afirmação descreve melhor essa decisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Prioriza proteção de cada escrita, com custo potencial de desempenho.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Garante desempenho máximo ao eliminar sincronização com disco e preserva cada gravação mesmo diante de falha de energia no host.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Transforma o log em fotografia sem histórico de operações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativa a necessidade de planejar backup e recuperação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Replica automaticamente cada comando a outro centro de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A sincronização a cada escrita reforça a persistência do log, mas tende a aumentar custo de I/O e pode reduzir desempenho. Não equivale a replicação nem substitui política de backup.",
+      "section": "3. Durabilidade: log, snapshot e checkpoint",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando RDB e AOF estão habilitados no Redis, a documentação informa que a recuperação usa o AOF, por ser a representação mais completa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação oficial descreve o uso do AOF para reconstruir o conjunto quando os dois mecanismos estão habilitados, por conter o estado mais completo.",
+      "section": "3. Durabilidade: log, snapshot e checkpoint",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SAP HANA, o que faz um savepoint no mecanismo de persistência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descarrega dados alterados da memória para volumes de dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Copia todas as tabelas para uma réplica geográfica externa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apaga os registros de log para liberar toda a memória.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converte tabelas relacionais em documentos NoSQL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substitui backup e procedimento de restauração de desastre.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação da SAP informa que o savepoint grava dados alterados da memória nos volumes de dados. Isso faz parte da persistência e não equivale a réplica geográfica ou backup externo.",
+      "section": "3. Durabilidade: log, snapshot e checkpoint",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Oracle TimesTen pode usar arquivos de checkpoint e logs de transação para recuperar alterações confirmadas depois do checkpoint mais recente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação do TimesTen descreve a recuperação com o checkpoint em disco e o log de transações posteriores, mostrando que um banco em memória também pode usar persistência em arquivos.",
+      "section": "3. Durabilidade: log, snapshot e checkpoint",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe cria checkpoint frequente e conclui que pode remover backups externos sem ampliar risco de desastre. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A conclusão é inválida: checkpoint não substitui cópia independente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A conclusão é válida: checkpoint protege contra perda do volume.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A conclusão é válida: checkpoint replica dados para outra região.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A conclusão é inválida porque checkpoint só existe em cache descartável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A conclusão é válida se a RAM tiver capacidade sobrando.",
+          "correct": false
+        }
+      ],
+      "explanation": "Checkpoint participa da persistência e pode ajudar a recuperação, mas não garante cópia independente contra perda do volume, corrupção ou desastre do local. Backups e testes de restauração continuam importantes.",
+      "section": "3. Durabilidade: log, snapshot e checkpoint",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma réplica atrasada confirma que toda transação confirmada no primário já está disponível no nó secundário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Replicação assíncrona pode apresentar atraso; é necessário verificar as garantias de confirmação e o estado da réplica. A existência de um segundo nó não prova que ele recebeu todas as escritas.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma exclusão acidental no primário, a equipe recupera os dados da réplica, que recebeu a mesma exclusão. Qual prevenção estava faltando?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Backup retido e restauração testada, separado da replicação operacional.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "TTL mais curto, para que a réplica esqueça o comando antes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Índice adicional, para impedir propagação de comandos válidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Compressão de coluna, para reconstruir os registros removidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mais memória no primário, para reverter alterações replicadas e recuperar os dados apagados sem precisar de uma cópia preservada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A replicação pode propagar uma exclusão lógica e não conserva necessariamente versões anteriores. Um backup com retenção, armazenado de forma adequada e com restauração ensaiada, atende a uma necessidade diferente.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "TTL e eviction são mecanismos distintos: o primeiro remove por idade configurada e o segundo pode remover para responder à pressão de memória.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. TTL é uma regra temporal de expiração; eviction segue política de capacidade. Em ambos os casos a aplicação precisa saber se pode reconstruir ou buscar o dado removido.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cache usa TTL de curta duração e a fonte autoritativa continua disponível. O que deve ocorrer quando a chave expira?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A aplicação trata a ausência e busca ou reconstrói o valor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O SGBD deve recuperar a chave de um checkpoint futuro, antes mesmo de o prazo de expiração terminar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A chave expirada deve ser considerada escrita durável no cache.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A fonte autoritativa perde o registro junto com o cache.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A expiração converte o valor em réplica permanente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A expiração remove a cópia cacheada; a aplicação deve tratar o cache miss buscando ou reconstruindo o valor a partir da fonte autoritativa. TTL não implica apagar o registro de outra fonte.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Alta disponibilidade, durabilidade e backup são objetivos relacionados, mas não designam a mesma proteção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Durabilidade protege escritas confirmadas conforme uma política; alta disponibilidade busca manter serviço; backup permite restaurar cópia preservada. Uma arquitetura pode precisar dos três.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe escolhe banco em memória porque os dados são volumosos e raramente consultados. Qual aspecto deveria pesar contra essa decisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter dados frios em RAM pode elevar custo sem benefício proporcional.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Dados volumosos não podem ser armazenados em qualquer banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Consultas raras sempre exigem consistência eventual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Memória principal é ilimitada quando o acesso é pouco frequente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Bancos em memória não podem manter armazenamento persistente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Dados frios e volumosos podem não justificar o custo de mantê-los residentes. Uma arquitetura híbrida pode conservar em RAM o conjunto quente e usar armazenamento persistente mais econômico para o restante.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O valor de RPO expressa o tempo máximo para restabelecer o serviço após uma interrupção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. RPO expressa o ponto de recuperação e a quantidade de dados que se aceita perder. RTO é o objetivo de tempo para restabelecer o serviço.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização aceita perder no máximo algumas escritas desde a última sincronização em falha. Que propriedade está sendo definida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "RPO, que delimita a perda de dados tolerável na recuperação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "RTO, que define o volume residente em memória principal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "TTL, que determina o atraso máximo de replicação entre nós.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eviction, que define a duração de uma indisponibilidade planejada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Checkpoint, que mede a latência de resposta ao cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "RPO delimita a perda de dados que o negócio aceita ao recuperar. RTO mede o tempo para retomar o serviço; os dois objetivos orientam escolhas distintas de persistência e recuperação.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A documentação do SAP HANA descreve tabelas row store e column store; por isso, todo banco em memória deve ser exclusivamente colunar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. HANA oferece os dois tipos de tabela. O exemplo mostra que arquitetura em memória não determina, por si só, organização exclusivamente colunar.",
+      "section": "2. Organização dos dados e trabalho do motor",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação foi confirmada, mas a configuração só sincroniza o log periodicamente. Qual análise é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A janela potencial de perda depende da política e da falha ocorrida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A confirmação prova que a escrita está em backup externo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O período de sincronização determina o valor de TTL das chaves.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A confirmação elimina qualquer diferença entre réplica e primário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A política é idêntica a um snapshot completo em cada escrita.",
+          "correct": false
+        }
+      ],
+      "explanation": "O risco depende da política de sincronização, do que o produto considera confirmado e do tipo de falha. Confirmação não significa automaticamente backup externo, replicação concluída ou snapshot a cada comando.",
+      "section": "3. Durabilidade: log, snapshot e checkpoint",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um time mede apenas uso de CPU e conclui que o banco em memória está saudável, mesmo com memória livre quase esgotada e evictions crescentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Memória disponível e evictions são sinais operacionais centrais em uma arquitetura residente. CPU baixa não elimina risco de pressão, remoção inesperada ou falha de alocação.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao planejar recuperação, o que distingue replicação assíncrona de uma cópia sincronizada antes da confirmação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cópia assíncrona pode estar atrasada quando o primário falha.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A cópia assíncrona sempre impede gravações no primário e exige resposta de todos os nós antes de cada confirmação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A cópia sincronizada remove a necessidade de tratar falhas correlatas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A cópia sincronizada é, por definição, um backup histórico imutável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A cópia assíncrona transforma logs em snapshots completos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Replicação assíncrona pode ter atraso e perder as últimas atualizações no failover, conforme o protocolo. Sincronizar antes da confirmação pode aumentar proteção e latência, mas não cobre todos os riscos nem cria backup histórico.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer provar que consegue restaurar o serviço dentro do RTO previsto. Qual ação produz evidência prática?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar ensaio de restauração e medir o tempo até o serviço voltar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Confirmar que existe uma réplica com nome diferente do primário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar a RAM sem testar o procedimento de recuperação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificar somente que o último snapshot tem tamanho maior que zero.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reduzir TTL para que a aplicação reinicie mais rapidamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um exercício de restauração valida etapas, dependências e tempo real até o serviço voltar. A existência de réplica ou arquivo não demonstra que o procedimento funciona dentro do RTO.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura híbrida, manter dados quentes em RAM e dados frios em armazenamento persistente pode equilibrar latência e custo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Nem todo dado precisa permanecer residente. Separar conjunto quente de dados frios pode limitar custo de RAM, desde que o sistema controle movimentação, consistência e latência de acesso aos dados frios.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de métricas ajuda a detectar risco de falta de memória em um SGBD residente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Memória livre, uso de índices, evictions e latência de consultas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente número de usuários cadastrados e nome da instância, sem medir memória disponível, evictions ou latência das consultas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas espaço total de backup e quantidade de tabelas vazias.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente CPU média, sem observar I/O ou alocação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "TTL padrão e quantidade de arquivos de configuração editados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Memória livre, estruturas auxiliares como índices, remoções por pressão e latência relacionam capacidade e experiência de consulta. CPU isolada ou métricas administrativas sem relação com consumo não revelam esse risco.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A RAM torna desnecessários controles de acesso, pois dados residentes não podem ser lidos por outro processo autorizado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Dados em RAM continuam sujeitos a permissões, autenticação, exposição por processos, despejos de memória, logs e cópias. A arquitetura precisa de controles de acesso e proteção compatíveis com o risco.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação de cache é aprovada para eviction por pressão de memória. Qual pressuposto precisa ser verdadeiro para não perder dados de negócio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os valores removidos podem ser obtidos ou reconstruídos de uma fonte confiável.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A política de eviction deve manter todas as chaves indefinidamente, mesmo quando o conjunto excede a RAM física disponível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A RAM deve ser configurada para ignorar qualquer limite físico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As réplicas devem receber somente chaves que já expiraram.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O cache deve ser a única cópia dos dados autoritativos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Eviction remove valores para administrar capacidade. É seguro para cópias reconstruíveis quando a aplicação sabe consultar a fonte confiável; usar cache como única cópia autoritativa torna a remoção uma perda de dados.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização verifica o RTO medindo apenas o atraso entre primário e réplica, sem executar failover ou restauração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Atraso de réplica não mede o tempo total para recuperar o serviço. O RTO deve ser validado com exercício de failover ou restauração que inclua as etapas necessárias até o atendimento voltar.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um banco em memória, acrescentar índices pode elevar o conjunto residente e também aumentar o trabalho de cada escrita que os mantém.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Índices consomem memória além dos dados e precisam refletir alterações. A decisão deve considerar benefício nas consultas versus ocupação e custo de manutenção.",
+      "section": "2. Organização dos dados e trabalho do motor",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma prova afirma que compressão pode reduzir ocupação em RAM, mas que seu custo de CPU precisa ser medido na carga real. Como julgar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Correto: compressão troca espaço e tráfego por processamento adicional.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Incorreto: compressão sempre duplica os dados antes da consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Incorreto: compressão elimina a necessidade de recuperação persistente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Incorreto: compressão só pode ser usada em armazenamento por linha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Correto: compressão garante latência menor em toda operação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A afirmação é correta: compressão pode economizar espaço e tráfego de memória, enquanto o custo de CPU e o efeito de latência dependem do algoritmo e da carga. Não há ganho garantido em toda operação.",
+      "section": "2. Organização dos dados e trabalho do motor",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de habilitar persistência, uma equipe deixa de testar restauração porque arquivos de log e snapshots bastam como evidência de recuperação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Arquivos presentes não provam que a sequência de restauração funciona, está íntegra ou cabe no RTO. Ensaios periódicos verificam procedimento, dependências e resultado recuperado.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao escolher persistência para um conjunto primário em RAM, qual pergunta é mais importante para definir risco de perda?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quando uma escrita é considerada recuperável e qual falha o mecanismo cobre?",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Qual nome curto será dado ao processo que atende as consultas?",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quantas colunas existem, independentemente do volume e das escritas?",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se a aplicação pode remover toda validação de concorrência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se o servidor está conectado à rede sem interrupção prevista.",
+          "correct": false
+        }
+      ],
+      "explanation": "A política precisa esclarecer quando a escrita está protegida e contra quais falhas: processo, host, volume ou desastre. Nome, forma de tabela e conectividade não definem por si sós a garantia de durabilidade.",
+      "section": "3. Durabilidade: log, snapshot e checkpoint",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma configuração com AOF e RDB no Redis, o RDB pode ser útil para cópias compactas mesmo que a inicialização use o AOF para reconstruir o conjunto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação descreve o uso do AOF na reconstrução quando ambos estão ativos e também aponta vantagens do RDB para snapshots compactos e cópias. Os mecanismos podem ter usos complementares.",
+      "section": "3. Durabilidade: log, snapshot e checkpoint",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual desenho é mais coerente para sessões descartáveis e para saldo financeiro, respectivamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cache reconstruível para sessões; persistência e recuperação rigorosas para saldo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Eviction livre para ambos, pois os dois cabem em memória principal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Backup offline como caminho de leitura para ambos os casos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "TTL curto para saldo; fonte autoritativa ausente para sessões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somente RAM volátil para ambos, pois reduz latência de acesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sessões que podem ser recriadas combinam com cache se a aplicação lida com ausência. Saldo é dado de negócio autoritativo e exige garantias explícitas de durabilidade, consistência, backup e recuperação.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O simples fato de um produto oferecer failover permite garantir RPO zero e RTO zero para toda falha possível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Failover é transferência de atendimento, mas as garantias de perda e tempo dependem de replicação, confirmação, detecção, eleição, falha e configuração. Não se infere zero perda ou interrupção.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A expiração de uma chave por TTL informa por quanto tempo ela deve permanecer válida, não se o banco possui backup ou recuperação durável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. TTL controla validade temporal da chave. Persistência e backup são mecanismos separados e precisam ser configurados conforme a importância do dado.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquiteto considera guardar em RAM somente o conjunto quente. Qual benefício e obrigação acompanham essa escolha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reduz custo de residência e exige caminho definido para dados frios.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Elimina latência para toda consulta e dispensa medir a carga.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garante que dados frios sejam atualizados sem persistência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converte operações concorrentes em uma fila sem controle.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Impede recuperação porque apenas parte dos dados está em RAM.",
+          "correct": false
+        }
+      ],
+      "explanation": "Manter apenas os dados quentes em RAM pode equilibrar latência e custo. O desenho precisa tratar como buscar os dados frios, sua consistência e a latência adicional de acesso.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A documentação do SAP HANA indica que o armazenamento em colunas pode oferecer compressão e leituras analíticas eficientes, mas não elimina a necessidade de escolher organização conforme o uso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A SAP descreve vantagens de leitura e compressão no armazenamento colunar, e também documenta tabelas por linha. A escolha continua vinculada às operações e características da carga.",
+      "section": "2. Organização dos dados e trabalho do motor",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe define RTO e RPO, mas não documenta quem executa recuperação nem quais dependências devem voltar primeiro. O plano está operacionalmente completo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não: objetivos precisam de procedimento, responsáveis e dependências testados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Sim: os dois objetivos acionam failover automaticamente em qualquer SGBD e dispensam responsáveis, procedimentos e testes de recuperação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sim: a réplica escolhe sozinha a ordem de todos os serviços externos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não: RTO e RPO aplicam-se apenas a bancos armazenados em disco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim: basta ter memória disponível no servidor secundário.",
+          "correct": false
+        }
+      ],
+      "explanation": "RTO e RPO são objetivos, não procedimentos automáticos. Recuperação exige responsáveis, sequência, dependências, dados restaurados e testes que provem atendimento dentro dos objetivos.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como os dados de um banco em memória estão na RAM, autenticação e autorização podem ser removidas sem aumentar exposição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A localização em RAM não impede acessos de clientes ou processos autorizados e não protege contra exposição em memória, rede, logs ou dumps. Controles de acesso continuam necessários.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma carga combina transações curtas de atualização de pedidos e relatórios que agregam muitas linhas. Qual conclusão sobre row store e column store é defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os padrões podem favorecer organizações distintas; a carga completa precisa ser avaliada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Column store sempre vence, pois agregações existem no sistema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Row store sempre vence, pois todo dado é originalmente um registro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A presença de RAM torna irrelevante a organização física.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A mistura de operações impede o uso de um único SGBD e exige obrigatoriamente dois produtos incompatíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Atualizações de poucos registros tendem a favorecer acesso por linha, enquanto agregações de poucas colunas em muitas linhas podem favorecer colunas. A escolha considera a carga total, recursos do produto e possíveis estratégias combinadas.",
+      "section": "2. Organização dos dados e trabalho do motor",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um banco em memória mantém log em disco, todos os dados precisam ser lidos do disco a cada consulta para que a persistência funcione.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O log pode servir à recuperação sem que cada consulta normal leia os dados do disco. O conjunto de trabalho pode permanecer em RAM, enquanto operações persistentes são registradas separadamente.",
+      "section": "3. Durabilidade: log, snapshot e checkpoint",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A política AOF define fsync periódico e a equipe compara sua janela de perda aceitável com o RPO acordado. Qual prática é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Validar a política sob falhas e medir se atende ao RPO estabelecido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Assumir que qualquer fsync periódico satisfaz RPO zero.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover snapshots, pois o AOF também é uma réplica externa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir o RPO pelo número de colunas da tabela principal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar backup, pois o RPO controla tempo de restauração.",
+          "correct": false
+        }
+      ],
+      "explanation": "A política deve ser confrontada com o RPO e testada nas falhas relevantes. Sincronização periódica deixa janela potencial de perda; fsync local não é réplica geográfica nem substituto de backup.",
+      "section": "3. Durabilidade: log, snapshot e checkpoint",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A documentação oficial do Redis reconhece que a persistência pode ser desativada, opção usada em alguns cenários de cache reconstruível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O Redis documenta a opção de não persistir dados e observa que ela pode ser usada em cache. Isso só é apropriado quando a aplicação aceita perda e pode reconstruir os valores.",
+      "section": "1. O que significa manter o banco em memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema usa row store para pedidos e column store para relatórios derivados. Qual razão sustenta essa combinação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada organização pode atender melhor a um padrão diferente de acesso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Row store garante durabilidade e column store garante backup.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Column store impede atualizações e serve somente a arquivos frios.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A duplicação elimina a necessidade de consistência entre cópias.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A organização por linha só pode ser usada fora da memória.",
+          "correct": false
+        }
+      ],
+      "explanation": "Row store pode atender registros transacionais e column store varreduras analíticas de poucas colunas. A combinação exige cuidar de atualizações e consistência; durabilidade e backup são questões separadas.",
+      "section": "2. Organização dos dados e trabalho do motor",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ausência de disco no caminho normal de leitura prova que nenhum processo autorizado consegue obter valores de um dump de memória.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O caminho de leitura não determina exposição por dump, processo, ferramenta administrativa ou registro auxiliar. Segurança depende de permissões, isolamento, criptografia e tratamento operacional dos artefatos.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação aceita reiniciar o banco em alguns minutos, mas não aceita perder transações confirmadas. Como interpretar seus objetivos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RTO pode ser maior, enquanto RPO deve ser muito restrito.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "RPO pode ser maior, enquanto RTO deve ser irrelevante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "TTL deve definir o tempo de reinício e as transações perdidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O banco precisa abandonar logs para evitar qualquer latência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RTO e RPO são equivalentes quando os dados ficam em RAM.",
+          "correct": false
+        }
+      ],
+      "explanation": "Aceitar alguns minutos para voltar permite RTO maior; não aceitar perda de transações exige RPO restrito. Os objetivos são independentes e orientam mecanismos de persistência e recuperação distintos.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em banco residente, o conjunto de trabalho inclui apenas os valores de negócio e nunca índices, metadados ou buffers.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O processo também consome memória com índices, metadados, buffers, conexões e operações temporárias. Dimensionar somente o tamanho lógico dos registros subestima a necessidade real.",
+      "section": "2. Organização dos dados e trabalho do motor",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um banco tem baixa latência e checkpoint persistente, mas nenhum backup separado. Qual incidente pode continuar sem cobertura adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Perda ou corrupção do armazenamento que contém os checkpoints.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma consulta seletiva que usa índice em memória residente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A atualização de uma linha sem alteração de esquema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O aumento de latência causado por compressão de dados frios.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A expiração normal de uma chave cacheada reconstruível.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se o volume que contém checkpoints é perdido ou corrompido e não há cópia independente, a recuperação pode falhar. Persistência local e baixa latência não substituem backup externo e restauração testada.",
+      "section": "3. Durabilidade: log, snapshot e checkpoint",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política de eviction deve ser avaliada em relação à importância do dado e à capacidade de reconstruí-lo, mesmo quando o SGBD é rápido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Velocidade não determina se a remoção é segura. Para dados autoritativos, eviction pode causar perda; para cache reconstruível, a aplicação pode tratar ausência e recarregar.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual par relaciona corretamente os produtos e mecanismos documentados em suas arquiteturas de persistência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Redis: RDB/AOF; SAP HANA: savepoints e volumes de dados/log.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Redis: savepoints SAP; SAP HANA: AOF reexecutado por comandos Redis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Redis: somente checkpoint TimesTen; SAP HANA: snapshots RDB.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Redis: eviction equivale a backup; SAP HANA: RAM elimina persistência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Redis: TTL grava log; SAP HANA: row store remove volumes persistentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Redis documenta RDB e AOF; a SAP documenta savepoints que descarregam dados alterados aos volumes e mecanismos de dados e log. Os mecanismos não são intercambiáveis com eviction ou TTL.",
+      "section": "3. Durabilidade: log, snapshot e checkpoint",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A palavra ‘in-memory’ identifica sozinha se o banco é relacional ou NoSQL, se usa linha ou coluna e se confirma escritas duravelmente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O termo indica a função central da memória na arquitetura, mas não determina modelo de dados, organização física, política de persistência ou garantia de confirmação. Esses pontos devem ser verificados separadamente.",
+      "section": "1. O que significa manter o banco em memória",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe compara alternativas pelo tempo de consulta medido em um conjunto pequeno que cabe integralmente em RAM. Que cautela metodológica é essencial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir testes com volume, concorrência, persistência e falhas representativos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Extrapolar linearmente o resultado, pois RAM não tem limites de escala.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desligar índices em produção, pois o teste não os utilizou.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar sincronização e recuperação, pois não afetam a latência medida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar apenas leituras repetidas para prever toda carga transacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um microteste residente não representa volume maior, pressão de memória, atualizações concorrentes, persistência ou recuperação. Testes devem reproduzir a carga e os objetivos operacionais relevantes antes da escolha.",
+      "section": "4. Resiliência, topologia e decisão de arquitetura",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A documentação do TimesTen descreve logs de transação para tornar recuperáveis transações posteriores ao checkpoint, sem afirmar que checkpoint e log sejam a mesma estrutura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O guia operacional distingue arquivos de checkpoint e logs de transação usados para recuperar operações confirmadas após o checkpoint. Cada estrutura contribui de modo diferente para a recuperação.",
+      "section": "3. Durabilidade: log, snapshot e checkpoint",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Redis — Persistence",
+      "publisher": "Redis",
+      "reference": "Persistência RDB por snapshots, AOF por operações de escrita, políticas de fsync, uso combinado e recuperação.",
+      "url": "https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Redis — Persistence (management)",
+      "publisher": "Redis",
+      "reference": "Frequência de fsync do AOF, reconstrução e trade-offs de durabilidade.",
+      "url": "https://redis.io/docs/latest/management/persistence/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SAP HANA Cloud — Columnar and Row-Based Data Storage",
+      "publisher": "SAP Help Portal",
+      "reference": "Tipos de tabela por linha e coluna, leitura colunar e compressão.",
+      "url": "https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-administration-guide/columnar-and-row-based-data-storage",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SAP HANA Platform — Data and Log Volumes",
+      "publisher": "SAP Help Portal",
+      "reference": "Savepoints e gravação de alterações da memória em volumes de dados; diretórios de persistência.",
+      "url": "https://help.sap.com/docs/SAP_HANA_PLATFORM/6b94445c94ae495c83a19646e7c3fd56/4a9a3970fb634a319f32bb76e1c59dd5.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Oracle TimesTen 26.1 — Operations Guide",
+      "publisher": "Oracle",
+      "reference": "Checkpoints, arquivos de log e recuperação de transações confirmadas após checkpoint.",
+      "url": "https://docs.oracle.com/en/database/other-databases/timesten/26.1/operations/operations-guide.pdf",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

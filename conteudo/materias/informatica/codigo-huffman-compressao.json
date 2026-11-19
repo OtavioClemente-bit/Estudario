@@ -1,0 +1,2275 @@
+{
+  "id": "informatica.codigo-huffman-compressao",
+  "subject": "Informática",
+  "title": "Código de Huffman e compressão de dados",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Código de Huffman",
+    "Codificação de Huffman para compressão",
+    "Algoritmo de Huffman em informática",
+    "Árvore binária de Huffman",
+    "Compressão sem perdas por Huffman",
+    "Codificação prefixa de Huffman",
+    "Fila de prioridade no algoritmo Huffman",
+    "Construção da árvore de códigos Huffman",
+    "Decodificação de dados com Huffman",
+    "Código de prefixo para caracteres",
+    "Compressão estatística de texto",
+    "Codificação estática e adaptativa Huffman"
+  ],
+  "scope": {
+    "covers": "Código binário de Huffman como técnica de compressão sem perdas: frequências e probabilidades, algoritmo guloso de combinação das duas árvores de menor peso, fila de prioridade, árvore binária completa, atribuição de bits por caminho, propriedade de prefixo, codificação e decodificação inequívoca, custo médio ponderado, empates e não unicidade dos códigos, cabeçalho e necessidade de representar a árvore ou frequências, caso de um único símbolo, complexidade típica, versão estática e adaptativa, vantagens e limitações em relação a códigos de comprimento fixo e compressão aritmética.",
+    "excludes": "Implementações específicas de formatos como DEFLATE, JPEG e PNG; detalhes de protocolos e contêineres; códigos de canal com perdas; teoria avançada da informação e prova formal completa da optimalidade."
+  },
+  "theoryTitle": "Como o código de Huffman comprime e recupera dados",
+  "chapters": [
+    {
+      "title": "1. A ideia da codificação de Huffman",
+      "markdown": "### O problema que este assunto resolve\n\nEm uma representação de comprimento fixo, cada símbolo ocupa a mesma quantidade de bits, mesmo que alguns apareçam muito mais do que outros. Huffman reduz o tamanho médio atribuindo palavras curtas aos símbolos frequentes e palavras longas aos raros. É uma codificação de fonte: descreve os símbolos da mensagem, não corrige erros de transmissão.\n\n> **Siglas e termos deste capítulo**\n> - **Símbolo**: unidade que será codificada, como um caractere ou byte.\n> - **Frequência**: quantidade de ocorrências do símbolo na mensagem ou amostra.\n> - **Código binário**: palavra formada pelos bits 0 e 1.\n> - **Codificação sem perdas**: permite recuperar exatamente os dados originais.\n> - **Comprimento médio**: média de bits por símbolo, ponderada pelas ocorrências.\n\n### Frequência orienta o tamanho\n\nPara os símbolos A, B, C e D com frequências 8, 4, 2 e 1, respectivamente, a codificação de Huffman tende a colocar A perto da raiz da árvore e D mais distante. A frequência não determina uma sequência universal de bits: trocar qual ramo recebe 0 e qual recebe 1 preserva os comprimentos e a eficiência.\n\nCom quatro símbolos, um código fixo precisa de dois bits por símbolo. Um código variável pode reduzir a média quando a distribuição é desigual. Por exemplo, palavras de comprimentos 1, 2, 3 e 3 para probabilidades 1/2, 1/4, 1/8 e 1/8 produzem média de 1,75 bits por símbolo. Para dados uniformes, Huffman pode não trazer redução e a descrição do código ainda consome espaço.\n\n### Sem perdas, mas não necessariamente menor em qualquer arquivo\n\nA técnica substitui símbolos por palavras binárias e recupera a sequência original. O arquivo comprimido precisa carregar informação suficiente para o decodificador saber que árvore ou tabela usar, além dos bits codificados e, conforme o formato, o tamanho original ou o número de bits válidos no último byte. Em mensagens muito curtas, essa sobrecarga pode superar a economia.\n\n### Como cai na prova\n\n- Frequentes ficam em folhas rasas; raros podem ficar em folhas profundas.\n- Huffman é sem perdas e produz código de prefixo.\n- Ele otimiza o comprimento ponderado para o alfabeto e as frequências considerados, mas não garante que todo arquivo real fique menor após cabeçalho e preenchimento.\n- Uma troca global de 0 e 1 nos ramos pode gerar outro código igualmente válido."
+    },
+    {
+      "title": "2. Construção gulosa da árvore",
+      "markdown": "### O problema que este assunto resolve\n\nÉ preciso encontrar comprimentos de palavras que reduzam o total ponderado de bits e ainda permitam decodificação sem separadores. Huffman constrói uma árvore binária juntando primeiro os grupos de menor peso.\n\n> **Siglas e termos deste capítulo**\n> - **Nó folha**: nó que representa um símbolo original.\n> - **Nó interno**: combinação de dois nós; seu peso é a soma dos pesos dos filhos.\n> - **Fila de prioridade**: estrutura que permite retirar rapidamente os itens de menor peso.\n> - **Algoritmo guloso**: escolhe em cada etapa uma opção local de menor custo, conforme a regra do método.\n> - **Raiz**: nó superior da árvore, de onde começam os caminhos.\n\n### Passo a passo\n\n1. Crie uma folha para cada símbolo, com sua frequência como peso.\n2. Insira todas as folhas numa fila de prioridade mínima.\n3. Retire as duas árvores de menor peso e crie um pai cujo peso seja a soma.\n4. Reinsira esse pai na fila.\n5. Repita até restar uma árvore.\n6. Atribua, por convenção, 0 a um ramo e 1 ao outro. O caminho da raiz até cada folha é o código do símbolo.\n\nExemplo com A:5, B:2, C:1: combine C(1) e B(2), criando peso 3; combine 3 com A(5), formando raiz 8. Se C for o ramo 0 e B o ramo 1 no primeiro nó, seus códigos terão três bits; A terá um bit. Os bits específicos dependem de como se nomeiam os ramos.\n\n### Propriedades da árvore\n\nCada símbolo fica em uma folha, e cada nó interno tem dois filhos. Assim a árvore é binária completa no sentido de que não há nó interno com apenas um filho. Todo código é o caminho até uma folha. Frequências iguais podem permitir escolhas diferentes de desempate e árvores distintas, sem alterar necessariamente o custo ótimo.\n\n### Custo e eficiência\n\nSe o símbolo i aparece fᵢ vezes e seu código tem comprimento lᵢ, o total de bits codificados é Σ fᵢlᵢ. Dividindo pela quantidade total de símbolos, obtém-se o comprimento médio. Uma fila de prioridade binária permite construir a árvore em tempo O(n log n) para n símbolos distintos; a árvore tem n folhas e n−1 nós internos, se n for maior que um.\n\n### Como cai na prova\n\n- A cada rodada são retirados exatamente os dois menores pesos atuais, inclusive nós combinados.\n- O peso do pai é a soma dos pesos dos filhos.\n- Não se combinam sempre os dois símbolos originais menores: um deles pode ser uma árvore formada em etapa anterior.\n- Empates não tornam a resposta única; a propriedade importante é o custo mínimo e a validade do código."
+    },
+    {
+      "title": "3. Prefixo, codificação e decodificação",
+      "markdown": "### O problema que este assunto resolve\n\nPalavras de tamanhos diferentes poderiam ficar ambíguas se a fronteira entre símbolos não fosse identificável. O código de Huffman evita separadores entre cada símbolo porque é prefixo: nenhuma palavra de código completa é prefixo de outra.\n\n> **Siglas e termos deste capítulo**\n> - **Código de prefixo**: conjunto de palavras em que nenhuma palavra é prefixo próprio de outra.\n> - **Codificador**: substitui cada símbolo pela palavra binária associada.\n> - **Decodificador**: lê bits e identifica os símbolos originais.\n> - **Caminho**: sequência de ramos percorrida na árvore.\n> - **Tabela de códigos**: associação entre símbolo e palavra binária.\n\n### Codificar e decodificar\n\nPara codificar, percorra a mensagem símbolo a símbolo e concatene os códigos correspondentes. Para decodificar, comece na raiz e leia os bits: 0 segue um ramo, 1 o outro. Ao alcançar uma folha, emita seu símbolo e volte à raiz para continuar. Como símbolos só aparecem nas folhas, não há código de símbolo que interrompa prematuramente o caminho de outro.\n\nConsidere A=0, B=10 e C=11. A sequência 01011 é decodificada como A, B, C: o primeiro bit já chega a uma folha; os dois seguintes formam B; os últimos dois formam C. O código não é ambíguo apesar dos comprimentos diferentes.\n\n### A árvore também precisa chegar ao destino\n\nOs bits 01011 sozinhos não informam quais folhas representam A, B e C. O decodificador precisa receber uma descrição equivalente: a árvore, a tabela, as frequências usadas com regra determinística, ou outra informação do formato. A descrição e o comprimento da mensagem codificada são metadados necessários para interpretar o fluxo.\n\nSe houver apenas um símbolo distinto, a árvore tem uma única folha e o caminho teria comprimento zero. Implementações normalmente convencionam uma representação de pelo menos um bit para distinguir ocorrências ou armazenam a contagem do símbolo; a convenção do formato deve ser conhecida pelo decodificador.\n\n### Como cai na prova\n\n- A decodificação lê bit a bit pela árvore e emite ao atingir uma folha.\n- Prefixo significa que nenhum código é prefixo de outro, e não que todos os códigos têm o mesmo tamanho.\n- Sem tabela/árvore compartilhada e sem delimitação suficiente, a sequência codificada não basta para recuperar os símbolos.\n- Corrupção de bits pode alterar caminhos e símbolos seguintes; prefixo garante ausência de ambiguidade para um fluxo válido, não correção de erros."
+    },
+    {
+      "title": "4. Variações, limites e interpretação em prova",
+      "markdown": "### O problema que este assunto resolve\n\nÉ comum confundir a propriedade matemática do código com uma promessa sobre qualquer arquivo ou com detalhes de formatos que usam Huffman. Este capítulo separa o que o algoritmo garante daquilo que depende de contexto.\n\n> **Siglas e termos deste capítulo**\n> - **Huffman estático**: frequências são conhecidas/estimadas antes da codificação do bloco e uma árvore é usada para ele.\n> - **Huffman adaptativo**: frequências e árvore se atualizam à medida que os símbolos são processados.\n> - **Alfabeto**: conjunto de símbolos que podem aparecer na entrada.\n> - **Compressão aritmética**: técnica que representa sequências usando intervalos e pode obter eficiência diferente.\n> - **Sobrecarga**: bits de cabeçalho, tabela, preenchimento e metadados além dos códigos dos símbolos.\n\n### Estático e adaptativo\n\nNo modo estático, codificador e decodificador precisam concordar sobre o código usado no bloco; pode-se transmitir a árvore ou informação para reconstruí-la. No modo adaptativo, o código muda conforme as frequências observadas, de modo que os dois lados atualizam a árvore sincronizadamente e não precisam necessariamente conhecer antecipadamente a distribuição completa. O custo e o protocolo de inicialização também importam.\n\n### O que Huffman otimiza\n\nPara um alfabeto conhecido com probabilidades dadas, Huffman encontra um código binário de prefixo de comprimento médio mínimo entre os códigos símbolo a símbolo considerados. Isso não significa que a árvore seja única, que o arquivo comprimido completo sempre diminua, nem que a técnica seja ótima para qualquer modelo de dependência entre símbolos. O método atribui uma palavra a cada símbolo; ele não explora por si só repetições de sequências como um dicionário.\n\n### Comparações úteis\n\n| Técnica | Ideia central | Observação para prova |\n| --- | --- | --- |\n| Comprimento fixo | Todos os símbolos usam igual quantidade de bits | Simples; pode desperdiçar bits com distribuição desigual |\n| Huffman | Códigos binários de tamanhos variáveis guiados por frequências | Prefixo e sem perdas; ótimo no comprimento médio para o modelo dado |\n| Shannon-Fano | Divide símbolos em grupos de pesos próximos para atribuir bits | Não é o procedimento guloso de combinar sempre os dois menores |\n| Aritmética | Representa a sequência por um intervalo/código de mensagem | Não atribui necessariamente um código independente inteiro a cada símbolo |\n\n### Como cai na prova\n\n- Se frequências mudam durante a leitura e a árvore é atualizada, trata-se de Huffman adaptativo.\n- Para selecionar os menores pesos repetidamente, a estrutura típica é fila de prioridade mínima.\n- Avalie o tamanho total incluindo a forma de comunicar a árvore e o preenchimento.\n- Huffman é compressão de fonte sem perdas; não é criptografia, hash nem correção de erros."
+    }
+  ],
+  "summary": "Huffman é uma técnica gulosa de compressão sem perdas que usa frequências para construir uma árvore binária. Em cada etapa combina os dois nós de menor peso, somando seus pesos, até formar uma árvore única. O código de cada símbolo é o caminho da raiz à folha, e por isso é um código de prefixo: a decodificação identifica um símbolo ao alcançar sua folha, sem separadores. Símbolos mais frequentes tendem a ter palavras menores. O comprimento médio ponderado é mínimo entre os códigos binários de prefixo símbolo a símbolo para as frequências dadas, mas empates podem gerar árvores diferentes. O receptor precisa da árvore/tabela ou de informação que permita reconstruí-la. Huffman não garante redução em todo arquivo após cabeçalho e preenchimento. A forma estática usa um modelo prévio por bloco; a adaptativa atualiza frequências e códigos durante o processamento.",
+  "flashcards": [
+    {
+      "front": "Que problema Huffman busca resolver?",
+      "back": "Reduzir o comprimento médio da representação binária de símbolos com frequências desiguais, mantendo decodificação sem perdas."
+    },
+    {
+      "front": "Qual é o primeiro passo da construção?",
+      "back": "Criar uma folha para cada símbolo e atribuir a ela sua frequência ou peso."
+    },
+    {
+      "front": "Quais nós são combinados em cada rodada?",
+      "back": "As duas árvores de menor peso que estão atualmente na fila de prioridade."
+    },
+    {
+      "front": "Qual o peso do nó pai recém-criado?",
+      "back": "A soma dos pesos dos dois filhos combinados."
+    },
+    {
+      "front": "Quando termina a construção?",
+      "back": "Quando resta uma única árvore na fila; ela é a árvore de códigos."
+    },
+    {
+      "front": "Como se obtém o código de um símbolo?",
+      "back": "Lendo os bits associados aos ramos do caminho da raiz até a folha do símbolo."
+    },
+    {
+      "front": "O que significa código de prefixo?",
+      "back": "Nenhuma palavra de código é prefixo próprio de outra palavra de código."
+    },
+    {
+      "front": "Como se decodifica um fluxo Huffman válido?",
+      "back": "Percorre-se a árvore conforme os bits; ao chegar a uma folha, emite-se o símbolo e retorna-se à raiz."
+    },
+    {
+      "front": "Por que não são necessários separadores entre códigos?",
+      "back": "A propriedade de prefixo permite reconhecer cada palavra assim que uma folha é alcançada."
+    },
+    {
+      "front": "O que costuma ocorrer com símbolos frequentes?",
+      "back": "Ficam em folhas mais próximas da raiz e recebem códigos mais curtos."
+    },
+    {
+      "front": "O que significa compressão sem perdas?",
+      "back": "A sequência original pode ser reconstruída exatamente a partir da representação comprimida e dos metadados necessários."
+    },
+    {
+      "front": "Uma sequência de bits basta para decodificar sem contexto?",
+      "back": "Não. É necessário conhecer a árvore ou a tabela correspondente e a delimitação da mensagem."
+    },
+    {
+      "front": "Empate de frequências garante uma única árvore?",
+      "back": "Não. Regras distintas de desempate podem produzir códigos diferentes com o mesmo custo ótimo."
+    },
+    {
+      "front": "Qual estrutura auxilia a seleção repetida dos menores pesos?",
+      "back": "Uma fila de prioridade mínima."
+    },
+    {
+      "front": "Qual é a complexidade típica com fila binária?",
+      "back": "O(n log n) para n símbolos distintos."
+    },
+    {
+      "front": "O Huffman estático conhece o modelo quando?",
+      "back": "Antes de codificar o bloco, usando frequências conhecidas ou estimadas para construir o código."
+    },
+    {
+      "front": "O que muda no Huffman adaptativo?",
+      "back": "As frequências e a árvore são atualizadas durante o processamento dos símbolos."
+    },
+    {
+      "front": "Huffman sempre diminui o tamanho total do arquivo?",
+      "back": "Não. Cabeçalho, árvore, metadados e preenchimento podem superar a economia, sobretudo em mensagens curtas."
+    },
+    {
+      "front": "Que grandeza é minimizada?",
+      "back": "O comprimento médio ponderado das palavras de código, para as probabilidades consideradas e códigos binários de prefixo símbolo a símbolo."
+    },
+    {
+      "front": "Huffman é criptografia?",
+      "back": "Não. É codificação para compressão; não tem como finalidade esconder o conteúdo."
+    },
+    {
+      "front": "Huffman corrige erros de transmissão?",
+      "back": "Não. A propriedade de prefixo resolve delimitação e ambiguidade, não recuperação de bits corrompidos."
+    },
+    {
+      "front": "O que representa uma folha na árvore?",
+      "back": "Um símbolo do alfabeto codificado."
+    },
+    {
+      "front": "O que representa um nó interno?",
+      "back": "Uma combinação de dois grupos e a soma de seus pesos."
+    },
+    {
+      "front": "O que se faz com uma árvore combinada na rodada seguinte?",
+      "back": "Reinsere-se na fila com o peso igual à soma dos pesos dos filhos."
+    },
+    {
+      "front": "Huffman modela diretamente sequências repetidas como um dicionário?",
+      "back": "Não; na forma básica associa uma palavra de código a cada símbolo individual."
+    }
+  ],
+  "tips": [
+    "Refaça a fila a cada rodada: um nó recém-combinado pode ser um dos dois menores na rodada seguinte.",
+    "Mantenha os pesos anotados nos nós internos; o peso do pai é a soma dos filhos.",
+    "Para achar o código, percorra da raiz para a folha e escreva os rótulos dos ramos na ordem do caminho.",
+    "Ao decodificar, volte à raiz toda vez que alcançar uma folha e emitir um símbolo.",
+    "Separe comprimento dos códigos de bits totais do arquivo: cabeçalho e preenchimento também ocupam espaço.",
+    "Em questão sobre empate, compare o custo e a propriedade de prefixo, não os bits exatos de um exemplo arbitrário."
+  ],
+  "traps": [
+    "Combinar os menores símbolos originais em todas as rodadas ignora que nós internos voltam à fila.",
+    "Código de prefixo não quer dizer que todos os códigos tenham o mesmo comprimento.",
+    "A troca de 0 e 1 entre ramos altera os bits dos códigos, mas pode preservar todos os comprimentos.",
+    "O algoritmo pode comprimir os dados codificados e ainda produzir arquivo total maior por causa dos metadados.",
+    "Uma tabela de códigos não é automaticamente conhecida pelo decodificador; é preciso transmiti-la ou reconstruí-la.",
+    "A árvore garante decodificação inequívoca de fluxo válido, mas não detecta nem corrige toda corrupção de bits."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva as etapas da construção de Huffman sem consultar o material.",
+      "answer": "Criar folhas ponderadas pelas frequências, inserir na fila mínima, retirar as duas menores, combiná-las num pai com peso somado, reinserir e repetir até sobrar uma árvore; rotular ramos e ler caminhos às folhas."
+    },
+    {
+      "question": "Por que os códigos podem ter comprimentos diferentes sem causar ambiguidade?",
+      "answer": "Porque são prefixos: nenhum código de símbolo é prefixo de outro, então a chegada a uma folha delimita o símbolo."
+    },
+    {
+      "question": "Como decodificaria os bits 01011 se A=0, B=10 e C=11?",
+      "answer": "A, depois B, depois C. Cada folha encontrada encerra um símbolo e o percurso recomeça na raiz."
+    },
+    {
+      "question": "Por que o receptor precisa de mais do que os bits comprimidos?",
+      "answer": "Precisa da associação de códigos aos símbolos, fornecida pela árvore/tabela ou por dados que permitam reconstruí-la, além da delimitação da mensagem."
+    },
+    {
+      "question": "O que acontece quando dois pesos empatam?",
+      "answer": "É possível escolher qualquer um conforme regra de desempate; árvores e sequências de bits podem diferir sem necessariamente mudar o custo mínimo."
+    },
+    {
+      "question": "Diferencie a versão estática da adaptativa.",
+      "answer": "A estática usa frequências conhecidas para montar o código antes do bloco; a adaptativa atualiza frequências e árvore ao processar os símbolos."
+    },
+    {
+      "question": "O que a técnica otimiza e o que ela não promete?",
+      "answer": "Minimiza o comprimento médio ponderado para códigos binários de prefixo símbolo a símbolo sob as frequências dadas. Não promete arquivo total menor em toda entrada nem árvore única."
+    },
+    {
+      "question": "Por que uma fila de prioridade mínima é adequada?",
+      "answer": "Porque o algoritmo precisa localizar repetidamente as duas árvores de menor peso entre as que ainda não foram combinadas."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Combinação gulosa aplicada incorretamente",
+      "summary": "Em cada rodada retiram-se as duas árvores de menor peso disponíveis; o nó pai de peso somado volta à fila e pode ser combinado depois."
+    },
+    {
+      "key": "e2",
+      "title": "Prefixo confundido com comprimento fixo",
+      "summary": "Os códigos Huffman podem ter comprimentos diferentes. A propriedade de prefixo, e não a igualdade de tamanhos, torna a decodificação inequívoca."
+    },
+    {
+      "key": "e3",
+      "title": "Bits tratados como autossuficientes",
+      "summary": "O decodificador precisa da árvore/tabela e da delimitação correta do fluxo; cabeçalho e metadados fazem parte da representação."
+    },
+    {
+      "key": "e4",
+      "title": "Otimização confundida com redução garantida",
+      "summary": "O custo ponderado dos códigos é ótimo para o modelo considerado; cabeçalho, preenchimento, amostras pequenas e distribuição uniforme podem eliminar a economia."
+    },
+    {
+      "key": "e5",
+      "title": "Compressão confundida com proteção de dados",
+      "summary": "Huffman é codificação de fonte sem perdas; não cifra, não autentica e não corrige erros de canal. A versão adaptativa atualiza o modelo durante a leitura."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Qual é o objetivo central do código de Huffman ao representar símbolos com frequências diferentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dar códigos menores aos símbolos frequentes para reduzir a média ponderada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Atribuir códigos mais longos aos símbolos mais frequentes para reforçar a detecção de erros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir os símbolos repetidos por uma chave secreta que esconda seu conteúdo original.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter todos os símbolos em palavras de tamanho fixo para dispensar uma tabela de códigos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eliminar completamente os símbolos raros sem registrar sua ocorrência no fluxo comprimido.",
+          "correct": false
+        }
+      ],
+      "explanation": "O algoritmo usa frequências como pesos e tende a colocar símbolos frequentes perto da raiz, com caminhos curtos. Isso reduz o comprimento médio ponderado e mantém a recuperação sem perdas; não criptografa, corrige erros nem descarta símbolos.",
+      "section": "1. A ideia da codificação de Huffman",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Huffman é uma técnica de compressão sem perdas que produz um código de prefixo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os códigos representam os símbolos sem descartar informação e obedecem à propriedade de prefixo, permitindo decodificar os símbolos pela árvore sem separadores entre eles.",
+      "section": "1. A ideia da codificação de Huffman",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fonte contém símbolos com distribuição uniforme e pretende usar Huffman. Qual avaliação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O resultado pode não economizar bits nos símbolos, e a descrição do código ainda acrescenta metadados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O resultado sempre reduz o arquivo, pois o código variável elimina qualquer cabeçalho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O resultado necessariamente perde os símbolos de menor frequência, pois todos empatam.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O resultado converte o código prefixo em cifra, dispensando uma chave de descriptografia.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O resultado aumenta o alfabeto para que cada símbolo passe a ocupar um único bit.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando as frequências são iguais, não há vantagem evidente em favorecer alguns símbolos com palavras menores. A árvore ou tabela também precisa ser descrita, de modo que a representação total pode não ficar menor.",
+      "section": "1. A ideia da codificação de Huffman",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Huffman, os símbolos mais frequentes tendem a ficar em folhas próximas à raiz e a receber palavras de código menores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A atribuição de comprimento decorre da posição da folha na árvore: cada nível percorrido acrescenta um bit. O algoritmo minimiza o custo ponderado, levando símbolos de peso alto a caminhos curtos.",
+      "section": "1. A ideia da codificação de Huffman",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que conjunto de informações permite ao receptor interpretar uma sequência Huffman de comprimento variável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A árvore ou tabela correspondente e informação suficiente para delimitar a sequência codificada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente a frequência do símbolo mais comum, pois todos os demais códigos são dedutíveis dela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas a quantidade de bytes do arquivo, porque códigos prefixos não dependem de uma árvore.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma chave privada usada para reverter a permutação criptográfica feita pelo codificador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma cópia da mensagem original, necessária para testar cada combinação possível de códigos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os bits não identificam por si mesmos que símbolo está em cada folha. O receptor precisa receber a árvore/tabela ou dados suficientes para reconstruí-la e precisa saber onde termina a mensagem ou quantos bits são válidos.",
+      "section": "1. A ideia da codificação de Huffman",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O código de Huffman é um mecanismo de criptografia destinado a impedir que terceiros leiam os dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Huffman comprime por codificação estatística; quem conhece a árvore consegue recuperar a mensagem. Não fornece sigilo nem substitui criptografia.",
+      "section": "1. A ideia da codificação de Huffman",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem muito curta ficou maior após Huffman. Qual causa explica esse resultado sem contrariar o funcionamento do algoritmo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A árvore, o cabeçalho e o preenchimento podem custar mais bits do que a codificação economizou.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O algoritmo é com perdas e precisa acrescentar os símbolos descartados ao final do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A árvore precisa armazenar uma cópia integral da mensagem para permitir a decodificação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O código prefixo duplica cada bit para marcar a fronteira de todos os símbolos originais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A fila de prioridade codifica cada nó interno como uma chave criptográfica adicional.",
+          "correct": false
+        }
+      ],
+      "explanation": "O custo ótimo refere-se aos códigos dos símbolos segundo as frequências. O tamanho transmitido inclui também a descrição da árvore ou tabela, delimitação, cabeçalho e eventual preenchimento do último byte.",
+      "section": "1. A ideia da codificação de Huffman",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A frequência de cada símbolo pode ser usada como peso na construção da árvore de Huffman.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cada símbolo começa como uma folha cujo peso é sua frequência. Pesos relativos ou probabilidades proporcionais também expressam a contribuição esperada de cada símbolo.",
+      "section": "2. Construção gulosa da árvore",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência descreve corretamente a construção gulosa da árvore de Huffman?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retirar duas árvores de menor peso, uni-las sob um pai somado e reinserir esse pai.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Retirar duas árvores de maior peso, uni-las sob um pai de peso médio e descartá-lo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ordenar os símbolos alfabeticamente, uni-los em pares e atribuir peso igual a cada pai.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Selecionar uma folha aleatória, copiá-la como raiz e remover todas as demais da fila.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atribuir o mesmo código a cada símbolo empatado e separar as ocorrências com vírgulas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em cada etapa a fila mínima fornece as duas árvores de menor peso. O pai recebe a soma dos pesos e volta à fila; o processo continua até haver uma única árvore.",
+      "section": "2. Construção gulosa da árvore",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de combinar dois nós, o novo nó interno deve voltar à fila de prioridade com o peso igual à soma dos pesos dos filhos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O grupo combinado continua concorrendo com as outras árvores para ser um dos menores nas rodadas seguintes; seu peso é a soma das frequências que contém.",
+      "section": "2. Construção gulosa da árvore",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Há folhas de pesos 1, 3 e 7. Após a primeira combinação de Huffman, quais pesos compõem a fila?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "4 e 7, pois os pesos 1 e 3 formam primeiro um nó de peso 4.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "1 e 10, pois o peso menor permanece separado do maior grupo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "3 e 8, pois os pesos 1 e 7 devem ser unidos antes da folha intermediária.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "7 e 11, pois o algoritmo combina as duas folhas de maior frequência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "11, pois a primeira etapa já transforma todos os símbolos em uma raiz única.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os dois menores pesos são 1 e 3, que produzem um pai de peso 4. A folha de peso 7 continua na fila, portanto os pesos atuais são 4 e 7.",
+      "section": "2. Construção gulosa da árvore",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na construção de Huffman, toda rodada combina sempre dois símbolos originais, nunca nós internos criados em rodadas anteriores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O pai criado é reinserido na fila com peso somado e pode ser retirado em uma rodada posterior. Por isso o algoritmo combina árvores disponíveis, que podem conter vários símbolos.",
+      "section": "2. Construção gulosa da árvore",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que estrutura de dados corresponde diretamente à necessidade de retirar repetidamente os dois menores pesos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma fila de prioridade mínima, que mantém acessíveis os elementos de menor peso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma pilha LIFO, que sempre remove os dois elementos inseridos mais recentemente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma tabela hash, que localiza os nós exclusivamente pelo conteúdo textual do símbolo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma fila FIFO comum, que remove apenas conforme a ordem original de entrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma árvore de busca sem chave de peso, que escolhe os nós pela ordem alfabética.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fila de prioridade mínima seleciona os dois pesos menores em cada rodada. Uma implementação típica usa heap mínimo, que mantém essa operação eficiente.",
+      "section": "2. Construção gulosa da árvore",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Com n símbolos distintos, uma árvore de Huffman binária completa tem n folhas e, para n maior que um, n−1 nós internos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Em uma árvore binária completa com n folhas, cada nó interno tem dois filhos; a relação entre arestas e nós resulta em n−1 nós internos. Cada folha representa um símbolo.",
+      "section": "2. Construção gulosa da árvore",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual estratégia de desempate é válida quando duas árvores têm peso mínimo igual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retirar qualquer par de menor peso empatado, mantendo as somas e a regra de Huffman.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Descartar uma árvore empatada, pois a outra representa as mesmas ocorrências por definição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar uma frequência empatada até que exista um único mínimo absoluto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir ambos os pesos pelo maior peso da fila para evitar códigos de tamanho variável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Interromper a construção, pois qualquer empate impede que a mensagem seja decodificada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Empates podem ser resolvidos por uma regra consistente. A estrutura exata da árvore e os bits atribuídos podem variar, mas isso não implica ambiguidade se a tabela correta for comunicada.",
+      "section": "2. Construção gulosa da árvore",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Com uma fila de prioridade binária, a construção típica da árvore para n símbolos distintos tem complexidade O(n log n).",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Há uma quantidade linear de inserções e remoções, cada uma com custo logarítmico no tamanho da fila; por isso a construção usual custa O(n log n).",
+      "section": "2. Construção gulosa da árvore",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao rotular os ramos da árvore, qual procedimento gera a palavra de código de uma folha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concatenar, da raiz à folha, os bits associados aos ramos percorridos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somar os pesos dos nós do caminho e converter o resultado em código decimal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ler os símbolos das folhas vizinhas e ordenar seus caracteres alfabeticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Copiar a frequência da folha em binário e usar esse valor como único código.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Concatenar os bits das folhas irmãs sem percorrer os ramos desde a raiz.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada aresta recebe um bit conforme a convenção escolhida. O código da folha é a sequência desses bits no caminho que parte da raiz.",
+      "section": "2. Construção gulosa da árvore",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Atribuir 0 ao ramo esquerdo e 1 ao direito é a única convenção válida para todos os códigos de Huffman.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Pode-se trocar globalmente os rótulos ou escolher outra orientação dos ramos, desde que codificador e decodificador usem a mesma árvore. Os comprimentos e o custo podem permanecer iguais.",
+      "section": "2. Construção gulosa da árvore",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como se decodifica um fluxo de bits usando uma árvore de prefixo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Seguir cada bit desde a raiz, emitir ao alcançar folha e reiniciar o percurso na raiz.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somar os bits até o valor coincidir com a frequência mais próxima da mensagem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Separar o fluxo em blocos iguais, pois todos os códigos Huffman possuem o mesmo tamanho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ordenar os bits em ordem crescente antes de consultar a tabela de símbolos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Percorrer apenas as folhas e ignorar os ramos internos da árvore binária.",
+          "correct": false
+        }
+      ],
+      "explanation": "O decodificador começa na raiz, escolhe o ramo indicado por cada bit e emite o símbolo quando chega a uma folha. Em seguida, volta à raiz para ler o código do próximo símbolo.",
+      "section": "3. Prefixo, codificação e decodificação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A propriedade de prefixo exige que nenhum código de símbolo seja prefixo próprio de outro código do conjunto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essa propriedade permite identificar o fim de um código assim que a leitura alcança uma folha, sem precisar separar o fluxo com marcadores entre todos os símbolos.",
+      "section": "3. Prefixo, codificação e decodificação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma árvore associa A=0, B=10 e C=11. Como os bits 01011 são decodificados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como A, depois B e por fim C, reiniciando na raiz após cada folha.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Como C, depois A e por fim B, lendo os bits da direita para a esquerda.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Como cinco símbolos, um por bit, pois cada bit representa uma ocorrência independente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como A e uma sequência inválida, pois todo código precisa ter dois bits.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como B e C somente, descartando o primeiro bit por ser preenchimento obrigatório.",
+          "correct": false
+        }
+      ],
+      "explanation": "O primeiro bit 0 chega à folha A. Os bits seguintes 10 formam B e os últimos 11 formam C. A propriedade de prefixo torna essa leitura única.",
+      "section": "3. Prefixo, codificação e decodificação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um código prefixo válido, um código de símbolo pode ser início de outro código se o decodificador receber vírgulas entre as ocorrências.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A propriedade de prefixo exclui essa relação entre as palavras do conjunto. Vírgulas poderiam delimitar códigos em outro esquema, mas não são o que caracteriza um código de prefixo.",
+      "section": "3. Prefixo, codificação e decodificação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a vantagem de uma árvore de prefixo durante a decodificação de códigos de tamanhos diferentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A folha alcançada identifica o símbolo e determina a fronteira do código já lido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O nó interno informa quantos bytes de cabeçalho devem ser removidos do fluxo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A raiz converte automaticamente cada palavra variável em um bloco de tamanho fixo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A folha mais profunda corrige os bits anteriores caso a sequência esteja corrompida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os ramos tornam dispensável conhecer qual símbolo foi associado a cada folha.",
+          "correct": false
+        }
+      ],
+      "explanation": "Como nenhum código é prefixo de outro, chegar a uma folha encerra exatamente um código. Em seguida, o leitor retorna à raiz para a próxima palavra.",
+      "section": "3. Prefixo, codificação e decodificação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O fluxo de bits e a árvore correspondente permitem recuperar sem perdas os símbolos codificados, desde que o fluxo e a árvore estejam íntegros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A codificação substitui cada símbolo por seu caminho; o decodificador percorre os mesmos caminhos até as folhas. Metadados delimitam a mensagem e identificam a árvore aplicável.",
+      "section": "3. Prefixo, codificação e decodificação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ocorreu corrupção de um bit durante transmissão. O que a propriedade de prefixo garante nesse caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Garante leitura inequívoca de um fluxo válido, mas não detecta nem corrige necessariamente a corrupção.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Garante reconstrução automática do bit original por comparação entre folhas irmãs.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garante que nenhum símbolo posterior seja afetado, pois todo código começa em um novo byte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Garante que o fluxo corrompido será recusado antes de qualquer símbolo ser decodificado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Garante a autenticação do emissor e a integridade criptográfica da mensagem codificada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Prefixo evita ambiguidade para palavras válidas, mas não acrescenta redundância de correção ou autenticação. Um bit alterado pode levar a outra folha e até afetar a segmentação seguinte.",
+      "section": "3. Prefixo, codificação e decodificação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se existe apenas um símbolo distinto, seu caminho até a única folha pode ter comprimento zero; formatos precisam convencionar uma representação ou armazenar a contagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma árvore com uma só folha não tem ramo a percorrer. Para distinguir uma ou várias ocorrências, uma implementação pode atribuir um bit convencional ou transmitir a quantidade do símbolo.",
+      "section": "3. Prefixo, codificação e decodificação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo contém códigos de símbolo válidos, mas o receptor não recebeu a tabela nem uma forma de reconstruí-la. Qual conclusão é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O receptor não sabe qual símbolo corresponde a cada folha, mesmo que o fluxo seja prefixo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O receptor pode deduzir todos os símbolos porque a árvore sempre segue a ordem alfabética.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O receptor recupera a tabela somando os comprimentos de todos os códigos recebidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O receptor usa a chave pública do emissor para transformar cada bit em um caractere.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O receptor assume que a palavra binária menor pertence ao símbolo menos frequente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A estrutura prefixa determina fronteiras, mas não os rótulos semânticos das folhas. É necessário fornecer a árvore/tabela ou informação equivalente compartilhada.",
+      "section": "3. Prefixo, codificação e decodificação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Huffman adaptativo, frequências processadas podem levar à atualização da árvore e dos códigos durante a leitura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A variante adaptativa altera frequências e estrutura à medida que processa símbolos; codificador e decodificador precisam atualizar o modelo de forma sincronizada.",
+      "section": "4. Variações, limites e interpretação em prova",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa distingue corretamente o Huffman estático do adaptativo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O estático usa um modelo por bloco; o adaptativo atualiza frequências e árvore durante o processamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O estático cifra cada símbolo; o adaptativo remove o cabeçalho para ocultar a distribuição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O estático usa apenas palavras fixas; o adaptativo permite palavras binárias variáveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O estático exige canal sem ruído; o adaptativo inclui códigos de correção de erros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O estático combina os maiores pesos; o adaptativo combina os menores apenas no início.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na versão estática, o modelo é preparado para o bloco antes da codificação. Na adaptativa, as frequências e os códigos mudam durante a leitura, com atualização coordenada nos dois lados.",
+      "section": "4. Variações, limites e interpretação em prova",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Huffman minimiza o comprimento médio ponderado entre códigos binários de prefixo símbolo a símbolo para as frequências consideradas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A optimalidade refere-se ao custo médio ponderado nesse modelo de codificação de símbolos e à classe de códigos prefixos considerada; não significa que qualquer arquivo compactado será menor no total.",
+      "section": "4. Variações, limites e interpretação em prova",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como se compara a seleção de Huffman com a estratégia Shannon-Fano descrita em provas introdutórias?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Huffman combina repetidamente os dois menores pesos; Shannon-Fano divide grupos de pesos próximos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Huffman cifra a fonte com uma chave; Shannon-Fano recupera os dados por uma tabela pública.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Huffman usa somente códigos fixos; Shannon-Fano é o único método com palavras variáveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Huffman elimina a árvore de códigos; Shannon-Fano representa cada símbolo numa folha binária.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Huffman organiza símbolos alfabeticamente; Shannon-Fano ordena os bits pela frequência observada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O procedimento distintivo de Huffman é fundir os dois pesos mínimos em cada rodada. A descrição introdutória de Shannon-Fano particiona símbolos em grupos de peso aproximadamente equilibrado; não é a mesma regra gulosa.",
+      "section": "4. Variações, limites e interpretação em prova",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A versão estática pode exigir que a árvore ou informação para reconstruí-la acompanhe o bloco comprimido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O decodificador precisa usar a mesma associação de símbolos a folhas. Um formato pode transmitir a árvore, uma tabela ou outra descrição equivalente.",
+      "section": "4. Variações, limites e interpretação em prova",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe compara Huffman com códigos fixos para caracteres igualmente prováveis. Qual conclusão é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Códigos de tamanhos semelhantes podem ser suficientes, e a sobrecarga pode eliminar eventual ganho.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Huffman sempre usa um bit por símbolo, qualquer que seja o tamanho do alfabeto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Códigos fixos são incapazes de representar símbolos quando as probabilidades são iguais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Huffman descarta metade das ocorrências empatadas para criar uma distribuição desigual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A igualdade das frequências impede a construção de qualquer árvore binária de prefixo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com probabilidades uniformes não há grandes diferenças de frequência a explorar. O código de Huffman continua construível, mas a descrição do modelo e o preenchimento podem fazer o arquivo completo não encolher.",
+      "section": "4. Variações, limites e interpretação em prova",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O método básico de Huffman atribui palavras de código a símbolos individuais e não explora, por si só, repetições de sequências como um dicionário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O alfabeto da codificação pode ser escolhido em outras implementações, mas na apresentação básica cada símbolo tem código próprio. A técnica não substitui automaticamente métodos que encontram sequências repetidas para criar referências de dicionário.",
+      "section": "4. Variações, limites e interpretação em prova",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema quer adaptar o código à distribuição observada sem conhecer previamente todas as frequências do bloco. Que modalidade se ajusta a essa necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Huffman adaptativo, que atualiza frequências e árvore enquanto codificador e decodificador avançam.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Huffman estático, que mantém uma tabela imutável e exige frequências completas de antemão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Comprimento fixo, que recalcula a raiz após cada símbolo sem atualizar qualquer estado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criptografia simétrica, que estima frequências e constrói folhas sem chave compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Código de correção, que altera a árvore para reconstruir frequências ausentes no receptor.",
+          "correct": false
+        }
+      ],
+      "explanation": "A modalidade adaptativa atualiza o modelo conforme os símbolos são processados. Para decodificar, o receptor acompanha as mesmas atualizações em sincronismo com o codificador.",
+      "section": "4. Variações, limites e interpretação em prova",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A árvore de Huffman é única para qualquer conjunto de frequências; por isso, a regra de desempate nunca altera os códigos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Empates permitem escolhas diferentes, e até a orientação dos ramos pode mudar as palavras binárias. O decodificador usa a árvore/tabela transmitida; a não unicidade não destrói a validade nem o custo ótimo.",
+      "section": "4. Variações, limites e interpretação em prova",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual fator deve ser incluído ao comparar o tamanho real de uma saída Huffman com a entrada original?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O custo dos códigos mais a árvore/tabela, cabeçalho, delimitação e preenchimento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente a frequência máxima, pois todos os demais custos estão implícitos nos bits.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A quantidade de chaves secretas necessárias para cifrar cada símbolo repetido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número de erros que a árvore consegue corrigir antes de decodificar cada bloco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O total de símbolos descartados, pois compressão eficiente elimina as ocorrências raras.",
+          "correct": false
+        }
+      ],
+      "explanation": "O comprimento médio descreve apenas os códigos dos símbolos. No arquivo real, a representação da árvore, metadados de tamanho e bits de preenchimento também contam.",
+      "section": "4. Variações, limites e interpretação em prova",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para estimar o total de bits codificados a partir das frequências fᵢ e comprimentos lᵢ, usa-se a soma Σ fᵢlᵢ.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cada ocorrência do símbolo i consome lᵢ bits; multiplicando frequência por comprimento e somando os símbolos obtém-se o total de bits dos códigos, sem o cabeçalho.",
+      "section": "4. Variações, limites e interpretação em prova",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual diferença conceitual básica separa a codificação de Huffman da aritmética?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Huffman associa palavras inteiras a símbolos; aritmética representa a sequência por um intervalo codificado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Huffman representa sempre o arquivo inteiro por um intervalo; aritmética usa uma folha por símbolo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Huffman é com perdas; aritmética é sem perdas porque usa probabilidades fracionárias.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Huffman cifra cada bloco com chave privada; aritmética recupera os dados por chave pública.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Huffman necessita de amostras de treinamento; aritmética não usa modelo probabilístico algum.",
+          "correct": false
+        }
+      ],
+      "explanation": "Huffman atribui uma palavra binária inteira a cada símbolo na codificação básica. A codificação aritmética representa a mensagem por um intervalo, podendo evitar a restrição de bits inteiros independentes por símbolo.",
+      "section": "4. Variações, limites e interpretação em prova",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A compressão de Huffman transforma a mensagem em uma representação que, acompanhada da árvore adequada, pode ser decodificada exatamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Trata-se de compressão sem perdas. A árvore e a delimitação correta permitem percorrer os caminhos e emitir cada símbolo original, sem aproximação ou descarte.",
+      "section": "4. Variações, limites e interpretação em prova",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma distribuição tem frequências muito diferentes. Qual afirmação sobre o resultado de Huffman é defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O código tende a favorecer símbolos comuns com caminhos curtos e colocar raros em caminhos mais longos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O código atribui os caminhos mais curtos aos símbolos raros para equilibrar a árvore por ordem alfabética.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O código elimina a necessidade de conhecer frequências ou de comunicar a árvore ao receptor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O código dá um comprimento idêntico a todos para preservar a desigualdade da distribuição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O código comprime apenas os dados criptografados, pois texto simples não admite pesos variáveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pesos altos tornam mais custoso deixar um símbolo em profundidade grande, por isso o algoritmo tende a colocá-los em folhas rasas. Ainda assim, a tabela/árvore usada deve ser conhecida pelo decodificador.",
+      "section": "1. A ideia da codificação de Huffman",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A versão adaptativa pode usar códigos diferentes em momentos diferentes da mensagem conforme atualiza o modelo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A adaptação altera frequências e árvore durante a leitura; por isso o código associado a um símbolo pode mudar ao longo do fluxo, exigindo sincronização entre as partes.",
+      "section": "4. Variações, limites e interpretação em prova",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao estudar a árvore resultante, qual interpretação de um nó interno está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É um agrupamento de dois filhos cujo peso registra a soma das frequências representadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É uma folha adicional que representa obrigatoriamente um caractere de controle da mensagem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É um separador inserido entre códigos para impedir que duas palavras se concatenem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É uma chave que cifra os bits dos descendentes antes da transmissão do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É um contador que guarda o tamanho do arquivo original em bytes, sem relação com pesos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada nó interno une duas árvores e tem peso igual à soma dos filhos. Os símbolos originais permanecem nas folhas; caminhos até elas formam os códigos.",
+      "section": "2. Construção gulosa da árvore",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em códigos de prefixo, todos os símbolos precisam ter exatamente o mesmo comprimento para que a decodificação seja possível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Prefixo permite palavras de comprimentos diferentes; como nenhuma é prefixo de outra, o decodificador reconhece o símbolo ao alcançar a folha correspondente.",
+      "section": "3. Prefixo, codificação e decodificação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma implementação básica, qual sequência operacional codifica a mensagem depois que a tabela está pronta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir cada ocorrência pelo código do símbolo correspondente e concatenar os bits.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir cada símbolo pela frequência decimal e ordenar as ocorrências por peso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover as ocorrências repetidas e guardar apenas o símbolo de maior frequência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Inverter os símbolos da mensagem e inserir um delimitador após cada caractere original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Percorrer a árvore em largura e enviar os nós internos no lugar dos símbolos de entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A tabela associa cada símbolo a um código. O codificador percorre a entrada na ordem original, substitui cada ocorrência pela palavra associada e concatena as palavras.",
+      "section": "3. Prefixo, codificação e decodificação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O código de Huffman serve como mecanismo de autenticação, pois a árvore permite verificar quem produziu os bits.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A árvore permite codificar e decodificar símbolos segundo um modelo, mas não identifica o emissor nem autentica a integridade. Para isso são necessários mecanismos criptográficos próprios.",
+      "section": "4. Variações, limites e interpretação em prova",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que abordagem evita a ambiguidade de um código variável sem inserir separadores entre cada palavra?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Impor que nenhum código seja prefixo de outro, permitindo reconhecer cada folha ao ler o fluxo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Permitir que todo código seja prefixo de outro e contar símbolos por frequência acumulada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atribuir um delimitador textual de comprimento variável sem informar seu padrão ao receptor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenar apenas os códigos dos símbolos frequentes e inferir os raros pelo contexto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reordenar os bits em blocos crescentes para que cada fronteira coincida com um byte.",
+          "correct": false
+        }
+      ],
+      "explanation": "A propriedade de prefixo assegura que um código completo não pode ser o início de outro. Assim, a leitura da árvore identifica a fronteira ao alcançar a folha, embora o fluxo ainda precise ser delimitado ao final.",
+      "section": "3. Prefixo, codificação e decodificação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A árvore de Huffman, para n folhas de símbolos, não possui nós internos com apenas um filho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cada operação de combinação cria um pai com dois filhos. Com mais de um símbolo, isso produz uma árvore binária completa no sentido de que nós internos têm dois filhos.",
+      "section": "2. Construção gulosa da árvore",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação explica por que frequências são relevantes para o comprimento médio do código?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada ocorrência paga o comprimento do código de seu símbolo, então símbolos comuns pesam mais no total.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cada símbolo raro paga o comprimento de todos os códigos comuns, independentemente da mensagem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As frequências determinam os rótulos 0 e 1, mas não afetam posição ou profundidade das folhas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As frequências são usadas somente para criptografar a raiz e não entram na estimativa de bits.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O comprimento médio é a soma simples dos comprimentos, sem considerar ocorrências ou probabilidades.",
+          "correct": false
+        }
+      ],
+      "explanation": "O total de bits codificados é Σ fᵢlᵢ. Um código longo para um símbolo muito frequente custa mais do que o mesmo comprimento para um símbolo raro, por isso os pesos orientam a construção.",
+      "section": "1. A ideia da codificação de Huffman",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A versão estática necessariamente dispensa a transmissão de tabela porque todas as frequências são conhecidas universalmente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. As frequências dependem dos dados ou do modelo acordado, e a tabela/árvore precisa ser conhecida pelo receptor. Um formato pode transmitir a árvore ou outro conjunto de metadados para reconstruí-la.",
+      "section": "4. Variações, limites e interpretação em prova",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma prova afirma que o uso de Huffman sozinho garante sigilo dos dados comprimidos. Qual resposta corresponde ao papel real do algoritmo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A afirmação está incorreta, pois Huffman codifica para compressão e não protege o conteúdo por segredo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A afirmação está correta, pois frequências são uma chave secreta impossível de estimar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A afirmação está correta, pois códigos variáveis impedem qualquer decodificação sem força bruta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A afirmação está incorreta apenas se a árvore tiver menos de quatro folhas de símbolos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A afirmação está correta, desde que o codificador use uma fila de prioridade mínima.",
+          "correct": false
+        }
+      ],
+      "explanation": "Huffman é uma técnica de compressão. A árvore é necessária para decodificar, mas não constitui chave criptográfica nem oferece sigilo contra quem obtiver essa descrição.",
+      "section": "4. Variações, limites e interpretação em prova",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na codificação adaptativa, codificador e decodificador devem acompanhar atualizações compatíveis do modelo para interpretar o mesmo fluxo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Como a árvore pode mudar durante a sequência, ambos precisam realizar atualizações sincronizadas; caso contrário, os mesmos bits podem ser percorridos por árvores distintas.",
+      "section": "4. Variações, limites e interpretação em prova",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem usa três símbolos e a árvore atribui códigos 0, 10 e 11. Qual propriedade permite concatená-los sem separadores?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Nenhum dos códigos 0, 10 e 11 é prefixo próprio de outro, logo o conjunto é prefixo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todos os códigos têm o mesmo comprimento, de modo que a posição separa as ocorrências.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O código 0 contém os outros códigos implicitamente, permitindo descartar a tabela inteira.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os códigos são números decimais ordenados e cada separação coincide com uma vírgula binária.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A frequência original de cada símbolo aparece codificada como um delimitador entre palavras.",
+          "correct": false
+        }
+      ],
+      "explanation": "O código 0 não é prefixo de 10 ou 11 porque estes começam por 1; 10 e 11 também não são prefixos um do outro. Portanto a leitura por árvore determina as fronteiras.",
+      "section": "3. Prefixo, codificação e decodificação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A optimalidade do código de Huffman implica que qualquer saída total, incluindo cabeçalho, será menor do que a entrada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A optimalidade trata do comprimento ponderado dos códigos para as frequências consideradas. Cabeçalho, árvore, metadados e preenchimento entram no tamanho total e podem tornar a saída maior.",
+      "section": "4. Variações, limites e interpretação em prova",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma questão apresenta uma árvore construída por Huffman e pede a palavra de código do símbolo X. O que deve ser feito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Seguir da raiz até a folha X e registrar em ordem os bits dos ramos percorridos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somar as frequências das folhas à esquerda de X e usar a soma em decimal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ler os bits da folha para a raiz e acrescentar o peso total da árvore ao final.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Contar os símbolos descendentes de X e repetir esse algarismo para cada nível da árvore.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ordenar os nomes das folhas por frequência e usar suas posições como código binário fixo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A palavra de código é o caminho da raiz à folha, lido na direção da raiz para baixo. Cada aresta contribui com o bit que a rotula.",
+      "section": "2. Construção gulosa da árvore",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Huffman utiliza tipicamente uma fila de prioridade para selecionar repetidamente os grupos de menor frequência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A fila mínima dá acesso aos menores pesos em cada etapa; o pai recém-criado retorna à mesma estrutura para participar de combinações futuras.",
+      "section": "2. Construção gulosa da árvore",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma implementação lê símbolos e mantém uma árvore que se altera ao atualizar as frequências observadas. Qual interpretação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É uma variante adaptativa, cuja atualização precisa ser reproduzida pelo decodificador.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É uma variante estática, pois toda árvore permanece fixa durante a leitura do bloco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É codificação de comprimento fixo, pois frequências atualizadas não alteram os códigos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É uma cifra de fluxo, na qual a árvore serve como segredo e a frequência como nonce.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É uma técnica com perdas, pois atualizar frequências remove códigos já utilizados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A atualização durante o processamento caracteriza a forma adaptativa. Como a árvore muda, o decodificador deve acompanhar as mesmas atualizações na mesma ordem.",
+      "section": "4. Variações, limites e interpretação em prova",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando a fila contém duas árvores mínimas empatadas, qualquer decisão pode gerar uma árvore diferente, ainda que válida e de custo ótimo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Diferentes desempates e orientações dos ramos podem mudar os códigos concretos. Desde que a árvore correspondente seja conhecida, a decodificação continua inequívoca e o custo pode manter-se ótimo.",
+      "section": "2. Construção gulosa da árvore",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve o papel da árvore de codificação no receptor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Associar caminhos binários a folhas de símbolos para interpretar o fluxo comprimido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Calcular uma assinatura digital que prove que a mensagem veio de uma origem confiável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Restaurar bits corrompidos por redundância adicionada a cada nó interno.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ordenar a mensagem original pela frequência antes de reconstituir sua sequência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Determinar a chave de criptografia por tentativa de todos os ramos possíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "A árvore é uma estrutura de codificação: caminhos correspondem a símbolos e permitem que o receptor emita as folhas alcançadas. Ela não autentica, cifra ou corrige erros.",
+      "section": "3. Prefixo, codificação e decodificação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma distribuição fixa conhecida, Huffman é ótimo entre códigos símbolo a símbolo de prefixo, sem que isso afirme unicidade da árvore.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A garantia trata do comprimento médio ponderado para as probabilidades consideradas. Empates e rótulos de ramos podem produzir mais de uma codificação ótima.",
+      "section": "4. Variações, limites e interpretação em prova",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma implementação quer reduzir o tempo de construção ao escolher os menores pesos sem ordenar toda a lista a cada rodada. Qual escolha é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter uma fila de prioridade mínima, normalmente implementada com heap binário.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter uma pilha e consultar os dois elementos que chegaram mais recentemente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter somente uma tabela hash que não registre qualquer ordem de prioridade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter uma fila FIFO e presumir que os pesos chegaram já em ordem crescente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter uma lista circular e retirar sempre o primeiro símbolo em ordem alfabética.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fila mínima dá suporte eficiente a remoções dos dois menores e reinserção dos pais somados. Com heap binário, a construção usual é O(n log n).",
+      "section": "2. Construção gulosa da árvore",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um código de prefixo decodifica sem ambiguidade, mas sozinho não fornece integridade criptográfica nem sigilo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A propriedade de prefixo permite delimitar códigos concatenados, enquanto confidencialidade e integridade são objetivos de criptografia, não da codificação Huffman.",
+      "section": "4. Variações, limites e interpretação em prova",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Huffman coding — Dictionary of Algorithms and Data Structures",
+      "publisher": "National Institute of Standards and Technology (NIST)",
+      "reference": "Definição do algoritmo, combinação dos dois menores pesos, árvore binária, código de prefixo e compressão sem perdas.",
+      "url": "https://xlinux.nist.gov/dads/HTML/huffmanCoding.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Adaptive Huffman coding — Dictionary of Algorithms and Data Structures",
+      "publisher": "National Institute of Standards and Technology (NIST)",
+      "reference": "Atualização dinâmica das frequências e da árvore durante o processamento.",
+      "url": "https://xlinux.nist.gov/dads/HTML/adaptiveHuffman.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Coding tree — Dictionary of Algorithms and Data Structures",
+      "publisher": "National Institute of Standards and Technology (NIST)",
+      "reference": "Folhas como símbolos e caminho da raiz à folha como palavra de código.",
+      "url": "https://xlinux.nist.gov/dads/HTML/codingTree.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Compression and Huffman coding, Lecture 19",
+      "publisher": "MIT OpenCourseWare",
+      "reference": "Árvore de prefixo e construção do código ótimo por frequências.",
+      "url": "https://ocw.mit.edu/courses/6-046j-design-and-analysis-of-algorithms-spring-2012/388115265a456321c4a5d19dc9e05281_MIT6_046JS12_lec19.pdf",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}
