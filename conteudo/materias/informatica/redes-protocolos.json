@@ -2,7 +2,7 @@
   "id": "informatica.redes-protocolos",
   "subject": "Informática",
   "title": "Redes: modelos, endereçamento e protocolos",
-  "version": 7,
+  "version": 8,
   "status": "PUBLISHED",
   "aliases": [
     "Redes: modelos, endereçamento e protocolos",
@@ -39,7 +39,7 @@
     },
     {
       "title": "2. IPv4, IPv6, sub-redes e encaminhamento IP",
-      "markdown": "### Vocabulário antes de começar\n\n| Sigla ou termo | Significado | Em palavras simples |\n| --- | --- | --- |\n| **IPv4 / IPv6** | Versões 4 e 6 do *Internet Protocol* | O \"endereço postal\" da máquina: o v4 é o antigo e curto; o v6, o novo e longo |\n| **Bit / octeto** | Dígito binário (0 ou 1) / grupo de 8 bits | O IPv4 tem 4 octetos = 32 bits |\n| **Máscara de sub-rede** | Número que diz que parte do IP é \"rede\" e que parte é \"host\" | Como o CEP: os primeiros dígitos dizem a região; os últimos, a rua |\n| **Host** | Qualquer equipamento com endereço (PC, impressora, servidor) | \"A casa\" dentro da rua |\n| **CIDR** | *Classless Inter-Domain Routing* (roteamento entre domínios sem classes) | Escrever a máscara como \"/24\", contando os bits de rede |\n| **Prefixo** | A parte \"rede\" do endereço | Os primeiros bits, iguais para todos da sub-rede |\n| **Broadcast** | Endereço de difusão | Mandar para todos da sub-rede |\n| **RFC** | *Request for Comments* | Documento oficial que define os padrões da Internet |\n| **Loopback** | Endereço que aponta para a própria máquina | \"Falar consigo mesmo\" para testes |\n| **ARP** | *Address Resolution Protocol* | Descobre o MAC a partir do IPv4 |\n| **ICMPv6** | *Internet Control Message Protocol* para IPv6 | Mensagens de controle do IPv6 (inclui a descoberta de vizinhos) |\n| **TTL / Hop Limit** | *Time To Live* / limite de saltos | Contador que diminui a cada roteador para o pacote não rodar para sempre |\n| **MTU** | *Maximum Transmission Unit* | Maior pacote que cabe num enlace |\n| **Rota padrão** | *Default route* | \"Se não sei para onde mandar, mando por aqui\" |\n\n### O endereço IPv4 e a máscara\n\nO **IPv4** tem **32 bits**, escritos como **quatro octetos decimais** separados por pontos, como `192.168.10.70`. Cada octeto vai de 0 a 255.\n\nTodo endereço tem duas partes:\n- a **rede** (como o nome da rua);\n- o **host** (como o número da casa).\n\nQuem diz onde termina uma e começa a outra é a **máscara**. A notação **CIDR** escreve a máscara como uma barra seguida da **quantidade de bits do prefixo** (bits de rede):\n\n| CIDR | Máscara decimal | Bits de host | Endereços no bloco |\n| --- | --- | --- | --- |\n| `/24` | `255.255.255.0` | 8 | 256 |\n| `/26` | `255.255.255.192` | 6 | 64 |\n| `/27` | `255.255.255.224` | 5 | 32 |\n\n**Quantos hosts cabem?** Com `h` bits de host existem **`2^h` endereços**. Desses, dois normalmente **não vão para máquinas**:\n- o **primeiro** é o **endereço de rede** (o \"nome da rua\");\n- o **último** é o **broadcast dirigido** (o \"alto-falante para todos da rua\").\n\nEntão sobram **`2^h − 2` endereços utilizáveis**. Num `/27`: 2^5 = 32 endereços, 30 utilizáveis.\n\n**Exceções importantes:**\n- **/31** em links ponto a ponto (só dois equipamentos, como dois roteadores ligados entre si), conforme a **RFC 3021**: os dois endereços são usados, sem rede nem broadcast — afinal, só há dois lados.\n- **/32** identifica **um único endereço** (uma rota de host).\n\n> **Pegadinha:** não aplique `2^h − 2` indiscriminadamente. Em **/31** e **/32** a fórmula não vale.\n\n### Calculando rede, broadcast e hosts (método de prova)\n\nUse sempre esta sequência: **máscara → tamanho do bloco → endereço de rede → broadcast → hosts**.\n\n**Exemplo 1: `192.168.10.70/27`**\n1. O `/27` tem máscara `255.255.255.224`. O octeto \"interessante\" (o que não é 255 nem 0) é o **224**.\n2. **Tamanho do bloco** = `256 − 224` = **32**.\n3. Os blocos do último octeto são: `.0–.31`, `.32–.63`, `.64–.95`, `.96–.127`…\n4. O 70 cai no bloco **`.64–.95`** (o múltiplo de 32 imediatamente abaixo de 70 é 64).\n5. **Rede:** `192.168.10.64`. **Broadcast:** `192.168.10.95`.\n6. **Hosts usuais:** `.65` a `.94`, total de **30**.\n\n**Exemplo 2: `10.20.30.130/26`**\n1. `/26` = `255.255.255.192`. Bloco = `256 − 192` = **64**.\n2. Blocos: `.0`, `.64`, `.128`, `.192`. O 130 cai em `.128–.191`.\n3. **Rede** `10.20.30.128`, **broadcast** `10.20.30.191`, **62** endereços de host.\n\nEm prefixos menores que `/24` (como `/20`), aplique a mesma lógica ao **octeto relevante** (o terceiro, por exemplo), sem confundir os 32 bits do IPv4 com o valor do octeto.\n\n### Faixas e endereços especiais\n\n**Endereços privados (RFC 1918).** São faixas reservadas para uso **interno** (casas, empresas); não são roteadas na Internet pública. Para sair para a Internet, passam por **NAT** (capítulo 3).\n\n| Faixa privada | Observação |\n| --- | --- |\n| `10.0.0.0/8` | Todo o 10.x.x.x |\n| `172.16.0.0/12` | De **172.16** até **172.31** no segundo octeto |\n| `192.168.0.0/16` | Todo o 192.168.x.x (a do roteador de casa) |\n\n> **Pegadinha:** `172.32.5.1` **não** é privado — a faixa 172.16/12 vai só até 172.31.\n\n**Outros especiais:**\n- **Loopback** IPv4: **127.0.0.0/8**, sendo `127.0.0.1` o endereço usual de teste local (\"eu mesmo\").\n- **`169.254.0.0/16`**: endereços **locais de enlace** (*link-local*), que a máquina se dá sozinha quando, por exemplo, não encontra servidor de endereços. **Não** é uma das três faixas da RFC 1918.\n- **`0.0.0.0/0`** numa tabela de rotas significa **rota padrão** (\"qualquer destino\"), e não uma máquina alcançável em todos os enlaces.\n\n**Classes A, B e C.** Antigamente os endereços eram divididos em **classes** com tamanhos fixos (A, B, C). Hoje o roteamento usa **CIDR**, que permite qualquer tamanho de prefixo. Por isso `192.168.1.0/26` é uma rede **legítima**, mesmo que pela classe antiga (C) \"devesse\" ser /24.\n\n### IPv6: por que ele existe e como é escrito\n\nO IPv4 tem cerca de 4,3 bilhões de endereços — pouco para um mundo com bilhões de celulares e aparelhos conectados. O **IPv6** resolve isso com endereços de **128 bits**, escritos normalmente como **oito grupos hexadecimais de 16 bits** separados por dois-pontos.\n\n**Regras de abreviação:**\n1. Pode-se **omitir zeros à esquerda** em cada grupo (`0db8` vira `db8`).\n2. A sequência **`::`** substitui **uma única sequência contígua de grupos zero**, e só pode aparecer **uma vez** no endereço (se aparecesse duas vezes, não daria para saber quantos zeros há em cada lugar).\n\nExemplo: `2001:db8:0:0:0:0:0:1` pode ser escrito `2001:db8::1`.\n\n**Endereços especiais do IPv6:**\n\n| Endereço/prefixo | Significado |\n| --- | --- |\n| `::1` | Loopback (equivale ao 127.0.0.1) |\n| `fe80::/10` | **Link-local** (vale só no enlace) |\n| `fc00::/7` | Endereços locais únicos (**ULA**, *Unique Local Address*), parecidos com os privados |\n| `2001:db8::/32` | Reservado para **documentação** (livros, exemplos), não para produção |\n\n**Tipos de destino:** o IPv6 usa **unicast** (um para um), **multicast** (um para um grupo) e **anycast** (um para o mais próximo de um grupo). Ele **não possui broadcast**: o que o IPv4 fazia por difusão, o IPv6 faz com **multicast**.\n\n**Descoberta de vizinhos:** no IPv4 o MAC é descoberto pelo **ARP**; no IPv6, pelo **ICMPv6 Neighbor Discovery** (descoberta de vizinhos).\n\n### Cabeçalhos: IPv4 × IPv6\n\n- O cabeçalho **IPv6 base** tem tamanho fixo de **40 bytes**. O **IPv4** básico tem **20 bytes**, mas pode conter **opções** e variar.\n- O IPv6 desloca informações opcionais para **cabeçalhos de extensão** e **não usa checksum** no cabeçalho base (o IPv4 usa). O porquê: as camadas de enlace e transporte já verificam erros, e tirar o checksum deixa os roteadores mais rápidos.\n- **Fragmentação:** roteadores IPv6 **não fragmentam** pacotes (não \"picotam\" pacotes grandes no meio do caminho), como os roteadores IPv4 historicamente podiam fazer. A **origem** é que ajusta o tamanho, com mecanismos de **descoberta do MTU do caminho**.\n- **Hop Limit** (IPv6) é o equivalente funcional do **TTL** (IPv4): a cada roteador o valor diminui 1; ao chegar a zero, o pacote é descartado. Mesmo papel, nome e formato diferentes.\n\n> **Pegadinha:** IPv6 **não** é \"IPv4 com 16 octetos\". Mudam o endereçamento, a descoberta de vizinhos e a ausência de broadcast.\n\n| Elemento | IPv4 | IPv6 |\n| --- | --- | --- |\n| Tamanho de endereço | 32 bits | 128 bits |\n| Loopback usual | `127.0.0.1` | `::1` |\n| Broadcast | Existe em redes comuns | Não existe |\n| Resolução local de vizinho | ARP | ICMPv6 Neighbor Discovery |\n| Cabeçalho mínimo/base | 20 bytes | 40 bytes |\n| Checksum no cabeçalho | Sim | Não |\n| Fragmentação por roteador | Historicamente possível | Não |\n| Limite de saltos | TTL | Hop Limit |\n\n### Encaminhamento: a regra do prefixo mais longo\n\nUma **tabela de rotas** contém **prefixos** (destinos), o **próximo salto** ou interface de saída e, eventualmente, uma **rota padrão**.\n\n**A regra de ouro (*longest-prefix match*):** o roteador escolhe a rota **mais específica**, isto é, a que tem **mais bits coincidentes** com o destino. Só **depois** compara métricas, e só entre rotas concorrentes **do mesmo prefixo**.\n\nAnalogia: uma carta para \"Rua das Flores, 100, Belo Horizonte, MG\". Se você tem uma instrução \"tudo para MG vai pelo caminhão A\" e outra \"tudo para BH vai pelo caminhão B\", usa a de **BH**, porque é mais específica.\n\n**Exemplo:** rotas `10.0.0.0/8`, `10.20.0.0/16` e `0.0.0.0/0`. Para o destino `10.20.5.8`:\n- as três \"servem\" (o /0 serve para tudo);\n- a **/16** é a mais específica → **vence**.\n\n> **Pegadinha:** uma **métrica menor** numa rota **/8** **não vence** uma rota **/16** correspondente. Primeiro se resolve a especificidade; a métrica só desempata rotas de mesmo prefixo.\n\n**Entrega local × remota:**\n- Destino na **mesma sub-rede**: a máquina descobre o **MAC do destino** (ARP no IPv4) e envia direto.\n- Destino em **rede remota**: a máquina descobre o **MAC do próximo salto** (o gateway) e entrega a ele.\n\nO **NAT** pode alterar endereços e portas nas bordas, mas não muda a lógica binária do prefixo de uma rota.\n\n### Resumo para a prova\n\n- IPv4 = **32 bits**; com `h` bits de host há `2^h` endereços e, em geral, `2^h − 2` utilizáveis — exceto **/31** (RFC 3021, ponto a ponto) e **/32** (um host).\n- Método: **bloco = 256 − octeto da máscara** → múltiplo inferior = rede → último do bloco = broadcast. Ex.: `.70/27` → rede `.64`, broadcast `.95`, 30 hosts.\n- Privados (RFC 1918): **10/8, 172.16/12 (até 172.31), 192.168/16**. Loopback 127/8; 169.254/16 é link-local; `0.0.0.0/0` é rota padrão.\n- IPv6 = **128 bits**, `::` só **uma vez**; `::1` loopback, `fe80::/10` link-local, `fc00::/7` ULA, `2001:db8::/32` documentação.\n- IPv6 **não tem broadcast** (usa multicast), usa **ICMPv6 Neighbor Discovery** em vez de ARP, cabeçalho base de **40 bytes**, sem checksum e sem fragmentação no roteador; **Hop Limit ≈ TTL**.\n- Roteamento: **prefixo mais longo vence** antes de qualquer métrica.\n- Destino remoto → quadro vai ao **MAC do próximo salto**."
+      "markdown": "### Vocabulário antes de começar\n\n| Sigla ou termo | Significado | Em palavras simples |\n| --- | --- | --- |\n| **IPv4 / IPv6** | Versões 4 e 6 do *Internet Protocol* | O \"endereço postal\" da máquina: o v4 é o antigo e curto; o v6, o novo e longo |\n| **Bit / octeto** | Dígito binário (0 ou 1) / grupo de 8 bits | O IPv4 tem 4 octetos = 32 bits |\n| **Máscara de sub-rede** | Número que diz que parte do IP é \"rede\" e que parte é \"host\" | Como o CEP: os primeiros dígitos dizem a região; os últimos, a rua |\n| **Host** | Qualquer equipamento com endereço (PC, impressora, servidor) | \"A casa\" dentro da rua |\n| **CIDR** | *Classless Inter-Domain Routing* (roteamento entre domínios sem classes) | Escrever a máscara como \"/24\", contando os bits de rede |\n| **Prefixo** | A parte \"rede\" do endereço | Os primeiros bits, iguais para todos da sub-rede |\n| **Broadcast** | Endereço de difusão | Mandar para todos da sub-rede |\n| **RFC** | *Request for Comments* | Documento oficial que define os padrões da Internet |\n| **Loopback** | Endereço que aponta para a própria máquina | \"Falar consigo mesmo\" para testes |\n| **ARP** | *Address Resolution Protocol* | Descobre o MAC a partir do IPv4 |\n| **ICMPv6** | *Internet Control Message Protocol* para IPv6 | Mensagens de controle do IPv6 (inclui a descoberta de vizinhos) |\n| **TTL / Hop Limit** | *Time To Live* / limite de saltos | Contador que diminui a cada roteador para o pacote não rodar para sempre |\n| **MTU** | *Maximum Transmission Unit* | Maior pacote que cabe num enlace |\n| **Rota padrão** | *Default route* | \"Se não sei para onde mandar, mando por aqui\" |\n\n### O endereço IPv4 e a máscara\n\nO **IPv4** tem **32 bits**, escritos como **quatro octetos decimais** separados por pontos, como `192.168.10.70`. Cada octeto vai de 0 a 255.\n\nTodo endereço tem duas partes:\n- a **rede** (como o nome da rua);\n- o **host** (como o número da casa).\n\nQuem diz onde termina uma e começa a outra é a **máscara**. A notação **CIDR** escreve a máscara como uma barra seguida da **quantidade de bits do prefixo** (bits de rede):\n\n| CIDR | Máscara decimal | Bits de host | Endereços no bloco |\n| --- | --- | --- | --- |\n| `/24` | `255.255.255.0` | 8 | 256 |\n| `/26` | `255.255.255.192` | 6 | 64 |\n| `/27` | `255.255.255.224` | 5 | 32 |\n\n**Quantos hosts cabem?** Com `h` bits de host existem **`2^h` endereços**. Desses, dois normalmente **não vão para máquinas**:\n- o **primeiro** é o **endereço de rede** (o \"nome da rua\");\n- o **último** é o **broadcast dirigido** (o \"alto-falante para todos da rua\").\n\nEntão sobram **`2^h − 2` endereços utilizáveis**. Num `/27`: 2^5 = 32 endereços, 30 utilizáveis.\n\n**Exceções importantes:**\n- **/31** em links ponto a ponto (só dois equipamentos, como dois roteadores ligados entre si), conforme a **RFC 3021**: os dois endereços são usados, sem rede nem broadcast — afinal, só há dois lados.\n- **/32** identifica **um único endereço** (uma rota de host).\n\n> **Pegadinha:** não aplique `2^h − 2` indiscriminadamente. Em **/31** e **/32** a fórmula não vale.\n\n### Calculando rede, broadcast e hosts (método de prova)\n\nUse sempre esta sequência: **máscara → tamanho do bloco → endereço de rede → broadcast → hosts**.\n\n**Exemplo 1: `192.168.10.70/27`**\n1. O `/27` tem máscara `255.255.255.224`. O octeto \"interessante\" (o que não é 255 nem 0) é o **224**.\n2. **Tamanho do bloco** = `256 − 224` = **32**.\n3. Os blocos do último octeto são: `.0–.31`, `.32–.63`, `.64–.95`, `.96–.127`…\n4. O 70 cai no bloco **`.64–.95`** (o múltiplo de 32 imediatamente abaixo de 70 é 64).\n5. **Rede:** `192.168.10.64`. **Broadcast:** `192.168.10.95`.\n6. **Hosts usuais:** `.65` a `.94`, total de **30**.\n\n**Exemplo 2: `10.20.30.130/26`**\n1. `/26` = `255.255.255.192`. Bloco = `256 − 192` = **64**.\n2. Blocos: `.0`, `.64`, `.128`, `.192`. O 130 cai em `.128–.191`.\n3. **Rede** `10.20.30.128`, **broadcast** `10.20.30.191`, **62** endereços de host.\n\n**Exemplo 3: dividir um bloco com VLSM (máscaras de tamanho variável)**\n\nA empresa recebeu `192.168.20.0/24` e precisa de três redes: Vendas com **100** hosts, Financeiro com **50** e RH com **20**, além de um link ponto a ponto entre dois roteadores. Regra: comece pela **maior** necessidade e escolha o menor bloco em que `2^h − 2` caiba.\n\n| Rede | Hosts pedidos | Bits de host | Prefixo | Faixa | Rede / broadcast |\n| --- | --- | --- | --- | --- | --- |\n| Vendas | 100 | 7 (126 hosts) | `/25` | `.0–.127` | `.0` / `.127` |\n| Financeiro | 50 | 6 (62 hosts) | `/26` | `.128–.191` | `.128` / `.191` |\n| RH | 20 | 5 (30 hosts) | `/27` | `.192–.223` | `.192` / `.223` |\n| Link entre roteadores | 2 | 1 ou 2 | `/31` (RFC 3021) ou `/30` | `.224–.225` ou `.224–.227` | — |\n\nSobra `.228` em diante para crescimento. Se você começasse pela rede menor, os blocos maiores poderiam não ficar alinhados (um `/25` precisa começar em `.0` ou `.128`).\n\n> **Como a banca cobra:** \"para 60 hosts, use /27\" (errado: /27 dá só 30; precisa de /26, com 62); \"um /26 tem 64 hosts utilizáveis\" (errado: 64 endereços, 62 hosts); \"duas sub-redes /25 de 192.168.20.0/24 começam em .0 e .64\" (errado: .0 e .128).\n\nEm prefixos menores que `/24` (como `/20`), aplique a mesma lógica ao **octeto relevante** (o terceiro, por exemplo), sem confundir os 32 bits do IPv4 com o valor do octeto.\n\n### Faixas e endereços especiais\n\n**Endereços privados (RFC 1918).** São faixas reservadas para uso **interno** (casas, empresas); não são roteadas na Internet pública. Para sair para a Internet, passam por **NAT** (capítulo 3).\n\n| Faixa privada | Observação |\n| --- | --- |\n| `10.0.0.0/8` | Todo o 10.x.x.x |\n| `172.16.0.0/12` | De **172.16** até **172.31** no segundo octeto |\n| `192.168.0.0/16` | Todo o 192.168.x.x (a do roteador de casa) |\n\n> **Pegadinha:** `172.32.5.1` **não** é privado — a faixa 172.16/12 vai só até 172.31.\n\n**Outros especiais:**\n- **Loopback** IPv4: **127.0.0.0/8**, sendo `127.0.0.1` o endereço usual de teste local (\"eu mesmo\").\n- **`169.254.0.0/16`**: endereços **locais de enlace** (*link-local*), que a máquina se dá sozinha quando, por exemplo, não encontra servidor de endereços. **Não** é uma das três faixas da RFC 1918.\n- **`0.0.0.0/0`** numa tabela de rotas significa **rota padrão** (\"qualquer destino\"), e não uma máquina alcançável em todos os enlaces.\n\n**Classes A, B e C.** Antigamente os endereços eram divididos em **classes** com tamanhos fixos (A, B, C). Hoje o roteamento usa **CIDR**, que permite qualquer tamanho de prefixo. Por isso `192.168.1.0/26` é uma rede **legítima**, mesmo que pela classe antiga (C) \"devesse\" ser /24.\n\n### IPv6: por que ele existe e como é escrito\n\nO IPv4 tem cerca de 4,3 bilhões de endereços — pouco para um mundo com bilhões de celulares e aparelhos conectados. O **IPv6** resolve isso com endereços de **128 bits**, escritos normalmente como **oito grupos hexadecimais de 16 bits** separados por dois-pontos.\n\n**Regras de abreviação:**\n1. Pode-se **omitir zeros à esquerda** em cada grupo (`0db8` vira `db8`).\n2. A sequência **`::`** substitui **uma única sequência contígua de grupos zero**, e só pode aparecer **uma vez** no endereço (se aparecesse duas vezes, não daria para saber quantos zeros há em cada lugar).\n\nExemplo: `2001:db8:0:0:0:0:0:1` pode ser escrito `2001:db8::1`.\n\n**Endereços especiais do IPv6:**\n\n| Endereço/prefixo | Significado |\n| --- | --- |\n| `::1` | Loopback (equivale ao 127.0.0.1) |\n| `fe80::/10` | **Link-local** (vale só no enlace) |\n| `fc00::/7` | Endereços locais únicos (**ULA**, *Unique Local Address*), parecidos com os privados |\n| `2001:db8::/32` | Reservado para **documentação** (livros, exemplos), não para produção |\n\n**Tipos de destino:** o IPv6 usa **unicast** (um para um), **multicast** (um para um grupo) e **anycast** (um para o mais próximo de um grupo). Ele **não possui broadcast**: o que o IPv4 fazia por difusão, o IPv6 faz com **multicast**.\n\n**Descoberta de vizinhos:** no IPv4 o MAC é descoberto pelo **ARP**; no IPv6, pelo **ICMPv6 Neighbor Discovery** (descoberta de vizinhos).\n\n### Cabeçalhos: IPv4 × IPv6\n\n- O cabeçalho **IPv6 base** tem tamanho fixo de **40 bytes**. O **IPv4** básico tem **20 bytes**, mas pode conter **opções** e variar.\n- O IPv6 desloca informações opcionais para **cabeçalhos de extensão** e **não usa checksum** no cabeçalho base (o IPv4 usa). O porquê: as camadas de enlace e transporte já verificam erros, e tirar o checksum deixa os roteadores mais rápidos.\n- **Fragmentação:** roteadores IPv6 **não fragmentam** pacotes (não \"picotam\" pacotes grandes no meio do caminho), como os roteadores IPv4 historicamente podiam fazer. A **origem** é que ajusta o tamanho, com mecanismos de **descoberta do MTU do caminho**.\n- **Hop Limit** (IPv6) é o equivalente funcional do **TTL** (IPv4): a cada roteador o valor diminui 1; ao chegar a zero, o pacote é descartado. Mesmo papel, nome e formato diferentes.\n\n> **Pegadinha:** IPv6 **não** é \"IPv4 com 16 octetos\". Mudam o endereçamento, a descoberta de vizinhos e a ausência de broadcast.\n\n| Elemento | IPv4 | IPv6 |\n| --- | --- | --- |\n| Tamanho de endereço | 32 bits | 128 bits |\n| Loopback usual | `127.0.0.1` | `::1` |\n| Broadcast | Existe em redes comuns | Não existe |\n| Resolução local de vizinho | ARP | ICMPv6 Neighbor Discovery |\n| Cabeçalho mínimo/base | 20 bytes | 40 bytes |\n| Checksum no cabeçalho | Sim | Não |\n| Fragmentação por roteador | Historicamente possível | Não |\n| Limite de saltos | TTL | Hop Limit |\n\n### Encaminhamento: a regra do prefixo mais longo\n\nUma **tabela de rotas** contém **prefixos** (destinos), o **próximo salto** ou interface de saída e, eventualmente, uma **rota padrão**.\n\n**A regra de ouro (*longest-prefix match*):** o roteador escolhe a rota **mais específica**, isto é, a que tem **mais bits coincidentes** com o destino. Só **depois** compara métricas, e só entre rotas concorrentes **do mesmo prefixo**.\n\nAnalogia: uma carta para \"Rua das Flores, 100, Belo Horizonte, MG\". Se você tem uma instrução \"tudo para MG vai pelo caminhão A\" e outra \"tudo para BH vai pelo caminhão B\", usa a de **BH**, porque é mais específica.\n\n**Exemplo:** rotas `10.0.0.0/8`, `10.20.0.0/16` e `0.0.0.0/0`. Para o destino `10.20.5.8`:\n- as três \"servem\" (o /0 serve para tudo);\n- a **/16** é a mais específica → **vence**.\n\n> **Pegadinha:** uma **métrica menor** numa rota **/8** **não vence** uma rota **/16** correspondente. Primeiro se resolve a especificidade; a métrica só desempata rotas de mesmo prefixo.\n\n**Entrega local × remota:**\n- Destino na **mesma sub-rede**: a máquina descobre o **MAC do destino** (ARP no IPv4) e envia direto.\n- Destino em **rede remota**: a máquina descobre o **MAC do próximo salto** (o gateway) e entrega a ele.\n\nO **NAT** pode alterar endereços e portas nas bordas, mas não muda a lógica binária do prefixo de uma rota.\n\n### Resumo para a prova\n\n- IPv4 = **32 bits**; com `h` bits de host há `2^h` endereços e, em geral, `2^h − 2` utilizáveis — exceto **/31** (RFC 3021, ponto a ponto) e **/32** (um host).\n- Método: **bloco = 256 − octeto da máscara** → múltiplo inferior = rede → último do bloco = broadcast. Ex.: `.70/27` → rede `.64`, broadcast `.95`, 30 hosts.\n- Privados (RFC 1918): **10/8, 172.16/12 (até 172.31), 192.168/16**. Loopback 127/8; 169.254/16 é link-local; `0.0.0.0/0` é rota padrão.\n- IPv6 = **128 bits**, `::` só **uma vez**; `::1` loopback, `fe80::/10` link-local, `fc00::/7` ULA, `2001:db8::/32` documentação.\n- IPv6 **não tem broadcast** (usa multicast), usa **ICMPv6 Neighbor Discovery** em vez de ARP, cabeçalho base de **40 bytes**, sem checksum e sem fragmentação no roteador; **Hop Limit ≈ TTL**.\n- Roteamento: **prefixo mais longo vence** antes de qualquer métrica.\n- Destino remoto → quadro vai ao **MAC do próximo salto**."
     },
     {
       "title": "3. Roteamento, ARP, ICMP, NAT e noções de IPsec",
@@ -363,7 +363,7 @@
           "correct": false
         }
       ],
-      "explanation": "Gabarito B. Na arquitetura em camadas, o pacote IPv4 é encapsulado em quadro Ethernet no enlace. A chama quadro de segmento e o liga ao fluxo TCP; C mistura datagrama e transporte; D atribui à resolução ARP o transporte de toda aplicação; E confunde unidade de dados com entrada de roteamento.",
+      "explanation": "Cada camada tem o nome da sua unidade: segmento TCP no transporte, pacote (datagrama) IP na camada de rede e quadro no enlace. O pacote IPv4 viaja dentro de um quadro Ethernet, com MACs e FCS. Chamar a unidade de enlace de segmento ou de datagrama TCP mistura camadas.",
       "section": "1. Camadas OSI/TCP-IP, Ethernet, VLAN e agregação de enlaces",
       "errorConceptKey": "e1",
       "sourceType": "AUTHORIAL",
@@ -403,7 +403,7 @@
           "correct": false
         }
       ],
-      "explanation": "Gabarito D. Switch de camada 2 usa o MAC de destino para encaminhar quadro por sua tabela de aprendizagem. A descreve exame lógico de camada 3; B identifica processo, não porta física; C confunde DNS com aprendizagem MAC; E é contador de saltos IP e não chave da tabela de comutação.",
+      "explanation": "O switch de camada 2 consulta o MAC de destino na tabela que aprendeu (MAC × porta × VLAN) para escolher a porta de saída. IP e TTL são da camada 3, porta TCP identifica processo e não interface física, e registros DNS nada têm a ver com a comutação de quadros.",
       "section": "1. Camadas OSI/TCP-IP, Ethernet, VLAN e agregação de enlaces",
       "errorConceptKey": "e1",
       "sourceType": "AUTHORIAL",
@@ -443,7 +443,7 @@
           "correct": false
         }
       ],
-      "explanation": "Gabarito A. IEEE 802.1Q define marcação de VLAN em quadros Ethernet. B corresponde a agregação de enlaces; C é protocolo de roteamento; D usa portas de transporte e não insere tag 802.1Q; E oferece gerenciamento, não formato de marcação de tráfego da VLAN.",
+      "explanation": "O IEEE 802.1Q insere no quadro Ethernet uma tag de 4 bytes com o VID de 12 bits, que diz a qual VLAN o quadro pertence no trunk. O 802.1AX trata de agregação de enlaces (LACP); RIP, TCP e SNMP atuam em outras camadas e não marcam quadros.",
       "section": "1. Camadas OSI/TCP-IP, Ethernet, VLAN e agregação de enlaces",
       "errorConceptKey": "e1",
       "sourceType": "AUTHORIAL",
@@ -483,7 +483,7 @@
           "correct": false
         }
       ],
-      "explanation": "Gabarito C. LACP negocia agregação de enlaces, hoje padronizada pela IEEE 802.1AX e historicamente associada a 802.3ad. A segmenta VLANs; B resolve endereços locais; D calcula rotas e elege representantes em redes multiacesso; E distribui parâmetros de endereçamento.",
+      "explanation": "O LACP negocia quais cabos físicos entram num grupo lógico agregado e retira o membro que falha, mantendo o enlace no ar. Hoje está no IEEE 802.1AX (antes 802.3ad). VLAN segmenta, ARP resolve MAC e o DR do OSPF organiza adjacências, sem juntar cabos.",
       "section": "1. Camadas OSI/TCP-IP, Ethernet, VLAN e agregação de enlaces",
       "errorConceptKey": "e1",
       "sourceType": "AUTHORIAL",
@@ -523,7 +523,7 @@
           "correct": true
         }
       ],
-      "explanation": "Gabarito E. Ethernet full duplex comutado não partilha meio semiduplex sujeito a colisões CSMA/CD. A confunde domínio de broadcast e colisão; B atribui arbitragem de meio ao DNS; C coloca colisão em IP; D inventa transformação de colisão física em mensagem ICMP.",
+      "explanation": "O CSMA/CD existia para o Ethernet de meio compartilhado e semiduplex, onde duas estações podiam transmitir ao mesmo tempo. Num enlace comutado full duplex cada sentido tem seu canal e não há colisão, então o mecanismo não atua. Colisão também não se confunde com broadcast.",
       "section": "1. Camadas OSI/TCP-IP, Ethernet, VLAN e agregação de enlaces",
       "errorConceptKey": "e1",
       "sourceType": "AUTHORIAL",
@@ -563,7 +563,7 @@
           "correct": false
         }
       ],
-      "explanation": "Gabarito C. /27 equivale a 255.255.255.224, com blocos de 32 endereços; .70 está no intervalo .64–.95. A é bloco anterior; B é IP de host, não rede; D é broadcast; E corresponde a /24, diferente dos 27 bits fornecidos.",
+      "explanation": "O /27 corresponde a 255.255.255.224; o bloco é 256 − 224 = 32. Os blocos começam em .0, .32, .64, .96; o .70 cai no bloco .64–.95. A rede é 192.168.10.64 e o broadcast, .95. Usar .0 seria aplicar /24, e .32 é o bloco anterior.",
       "section": "2. IPv4, IPv6, sub-redes e encaminhamento IP",
       "errorConceptKey": "e2",
       "sourceType": "AUTHORIAL",
@@ -603,7 +603,7 @@
           "correct": false
         }
       ],
-      "explanation": "Gabarito A. O bloco privado 172.16/12 vai até 172.31.255.255, abrangendo 172.20.8.15. B ultrapassa esse limite; C pertence ao bloco loopback 127/8; D é link-local 169.254/16; E está em faixa de documentação, não na reserva RFC 1918.",
+      "explanation": "O bloco privado 172.16.0.0/12 vai de 172.16.0.0 a 172.31.255.255, então 172.20.8.15 está dentro. 172.32 já fica fora; 127.x é loopback, 169.254.x é link-local e 198.51.100.x é faixa de documentação, nenhum deles da RFC 1918.",
       "section": "2. IPv4, IPv6, sub-redes e encaminhamento IP",
       "errorConceptKey": "e2",
       "sourceType": "AUTHORIAL",
@@ -643,7 +643,7 @@
           "correct": true
         }
       ],
-      "explanation": "Gabarito E. `::` substitui uma sequência contígua de grupos zero e aparece no máximo uma vez no endereço IPv6. A e C retiram grupos sem representação apropriada; B e D empregam `::` duas vezes e tornam ambígua a expansão. O endereço original conserva oito grupos de 16 bits.",
+      "explanation": "O `::` substitui uma única sequência contígua de grupos zero e só pode aparecer uma vez, para que se saiba quantos zeros ele representa. Em 2001:db8:0:0:0:0:0:1 os cinco zeros viram `::`, dando 2001:db8::1. Com dois `::` a expansão fica ambígua; sem marcador, perdem-se grupos.",
       "section": "2. IPv4, IPv6, sub-redes e encaminhamento IP",
       "errorConceptKey": "e2",
       "sourceType": "AUTHORIAL",
@@ -683,7 +683,7 @@
           "correct": false
         }
       ],
-      "explanation": "Gabarito B. A regra longest-prefix match escolhe o /16 entre os prefixos existentes que contêm 10.20.5.8. A vale se nenhum prefixo específico servir; C é menos específico; D cria entrada /24 inexistente; E é faixa loopback sem relação com o destino informado.",
+      "explanation": "Pela regra do prefixo mais longo, entre as rotas que contêm 10.20.5.8 (/0, /8 e /16) vence a mais específica, a 10.20.0.0/16. A rota padrão só é usada quando nada mais específico serve, e o roteador não inventa um /24 que não está na tabela.",
       "section": "2. IPv4, IPv6, sub-redes e encaminhamento IP",
       "errorConceptKey": "e3",
       "sourceType": "AUTHORIAL",
@@ -723,7 +723,7 @@
           "correct": false
         }
       ],
-      "explanation": "Gabarito D. /26 é 255.255.255.192, bloco de 64 endereços; .130 está no intervalo .128–.191, com rede .128, broadcast .191 e 62 hosts usuais. A usa /24; B usa /27; C escolhe o início do bloco seguinte e conta endereços reservados; E indica broadcast do bloco anterior.",
+      "explanation": "O /26 é 255.255.255.192, com blocos de 256 − 192 = 64 endereços: .0, .64, .128, .192. O .130 está em .128–.191, logo o broadcast é .191 e há 64 − 2 = 62 hosts. O .192 já é a rede do bloco seguinte, e .127 é o broadcast do anterior.",
       "section": "2. IPv4, IPv6, sub-redes e encaminhamento IP",
       "errorConceptKey": "e2",
       "sourceType": "AUTHORIAL",
@@ -763,7 +763,7 @@
           "correct": false
         }
       ],
-      "explanation": "Gabarito D. RIP v2, RFC 2453, considera 16 como infinito e até 15 saltos como alcance válido. A inverte a métrica; B atribui custo de OSPF ao RIP; C invoca atributo de BGP; E aumenta indevidamente o máximo e toma rota inacessível como válida.",
+      "explanation": "No RIP (v1 e v2, RFC 2453) a métrica é a contagem de saltos: 1 a 15 são distâncias válidas e 16 significa infinito, ou seja, destino inacessível. Por isso o RIP não serve para redes muito extensas. Custo é métrica do OSPF, e AS_PATH é atributo do BGP.",
       "section": "3. Roteamento, ARP, ICMP, NAT e noções de IPsec",
       "errorConceptKey": "e3",
       "sourceType": "AUTHORIAL",
@@ -803,7 +803,7 @@
           "correct": true
         }
       ],
-      "explanation": "Gabarito E. OSPFv2 escolhe Designated Router e Backup Designated Router em redes multiacesso apropriadas para organizar adjacências e difusão de LSAs. A troca OSPF por DHCP; B mistura atributos BGP; C usa papel próprio de controle de enlaces, não LSAs; D inventa função de encaminhamento ao SNMP.",
+      "explanation": "Em segmentos multiacesso, o OSPFv2 (RFC 2328) elege um DR e um BDR: cada roteador forma adjacência completa só com eles, e não com todos os vizinhos, reduzindo a troca de LSAs. Em enlaces ponto a ponto essa eleição não ocorre. LOCAL_PREF é do BGP.",
       "section": "3. Roteamento, ARP, ICMP, NAT e noções de IPsec",
       "errorConceptKey": "e3",
       "sourceType": "AUTHORIAL",
@@ -843,7 +843,7 @@
           "correct": false
         }
       ],
-      "explanation": "Gabarito B. eBGP opera entre AS diferentes e BGP utiliza TCP 179, conforme RFC 4271. A usa iBGP e porta RIP; C atribui protocolo IP de OSPF; D relaciona iBGP ao DNS; E usa porta SNMP, que não estabelece sessão BGP.",
+      "explanation": "Sessão BGP entre sistemas autônomos diferentes é eBGP (dentro do mesmo AS seria iBGP), e o BGP-4 roda sobre TCP na porta 179 (RFC 4271). Não confunda: UDP 520 é RIP, protocolo IP 89 é OSPF, 53 é DNS e UDP 161 é SNMP.",
       "section": "3. Roteamento, ARP, ICMP, NAT e noções de IPsec",
       "errorConceptKey": "e3",
       "sourceType": "AUTHORIAL",
@@ -883,7 +883,7 @@
           "correct": false
         }
       ],
-      "explanation": "Gabarito A. ARP, RFC 826, resolve MAC correspondente ao IPv4 em enlace local. B trata DNS como resolução de camada 2; C é mecanismo de teste IP e não tabela MAC; D traduz endereçamento IP/portas, não endereços MAC; E anuncia prefixos e políticas, não interfaces locais dos hosts.",
+      "explanation": "O ARP (RFC 826) pergunta em broadcast local quem tem determinado IPv4, e o dono responde com seu MAC, que fica em cache. O DNS traduz nomes em IP, não IP em MAC; o NAT troca endereços IP e portas; o ping só testa alcance. No IPv6, esse papel é do Neighbor Discovery.",
       "section": "3. Roteamento, ARP, ICMP, NAT e noções de IPsec",
       "errorConceptKey": "e6",
       "sourceType": "AUTHORIAL",
@@ -923,7 +923,7 @@
           "correct": false
         }
       ],
-      "explanation": "Gabarito C. PAT/NAPT diferencia sessões com tradução de portas além do IPv4 e mantém estado para tráfego de retorno. A tenta levar ARP através de roteadores; B confunde marcação VLAN com tradução; D usa roteamento de estado de enlace para finalidade diversa; E é alias DNS sem alocação de sessões.",
+      "explanation": "O PAT (ou NAPT) traduz o IP privado e também a porta de origem, anotando cada mapeamento numa tabela de estado. Quando a resposta volta ao IP público, a porta indica a qual host interno ela pertence. É assim que muitos hosts compartilham um único IPv4 público.",
       "section": "3. Roteamento, ARP, ICMP, NAT e noções de IPsec",
       "errorConceptKey": "e6",
       "sourceType": "AUTHORIAL",
@@ -963,7 +963,7 @@
           "correct": true
         }
       ],
-      "explanation": "Gabarito E. RFCs 4301, 4302 e 4303 distinguem AH, sem confidencialidade, e ESP, que pode cifrar e também proteger integridade conforme associação. A inverte as funções; B confunde IPsec com ARP; C erra o objeto da proteção; D atribui sigilo ao AH e fluxo TCP ao ESP.",
+      "explanation": "No IPsec, o AH (RFC 4302) autentica a origem e protege a integridade, mas não cifra nada. Quem pode dar sigilo é o ESP (RFC 4303), que cifra a carga e também pode garantir integridade. Se o requisito é confidencialidade, a escolha é o ESP.",
       "section": "3. Roteamento, ARP, ICMP, NAT e noções de IPsec",
       "errorConceptKey": "e6",
       "sourceType": "AUTHORIAL",
@@ -1003,7 +1003,7 @@
           "correct": false
         }
       ],
-      "explanation": "Gabarito B. RFC 9293 descreve abertura TCP com SYN do cliente, SYN+ACK do servidor e ACK final. A, C e D inserem FIN/RST, empregados em término/interrupção, como abertura; E mistura método e status HTTP com flags do transporte, que pertencem a camadas distintas.",
+      "explanation": "A abertura TCP (RFC 9293) é o aperto de mão em três vias: o cliente envia SYN, o servidor responde SYN+ACK e o cliente confirma com ACK. FIN serve para encerramento ordenado e RST para corte abrupto; GET e 200 são do HTTP, uma camada acima.",
       "section": "4. TCP, UDP, portas, DNS e DHCP",
       "errorConceptKey": "e4",
       "sourceType": "AUTHORIAL",
@@ -1043,7 +1043,7 @@
           "correct": false
         }
       ],
-      "explanation": "Gabarito D. TCP reconhece fluxo de bytes e ACK cumulativo informa o próximo número de sequência esperado. A troca bytes por segmentos; B limita o reconhecimento a um datagrama isolado; C confunde campo ACK com tamanho da janela; E atribui reconhecimento normal a reinício de conexão.",
+      "explanation": "O TCP numera bytes, e o ACK cumulativo informa o próximo byte esperado. ACK 5001 significa: recebi tudo, em ordem, até o byte 5000; mande a partir do 5001. Não conta segmentos e não é o tamanho da janela, que tem campo próprio no cabeçalho.",
       "section": "4. TCP, UDP, portas, DNS e DHCP",
       "errorConceptKey": "e4",
       "sourceType": "AUTHORIAL",
@@ -1083,7 +1083,7 @@
           "correct": false
         }
       ],
-      "explanation": "Gabarito C. Sem outras restrições, o envio em voo é limitado pelo mínimo de janela anunciada (8 KiB) e congestionamento (4 KiB), logo cerca de 4 KiB. A ignora cwnd; B soma limites alternativos; D duplica sem regra; E nega o funcionamento da janela deslizante.",
+      "explanation": "O emissor respeita os dois freios ao mesmo tempo: a janela anunciada pelo receptor (8 KiB) e a sua janela de congestionamento (4 KiB). Vale o menor deles, min(8, 4) = 4 KiB em trânsito sem confirmação. As janelas não se somam nem se multiplicam.",
       "section": "4. TCP, UDP, portas, DNS e DHCP",
       "errorConceptKey": "e4",
       "sourceType": "AUTHORIAL",
@@ -1123,7 +1123,7 @@
           "correct": false
         }
       ],
-      "explanation": "Gabarito A. DNS utiliza UDP e TCP 53; RFC 7766 exige suporte a TCP e transferências de zona tradicionais usam TCP. B confunde atribuição DHCP e zona DNS; C mistura protocolos web e nomes; D atribui AXFR a notificações SNMP; E usa número de porta BGP/TCP para serviço inexistente.",
+      "explanation": "O DNS usa a porta 53 em UDP e em TCP. A RFC 7766 exige que implementações gerais suportem TCP, necessário em respostas grandes e nas transferências de zona (AXFR). Bloquear TCP 53 quebra essas operações; a crença de que DNS só usa UDP é a pegadinha clássica.",
       "section": "4. TCP, UDP, portas, DNS e DHCP",
       "errorConceptKey": "e5",
       "sourceType": "AUTHORIAL",
@@ -1163,7 +1163,7 @@
           "correct": false
         }
       ],
-      "explanation": "Gabarito A. DHCPv4 usa DORA, UDP cliente 68/servidor 67; relay permite comunicação entre sub-redes, pois broadcast inicial não cruza roteadores normalmente. B inverte etapas e troca UDP por TCP; C atribui ao ARP função de relay; D usa registros DNS; E mistura flags TCP com UDP.",
+      "explanation": "A concessão inicial DHCPv4 segue DORA: Discover, Offer, Request e ACK, com cliente na UDP 68 e servidor na UDP 67. Como o Discover é broadcast e não atravessa roteadores, o relay (normalmente o roteador da sub-rede) o encaminha ao servidor remoto. Não há handshake TCP no DHCP.",
       "section": "4. TCP, UDP, portas, DNS e DHCP",
       "errorConceptKey": "e5",
       "sourceType": "AUTHORIAL",
@@ -1203,7 +1203,7 @@
           "correct": false
         }
       ],
-      "explanation": "Gabarito C. Em FTP passivo o cliente inicia a conexão de dados para endereço/porta informados pelo servidor; controle permanece separado em TCP 21. A descreve comportamento clássico do modo ativo; B ignora canal de dados; D troca FTP por DNS; E atribui SMTP ao transporte de arquivos FTP.",
+      "explanation": "No FTP passivo, o servidor informa um endereço e uma porta, e é o cliente quem abre a conexão de dados até lá; o controle segue em TCP 21. No modo ativo, ao contrário, o servidor abre a conexão de dados a partir da porta 20, o que costuma esbarrar em firewall e NAT do cliente.",
       "section": "5. Aplicações, gerenciamento, diretórios e diagnóstico integrado",
       "errorConceptKey": "e5",
       "sourceType": "AUTHORIAL",
@@ -1243,7 +1243,7 @@
           "correct": true
         }
       ],
-      "explanation": "Gabarito E. SNMP usa agentes e objetos MIB para gerenciamento: UDP 161 em consultas e UDP 162 em traps convencionais. A troca portas SNMP e DNS; B usa BGP, que não administra MIB; C descreve portas DHCP; D usa SMB, protocolo de compartilhamento e não de notificações SNMP.",
+      "explanation": "No SNMP, o gerente consulta o agente (Get e similares) na UDP 161, e o agente envia alarmes espontâneos (traps) ao gerente na UDP 162. Memorize: 161 para perguntar ao equipamento, 162 para o equipamento avisar. Portas 53, 67/68, 179 e 445 são de DNS, DHCP, BGP e SMB.",
       "section": "5. Aplicações, gerenciamento, diretórios e diagnóstico integrado",
       "errorConceptKey": "e5",
       "sourceType": "AUTHORIAL",
@@ -1283,7 +1283,7 @@
           "correct": false
         }
       ],
-      "explanation": "Gabarito D. SMB e NFS são protocolos de compartilhamento de arquivos; LDAP consulta diretórios, com portas usuais 445, 2049 e 389, respectivamente. A, B e C atribuem roteamento, correio, DNS ou VLAN às aplicações erradas; E confunde compartilhamento/diretórios com segurança IPsec e TLS.",
+      "explanation": "SMB (TCP 445, mundo Windows) e NFS (TCP 2049, mundo Unix/Linux) compartilham arquivos pela rede. O LDAP (TCP 389, ou 636 com TLS) consulta diretórios de usuários e grupos, base do login centralizado. Os três são protocolos de aplicação, sem papel de roteamento ou de túnel.",
       "section": "5. Aplicações, gerenciamento, diretórios e diagnóstico integrado",
       "errorConceptKey": "e5",
       "sourceType": "AUTHORIAL",
@@ -1323,7 +1323,7 @@
           "correct": false
         }
       ],
-      "explanation": "Gabarito B. HTTP/3 opera sobre QUIC, que utiliza UDP e integra proteção criptográfica, inclusive para acesso HTTPS. A atribui porta Telnet ao HTTPS; C mistura FTP com protocolo web; D confunde DNS com HTTP; E atribui QUIC a HTTP/1.1, normalmente transportado por TCP.",
+      "explanation": "O HTTP/3 roda sobre QUIC, que usa UDP (normalmente na 443) e já incorpora a criptografia do TLS 1.3. Por isso uma URL HTTPS pode aparecer como tráfego UDP 443. O HTTP/1.1 e o HTTP/2 usam TCP; afirmar que todo HTTP usa TCP é falso.",
       "section": "5. Aplicações, gerenciamento, diretórios e diagnóstico integrado",
       "errorConceptKey": "e5",
       "sourceType": "AUTHORIAL",
@@ -1853,7 +1853,7 @@
           "correct": false
         }
       ],
-      "explanation": "Certo. O NTP usa UDP na porta 123 e organiza os servidores em estratos, a partir de fontes de referência como relógios atômicos e GPS.",
+      "explanation": "Certo. O NTP usa UDP na porta 123 e organiza os servidores em estratos, a partir de fontes como relógios atômicos e GPS. Relógios alinhados permitem correlacionar logs de máquinas diferentes, e o Kerberos rejeita autenticações quando a diferença de horário passa do limite tolerado.",
       "section": "5. Aplicações, gerenciamento, diretórios e diagnóstico integrado",
       "errorConceptKey": "e5"
     },
@@ -1893,7 +1893,7 @@
           "correct": true
         }
       ],
-      "explanation": "E está correta. A escala vai de 0 (emergência, sistema inutilizável) a 7 (debug); o Syslog tradicional envia as mensagens por UDP na porta 514 a um servidor central.",
+      "explanation": "Na escala de severidade do Syslog, quanto menor o número, mais grave: 0 é emergência (sistema inutilizável), seguem alerta, crítico, erro, aviso, notificação, informativo e, por fim, 7, debug. O Syslog tradicional envia as mensagens por UDP 514 a um servidor central.",
       "section": "5. Aplicações, gerenciamento, diretórios e diagnóstico integrado",
       "errorConceptKey": "e5"
     },
