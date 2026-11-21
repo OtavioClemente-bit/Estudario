@@ -727,6 +727,28 @@ fun CompleteTaskDialog(task: PlanTask, onClose: () -> Unit) {
                 onClose()
             }, style = "ghost", small = true, icon = "task_alt")
         }
+        // Não vai dar para fazer esta (como "Pular" do app): ela sai do dia com o motivo e o plano se reorganiza.
+        if (!task.locked) {
+            var skipping by remember { mutableStateOf(false) }
+            var reason by remember { mutableStateOf("") }
+            if (!skipping) Div({ classes("row", "end") }) { Btn("Não vou fazer esta", { skipping = true }, style = "ghost", small = true, icon = "skip_next") }
+            else Div({ classes("stack", "tight") }) {
+                org.jetbrains.compose.web.dom.Input(org.jetbrains.compose.web.attributes.InputType.Text) {
+                    classes("input"); value(reason); attr("placeholder", "Motivo (ex.: plantão, médico, cansaço)"); onInput { reason = it.value }
+                }
+                Div({ classes("row", "end") }) {
+                    Btn("Pular e reorganizar", {
+                        if (focusOfTask) TopicFocus.stop()
+                        Store.update { data ->
+                            val skipped = Actions.skipTask(data, task.id, reason)
+                            runCatching { Planning.replan(skipped, task.planId, ReplanReason.TASK_SKIPPED) }.getOrDefault(skipped)
+                        }
+                        Toast.show("Pulada. O plano encaixou o conteúdo nos próximos dias.")
+                        onClose()
+                    }, style = "tonal", small = true, enabled = reason.isNotBlank())
+                }
+            }
+        }
         Div({ classes("row", "end") }) {
             Btn("Cancelar", onClose, style = "ghost")
             Btn("Concluir", {

@@ -287,6 +287,10 @@ object Planning {
         }
     }
 
+    /** Fixa o estudo no dia em que está (como "travar" do app): os replanejamentos não o movem. */
+    fun pinTask(data: Snapshot, taskId: String): Snapshot =
+        data.edit(Keys.TASKS) { if (it.str("id") == taskId) it.with("locked" to JsonPrimitive(true), "updatedAt" to JsonPrimitive(now())) else it }
+
     /** Solta o estudo fixado pela pessoa: o plano volta a poder reorganizá-lo. */
     fun unpinTask(data: Snapshot, taskId: String): Snapshot =
         data.edit(Keys.TASKS) { if (it.str("id") == taskId) it.with("locked" to JsonPrimitive(false), "updatedAt" to JsonPrimitive(now())) else it }
