@@ -334,6 +334,28 @@ class StudyPlanApplicationService(
         replan(planId, ReplanReason.AVAILABILITY_CHANGED)
     }
 
+    /**
+     * Mudou a data da prova (saiu o edital, adiou) ou o momento da pessoa: o plano grava e recalcula
+     * fases, ritmo e simulados, sem perder o que já foi feito. Igual ao "Prova e momento" do site.
+     */
+    suspend fun updateMethod(planId: String, examDate: LocalDate?, profile: br.com.estudario.domain.planner.StudyProfile) {
+        val base = br.com.estudario.domain.planner.StudyMethodConfig.forProfile(profile)
+        db.withTransaction {
+            val plan = planner.plan(planId) ?: error("Plano não encontrado.")
+            require(planner.claimRevision(plan.id, plan.revision, System.currentTimeMillis()) == 1)
+            val fresh = planner.plan(planId) ?: error("Plano não encontrado.")
+            planner.updatePlan(fresh.copy(
+                examEpochDay = examDate?.toEpochDay(),
+                profile = profile.name,
+                weeklyQuestionsTarget = base.weeklyQuestionsTarget,
+                simulationsPerMonth = base.simulationsPerMonth,
+                updatedAt = System.currentTimeMillis(),
+            ))
+            planner.insertRevision(StudyPlanRevisionEntity(plan.id, plan.revision + 1, plan.revision, "SUBJECT_CHANGED", summary = "Método do plano atualizado."))
+        }
+        replan(planId, ReplanReason.SUBJECT_CHANGED)
+    }
+
     suspend fun updateSubject(planId: String, subjectId: Long, priority: PlanPriority, paused: Boolean) {
         db.withTransaction {
             val plan = planner.plan(planId) ?: error("Plano não encontrado.")

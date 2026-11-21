@@ -148,7 +148,7 @@ fun PlanScreen(viewModel: StudyPlanViewModel, appViewModel: AppViewModel, onOpen
     if (management) {
         PlanManagementScreen(state, { management = false }, viewModel::activate, viewModel::markMaster, viewModel::duplicate, viewModel::archive, viewModel::restore, viewModel::delete, { id -> viewModel.executionCount(id) }, { plan ->
             scope.launch { runCatching { viewModel.exportPlan(plan.id) }.onSuccess { pendingExport = it; savePlan.launch("${plan.name}.plano") } }
-        }, onContextJson = { pendingContext = viewModel.exportContextJson(); saveContext.launch("contexto-plano.json") }, onContextText = { pendingContext = viewModel.exportContextText(); saveContext.launch("contexto-plano.txt") }, onEditAvailability = { editAvailability = true }, onUpdateSubject = viewModel::updateSubject, onDaysOff = viewModel::setDaysOff)
+        }, onContextJson = { pendingContext = viewModel.exportContextJson(); saveContext.launch("contexto-plano.json") }, onContextText = { pendingContext = viewModel.exportContextText(); saveContext.launch("contexto-plano.txt") }, onEditAvailability = { editAvailability = true }, onUpdateSubject = viewModel::updateSubject, onDaysOff = viewModel::setDaysOff, onUpdateMethod = viewModel::updateMethod)
         return
     }
     val layout = estudarioLayout()

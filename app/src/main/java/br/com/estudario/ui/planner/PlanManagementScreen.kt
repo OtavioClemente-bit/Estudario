@@ -94,7 +94,10 @@ fun PlanManagementScreen(
     onEditAvailability: () -> Unit,
     onUpdateSubject: (Long, PlanPriority, Boolean) -> Unit,
     onDaysOff: (java.time.LocalDate, java.time.LocalDate, Boolean) -> Unit = { _, _, _ -> },
+    onUpdateMethod: (java.time.LocalDate?, br.com.estudario.domain.planner.StudyProfile) -> Unit = { _, _ -> },
 ) {
+    var methodDialog by remember { mutableStateOf(false) }
+    if (methodDialog) state.activePlan?.let { MethodDialog(it, onDismiss = { methodDialog = false }, onSave = { d, p -> methodDialog = false; onUpdateMethod(d, p) }) }
     var confirm by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
     var daysOffDialog by remember { mutableStateOf(false) }
     if (daysOffDialog) DaysOffDialog(state, onDismiss = { daysOffDialog = false }, onDaysOff = onDaysOff)
@@ -165,6 +168,7 @@ fun PlanManagementScreen(
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilledTonalButton(onClick = onEditAvailability, shape = RoundedCornerShape(12.dp)) { Icon(Icons.Outlined.Schedule, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Horas por dia") }
                             FilledTonalButton(onClick = { daysOffDialog = true }, shape = RoundedCornerShape(12.dp)) { Icon(Icons.Outlined.CalendarMonth, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Dias sem estudo") }
+                            FilledTonalButton(onClick = { methodDialog = true }, shape = RoundedCornerShape(12.dp)) { Icon(Icons.Outlined.Event, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Prova e momento") }
                             OutlinedButton(onClick = { planMenu = active }, shape = RoundedCornerShape(12.dp)) { Icon(Icons.Outlined.MoreHoriz, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Mais") }
                         }
                     }
@@ -295,4 +299,57 @@ private fun DaysOffDialog(state: ActivePlanUiState, onDismiss: () -> Unit, onDay
             DateRangePicker(range, Modifier.weight(1f, fill = false).heightIn(max = 460.dp), title = null, headline = null, showModeToggle = false)
         }
     }
+}
+
+/** Data da prova e momento da pessoa: mudou o edital ou a fase, o plano recalcula sem perder o feito. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MethodDialog(plan: StudyPlanEntity, onDismiss: () -> Unit, onSave: (java.time.LocalDate?, br.com.estudario.domain.planner.StudyProfile) -> Unit) {
+    var exam by remember { mutableStateOf(plan.examEpochDay?.let { java.time.LocalDate.ofEpochDay(it) }) }
+    var profile by remember { mutableStateOf(plan.methodConfig().profile) }
+    var picking by remember { mutableStateOf(false) }
+    if (picking) {
+        val picker = rememberDatePickerState(
+            initialSelectedDateMillis = exam?.atStartOfDay(java.time.ZoneOffset.UTC)?.toInstant()?.toEpochMilli(),
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long) = java.time.Instant.ofEpochMilli(utcTimeMillis).atZone(java.time.ZoneOffset.UTC).toLocalDate() >= java.time.LocalDate.now()
+            },
+        )
+        DatePickerDialog(
+            onDismissRequest = { picking = false },
+            confirmButton = { TextButton(onClick = { picker.selectedDateMillis?.let { exam = java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC).toLocalDate() }; picking = false }) { Text("Usar esta data") } },
+            dismissButton = { TextButton(onClick = { picking = false }) { Text("Cancelar") } },
+        ) { DatePicker(picker) }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Prova e momento") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Data da prova", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(onClick = { picking = true }, shape = RoundedCornerShape(12.dp)) {
+                        Text(exam?.let { "%02d/%02d/%d".format(it.dayOfMonth, it.monthValue, it.year) } ?: "Ainda não sei")
+                    }
+                    if (exam != null) TextButton(onClick = { exam = null }) { Text("Ainda não sei") }
+                }
+                Text("Em que momento você está", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                br.com.estudario.domain.planner.StudyProfile.entries.forEach { option ->
+                    Surface(
+                        onClick = { profile = option },
+                        shape = RoundedCornerShape(14.dp),
+                        color = if (profile == option) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text(option.label, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                            Text(option.summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(exam, profile) }) { Text("Salvar e recalcular") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
+    )
 }
