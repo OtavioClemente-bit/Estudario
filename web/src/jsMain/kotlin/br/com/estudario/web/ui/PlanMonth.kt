@@ -370,6 +370,7 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
             val t = m.task
             if (t != null && t.status in PENDING) {
                 if (t.locked) item("push_pin", "Desafixar (o plano volta a organizar)") { Store.update { Planning.unpinTask(it, t.id) } }
+                else item("push_pin", "Fixar neste dia (o plano não move)") { if (!canEdit) onUpgrade() else Store.update { Planning.pinTask(it, t.id) } }
                 if (m.day >= todayEpoch) item("redo", "Passar para o dia seguinte") { if (!canEdit) onUpgrade() else drop(t.id, m.day + 1, null) }
             }
             if (t == null && m.day >= todayEpoch) {
