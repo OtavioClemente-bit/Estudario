@@ -117,7 +117,8 @@ class StudyPlannerEngine(
                 (stableUntil != null && task.status == PlanTaskStatus.PLANEJADA && task.date >= snapshot.today && task.date < stableUntil &&
                     snapshot.dayOverrides[task.date]?.unavailable != true && task.topicId !in theoryLate && task.id !in overflowing) ||
                 task.locked ||
-                snapshot.dayOverrides[task.date]?.locked == true ||
+                // Dia travado que depois virou folga não segura mais nada: folga esvazia o dia.
+                (snapshot.dayOverrides[task.date]?.locked == true && snapshot.dayOverrides[task.date]?.unavailable != true) ||
                 task.subjectId == null ||
                 (keepToday && task.date == snapshot.today)
         }
@@ -353,7 +354,9 @@ class StudyPlannerEngine(
                         else -> { skipped += date; continue }
                     }
                 }
-                if (chunk < minimum && chunk < left) {
+                // Pedaço menor que um bloco só entra se for a tarefa inteira (pequena de nascença): o resto de uma
+                // tarefa maior não vira "Questões · 4 min" no último dia antes da prova.
+                if (chunk < minimum && (chunk < left || chunk < demand.minutes)) {
                     skipped += date
                     continue
                 }

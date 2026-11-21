@@ -188,7 +188,8 @@ object Planning {
         val waiting = !force && late.isNotEmpty() && Queries.todayEpoch() - late.minOf { it.day } <= OVERDUE_WAIT_DAYS
         if (!upgrade && waiting) return
         Store.update { data ->
-            runCatching { if (upgrade) rebuild(data, plan.id) else replan(data, plan.id, ReplanReason.DAY_MISSED) }.getOrDefault(data)
+            // Passada a semana de espera, encaixa como o botão (soltando as fixadas atrasadas, que senão ficavam presas).
+            runCatching { if (upgrade) rebuild(data, plan.id) else if (late.isNotEmpty()) fitOverdue(data, plan.id) else replan(data, plan.id, ReplanReason.DAY_MISSED) }.getOrDefault(data)
         }
         runCatching { kotlinx.browser.localStorage.setItem(REORGANIZED_KEY, today); kotlinx.browser.localStorage.setItem(upgradeKey, "2") }
     }

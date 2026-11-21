@@ -236,7 +236,9 @@ class EstudarioApplication : Application() {
                             // deixar) em vez de varrer tudo calado; passada uma semana, encaixa sozinho.
                             val late = planService.overdue(plan.id)
                             val waiting = late.isNotEmpty() && today - late.minOf { it.scheduledEpochDay } <= OVERDUE_WAIT_DAYS
-                            if (!waiting) planService.replan(plan.id, br.com.estudario.domain.planner.ReplanReason.DAY_MISSED)
+                            // Passou a semana de espera: encaixa como o botão "Encaixar" (que também solta as
+                            // fixadas atrasadas; sem isso elas ficavam presas no dia antigo para sempre).
+                            if (!waiting) { if (late.isNotEmpty()) planService.fitOverdue(plan.id) else planService.replan(plan.id, br.com.estudario.domain.planner.ReplanReason.DAY_MISSED) }
                         }
                         prefs.edit().putBoolean("metodo2:${plan.id}", true).apply()
                     }

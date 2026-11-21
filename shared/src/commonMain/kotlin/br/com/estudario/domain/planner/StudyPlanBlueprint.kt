@@ -56,6 +56,8 @@ data class BlueprintInput(
     val occupied: Set<Pair<Long?, PlanTaskType>> = emptySet(),
     /** Dia da semana com mais tempo livre: é onde o simulado cai. */
     val heaviestDay: DayOfWeek = DayOfWeek.SATURDAY,
+    /** Minutos desse dia (0 = não informado): o simulado não passa disso. */
+    val heaviestDayMinutes: Int = 0,
     /** Último dia em que cada tópico teve questões feitas no plano (treino, reforço, diagnóstico). */
     val lastPracticeByTopic: Map<Long, LocalDate> = emptyMap(),
     /** Último dia da revisão de matéria (questões misturadas da matéria) feita, por matéria. */
@@ -138,6 +140,8 @@ object StudyPlanBlueprint {
     private const val MIN_SEEN_FOR_SUBJECT_MIX = 3
     /** Bateria menor que isso não vale uma tarefa no plano. */
     private const val MIN_PRACTICE_QUESTIONS = 3
+    /** Nem um treino de poucos minutos: abaixo disso a bateria fica para quando houver mais questões. */
+    private const val MIN_PRACTICE_MINUTES = 8
 
     /** A trilha de um tópico, decidida pelo que a pessoa declarou e, acima disso, pelo que as questões mostraram. */
     private enum class Track { FULL, SHORT, DIAGNOSE, COVERED }
@@ -338,7 +342,33 @@ object StudyPlanBlueprint {
             // O tamanho da leitura vale também na reta final (sem teoria nova): a teoria que já estava marcada
             // continua com o tamanho certo e o motor reconhece a cópia a mais.
             pending.forEach { (t, track) -> if (track == Track.FULL || track == Track.SHORT) theorySizes[t.topicId] = minutesOf(track) }
-            if (pending.isEmpty() || contentDays == 0) return@forEach
+            if (pending.isEmpty()) return@forEach
+            // Reta final sem teoria nova, mas com tópicos que a pessoa não marcou como vistos: antes o plano
+            // ficava vazio até a prova (só o diagnóstico do dia 1). Agora cada um vira questões direto (sem
+            // teoria), espalhadas pelo período, dos que mais caem primeiro: é treino de prova, não leitura.
+            if (contentDays == 0) {
+                val weight = weights.getValue(subject.subjectId)
+                val ordered = pending.sortedWith(compareBy({ it.first.topicId !in highIncidence }, { it.first.topicId in lowIncidence }, { it.first.position }))
+                val step = input.horizonDays.toDouble() / ordered.size.coerceAtLeast(1)
+                ordered.forEachIndexed { i, (topic, _) ->
+                    if ((topic.topicId to PlanTaskType.QUESTIONS) in input.occupied) return@forEachIndexed
+                    val anchor = input.today.plusDays(kotlin.math.floor(i * step).toLong())
+                    if (!anchor.isBefore(input.today.plusDays(input.horizonDays.toLong()))) return@forEachIndexed
+                    val quantidade = topic.questionCap?.let { minOf(DIAGNOSTIC_QUESTIONS, it) } ?: DIAGNOSTIC_QUESTIONS
+                    // Tópico com pouquíssimas questões não vira uma tarefa de 4 minutos.
+                    if (quantidade < MIN_PRACTICE_QUESTIONS || quantidade * config.minutesPerQuestion < MIN_PRACTICE_MINUTES) return@forEachIndexed
+                    val demand = TaskDemand(
+                        id = "diagnostic:${topic.topicId}", subjectId = subject.subjectId, topicId = topic.topicId,
+                        type = PlanTaskType.QUESTIONS, minutes = quantidade * config.minutesPerQuestion, questions = quantidade,
+                        priority = subject.priority, subjectPosition = subject.position, topicPosition = topic.position,
+                        anchorDate = anchor.takeIf { it.isAfter(input.today) },
+                    )
+                    diagnosticCount++
+                    questionsPlanned += quantidade * config.minutesPerQuestion
+                    anchoredUnits += Triple(anchor, weight, listOf(demand))
+                }
+                return@forEach
+            }
             // A matéria de mais peso termina antes (75% da janela); a de menos, no fim dela.
             val weight = weights.getValue(subject.subjectId)
             val finishShare = 1.0 - 0.25 * (weight - 1).toDouble() / (maxWeight - 1).coerceAtLeast(1)
@@ -467,7 +497,7 @@ object StudyPlanBlueprint {
                 // treino não repete acerto). Sem nenhuma sobrando, o tópico não volta como treino.
                 val limit = topic.questionsLeft ?: topic.questionCap
                 val quantidade = limit?.let { minOf(scaled, it) } ?: scaled
-                if (quantidade < MIN_PRACTICE_QUESTIONS) return@mapNotNull null
+                if (quantidade < MIN_PRACTICE_QUESTIONS || quantidade * config.minutesPerQuestion < MIN_PRACTICE_MINUTES) return@mapNotNull null
                 practiceCount++
                 listOf(
                     TaskDemand(
@@ -506,12 +536,17 @@ object StudyPlanBlueprint {
             // Com o prazo apertado (sem espaço para treino), o simulado de reforço cede ao conteúdo, como o
             // treino; o diagnóstico entra sempre.
             // Na reta final o simulado semanal entra mesmo com o prazo apertado: ali ele vale mais que um tópico novo.
-            if (first || (seen >= MIN_SEEN_FOR_SUBJECT_MIX && (practiceRoom > 0 || phase.kind == PlanPhaseKind.RETA_FINAL))) {
-                practiceRoom -= (if (first) PLAN_DIAGNOSTIC_QUESTIONS else 30) * SIMULATION_MINUTES_PER_QUESTION
+            // Quem começa do zero não abre o plano com 20 questões de matérias que nunca viu: o primeiro
+            // simulado espera alguns tópicos estudados (aí ele mede o que foi aprendido).
+            val beginnerWaits = first && input.config.profile == StudyProfile.DO_ZERO && seen < MIN_SEEN_FOR_SUBJECT_MIX
+            if (!beginnerWaits && (first || (seen >= MIN_SEEN_FOR_SUBJECT_MIX && (practiceRoom > 0 || phase.kind == PlanPhaseKind.RETA_FINAL)))) {
+                // O simulado cabe no dia mais livre: com 1 h por dia ele vira um de 20 questões em vez de nunca entrar.
+                val fitQuestions = if (input.heaviestDayMinutes > 0) (input.heaviestDayMinutes / SIMULATION_MINUTES_PER_QUESTION).coerceAtLeast(10) else Int.MAX_VALUE
+                val size = minOf(if (first) PLAN_DIAGNOSTIC_QUESTIONS else if (phase.kind == PlanPhaseKind.RETA_FINAL) 30 else 20, fitQuestions)
+                practiceRoom -= size * SIMULATION_MINUTES_PER_QUESTION
                 val from = if (due.isBefore(input.today)) input.today else due
                 val day = (0 until 7).map { from.plusDays(it.toLong()) }.firstOrNull { it.dayOfWeek == input.heaviestDay } ?: from
                 if (day.isBefore(input.today.plusDays(input.horizonDays.toLong()))) {
-                    val size = if (first) PLAN_DIAGNOSTIC_QUESTIONS else if (phase.kind == PlanPhaseKind.RETA_FINAL) 30 else 20
                     demands += TaskDemand(
                         id = "plan-simulation:$day",
                         order = next(),
@@ -587,7 +622,7 @@ object StudyPlanBlueprint {
             val available = topicsBySubject[subject.subjectId].orEmpty().filter { trackOf(it, subject) == Track.COVERED }
                 .sumOf { it.questionsLeft ?: it.questionCap ?: SUBJECT_MIX_QUESTIONS }
             val quantidade = minOf(SUBJECT_MIX_QUESTIONS, available)
-            if (quantidade < MIN_PRACTICE_QUESTIONS) return@forEachIndexed
+            if (quantidade < MIN_PRACTICE_QUESTIONS || quantidade * config.minutesPerQuestion < MIN_PRACTICE_MINUTES) return@forEachIndexed
             mixCount++
             demands += TaskDemand(
                 id = "subject-mix:${subject.subjectId}",

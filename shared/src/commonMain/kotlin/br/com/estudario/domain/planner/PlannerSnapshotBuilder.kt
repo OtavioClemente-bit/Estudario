@@ -3,6 +3,7 @@ package br.com.estudario.domain.planner
 import br.com.estudario.time.daysBetween
 import br.com.estudario.time.epochMillisToDate
 import br.com.estudario.time.isAfter
+import br.com.estudario.time.plusDays
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -135,7 +136,9 @@ object PlannerSnapshotBuilder {
         // Camada de necessidade: os três eixos e a evidência de cada matéria/tópico viram o
         // NeedScore que decide frequência, volume de questões e ordem do reforço.
         val planStart = LocalDate.fromEpochDays(plan.startEpochDay)
-        val examDate = plan.examEpochDay?.let { LocalDate.fromEpochDays(it) }
+        // Prova que já passou: o plano segue como sem data (a pessoa vai para o próximo concurso), em vez de
+        // ficar preso para sempre na reta final, sem conteúdo novo.
+        val examDate = plan.examEpochDay?.let { LocalDate.fromEpochDays(it) }?.takeIf { it >= today }
         val daysUntilExam = examDate?.let { daysBetween(today, it).toInt() }?.takeIf { it >= 0 }
         val currentPhase = StudyMethod.phaseAt(StudyMethod.phases(planStart, examDate, config.profile), today)
         val weights = PlannerWeights.forPhase(currentPhase.kind)
@@ -299,6 +302,7 @@ object PlannerSnapshotBuilder {
                 horizonDays = policy.horizonDays,
                 occupied = occupied,
                 heaviestDay = heaviestDay,
+                heaviestDayMinutes = availability.filterNot { it.unavailable }.maxOfOrNull { it.minutes } ?: 0,
                 lastPracticeByTopic = lastPracticeByTopic,
                 lastSubjectMixBySubject = lastSubjectMix,
                 liveSubjectMixes = liveSubjectMixes,
@@ -326,6 +330,12 @@ object PlannerSnapshotBuilder {
             dayOverrides = dayOverrides.associate { row ->
                 val date = LocalDate.fromEpochDays(row.epochDay)
                 date to DayCapacityOverride(date, row.minutes, row.unavailable, row.locked)
+            }.let { marked ->
+                // Do dia da prova em diante não há estudo: antes, antecipar a prova deixava tarefas
+                // marcadas depois dela. (Prova que já passou não conta: a pessoa segue para a próxima.)
+                if (examDate == null || examDate < today) marked
+                else marked + (0 until policy.horizonDays).map { today.plusDays(it.toLong()) }.filter { it >= examDate }
+                    .associateWith { date -> DayCapacityOverride(date, 0, true, false) }
             },
             subjects = planSubjects.map { SubjectDemand(it.subjectId, it.name, it.priority, it.minimumMaintenanceMinutes, it.position, it.paused) },
             demands = blueprint.demands,
