@@ -49,6 +49,8 @@ interface PlannerDao {
     @Query("UPDATE study_task_executions SET competitionId = :to WHERE planId = :planId") suspend fun movePlanExecutions(planId: String, to: Long)
     @Query("DELETE FROM plan_tasks WHERE planId = :planId AND subjectId IN (:subjectIds) AND status IN ('PLANEJADA', 'EM_ANDAMENTO', 'REPROGRAMADA')") suspend fun deletePendingTasksForSubjects(planId: String, subjectIds: Set<Long>)
     @Query("SELECT * FROM plan_subjects ORDER BY planId, position") suspend fun subjectsOnce(): List<PlanSubjectEntity>
+    @Query("DELETE FROM plan_subjects WHERE planId = :planId AND subjectId IN (:subjectIds)") suspend fun deletePlanSubjects(planId: String, subjectIds: Set<Long>)
+    @Query("UPDATE study_plans SET active = 0 WHERE id != :planId AND competitionId IN (:competitionIds) AND active = 1") suspend fun deactivateOthersOf(planId: String, competitionIds: Set<Long>)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertAnnualPhases(values: List<AnnualPhaseEntity>)
     @Query("SELECT * FROM annual_phases WHERE planId = :planId AND validUntilRevision IS NULL ORDER BY position") suspend fun currentAnnualPhases(planId: String): List<AnnualPhaseEntity>

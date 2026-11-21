@@ -356,6 +356,41 @@ class StudyPlanApplicationService(
         replan(planId, ReplanReason.SUBJECT_CHANGED)
     }
 
+    /**
+     * Um plano para vários concursos (como no site): as matérias dos concursos marcados entram, as dos
+     * desmarcados saem (o que não foi feito delas some; o feito fica no histórico) e o tempo é redividido.
+     * O concurso dono do plano sempre fica.
+     */
+    suspend fun setCompetitions(planId: String, competitionIds: Set<Long>) {
+        db.withTransaction {
+            val plan = planner.plan(planId) ?: error("Plano não encontrado.")
+            require(planner.claimRevision(plan.id, plan.revision, System.currentTimeMillis()) == 1)
+            val wanted = competitionIds + plan.competitionId
+            val allSubjects = db.dao().subjectsOnce()
+            val competitionOf = allSubjects.associate { it.id to it.competitionId }
+            val current = planner.subjectsFor(planId)
+            val keepIds = current.filter { competitionOf[it.subjectId] in wanted }.mapTo(hashSetOf()) { it.subjectId }
+            val removedIds = current.map { it.subjectId }.filterNot { it in keepIds }.toSet()
+            if (removedIds.isNotEmpty()) {
+                planner.deletePendingTasksForSubjects(planId, removedIds)
+                planner.deletePlanSubjects(planId, removedIds)
+            }
+            var position = (current.maxOfOrNull { it.position } ?: -1) + 1
+            val missing = allSubjects.filter { it.competitionId in wanted && it.id !in keepIds }.sortedWith(compareBy({ it.competitionId }, { it.position }))
+            if (missing.isNotEmpty()) planner.upsertPlanSubjects(missing.map { PlanSubjectEntity(planId = planId, subjectId = it.id, subjectNameSnapshot = it.name, priority = PlanPriority.MEDIUM, position = position++) })
+            planner.deactivateOthersOf(planId, wanted)
+            planner.insertRevision(StudyPlanRevisionEntity(plan.id, plan.revision + 1, plan.revision, "SUBJECT_CHANGED", summary = "Concursos do plano: ${wanted.size}."))
+        }
+        replan(planId, ReplanReason.SUBJECT_CHANGED)
+    }
+
+    /** Concursos cujas matérias estão no plano (o dono sempre incluído). */
+    suspend fun planCompetitions(planId: String): Set<Long> {
+        val plan = planner.plan(planId) ?: return emptySet()
+        val competitionOf = db.dao().subjectsOnce().associate { it.id to it.competitionId }
+        return planner.subjectsFor(planId).mapNotNullTo(hashSetOf(plan.competitionId)) { competitionOf[it.subjectId] }
+    }
+
     suspend fun updateSubject(planId: String, subjectId: Long, priority: PlanPriority, paused: Boolean) {
         db.withTransaction {
             val plan = planner.plan(planId) ?: error("Plano não encontrado.")

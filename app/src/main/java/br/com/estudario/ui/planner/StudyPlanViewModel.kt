@@ -284,6 +284,14 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
     fun pushOverdue() = _state.value.activePlan?.id?.let { id -> launch("Empurrando o plano") { service.pushOverdue(id) } }
     /** "Hoje não vou conseguir" (ou desfaz): o dia fica sem estudo e o que estava nele vai para a frente. */
     fun setDayOff(date: LocalDate, off: Boolean) = _state.value.activePlan?.id?.let { id -> launch(if (off) "Passando o dia para a frente" else "Devolvendo o dia") { service.setDayOff(id, date, off) } }
+    /** Concursos que podem entrar no plano (id, nome, se já está nele). */
+    suspend fun competitionChoices(): List<Triple<Long, String, Boolean>> {
+        val id = _state.value.activePlan?.id ?: return emptyList()
+        val inPlan = service.planCompetitions(id)
+        return app.database.dao().competitionsOnce().map { Triple(it.id, it.name, it.id in inPlan) }
+    }
+    /** Um plano para vários concursos: as matérias dos marcados dividem o tempo. */
+    fun setCompetitions(ids: Set<Long>) = _state.value.activePlan?.id?.let { id -> launch("Redividindo o tempo entre os concursos") { service.setCompetitions(id, ids) } }
     /** Data da prova e momento (do zero, revisão, reta final): o plano recalcula fases e ritmo. */
     fun updateMethod(examDate: LocalDate?, profile: br.com.estudario.domain.planner.StudyProfile) = _state.value.activePlan?.id?.let { id -> launch("Recalculando o plano") { service.updateMethod(id, examDate, profile) } }
     /** Férias/viagem: um período inteiro sem estudo (ou devolvido), com uma reorganização só. */

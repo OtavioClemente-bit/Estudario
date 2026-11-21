@@ -95,7 +95,11 @@ fun PlanManagementScreen(
     onUpdateSubject: (Long, PlanPriority, Boolean) -> Unit,
     onDaysOff: (java.time.LocalDate, java.time.LocalDate, Boolean) -> Unit = { _, _, _ -> },
     onUpdateMethod: (java.time.LocalDate?, br.com.estudario.domain.planner.StudyProfile) -> Unit = { _, _ -> },
+    competitionChoices: suspend () -> List<Triple<Long, String, Boolean>> = { emptyList() },
+    onSetCompetitions: (Set<Long>) -> Unit = {},
 ) {
+    var competitionsDialog by remember { mutableStateOf(false) }
+    if (competitionsDialog) CompetitionsDialog(competitionChoices, onDismiss = { competitionsDialog = false }, onSave = { competitionsDialog = false; onSetCompetitions(it) })
     var methodDialog by remember { mutableStateOf(false) }
     if (methodDialog) state.activePlan?.let { MethodDialog(it, onDismiss = { methodDialog = false }, onSave = { d, p -> methodDialog = false; onUpdateMethod(d, p) }) }
     var confirm by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
@@ -129,6 +133,7 @@ fun PlanManagementScreen(
             subtitle = planStatus(plan),
             actions = buildList {
                 if (!plan.archived && !plan.active) add(SheetAction(Icons.Outlined.PlayCircle, "Ativar este plano", "O ativo atual é desativado, sem apagar o histórico") { confirm = "O plano ativo atual será desativado, sem apagar o histórico." to { onActivate(plan.id) } })
+                if (plan.active) add(SheetAction(Icons.Outlined.Layers, "Concursos do plano", "Estudar para mais de um concurso no mesmo plano") { competitionsDialog = true })
                 if (!plan.archived && !plan.masterPlan) add(SheetAction(Icons.Outlined.Star, "Tornar Plano Mestre", "O plano de referência para o ano todo") { confirm = "O Plano Mestre anterior será desmarcado, preservando todos os dados." to { onMaster(plan.id) } })
                 add(SheetAction(Icons.Outlined.ContentCopy, "Duplicar", "Uma cópia para testar outra estratégia") { if (entitlements?.canCreatePlan(state.allPlans.map { it.createdAt }) == false) planUpgrade = true else onDuplicate(plan.id, "${plan.name}, cópia") })
                 if (!plan.archived) add(SheetAction(Icons.Outlined.Archive, "Arquivar", "Sai de Hoje/Semana/Mês/Ano; o histórico fica") { confirm = "O plano ficará consultável, mas deixará de alimentar Hoje/Semana/Mês/Ano." to { onArchive(plan.id) } })
@@ -350,6 +355,34 @@ private fun MethodDialog(plan: StudyPlanEntity, onDismiss: () -> Unit, onSave: (
             }
         },
         confirmButton = { TextButton(onClick = { onSave(exam, profile) }) { Text("Salvar e recalcular") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
+    )
+}
+
+/** Um plano para vários concursos: marque os que entram; as matérias deles passam a dividir o tempo. */
+@Composable
+private fun CompetitionsDialog(load: suspend () -> List<Triple<Long, String, Boolean>>, onDismiss: () -> Unit, onSave: (Set<Long>) -> Unit) {
+    var options by remember { mutableStateOf<List<Triple<Long, String, Boolean>>?>(null) }
+    var chosen by remember { mutableStateOf(setOf<Long>()) }
+    LaunchedEffect(Unit) { load().also { list -> options = list; chosen = list.filter { it.third }.mapTo(hashSetOf()) { it.first } } }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Concursos do plano") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Marque os concursos que entram neste plano. As matérias deles dividem o seu tempo; o que você já fez fica no histórico.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val list = options
+                if (list == null) Text("Carregando…")
+                else if (list.size < 2) Text("Você tem só um concurso. Adicione outro em Meus concursos para estudar os dois juntos.")
+                else list.forEach { (id, name, _) ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = id in chosen, onCheckedChange = { on -> chosen = if (on) chosen + id else chosen - id })
+                        Text(name, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSave(chosen) }, enabled = (options?.size ?: 0) >= 2 && chosen.isNotEmpty()) { Text("Salvar e redividir") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )
 }
