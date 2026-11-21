@@ -173,6 +173,10 @@ fun FlashcardDeckDialog(
     val scope = rememberCoroutineScope()
     // Chegou ao último cartão: o baralho conta para o emblema de flashcards.
     val context = androidx.compose.ui.platform.LocalContext.current
+    // Roteiro "Seu primeiro dia": abrir cartões de verdade conta como o passo dos flashcards.
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (cards.isNotEmpty()) br.com.estudario.data.sync.CelebratedStore.mark(context, listOf(br.com.estudario.domain.FirstDay.FLASHCARDS))
+    }
     androidx.compose.runtime.LaunchedEffect(pager.currentPage) {
         if (deckKey != null && cards.isNotEmpty() && pager.currentPage == cards.lastIndex) br.com.estudario.data.FlashDeckLog.record(context, "deck-$deckKey-${br.com.estudario.data.FlashDeckLog.today()}")
     }

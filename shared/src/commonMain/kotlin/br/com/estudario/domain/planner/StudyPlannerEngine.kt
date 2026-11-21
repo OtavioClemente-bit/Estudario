@@ -44,9 +44,15 @@ class StudyPlannerEngine(
         val theoryDoneOn = snapshot.tasks.filter {
             it.type == PlanTaskType.THEORY && it.topicId != null && it.status == PlanTaskStatus.CONCLUIDA
         }.groupBy({ it.topicId }, { it.date })
+        // Tópico estudado fora do plano (marcado como estudado no edital, lido na biblioteca, prática livre): a
+        // teoria dele que o plano ainda tinha marcada também já foi lida. Antes ela ficava na semana estável e a
+        // pessoa via de novo a teoria do que acabou de estudar. Só quando nenhuma teoria do plano foi concluída
+        // (aí vale a regra de cima) e só a teoria marcada até 30 dias depois da leitura (a retomada fica).
         val leftoverTheory: (PlannerTask) -> Boolean = { task ->
-            task.type == PlanTaskType.THEORY && task.status == PlanTaskStatus.PLANEJADA && !task.locked &&
-                theoryDoneOn[task.topicId].orEmpty().any { daysBetween(it, task.date) < LEFTOVER_THEORY_DAYS }
+            task.type == PlanTaskType.THEORY && task.status == PlanTaskStatus.PLANEJADA && !task.locked && (
+                theoryDoneOn[task.topicId].orEmpty().any { daysBetween(it, task.date) < LEFTOVER_THEORY_DAYS } ||
+                    (task.topicId !in theoryDoneOn && snapshot.topicStudiedOn[task.topicId]?.let { daysBetween(it, task.date) in 0 until LEFTOVER_THEORY_DAYS } == true)
+                )
         }
         val liveStatuses = setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO)
         val executionsByTask = snapshot.executions.filter { it.taskId != null }.groupBy { it.taskId }
@@ -79,7 +85,15 @@ class StudyPlannerEngine(
             untouched.filter { it.type == PlanTaskType.SIMULATION }.sortedWith(byDay).drop(1).forEach { surplus += it.id }
         }
         /** Sai do plano sem voltar: a parte que sobrou de teoria já lida e a cópia a mais. */
-        val dropped: (PlannerTask) -> Boolean = { task -> task.id in surplus || leftoverTheory(task) }
+        // Matéria pausada ou que saiu do plano (concurso removido de um plano com vários): o que estava marcado dela
+        // e ainda não começou sai, também na semana estável. Antes só deixava de entrar coisa nova e a semana
+        // seguia com as tarefas da matéria tirada.
+        val subjectsById = snapshot.subjects.associateBy { it.subjectId }
+        val outOfPlan: (PlannerTask) -> Boolean = { task ->
+            task.status == PlanTaskStatus.PLANEJADA && !task.locked && task.origin == PlanOrigin.ENGINE && task.subjectId != null && subjectsById.isNotEmpty() &&
+                executionsByTask[task.id].isNullOrEmpty() && subjectsById[task.subjectId]?.paused != false
+        }
+        val dropped: (PlannerTask) -> Boolean = { task -> task.id in surplus || leftoverTheory(task) || outOfPlan(task) }
         // Dia da semana estável acima das horas (dois aparelhos, "empurrar tudo", plano antigo): as últimas tarefas
         // do dia, questões antes da teoria, deixam de ficar presas e vão para um dia com espaço.
         val overflowing = hashSetOf<String>()

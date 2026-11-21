@@ -204,6 +204,11 @@ data class StudyPlannerSnapshot(
      * não deixa a teoria viva de um tópico passar disso (cópias de dois aparelhos, plano antigo inflado).
      */
     val theoryNeedByTopic: Map<Long, Int> = emptyMap(),
+    /**
+     * Tópicos marcados como estudados (no edital, na biblioteca, na prática livre) e o dia da última leitura.
+     * A teoria deles que estava marcada no plano sai, como a parte que sobra de uma teoria concluída.
+     */
+    val topicStudiedOn: Map<Long, LocalDate> = emptyMap(),
 ) {
     init {
         require(revision >= 0)

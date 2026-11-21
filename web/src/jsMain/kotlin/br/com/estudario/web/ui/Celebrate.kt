@@ -42,7 +42,12 @@ private sealed interface Celebration {
      * todas as cartas saem juntas e ele aparece vestindo. Peças que chegam juntas vêm numa caixa só.
      */
     data class NewPiece(val items: List<br.com.estudario.domain.FolhaItem>) : Celebration
+    /** O dia 1 do roteiro "Seu primeiro dia" (FirstDay), com os prêmios já em texto. */
+    data class FirstDayDone(val loot: List<Pair<String, String>>) : Celebration
 }
+
+/** Comemora o primeiro dia (a chave tour:first-day já foi gravada por quem chama). */
+fun celebrateFirstDay(loot: List<Pair<String, String>>) { CelebrationQueue.items += Celebration.FirstDayDone(loot) }
 
 /**
  * Uma rodada de estudo em andamento (bateria de questões, revisão, flashcards, simulado) ou a leitura
@@ -80,6 +85,7 @@ fun CelebrationHost() {
     // Na demonstração, "?celebrar" mostra as três telas (para conferir o visual); fora isso, nada.
     if (Store.demo) {
         LaunchedEffect(Unit) {
+            if ("primeiro-dia" in window.location.search) CelebrationQueue.items += Celebration.FirstDayDone(br.com.estudario.domain.FirstDay.celebrationLoot(3, 2, Queries.todayEpoch() + 1))
             if ("celebrar" !in window.location.search) return@LaunchedEffect
             val sample = br.com.estudario.domain.BadgeCatalog.all.firstOrNull { it.tier == 3 } ?: return@LaunchedEffect
             CelebrationQueue.items += Celebration.StreakDay(5, 7, listOf("S" to true, "T" to true, "Q" to false, "Q" to true, "S" to true, "S" to true, "D" to true), 86)
@@ -199,6 +205,7 @@ private fun revealAt(item: Celebration): Double = when (item) {
     is Celebration.NewBadge -> 4.35
     is Celebration.StreakDay -> 3.0
     is Celebration.NewPiece -> br.com.estudario.domain.FolhaWardrobe.giftFlashAt(item.items.size) + 0.2
+    is Celebration.FirstDayDone -> 2.5
 }
 
 /**
@@ -229,11 +236,15 @@ private fun CelebrationScreen(item: Celebration, onCloseNow: () -> Unit) {
         StreakGame(item.days, item.best, item.week, item.xpToday, leaving, onClose)
         return
     }
+    if (item is Celebration.FirstDayDone) {
+        FirstDayGame(item.loot, leaving, onClose, onPlan = { onCloseNow(); Router.go(Route.Plan) })
+        return
+    }
     if (item is Celebration.NewBadge) {
         BadgeGame(item.badge, leaving, onClose, onTrophies = { onCloseNow(); Router.go(Route.Achievements) })
         return
     }
-    val kind = when (item) { is Celebration.StreakDay -> "streak"; is Celebration.NewBadge -> "badge"; is Celebration.LevelUp -> "level"; is Celebration.NewPiece -> "piece" }
+    val kind = when (item) { is Celebration.StreakDay -> "streak"; is Celebration.NewBadge -> "badge"; is Celebration.LevelUp -> "level"; is Celebration.NewPiece -> "piece"; is Celebration.FirstDayDone -> "streak" }
     val r = revealAt(item)
     Div({ classes(*listOfNotNull("celebrate", "cn", kind, if (leaving) "out" else null).toTypedArray()); attr("role", "dialog"); attr("aria-modal", "true") }) {
         Div({ classes("cel-in") }) {
@@ -244,6 +255,7 @@ private fun CelebrationScreen(item: Celebration, onCloseNow: () -> Unit) {
                     is Celebration.NewBadge -> Unit
                     is Celebration.LevelUp -> Unit
                     is Celebration.NewPiece -> PieceText(item.items, r)
+                    is Celebration.FirstDayDone -> Unit
                 }
             }
             Div({ classes("cel-actions", "lv-late"); attr("style", "--ld:${r + 0.45}s") }) {
@@ -270,12 +282,14 @@ private fun Scene(item: Celebration) {
         is Celebration.NewBadge -> listOf("tipo" to "emblema", "tier" to item.badge.tier.toString(), "categoria" to item.badge.id.substringBefore("-"), "faixa" to tierName(item.badge.tier), "arte" to "emblemas/g/${item.badge.id}.webp")
         is Celebration.StreakDay -> listOf("tipo" to "sequencia", "dias" to item.days.toString(), "semana" to item.week.joinToString(",") { (l, done) -> l + if (done) "1" else "0" })
         is Celebration.NewPiece -> listOf("tipo" to "peca", "pieces" to piecesJson(item.items), "rarity" to item.items.maxOf { it.rarity }.name.lowercase())
+        is Celebration.FirstDayDone -> listOf("tipo" to "sequencia", "dias" to "1", "semana" to "")
     }
     val label = when (item) {
         is Celebration.LevelUp -> "O Folha comemora o nível ${item.level}"
         is Celebration.NewBadge -> "Medalha do emblema ${item.badge.name}"
         is Celebration.StreakDay -> "${item.days} dias de sequência"
         is Celebration.NewPiece -> if (item.items.size == 1) "O Folha ganha ${item.items[0].name}" else "O Folha ganha ${item.items.size} peças novas"
+        is Celebration.FirstDayDone -> "Primeiro dia completo"
     }
     Div({ classes("cn-stage") }) {
         org.jetbrains.compose.web.dom.TagElement<org.w3c.dom.HTMLElement>(

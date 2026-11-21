@@ -1,5 +1,8 @@
 // Envia o AAB do Estudário para a Play Console pela API oficial (Google Play Developer API v3).
 //
+// Antes de enviar: bash scripts/guardas.sh tem de passar (plano de estudo simulado por 60 a 120 dias e
+// sincronização entre celular e site). Se alguma guarda falhar, não publique.
+//
 // Uso:
 //   deno run -A scripts/play/enviar.ts                      -> o AAB mais novo, faixa interna, rascunho
 //   deno run -A scripts/play/enviar.ts --faixa production   -> produção (fica em RASCUNHO: você publica na Console)

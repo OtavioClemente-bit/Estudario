@@ -16,4 +16,15 @@ class StaleCopiesTest {
         )
         assertEquals(setOf("b", "e", "g"), StaleCopies.ids(rows))
     }
+
+    /** Celular e site reorganizaram a mesma tarefa para o mesmo dia: fica uma cópia só (a de menor id). */
+    @Test
+    fun duasCopiasDaMesmaTarefaNoMesmoDiaViramUma() {
+        val rows = listOf(
+            Row("t", null, "REPROGRAMADA", "100|THEORY"),
+            Row("c-site", "t", "PLANEJADA", "106|THEORY"), Row("c-cel", "t", "PLANEJADA", "106|THEORY"),
+            Row("parte2", "t", "PLANEJADA", "107|THEORY"), // outro dia: parte da mesma teoria, fica
+        )
+        assertEquals(setOf("c-site"), StaleCopies.ids(rows))
+    }
 }

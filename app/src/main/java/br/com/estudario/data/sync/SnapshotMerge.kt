@@ -17,25 +17,8 @@ import org.json.JSONObject
  * Sem base (primeira sincronização deste aparelho), nada é apagado: as duas versões se somam.
  */
 object SnapshotMerge {
-    /** Tabelas sem "id": a chave é a combinação destes campos. Outras sem id usam a linha inteira. */
-    private val compositeKeys = mapOf(
-        "planSubjects" to listOf("planId", "subjectId"),
-        "studyAvailability" to listOf("planId", "day"),
-        "studyDayOverrides" to listOf("planId", "day"),
-        // Sem esta chave, a mesma revisão feita aqui e no site entrava duas vezes e a restauração
-        // parava na chave primária (planId, revision).
-        "studyPlanRevisions" to listOf("planId", "revision"),
-        "errorConceptEntries" to listOf("conceptId", "errorEntryId"),
-        "questionTags" to listOf("questionId", "tagId"),
-    )
-
-    // Decisão final (concluída, não feita, reagendada, cancelada) vence estado aberto. Antes "em
-    // andamento" vencia "reprogramada": uma tarefa reagendada num aparelho e iniciada no outro voltava
-    // para o dia antigo e o plano acusava atraso de novo, sem a pessoa ter atrasado nada.
-    private val taskStatusRank = mapOf(
-        "CONCLUIDA" to 7, "NAO_REALIZADA" to 6, "REPROGRAMADA" to 5, "CANCELADA" to 4,
-        "EM_ANDAMENTO" to 3, "PAUSADA" to 2, "PLANEJADA" to 1,
-    )
+    /** Tabelas sem "id" e o estado de cada tarefa: as regras são as do site também (domain/SnapshotRowsMerge). */
+    private val compositeKeys = br.com.estudario.domain.SnapshotRowsMerge.compositeKeys
 
     fun merge(base: JSONObject?, local: JSONObject, remote: JSONObject): JSONObject {
         val out = JSONObject()
@@ -69,7 +52,7 @@ object SnapshotMerge {
         val rows = (0 until tasks.length()).mapNotNull { i ->
             val o = tasks.optJSONObject(i) ?: return@mapNotNull null
             val id = o.optString("id").takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-            br.com.estudario.domain.planner.StaleCopies.Row(id, o.optString("replannedFrom").takeIf { !o.isNull("replannedFrom") && it.isNotEmpty() }, o.optString("status"))
+            br.com.estudario.domain.planner.StaleCopies.Row(id, o.optString("replannedFrom").takeIf { !o.isNull("replannedFrom") && it.isNotEmpty() }, o.optString("status"), "${o.opt("day")}|${o.optString("type")}")
         }
         val stale = br.com.estudario.domain.planner.StaleCopies.ids(rows)
         if (stale.isEmpty()) return snapshot
@@ -81,43 +64,16 @@ object SnapshotMerge {
         return snapshot
     }
 
-    private fun mergeArray(table: String, base: JSONArray?, local: JSONArray, remote: JSONArray, noBase: Boolean): JSONArray {
-        val b = index(table, base)
-        val l = index(table, local)
-        val r = index(table, remote)
-        val order = LinkedHashSet<String>().apply { addAll(r.keys); addAll(l.keys) }
-        val out = JSONArray()
-        for (key in order) {
-            val lv = l[key]
-            val rv = r[key]
-            val bv = b[key]
-            val chosen: Any? = when {
-                lv == null && rv == null -> null
-                bv == null || noBase -> when {
-                    lv != null && rv != null -> if (same(lv, rv)) lv else resolve(table, lv, rv)
-                    else -> lv ?: rv
-                }
-                lv == null -> if (rv == null || same(rv, bv)) null else rv // apagada aqui; lá ninguém mexeu
-                rv == null -> if (same(lv, bv)) null else lv // apagada lá; aqui ninguém mexeu
-                same(lv, bv) -> rv
-                same(rv, bv) -> lv
-                same(lv, rv) -> lv
-                else -> resolve(table, lv, rv)
-            }
-            if (chosen != null) out.put(chosen)
-        }
-        return out
-    }
+    private fun mergeArray(table: String, base: JSONArray?, local: JSONArray, remote: JSONArray, noBase: Boolean): JSONArray =
+        JSONArray(br.com.estudario.domain.SnapshotRowsMerge.rows(items(base), items(local), items(remote), noBase, { keyOf(table, it) }, ::canonical) { l, r -> resolve(table, l, r) })
+
+    private fun items(array: JSONArray?): List<Any> = if (array == null) emptyList() else (0 until array.length()).mapNotNull { array.opt(it) }
 
     /** As duas versões mudaram a mesma linha. */
     private fun resolve(table: String, local: Any, remote: Any): Any {
         if (local !is JSONObject || remote !is JSONObject) return local
-        if (table == "planTasks") {
-            val lr = taskStatusRank[local.optString("status")] ?: 0
-            val rr = taskStatusRank[remote.optString("status")] ?: 0
-            if (lr != rr) return if (lr > rr) local else remote
-        }
-        val winner = if (stamp(remote) > stamp(local)) remote else local
+        // Tarefa: decisão final (concluída, não feita, reagendada, cancelada) vence estado aberto; o resto, a mais recente.
+        val winner = br.com.estudario.domain.SnapshotRowsMerge.winner(table, local, remote, { it.optString("status") }, ::stamp)
         if (table == "studyPlans") {
             // A revisão do plano só anda para a frente: a maior das duas, para o próximo envio valer.
             val revision = maxOf(local.optLong("revision"), remote.optLong("revision"))
@@ -127,19 +83,9 @@ object SnapshotMerge {
     }
 
     private fun stamp(row: JSONObject): Long =
-        listOf("updatedAt", "completedAt", "answeredAt", "createdAt").firstNotNullOfOrNull { field ->
+        br.com.estudario.domain.SnapshotRowsMerge.stampFields.firstNotNullOfOrNull { field ->
             row.optLong(field, Long.MIN_VALUE).takeIf { it != Long.MIN_VALUE }
         } ?: Long.MIN_VALUE
-
-    private fun index(table: String, array: JSONArray?): LinkedHashMap<String, Any> {
-        val map = LinkedHashMap<String, Any>()
-        if (array == null) return map
-        for (i in 0 until array.length()) {
-            val row = array.opt(i) ?: continue
-            map[keyOf(table, row)] = row
-        }
-        return map
-    }
 
     private fun keyOf(table: String, row: Any): String {
         if (row !is JSONObject) return canonical(row)

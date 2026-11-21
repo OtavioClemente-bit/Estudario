@@ -166,7 +166,7 @@ class Snapshot private constructor(val root: JsonObject, parent: Snapshot? = nul
             val rows = tasks.mapNotNull { el ->
                 val o = el as? JsonObject ?: return@mapNotNull null
                 val id = (o["id"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
-                br.com.estudario.domain.planner.StaleCopies.Row(id, (o["replannedFrom"] as? JsonPrimitive)?.contentOrNull, (o["status"] as? JsonPrimitive)?.contentOrNull.orEmpty())
+                br.com.estudario.domain.planner.StaleCopies.Row(id, (o["replannedFrom"] as? JsonPrimitive)?.contentOrNull, (o["status"] as? JsonPrimitive)?.contentOrNull.orEmpty(), "${(o["day"] as? JsonPrimitive)?.contentOrNull}|${(o["type"] as? JsonPrimitive)?.contentOrNull}")
             }
             val stale = br.com.estudario.domain.planner.StaleCopies.ids(rows)
             if (stale.isEmpty()) return root

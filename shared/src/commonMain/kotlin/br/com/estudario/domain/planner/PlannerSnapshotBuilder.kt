@@ -344,6 +344,7 @@ object PlannerSnapshotBuilder {
             theoryMinutesByTopic = if (pace.theorySamples >= PersonalPace.MIN_THEORY_TOPICS) blueprint.theoryMinutesByTopic else emptyMap(),
             minutesPerQuestion = pace.minutesPerQuestion,
             theoryNeedByTopic = blueprint.theoryMinutesByTopic,
+            topicStudiedOn = topics.filter { it.studied && it.lastStudiedAt != null }.associate { it.id to epochMillisToDate(it.lastStudiedAt!!, zone) },
         )
     }
 }

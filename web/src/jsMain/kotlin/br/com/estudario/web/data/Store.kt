@@ -108,6 +108,12 @@ object Store {
     var offlineCopy by mutableStateOf(false)
         private set
 
+    /**
+     * A foto aberta tem estudo que não está na fila de edições desta aba (veio da cópia guardada sem internet).
+     * No conflito ela é juntada inteira com a da conta (SiteMerge); refazer só a fila perdia esse estudo.
+     */
+    private var unsyncedCopy = false
+
     private suspend fun cacheGet(): dynamic {
         val userId = Auth.session?.userId ?: return null
         val api = window.asDynamic().estudarioCache ?: return null
@@ -176,7 +182,9 @@ object Store {
             val dirty = cached != null && cached.dirty == true
             if (dirty) {
                 // Ficou coisa feita sem internet: sobe agora. Se a conta mudou em outro aparelho nesse
-                // meio-tempo, pergunta qual versão manter (a outra fica no histórico da conta).
+                // meio-tempo, junta as duas (SiteMerge, as regras do app). Antes perguntava qual versão
+                // manter, e qualquer escolha perdia estudo: o concluído no celular voltava a pendente,
+                // ou o feito aqui sumia.
                 data = Snapshot.parse(cached.text as String)
                 load = LoadState.Ready
                 val cachedRevision = (cached.revision as Number).toLong()
@@ -184,8 +192,20 @@ object Store {
                     baseRevision = Cloud.upload(cached.text as String, head.revision)
                     cacheSet(cached.text as String, baseRevision, dirty = false)
                 } else {
-                    baseRevision = cachedRevision
-                    conflict = head
+                    val remote = Snapshot.parse(Cloud.download(head))
+                    val merged = Snapshot.parse(snapshotJson.encodeToString(kotlinx.serialization.json.JsonObject.serializer(), SiteMerge.merge(null, data.root, remote.root)))
+                    data = merged
+                    val text = merged.encode()
+                    try {
+                        baseRevision = Cloud.upload(text, head.revision)
+                        cacheSet(text, baseRevision, dirty = false)
+                    } catch (_: CloudConflictException) {
+                        // A conta mudou de novo durante o envio: guarda a junção e junta outra vez ao reabrir.
+                        baseRevision = head.revision
+                        cacheSet(text, head.revision, dirty = true)
+                        save = SaveState.Offline
+                        unsyncedCopy = true
+                    }
                 }
             } else if (head.revision == 0L || head.objectPath == null) {
                 data = Snapshot.empty()
@@ -206,6 +226,7 @@ object Store {
                 load = LoadState.Ready
                 offlineCopy = true
                 save = if (cached.dirty == true) SaveState.Offline else SaveState.Saved
+                unsyncedCopy = cached.dirty == true
                 lastError = "Sem internet: usando a cópia guardada neste aparelho."
             } else load = LoadState.Failed(error.message ?: "Não deu para carregar seus dados.")
         }
@@ -274,6 +295,7 @@ object Store {
             baseRevision = Cloud.upload(text, expected)
             cacheSet(text, baseRevision, dirty = false)
             offlineCopy = false
+            unsyncedCopy = false
             // Só saem da fila as edições que foram nesta foto; as feitas durante o envio vão na próxima.
             repeat(sent.coerceAtMost(pending.size)) { pending.removeAt(0) }
             save = if (pending.isEmpty()) SaveState.Saved else SaveState.Pending
@@ -284,8 +306,11 @@ object Store {
             // edições feitas aqui por cima dela. Nunca sobrescreve o que veio do celular.
             if (attempt >= 3) { lastError = "A conta mudou várias vezes seguidas durante o envio."; save = SaveState.Offline; return }
             try {
-                var merged = Snapshot.parse(Cloud.download(error.head))
-                pending.toList().forEach { change -> merged = runCatching { change(merged) }.getOrDefault(merged) }
+                val remote = Snapshot.parse(Cloud.download(error.head))
+                var merged = remote
+                // Foto com estudo de fora da fila (cópia guardada sem internet): junta inteira, senão esse estudo se perdia.
+                if (unsyncedCopy) merged = Snapshot.parse(snapshotJson.encodeToString(kotlinx.serialization.json.JsonObject.serializer(), SiteMerge.merge(null, data.root, remote.root)))
+                else pending.toList().forEach { change -> merged = runCatching { change(merged) }.getOrDefault(merged) }
                 data = merged
                 baseRevision = error.head.revision
                 pushNow(attempt = attempt + 1)

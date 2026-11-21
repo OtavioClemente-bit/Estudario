@@ -161,6 +161,8 @@ fun SetupScreen() {
                 // Primeiro plano da conta: vai direto para o Início, com o primeiro estudo do dia em destaque.
                 val firstTime = Store.data.attempts.isEmpty() && Store.data.sessions.isEmpty()
                 Store.update { build(it).first }
+                // Primeiro plano: o Início abre com o roteiro "Seu primeiro dia" (vale nos dois aparelhos).
+                if (firstTime) br.com.estudario.web.data.Prefs.markCelebrated(listOf(br.com.estudario.domain.FirstDay.STARTED))
                 Router.go(if (firstTime) Route.Home else Route.Plan)
             } catch (e: Throwable) { error = e.message; preview = null; building = false }
         }
@@ -181,7 +183,7 @@ fun SetupScreen() {
         0 -> {
             FolhaSays("talking", 88) {
                 H2 { Text("Oi! Eu sou o Folha. Qual concurso você vai prestar?") }
-                P({ classes("small", "muted") }) { Text("Procure pelo órgão, cargo ou sigla, como “pm mg”, “trt analista” ou “pf agente”.") }
+                P({ classes("small", "muted") }) { Text("Em poucos passos eu monto o seu plano até a prova. Procure pelo órgão, cargo ou sigla, como “pm mg”, “trt analista” ou “pf agente”.") }
             }
             // O PDF fica no alto (antes ficava no fim da lista e sumia rolando). Sem plano pago, abre a oferta.
             Button({
@@ -391,6 +393,41 @@ private fun PlanPreview(result: Pair<Snapshot, String>?, onBack: () -> Unit, onO
     FolhaSays("happy", 96) {
         H2 { Text("Prontinho! Olha como vai ficar a sua primeira semana") }
         P({ classes("small", "muted") }) { Text("${firstWeek.size} atividades · ${Queries.minutesLabel(firstWeek.sumOf { it.minutes })} de estudo. Dá para ajustar tudo depois.") }
+    }
+    // O que o plano montou, com as contas feitas sobre as tarefas de verdade (FirstDay.reveal, igual no app).
+    val plan = data.plans.firstOrNull { it.id == planId }
+    val planSubjects = data.subjects.filter { it.competitionId == plan?.competitionId }
+    val subjectIds = planSubjects.mapTo(hashSetOf()) { it.id }
+    val reveal = br.com.estudario.domain.FirstDay.reveal(
+        subjects = planSubjects.size,
+        topics = Queries.leafTopics(data, subjectIds).size,
+        theoryDays = tasks.filter { it.type == "THEORY" && it.topicId != null }.map { it.topicId!! to it.day },
+        minutesBySubject = tasks.groupBy { it.subjectName }.mapValues { (_, l) -> l.sumOf { it.minutes } },
+        examEpochDay = plan?.exam,
+    )
+    Card {
+        Div({ classes("plan-reveal") }) {
+            CardHead(reveal.headline)
+            Div({ classes("pr-stats") }) {
+                Div({ classes("pr-stat") }) { B { Text("${reveal.subjects}") }; Span({ classes("small", "muted") }) { Text("matérias") } }
+                Div({ classes("pr-stat") }) { B { Text("${reveal.topics}") }; Span({ classes("small", "muted") }) { Text("tópicos") } }
+                Div({ classes("pr-stat") }) { B { Text(Queries.minutesLabel(tasks.sumOf { it.minutes })) }; Span({ classes("small", "muted") }) { Text("de estudo planejado") } }
+            }
+            P({ classes("strong") }) { Text(reveal.coverageLine) }
+            if (reveal.weights.isNotEmpty()) {
+                Span({ classes("xs", "muted", "strong") }) { Text("PESO DE CADA MATÉRIA NO SEU TEMPO") }
+                Div({ classes("pr-weights") }) {
+                    reveal.weights.take(6).forEach { (name, pct) ->
+                        key(name) {
+                            Div({ classes("stack", "tight") }) {
+                                Div({ classes("row", "between") }) { B({ classes("small", "clamp-2") }) { Text(name) }; Span({ classes("small", "muted", "nowrap") }) { Text("$pct%") } }
+                                ProgressBar(pct / 100.0)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     Div({ classes("week-strip", "preview") }) {
         week.forEach { epoch ->

@@ -373,6 +373,8 @@ fun InitialSetupFlow(
                     )
                     InitialSetupStep.PLAN_REVIEW -> PlanReviewStep(snapshot, uiState, viewModel)
                     InitialSetupStep.READY -> ReadyStep(onFinish = {
+                        // Primeiro plano (fora do "novo plano"): o Início abre com o roteiro "Seu primeiro dia".
+                        if (!planMode) br.com.estudario.data.sync.CelebratedStore.mark(context, listOf(br.com.estudario.domain.FirstDay.STARTED))
                         planPrefs.edit().remove(PLAN_MODE_PREVIOUS_STATUS).remove(PLAN_MODE_PREVIOUS_STEP).apply()
                         viewModel.finish(); onFinished()
                     })
@@ -1110,6 +1112,40 @@ private fun PlanReviewStep(snapshot: InitialSetupSnapshot, uiState: InitialSetup
         icon = Icons.Outlined.CheckCircle,
         bottom = { SetupPrimaryButton("Concluir configuração", viewModel::complete, enabled = snapshot.lastValidPlanId != null) },
     ) {
+        // O que o plano montou, com as contas feitas sobre as tarefas de verdade (FirstDay.reveal, igual no site).
+        if (reviewTasks != null) {
+            val reveal = remember(currentTasks, uiState.topicEntities) {
+                br.com.estudario.domain.FirstDay.reveal(
+                    subjects = uiState.subjects.size,
+                    topics = uiState.topicEntities.count { t -> uiState.topicEntities.none { it.parentTopicId == t.id } },
+                    theoryDays = currentTasks.filter { it.type == br.com.estudario.domain.planner.PlanTaskType.THEORY && it.topicId != null }.map { it.topicId!! to it.scheduledEpochDay },
+                    minutesBySubject = currentTasks.groupBy { it.subjectNameSnapshot }.mapValues { (_, l) -> l.sumOf { it.plannedMinutes } },
+                    examEpochDay = examDate?.toEpochDay(),
+                )
+            }
+            SetupCard {
+                Text(reveal.headline, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    listOf("${reveal.subjects}" to "matérias", "${reveal.topics}" to "tópicos", formatAvailabilityMinutes(currentTasks.sumOf { it.plannedMinutes }) to "de estudo planejado").forEach { (value, label) ->
+                        Column(Modifier.weight(1f)) {
+                            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                            Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+                Text(reveal.coverageLine, fontWeight = FontWeight.SemiBold)
+                if (reveal.weights.isNotEmpty()) {
+                    Text("PESO DE CADA MATÉRIA NO SEU TEMPO", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    reveal.weights.take(6).forEach { (name, pct) ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(name, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold, maxLines = 2)
+                            Text("$pct%", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        LinearProgressIndicator(progress = { pct / 100f }, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+            }
+        }
         // Conferência curta: o essencial para começar. O detalhe de cada dia e de cada matéria continua
         // na aba Plano; repetir tudo aqui só alongava o fim do assistente.
         SetupCard {

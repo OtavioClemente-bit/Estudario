@@ -7,6 +7,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import br.com.estudario.domain.FirstDay
 import br.com.estudario.domain.planner.ReplanReason
 import br.com.estudario.time.isoDayOfWeek
 import br.com.estudario.web.Route
@@ -89,7 +90,7 @@ fun HomeScreen() {
 
     Div({ classes("grid", "main-side") }) {
         Div({ classes("stack", "loose") }) {
-            if (plan != null && data.attempts.size < 5) FirstSteps(data.attempts.size)
+            if (plan != null) FirstDayCard(data, plan)
             // Estudo atrasado vem antes de tudo: fazer agora, um por um, ou reorganizar o plano.
             if (plan != null && !Store.demo) HomeOverdue(data, plan.id)
             // Com o plano do dia, a missão vem primeiro e já diz por onde começar; sem tarefas hoje, o "agora" de sempre.
@@ -896,42 +897,73 @@ private fun planQuiz(task: PlanTask, scope: String) {
 }
 
 /**
- * Os primeiros 3 minutos: o concurso já escolhido, ver o plano montado e responder 5 questões com o
- * Folha comemorando no fim. Some sozinho depois das 5 questões (ou quando a pessoa fecha).
+ * "Seu primeiro dia" (o mesmo roteiro do app, FirstDay.kt em shared): ler o primeiro tópico, responder
+ * as primeiras questões e ver os primeiros flashcards, cada passo marcado com dados reais. Ao fechar
+ * os três, o Folha comemora o dia 1 uma vez só na conta (chave tour:first-day).
  */
 @Composable
-private fun FirstSteps(answered: Int) {
-    fun read(k: String) = runCatching { kotlinx.browser.window.localStorage.getItem(k) == "1" }.getOrDefault(false)
-    fun write(k: String) { runCatching { kotlinx.browser.window.localStorage.setItem(k, "1") } }
-    var hidden by remember { mutableStateOf(read("estudario.first.hidden")) }
-    var planSeen by remember { mutableStateOf(read("estudario.first.plan")) }
-    if (hidden) return
-    val left = listOf(true, planSeen, answered >= 5).count { !it }
-    Div({ classes("first-steps") }) {
+private fun FirstDayCard(data: Snapshot, plan: br.com.estudario.web.data.StudyPlan) {
+    val celebrated = br.com.estudario.web.data.Prefs.celebratedIn(data)
+    val local = runCatching { kotlinx.browser.window.localStorage.getItem(FIRST_DAY_LOCAL) }.getOrNull()
+    val forced = Store.demo && "primeiro" in kotlinx.browser.window.location.search
+    val untouched = data.attempts.isEmpty() && data.sessions.isEmpty()
+    var hidden by remember { mutableStateOf(local != null) }
+    if (hidden || !(forced || FirstDay.visible(celebrated, hasPlan = true, untouched = untouched))) return
+    val planTasks = data.tasks.filter { it.planId == plan.id }
+    val firstTopic = planTasks.filter { it.type == "THEORY" && it.topicId != null }.minByOrNull { it.day }?.topicId
+    val studiedTopic = data.sessions.maxByOrNull { it.completedAt }?.topicId ?: firstTopic
+    val state = if (forced) FirstDay.state(1, 1, false) else FirstDay.state(data.sessions.size, data.attempts.size, FirstDay.FLASHCARDS in celebrated)
+    LaunchedEffect(state.complete) {
+        if (!state.complete || forced) return@LaunchedEffect
+        runCatching { kotlinx.browser.window.localStorage.setItem(FIRST_DAY_LOCAL, "done") }
+        br.com.estudario.web.data.Prefs.markCelebrated(listOf(FirstDay.DONE))
+        val next = planTasks.filter { it.status == "PLANEJADA" && it.day > Queries.todayEpoch() }.minOfOrNull { it.day }
+        celebrateFirstDay(FirstDay.celebrationLoot(data.attempts.size, data.attempts.count { it.correct }, next))
+        hidden = true
+    }
+    Div({ classes("first-steps", "first-day", "rise") }) {
         Div({ classes("row"); attr("style", "gap:12px;align-items:center") }) {
-            Folha("talking", 56)
+            Folha(if (state.complete) "happy" else "talking", 56)
             Div({ classes("grow") }) {
-                B { Text("Seus primeiros 3 minutos") }
-                Div({ classes("small", "muted") }) { Text("Eu te mostro o caminho. Faltam $left ${if (left == 1) "passo" else "passos"}.") }
+                B { Text(FirstDay.TITLE) }
+                Div({ classes("small", "muted") }) { Text(if (state.complete) FirstDay.ALL_DONE else FirstDay.SUBTITLE) }
             }
-            Btn("Fechar", { hidden = true; write("estudario.first.hidden") }, style = "ghost", small = true)
+            Span({ classes("first-count") }) { Text(state.progressLabel) }
         }
         Div({ classes("first-list") }) {
-            FirstStepRow(1, "Escolher o concurso", true, null) {}
-            FirstStepRow(2, "Ver o seu plano montado", planSeen, "Ver plano") { planSeen = true; write("estudario.first.plan"); Router.go(Route.Plan) }
-            FirstStepRow(3, if (answered > 0) "Responder 5 questões ($answered de 5)" else "Responder 5 questões", answered >= 5, "Começar") { Router.go(Route.Quiz("rapido-5")) }
+            FirstDay.Step.entries.forEachIndexed { i, step ->
+                val done = step in state.done
+                val label = if (step == FirstDay.Step.QUESTIONS && !done && !forced && data.attempts.isNotEmpty()) "${step.title} (${data.attempts.size} de ${FirstDay.QUESTIONS_GOAL})" else step.title
+                Div({ classes(*listOfNotNull("first-step", if (done) "done" else null, if (step == state.next) "next" else null).toTypedArray()) }) {
+                    Span({ classes("first-n") }) { Text(if (done) "✓" else "${i + 1}") }
+                    Div({ classes("grow") }) {
+                        Span({ classes("strong") }) { Text(label) }
+                        if (step == state.next) Div({ classes("xs", "muted") }) { Text(step.hint) }
+                    }
+                    if (!done && step == state.next) Btn(step.action, {
+                        when (step) {
+                            FirstDay.Step.THEORY -> firstTopic?.let { Router.go(Route.Topic(it)) } ?: Router.go(Route.Plan)
+                            FirstDay.Step.QUESTIONS -> Router.go(Route.Quiz(
+                                if (studiedTopic != null && data.questions.any { it.topicId == studiedTopic && !it.hidden }) "topico-$studiedTopic-${FirstDay.QUESTIONS_GOAL}" else "rapido-${FirstDay.QUESTIONS_GOAL}",
+                            ))
+                            FirstDay.Step.FLASHCARDS -> Router.go(Route.Flashcards(studiedTopic?.takeIf { id -> data.summaries.any { it.topicId == id } }))
+                        }
+                    }, style = "primary", small = true)
+                }
+            }
+        }
+        Div({ classes("row", "end") }) {
+            Btn(FirstDay.SKIP, {
+                runCatching { kotlinx.browser.window.localStorage.setItem(FIRST_DAY_LOCAL, "skip") }
+                br.com.estudario.web.data.Prefs.markCelebrated(listOf(FirstDay.SKIPPED))
+                hidden = true
+            }, style = "ghost", small = true)
         }
     }
 }
 
-@Composable
-private fun FirstStepRow(n: Int, label: String, done: Boolean, action: String?, onClick: () -> Unit) {
-    Div({ classes(*listOfNotNull("first-step", if (done) "done" else null).toTypedArray()) }) {
-        Span({ classes("first-n") }) { Text(if (done) "✓" else "$n") }
-        Span({ classes("grow", "strong") }) { Text(label) }
-        if (!done && action != null) Btn(action, onClick, style = "primary", small = true)
-    }
-}
+private const val FIRST_DAY_LOCAL = "estudario.primeiro-dia"
+
 
 private const val OVERDUE_LATER = "estudario.atrasadas.depois"
 

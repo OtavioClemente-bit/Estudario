@@ -128,6 +128,8 @@ fun HomeScreen(
     onPlanQuestions: (br.com.estudario.data.local.planner.PlanTaskEntity, Int) -> Unit = { task, _ -> task.topicId?.let(onTopic) },
     /** Missão do ponto fraco: abre 10 questões da matéria. */
     onTrainSubject: (Long) -> Unit = {},
+    /** Questões de um tópico (roteiro do primeiro dia): id do tópico e quantas. */
+    onTopicQuiz: (Long, Int) -> Unit = { id, _ -> onTopic(id) },
 ) {
     val competitions by viewModel.competitions.collectAsState()
     val subjects by viewModel.subjects.collectAsState()
@@ -305,10 +307,28 @@ fun HomeScreen(
 
         item { Spacer(Modifier.height(EstudarioSpacing.medium)) }
 
-        // Primeiros passos: escolher o concurso (feito), ver o plano e responder 5 questões com o Folha.
-        if (activePlan != null && attempts.size < 5) item(key = "first-steps") {
+        // Seu primeiro dia: ler o primeiro tópico, responder as primeiras questões e ver os flashcards.
+        if (activePlan != null) item(key = "first-day") {
+            val planTasks = planState.tasks.map { it.entity }
+            val firstTopic = planTasks.filter { it.type == br.com.estudario.domain.planner.PlanTaskType.THEORY && it.topicId != null }.minByOrNull { it.scheduledEpochDay }?.topicId
+            val studied = topics.filter { it.firstStudiedAt != null }
+            val studiedTopic = studied.maxByOrNull { it.lastStudiedAt ?: it.firstStudiedAt ?: 0L }?.id ?: firstTopic
+            val todayEpoch = java.time.LocalDate.now().toEpochDay()
             Box(Modifier.padding(horizontal = EstudarioSpacing.screenGutter).padding(bottom = EstudarioSpacing.medium)) {
-                FirstStepsCard(answered = attempts.size, onPlan = onPlan, onQuiz = { onQuiz(5, "random") })
+                FirstDayCard(
+                    studiedTopics = studied.size,
+                    answered = attempts.size,
+                    correct = attempts.count { it.correct },
+                    firstTopicId = firstTopic,
+                    studiedTopicId = studiedTopic,
+                    nextStudyEpochDay = planTasks.filter { it.status == br.com.estudario.domain.planner.PlanTaskStatus.PLANEJADA && it.scheduledEpochDay > todayEpoch }.minOfOrNull { it.scheduledEpochDay },
+                    onTopic = onTopic,
+                    onPlan = onPlan,
+                    onQuestions = { topicId ->
+                        if (topicId != null && questions.any { it.question.topicId == topicId }) onTopicQuiz(topicId, br.com.estudario.domain.FirstDay.QUESTIONS_GOAL)
+                        else onQuiz(br.com.estudario.domain.FirstDay.QUESTIONS_GOAL, "random")
+                    },
+                )
             }
         }
 
@@ -697,42 +717,79 @@ private fun standingUi(streak: StreakSummary?, progress: ProgressEngine.Progress
 )
 
 /**
- * Os primeiros 3 minutos: o concurso já escolhido, ver o plano montado e responder 5 questões com o
- * Folha comemorando no fim. Some sozinho depois das 5 questões (ou quando a pessoa fecha).
+ * "Seu primeiro dia" (o mesmo roteiro do site, FirstDay em shared): ler o primeiro tópico, responder
+ * as primeiras questões e ver os primeiros flashcards, cada passo marcado com dados reais. Ao fechar
+ * os três, o Folha comemora o dia 1 uma vez só na conta (chave tour:first-day, sincronizada).
  */
 @Composable
-private fun FirstStepsCard(answered: Int, onPlan: () -> Unit, onQuiz: () -> Unit) {
-    val prefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("estudario_ui", android.content.Context.MODE_PRIVATE)
-    var hidden by remember { mutableStateOf(prefs.getBoolean("first_steps_hidden", false)) }
-    var planSeen by remember { mutableStateOf(prefs.getBoolean("first_steps_plan", false)) }
-    if (hidden) return
+private fun FirstDayCard(
+    studiedTopics: Int,
+    answered: Int,
+    correct: Int,
+    firstTopicId: Long?,
+    studiedTopicId: Long?,
+    nextStudyEpochDay: Long?,
+    onTopic: (Long) -> Unit,
+    onPlan: () -> Unit,
+    onQuestions: (Long?) -> Unit,
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val store = br.com.estudario.data.sync.CelebratedStore
+    val fd = br.com.estudario.domain.FirstDay
+    var hidden by remember { mutableStateOf(false) }
+    var celebrating by remember { mutableStateOf(false) }
+    val state = fd.state(studiedTopics, answered, store.has(context, fd.FLASHCARDS))
+    val untouched = studiedTopics == 0 && answered == 0
+    val visible = !hidden && !store.has(context, fd.DONE) && !store.has(context, fd.SKIPPED) && (store.has(context, fd.STARTED) || untouched)
+    androidx.compose.runtime.LaunchedEffect(state.complete, visible) {
+        if (state.complete && visible) { store.mark(context, listOf(fd.DONE)); celebrating = true }
+    }
+    if (celebrating) br.com.estudario.ui.profile.FirstDayCelebrationScreen(
+        fd.celebrationLoot(answered, correct, nextStudyEpochDay),
+        onPlan = { celebrating = false; hidden = true; onPlan() },
+        onClose = { celebrating = false; hidden = true },
+    )
+    if (!visible) return
     val scheme = MaterialTheme.colorScheme
     br.com.estudario.ui.brand.Surface(shape = RoundedCornerShape(22.dp), color = scheme.primaryContainer.copy(alpha = .55f), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                br.com.estudario.ui.assistant.Folha(52.dp, mood = br.com.estudario.ui.assistant.FolhaMood.TALKING)
+                br.com.estudario.ui.assistant.Folha(52.dp, mood = if (state.complete) br.com.estudario.ui.assistant.FolhaMood.HAPPY else br.com.estudario.ui.assistant.FolhaMood.TALKING)
                 Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                    Text("Seus primeiros 3 minutos", style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Black)
-                    val left = listOf(true, planSeen, answered >= 5).count { !it }
-                    Text("Eu te mostro o caminho. Faltam $left ${if (left == 1) "passo" else "passos"}.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+                    Text(fd.TITLE, style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Black)
+                    Text(if (state.complete) fd.ALL_DONE else fd.SUBTITLE, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
                 }
-                br.com.estudario.ui.brand.TextButton(onClick = { hidden = true; prefs.edit().putBoolean("first_steps_hidden", true).apply() }) { Text("Fechar") }
+                Text(state.progressLabel, style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = scheme.primary)
             }
-            FirstStep(1, "Escolher o concurso", true, null) {}
-            FirstStep(2, "Ver o seu plano montado", planSeen, "Ver plano") { planSeen = true; prefs.edit().putBoolean("first_steps_plan", true).apply(); onPlan() }
-            FirstStep(3, if (answered > 0) "Responder 5 questões ($answered de 5)" else "Responder 5 questões", answered >= 5, "Começar") { onQuiz() }
+            br.com.estudario.domain.FirstDay.Step.entries.forEachIndexed { i, step ->
+                val done = step in state.done
+                val label = if (step == br.com.estudario.domain.FirstDay.Step.QUESTIONS && !done && answered > 0) "${step.title} ($answered de ${fd.QUESTIONS_GOAL})" else step.title
+                FirstStep(i + 1, label, done, step.action.takeIf { step == state.next }, hint = step.hint.takeIf { step == state.next }) {
+                    when (step) {
+                        br.com.estudario.domain.FirstDay.Step.THEORY -> firstTopicId?.let(onTopic) ?: onPlan()
+                        br.com.estudario.domain.FirstDay.Step.QUESTIONS -> onQuestions(studiedTopicId)
+                        br.com.estudario.domain.FirstDay.Step.FLASHCARDS -> (studiedTopicId ?: firstTopicId)?.let(onTopic) ?: onPlan()
+                    }
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                br.com.estudario.ui.brand.TextButton(onClick = { hidden = true; store.mark(context, listOf(fd.SKIPPED)) }) { Text(fd.SKIP) }
+            }
         }
     }
 }
 
 @Composable
-private fun FirstStep(n: Int, label: String, done: Boolean, action: String?, onClick: () -> Unit) {
+private fun FirstStep(n: Int, label: String, done: Boolean, action: String?, hint: String? = null, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(Modifier.size(28.dp).background(if (done) androidx.compose.ui.graphics.Color(0xFF22A06B) else scheme.surface, androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
             Text(if (done) "✓" else "$n", fontWeight = androidx.compose.ui.text.font.FontWeight.Black, color = if (done) androidx.compose.ui.graphics.Color.White else scheme.primary)
         }
-        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = if (done) scheme.onSurfaceVariant else scheme.onSurface)
+        Column(Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = if (done) scheme.onSurfaceVariant else scheme.onSurface)
+            if (hint != null) Text(hint, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+        }
         if (!done && action != null) br.com.estudario.ui.brand.FilledTonalButton(onClick = onClick) { Text(action) }
     }
 }

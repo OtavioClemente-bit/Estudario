@@ -69,8 +69,18 @@ class PlanStressSimulation {
         val twoDevicesEvery: Int = 0,
         val overdue: Overdue = Overdue.FIT,
         val free: Boolean = false,
+        /** Chance, no fim do dia, de estudar um tópico ainda não lido pela prática livre (fora do plano). */
+        val freePracticeChance: Double = 0.0,
+        /** Dia -> edição do plano no meio do caminho. */
+        val edits: Map<Int, Edit> = emptyMap(),
+        /** O edital cabe com folga: todo tópico tem de ser visto antes da prova. */
+        val mustCoverAll: Boolean = false,
+        /** Cenário da guarda de lançamento: confere também plano estável (mesma foto, mesmo plano). */
+        val guard: Boolean = false,
         val seed: Int = 42,
     )
+
+    enum class Edit { ADD_SUBJECT, REMOVE_SUBJECT, PAUSE_SUBJECT, PRIORITY_UP }
 
     class Metrics {
         var replans = 0
@@ -91,6 +101,12 @@ class PlanStressSimulation {
         var retakesDone = 0; var retakeChurn = 0
         var covered = 0; var total = 0; var coveredByDeadline = 0; var leftIncidence = 0; var allIncidence = 0
         var overdueMax = 0; var emptyDays = 0; var studyDays = 0
+        /** Rodar o motor duas vezes na mesma foto deu planos diferentes. */
+        var nondeterministic = 0
+        /** Depois de "encaixar" (DAY_MISSED), ainda sobrou atrasada; ou a contagem do simulador e a de PlanRules divergem. */
+        var overdueLeft = 0; var overdueMismatch = 0
+        /** Tarefa viva de matéria que a pessoa tirou do plano. */
+        var removedSubjectTasks = 0
         val examples = linkedMapOf<String, MutableList<String>>()
         fun example(kind: String, text: String) { val l = examples.getOrPut(kind) { mutableListOf() }; if (l.size < 4) l += text }
     }
@@ -137,6 +153,54 @@ class PlanStressSimulation {
         Scenario("Q5. Pequeno, 8h/sem, 8 semanas; ritmo normal, mas relê a matéria a cada parte que aparece", small, 480, 56, theory = TheoryMode.REREAD, seed = 19),
         Scenario("Q4. Pequeno, 8h/sem, 8 semanas; dois aparelhos a cada 3 dias, folgas e mudança de horas", small, 480, 56, twoDevicesEvery = 3, daysOff = setOf(9, 23, 24), hours = mapOf(20 to 300, 40 to 720), seed = 3),
     )
+
+    /**
+     * Guarda de lançamento (scripts/guardas.sh): alunos de verdade por 60 a 120 dias, com assert em tudo.
+     * Cada perfil cobre uma das falhas que o dono viu: teoria repetida dia após dia, tarefa duplicada, atrasada
+     * só no celular, dois aparelhos, plano editado no meio do caminho, estudo fora do plano.
+     */
+    private fun guards() = listOf(
+        Scenario("G1. Poucos minutos (25 min/dia), pequeno, 90 dias", small, 150, 90, guard = true, seed = 101),
+        Scenario("G2. Muitas matérias (18, 220 tópicos), 25h/sem, 120 dias", big, 1500, 120, theory = TheoryMode.PART, openChance = 0.9, guard = true, seed = 102),
+        Scenario("G3. Prova logo (30 dias), pequeno, 10h/sem", small, 600, 30, guard = true, seed = 103),
+        Scenario("G4. Prova longe com folga (120 dias), pequeno, 15h/sem: cobre tudo", small, 900, 120, mustCoverAll = true, guard = true, seed = 104),
+        Scenario("G5. Pula dias (abre 7 em 10, some 9 dias), TRT, 15h/sem, 100 dias", trt, 900, 100, openChance = 0.7, absences = listOf(30..38), skipChance = 0.05, guard = true, seed = 105),
+        Scenario("G6. Faz só parte das tarefas e larga o dia, TRT, 12h/sem, 90 dias", trt, 720, 90, theory = TheoryMode.PART, leaveChance = 0.15, guard = true, seed = 106),
+        Scenario("G7. Adianta o dia seguinte quase sempre, pequeno, 10h/sem, 90 dias: cobre tudo", small, 600, 90, earlyChance = 0.7, mustCoverAll = true, guard = true, seed = 107),
+        Scenario("G8. Estuda pela prática livre (fora do plano) 1 dia em 3, TRT, 15h/sem, 100 dias", trt, 900, 100, freePracticeChance = 0.33, guard = true, seed = 108),
+        Scenario("G9. Edita o plano no meio (põe matéria, tira matéria, sobe prioridade, muda horas), TRT, 15h/sem, 100 dias", trt, 900, 100,
+            edits = mapOf(20 to Edit.ADD_SUBJECT, 45 to Edit.REMOVE_SUBJECT, 60 to Edit.PAUSE_SUBJECT, 70 to Edit.PRIORITY_UP), hours = mapOf(55 to 600), guard = true, seed = 109),
+        Scenario("G10. Dois aparelhos em dias alternados, cada um conclui tarefas diferentes, com prática livre, TRT, 15h/sem, 90 dias", trt, 900, 90, twoDevicesEvery = 2, freePracticeChance = 0.2, guard = true, seed = 110),
+    )
+
+    @Test
+    fun releaseGuardScenariosKeepTheInvariants() {
+        val out = StringBuilder()
+        val failures = mutableListOf<String>()
+        guards().forEach { sc ->
+            val m = run(sc)
+            out.append(report(sc, m)).append("nao-determinismo ${m.nondeterministic} · atrasadas que sobraram depois de encaixar ${m.overdueLeft} (contagem divergente ${m.overdueMismatch}) · tarefa de matéria tirada ${m.removedSubjectTasks}\n")
+            m.examples.filterKeys { it in setOf("det", "atrasada", "tirada") }.forEach { (k, l) -> out.append("  ex. $k: ${l.take(2)}\n") }
+            out.append("\n")
+            fun check(ok: Boolean, what: String, key: String) { if (!ok) failures += "${sc.name}: $what ${m.examples[key].orEmpty().take(2)}" }
+            check(m.theoryAgainPlanned + m.theoryAgainSeen == 0, "teoria concluída reapareceu", "a")
+            check(m.questionBeforeTheoryPlanned + m.questionBeforeTheoryDone + m.questionOrphan == 0, "questão antes da teoria", "b")
+            check(m.overDates.isEmpty() && m.zeroDayTasks == 0, "dia acima das horas", "c")
+            check(m.duplicates == 0, "tarefa duplicada", "h")
+            check(m.repeatChangedWeek == 0, "reorganizar de novo mudou a semana", "d2")
+            check(m.reviewTasks == 0, "revisão virou tarefa do plano", "-")
+            check(m.nondeterministic == 0, "mesma foto deu planos diferentes", "det")
+            check(m.overdueLeft == 0 && m.overdueMismatch == 0, "atrasada sobrou depois de encaixar", "atrasada")
+            check(m.removedSubjectTasks == 0, "matéria tirada continua no plano", "tirada")
+            if (sc.mustCoverAll) check(m.covered == m.total, "edital não coberto (${m.covered} de ${m.total})", "-")
+            // Logo depois de juntar dois aparelhos (antes de o motor rodar) pode haver duas partes da mesma teoria no
+            // mesmo dia, vindas de reorganizações diferentes em cada aparelho: o próximo replanejamento tira (conferido
+            // acima em "duplicadas", que vale depois de cada reorganização). Por isso aqui não é falha.
+        }
+        File("build/plan-guard.txt").writeText(out.toString() + "\nfalhas:\n" + failures.joinToString("\n"))
+        println(out)
+        assertTrue(failures.isEmpty(), failures.joinToString("\n"))
+    }
 
     /** Longos: só com AUDIT=1. */
     private fun long() = listOf(
@@ -234,19 +298,19 @@ class PlanStressSimulation {
         var nextId = 1L
         val config = StudyMethodConfig.forProfile(sc.profile)
         val engine = StudyPlannerEngine()
-        val subjects = sc.subjects.mapIndexed { i, s -> PlannerSnapshotBuilder.PlanSubject(i + 1L, s.name, s.priority, false, 0, null, i, s.difficulty, s.knowledge) }
-        val subOf = sc.subjects.mapIndexed { i, s -> (i + 1L) to s }.toMap()
+        var subjects = sc.subjects.mapIndexed { i, s -> PlannerSnapshotBuilder.PlanSubject(i + 1L, s.name, s.priority, false, 0, null, i, s.difficulty, s.knowledge) }
+        val subOf = sc.subjects.mapIndexed { i, s -> (i + 1L) to s }.toMap().toMutableMap()
         val questionsByTopic = mutableMapOf<Long, Set<Long>>()
         var qid = 1L
-        val baseTopics = sc.subjects.flatMapIndexed { i, s ->
-            (0 until s.topics).map { p ->
-                val id = 1000L * (i + 1) + p
-                questionsByTopic[id] = (0 until 40).map { qid++ }.toSet()
-                PlannerSnapshotBuilder.Topic(id, i + 1L, null, "${s.name} ${p + 1}", p, false, null, incidence = ((p * 37 + i * 11) % 60) + 1)
-            }
+        fun topicsOf(i: Int, s: Sub) = (0 until s.topics).map { p ->
+            val id = 1000L * (i + 1) + p
+            questionsByTopic[id] = (0 until 40).map { qid++ }.toSet()
+            PlannerSnapshotBuilder.Topic(id, i + 1L, null, "${s.name} ${p + 1}", p, false, null, incidence = ((p * 37 + i * 11) % 60) + 1)
         }
-        val subjectOfTopic = baseTopics.associate { it.id to it.subjectId }
-        val titleOf = baseTopics.associate { it.id to it.title }
+        var baseTopics = sc.subjects.flatMapIndexed { i, s -> topicsOf(i, s) }
+        val subjectOfTopic = baseTopics.associate { it.id to it.subjectId }.toMutableMap()
+        val titleOf = baseTopics.associate { it.id to it.title }.toMutableMap()
+        val removedSubjects = hashSetOf<Long>()
         var availability = week(sc.weeklyMinutes)
         val overrides = mutableListOf<PlannerSnapshotBuilder.DayOverride>()
         fun capacity(d: LocalDate): Int {
@@ -327,6 +391,9 @@ class PlanStressSimulation {
                 if (totalMinutes > 125 || totalMinutes < 20) { m.theoryOutOfRange++; m.example("f", "$label em $day: teoria de ${titleOf[tid]} com $totalMinutes min em ${parts.size} parte(s) " + parts.sortedBy { it.date }.joinToString(",") { "${it.date.dayOfMonth}:${it.plannedMinutes}" }) }
             }
             m.reviewTasks += live.count { it.type == PlanTaskType.REVIEW }
+            live.filter { it.subjectId in removedSubjects && !it.date.isBefore(day) }.forEach {
+                m.removedSubjectTasks++; m.example("tirada", "$label em $day: ${it.type} de matéria tirada do plano em ${it.date}")
+            }
         }
 
         fun replan(s: State, day: LocalDate, reason: ReplanReason, label: String = reason.name): PlanningProposal {
@@ -338,6 +405,14 @@ class PlanStressSimulation {
             val liveRetakes = retakes()
             val snap = snapshot(s, day)
             val proposal = engine.plan(snap, reason)
+            // Estável: a mesma foto tem de dar o mesmo plano (senão celular e site, que reorganizam cada um o seu,
+            // chegam a planos diferentes e a sincronização junta os dois).
+            if (sc.guard) {
+                val again = engine.plan(snapshot(s, day), reason)
+                if (again.newTasks != proposal.newTasks || again.transitions != proposal.transitions) {
+                    m.nondeterministic++; m.example("det", "$label em $day: ${proposal.newTasks.size} x ${again.newTasks.size} tarefas novas, ${(proposal.newTasks - again.newTasks.toSet()).take(2).map { "${it.date} ${it.type} ${it.plannedMinutes}" }}")
+                }
+            }
             s.revision++
             val moved = proposal.transitions.associateBy { it.taskId }
             s.tasks = s.tasks.map { t -> moved[t.id]?.let { t.copy(status = it.to) } ?: t }.toMutableList()
@@ -500,7 +575,7 @@ class PlanStressSimulation {
             b.tasks.forEach { t -> val mine = byId[t.id]; if (mine == null || rank.getValue(t.status) > rank.getValue(mine.status)) byId[t.id] = t }
             val order = (a.tasks.map { it.id } + b.tasks.map { it.id }).distinct()
             val merged = order.map { byId.getValue(it) }
-            val stale = StaleCopies.ids(merged.map { StaleCopies.Row(it.id, it.replannedFromTaskId, it.status.name) })
+            val stale = StaleCopies.ids(merged.map { StaleCopies.Row(it.id, it.replannedFromTaskId, it.status.name, "${it.date}|${it.type}") })
             out.tasks = merged.filter { it.id !in stale }.toMutableList()
             val execIds = a.executions.mapTo(hashSetOf()) { it.id }
             out.executions += b.executions.filter { it.id !in execIds }
@@ -523,7 +598,14 @@ class PlanStressSimulation {
             val late = s.tasks.filter { it.date < day && it.status in pending }
             m.overdueMax = maxOf(m.overdueMax, late.size)
             when {
-                late.isEmpty() || sc.overdue == Overdue.FIT -> replan(s, day, ReplanReason.DAY_MISSED)
+                late.isEmpty() || sc.overdue == Overdue.FIT -> {
+                    replan(s, day, ReplanReason.DAY_MISSED)
+                    // "Encaixar": nada fica para trás; e a conta de atrasadas do app/site (PlanRules) bate com a do simulador.
+                    val left = s.tasks.filter { it.date < day && it.status in pending }
+                    val rules = s.tasks.count { PlanRules.isOverdue(it.date.toEpochDays().toLong(), it.status.name, day.toEpochDays().toLong()) }
+                    if (rules != left.size) m.overdueMismatch++
+                    if (left.isNotEmpty()) { m.overdueLeft++; m.example("atrasada", "em $day sobraram ${left.size} atrasadas: ${left.take(3).map { "${it.date} ${it.type} ${it.status} lock=${it.locked}" }}") }
+                }
                 sc.overdue == Overdue.WAIT -> if (daysBetween(late.minOf { it.date }, day) > 7) replan(s, day, ReplanReason.DAY_MISSED)
                 else -> {
                     // "Empurrar tudo": da atrasada mais antiga em diante, tudo anda os mesmos dias.
@@ -546,12 +628,59 @@ class PlanStressSimulation {
             }
         }
 
+        /**
+         * Prática livre: a pessoa estuda pela biblioteca um tópico que o plano ainda ia marcar (lê a matéria e
+         * faz questões fora do plano). O tópico fica estudado; a teoria dele que estava no plano tem de sair.
+         */
+        fun freePractice(s: State, day: LocalDate) {
+            if (sc.freePracticeChance <= 0 || rnd.nextDouble() >= sc.freePracticeChance) return
+            val tid = s.tasks.filter { it.status == PlanTaskStatus.PLANEJADA && it.type == PlanTaskType.THEORY && it.date > day && it.topicId != null && it.topicId !in s.studied && it.topicId !in s.partial }
+                .sortedBy { it.date }.drop(2).firstOrNull()?.topicId ?: return
+            s.studied[tid] = day; s.theoryOn[tid] = day; s.readMinutes[tid] = kotlin.math.round(baseTheory(tid) * sc.theorySpeed).toInt()
+            s.executions += TaskExecution("e${nextId++}", null, subjectOfTopic.getValue(tid), tid, day, 30, 10, 7)
+            repeat(10) { k ->
+                val n = s.usedQ.getOrElse(tid) { 0 }; s.usedQ[tid] = n + 1
+                s.attempts += PlannerSnapshotBuilder.Attempt(questionsByTopic.getValue(tid).elementAt(n % 40), k < 7, day.toEpochDays() * dayMs + 7_200_000L + nextId++, null, null)
+            }
+            listOf(1, 7, 30).forEach { o -> s.reviews += PlannerSnapshotBuilder.PendingReview(nextId++, tid, day.plusDays(o.toLong()).toEpochDays() * dayMs, 0) }
+            replan(s, day, ReplanReason.TASK_COMPLETED, "prática livre")
+        }
+
         var state = State()
         replan(state, start, ReplanReason.INITIAL)
         var day = start
         while (day.isBefore(exam)) {
             val dayNo = daysBetween(start, day).toInt()
             sc.hours[dayNo]?.let { availability = week(it); replan(state, day, ReplanReason.AVAILABILITY_CHANGED) }
+            sc.edits[dayNo]?.let { edit ->
+                when (edit) {
+                    Edit.ADD_SUBJECT -> {
+                        val i = subOf.size
+                        val sub = Sub("Matéria nova ${i + 1}", 6, PlanPriority.HIGH)
+                        subOf[i + 1L] = sub
+                        subjects = subjects + PlannerSnapshotBuilder.PlanSubject(i + 1L, sub.name, sub.priority, false, 0, null, i, sub.difficulty, sub.knowledge)
+                        val added = topicsOf(i, sub)
+                        added.forEach { subjectOfTopic[it.id] = it.subjectId; titleOf[it.id] = it.title }
+                        baseTopics = baseTopics + added
+                    }
+                    Edit.REMOVE_SUBJECT -> {
+                        val gone = subjects.last { it.priority != PlanPriority.CRITICAL }.subjectId
+                        removedSubjects += gone
+                        subjects = subjects.filter { it.subjectId != gone }
+                        baseTopics = baseTopics.filter { it.subjectId != gone }
+                    }
+                    Edit.PAUSE_SUBJECT -> {
+                        val paused = subjects.first { it.priority != PlanPriority.CRITICAL && it.subjectId !in removedSubjects }.subjectId
+                        removedSubjects += paused
+                        subjects = subjects.map { if (it.subjectId == paused) it.copy(paused = true) else it }
+                    }
+                    Edit.PRIORITY_UP -> {
+                        val up = subjects.first { (it.priority == PlanPriority.LOW || it.priority == PlanPriority.MEDIUM) && it.subjectId !in removedSubjects }
+                        subjects = subjects.map { if (it.subjectId == up.subjectId) it.copy(priority = PlanPriority.CRITICAL) else it }
+                    }
+                }
+                replan(state, day, ReplanReason.SUBJECT_CHANGED, "SUBJECT_CHANGED $edit")
+            }
             val absent = sc.absences.any { dayNo in it } || rnd.nextDouble() >= sc.openChance
             if (!absent) {
                 if (dayNo in sc.daysOff) {
@@ -575,6 +704,7 @@ class PlanStressSimulation {
                         if (state.tasks.any { it.date == day && it.status in pending }) m.studyDays++
                         doReviews(state, day)
                         session(state, day)
+                        freePractice(state, day)
                     }
                 }
             }

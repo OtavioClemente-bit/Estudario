@@ -71,6 +71,8 @@ fun PaperFlashCard(
 fun FlashcardsScreen(topicId: Long?, saved: Boolean = false, deckId: Long? = null) {
     val data = Store.data
     val all = remember(topicId, saved, deckId, data) { flashcardsOf(data, topicId, saved, deckId) }
+    // Roteiro "Seu primeiro dia": abrir cartões de verdade conta como o passo dos flashcards.
+    androidx.compose.runtime.LaunchedEffect(all.isNotEmpty()) { if (all.isNotEmpty() && !br.com.estudario.web.data.Prefs.wasCelebrated(br.com.estudario.domain.FirstDay.FLASHCARDS)) br.com.estudario.web.data.Prefs.markCelebrated(listOf(br.com.estudario.domain.FirstDay.FLASHCARDS)) }
     val deckTitle = deckId?.let { id -> data.summaries.firstOrNull { it.id == id } }?.let { d -> d.title.ifBlank { null } ?: data.topics.firstOrNull { it.id == d.topicId }?.title }
     val topics = data.topics.associateBy { it.id }
     var deck by remember(topicId, saved, deckId) { mutableStateOf(all.shuffled(Random(topicId ?: 7))) }

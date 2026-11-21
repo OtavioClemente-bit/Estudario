@@ -385,3 +385,26 @@ internal fun BadgeGame(badge: Badge, leaving: Boolean, onClose: () -> Unit, onTr
         }
     }
 }
+
+// ------------------------------------------------------------------ o primeiro dia
+
+/**
+ * O dia 1 do roteiro "Seu primeiro dia" (o mesmo texto do app, FirstDay em shared): o caderno em
+ * branco treme e estoura, o Folha cai comemorando, o letreiro "DIA 1!" e os prêmios com os números reais.
+ */
+@Composable
+internal fun FirstDayGame(loot: List<Pair<String, String>>, leaving: Boolean, onClose: () -> Unit, onPlan: () -> Unit) {
+    val d = br.com.estudario.domain.FirstDay
+    GameShell(Triple("#C9F2B0", "#4CB04A", "#1F6B2A"), "cena_nivel", d.CELEBRATION_SUB, leaving, "first-day") {
+        GameStage(
+            null,
+            before = { Span({ classes("lvx-fd-ico") }) { Icon("menu_book") } },
+            after = { Folha("happy", 150) },
+        )
+        GameHead(d.CELEBRATION_FROM, d.CELEBRATION_TO, d.CELEBRATION_WORD) { B { Text(d.CELEBRATION_SUB) } }
+        val icons = listOf("menu_book", "check_circle", "event")
+        GameLootList(loot.mapIndexed { i, (k, t) -> Loot(icons.getOrElse(i) { "star" }, k, t, gold = i == 0) })
+        GameSay(d.CELEBRATION_LINE, mood = "proud", showFolha = false)
+        GameActions(d.CELEBRATION_BUTTON, onPlan, ghost = "Fechar", onGhost = onClose)
+    }
+}

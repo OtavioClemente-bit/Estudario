@@ -723,3 +723,22 @@ fun BadgeCelebrationScreen(
         )
     }
 }
+
+/**
+ * O dia 1 do roteiro "Seu primeiro dia" (o mesmo texto do site, FirstDay em shared): o livro treme e
+ * estoura, o Folha cai comemorando, o letreiro "DIA 1!" e os prêmios com os números reais.
+ */
+@Composable
+fun FirstDayCelebrationScreen(loot: List<Pair<String, String>>, onPlan: () -> Unit, onClose: () -> Unit) {
+    val d = br.com.estudario.domain.FirstDay
+    val glyphs = listOf(Glyph.OpenBook, Glyph.Check, Glyph.Calendar)
+    GameScene(
+        Color(0xFFC9F2B0), Color(0xFF4CB04A), Color(0xFF1F6B2A), sound = "cena_nivel", stamp = null,
+        from = d.CELEBRATION_FROM, to = d.CELEBRATION_TO, word = d.CELEBRATION_WORD, sub = d.CELEBRATION_SUB,
+        loot = loot.mapIndexed { i, (k, t) -> GameLoot(glyphs.getOrElse(i) { Glyph.Star }, k, t, gold = i == 0) },
+        line = d.CELEBRATION_LINE, primary = d.CELEBRATION_BUTTON, onPrimary = onPlan, onClose = onClose,
+        before = { s -> br.com.estudario.ui.brand.BrandIcon(Glyph.OpenBook, size = s * 0.8f) },
+        after = { s -> Folha(s * 0.9f, mood = FolhaMood.ECSTATIC) },
+        ghost = "Fechar", onGhost = onClose,
+    )
+}
