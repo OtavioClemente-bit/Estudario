@@ -108,6 +108,7 @@ fun PlanSettingsScreen() {
                     }, style = "tonal", icon = "autorenew", block = true)
                 }
             }
+            DaysOffCard(plan.id)
         }
     }
 
@@ -168,6 +169,55 @@ fun PlanSettingsScreen() {
                                 Switch(subject.paused, "Pausar ${subject.name}") { paused -> Store.update { Planning.updateSubject(it, plan.id, subject.subjectId, priority, paused) } }
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Férias, viagem ou plantão: um período inteiro sem estudo, e o plano empurra o conteúdo para depois. */
+@androidx.compose.runtime.Composable
+private fun DaysOffCard(planId: String) {
+    val data = Store.data
+    val today = Queries.todayDate()
+    var from by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    var to by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    val periods = Planning.offPeriods(data, planId, today.toEpochDays().toLong())
+    fun fmt(day: Long) = LocalDate.fromEpochDays(day.toInt()).let { "${it.dayOfMonth.toString().padStart(2, '0')}/${it.monthNumber.toString().padStart(2, '0')}" }
+    Card {
+        CardHead("Dias sem estudo")
+        P({ classes("small", "muted") }) { Text("Férias, viagem ou plantão? Marque o período: nada fica marcado nesses dias e o plano empurra o conteúdo para depois.") }
+        Div({ classes("row"); attr("style", "gap:8px;flex-wrap:wrap") }) {
+            Div({ classes("field") }) {
+                org.jetbrains.compose.web.dom.Label { Text("De") }
+                Input(InputType.Date) { classes("input"); value(from); attr("min", today.toString()); onInput { from = it.value; if (to.isBlank() || to < it.value) to = it.value } }
+            }
+            Div({ classes("field") }) {
+                org.jetbrains.compose.web.dom.Label { Text("Até") }
+                Input(InputType.Date) { classes("input"); value(to); attr("min", from.ifBlank { today.toString() }); onInput { to = it.value } }
+            }
+        }
+        Btn("Marcar sem estudo", {
+            val a = runCatching { LocalDate.parse(from) }.getOrNull()
+            val b = runCatching { LocalDate.parse(to.ifBlank { from }) }.getOrNull()
+            if (a == null || b == null) Toast.show("Escolha a data de início do período.")
+            else try {
+                Store.update { Planning.setDaysOff(it, planId, a.toEpochDays().toLong(), b.toEpochDays().toLong(), true) }
+                Toast.show("Pronto: o plano foi reorganizado sem esses dias.")
+                from = ""; to = ""
+            } catch (e: Throwable) { Toast.show(e.message ?: "Não foi possível marcar esses dias.") }
+        }, style = "tonal", icon = "event_busy", block = true, enabled = from.isNotBlank())
+        if (periods.isNotEmpty()) Div({ classes("stack", "tight"); attr("style", "margin-top:12px") }) {
+            P({ classes("small") }) { Text("Já sem estudo") }
+            periods.take(6).forEach { (a, b) ->
+                androidx.compose.runtime.key(a) {
+                    Div({ classes("row", "between") }) {
+                        Span { Text(if (a == b) fmt(a) else "${fmt(a)} a ${fmt(b)}") }
+                        Btn("Devolver", {
+                            Store.update { Planning.setDaysOff(it, planId, a, b, false) }
+                            Toast.show("Dias devolvidos ao plano.")
+                        }, style = "ghost", small = true)
                     }
                 }
             }

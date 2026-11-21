@@ -240,6 +240,28 @@ class StudyPlanApplicationService(
         replan(planId, ReplanReason.DAY_MISSED)
     }
 
+    /**
+     * Férias, viagem, plantão: todos os dias de [from] a [to] ficam sem estudo (ou voltam, com [off] = false)
+     * e o plano se reorganiza uma vez só, empurrando o conteúdo para depois.
+     */
+    suspend fun setDaysOff(planId: String, from: LocalDate, to: LocalDate, off: Boolean) {
+        val first = minOf(from, to).toEpochDay()
+        val last = maxOf(from, to).toEpochDay()
+        require(last - first <= 366) { "Escolha um período de até um ano." }
+        db.withTransaction {
+            val plan = planner.plan(planId) ?: error("Plano não encontrado.")
+            require(planner.claimRevision(plan.id, plan.revision, System.currentTimeMillis()) == 1)
+            val overrides = planner.dayOverridesFor(planId).associateBy { it.epochDay }
+            for (day in first..last) {
+                planner.upsertDayOverride((overrides[day] ?: StudyDayOverrideEntity(planId, day)).copy(unavailable = off))
+            }
+            if (off) planner.tasksForOnce(planId).filter { it.locked && it.scheduledEpochDay in first..last && it.status in pendingStatuses }
+                .forEach { planner.updateTask(it.copy(locked = false, updatedRevision = plan.revision + 1, updatedAt = System.currentTimeMillis())) }
+            planner.insertRevision(StudyPlanRevisionEntity(plan.id, plan.revision + 1, plan.revision, if (off) "DAYS_OFF" else "DAYS_ON", summary = "${LocalDate.ofEpochDay(first)}..${LocalDate.ofEpochDay(last)}"))
+        }
+        replan(planId, ReplanReason.DAY_MISSED)
+    }
+
     /** Atrasadas: o que ficou de dias que passaram e não foi feito. */
     suspend fun overdue(planId: String, today: LocalDate = LocalDate.now()): List<br.com.estudario.data.local.planner.PlanTaskEntity> =
         planner.tasksForOnce(planId).filter { it.scheduledEpochDay < today.toEpochDay() && it.status in pendingStatuses }

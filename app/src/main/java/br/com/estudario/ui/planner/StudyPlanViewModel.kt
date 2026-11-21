@@ -284,6 +284,8 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
     fun pushOverdue() = _state.value.activePlan?.id?.let { id -> launch("Empurrando o plano") { service.pushOverdue(id) } }
     /** "Hoje não vou conseguir" (ou desfaz): o dia fica sem estudo e o que estava nele vai para a frente. */
     fun setDayOff(date: LocalDate, off: Boolean) = _state.value.activePlan?.id?.let { id -> launch(if (off) "Passando o dia para a frente" else "Devolvendo o dia") { service.setDayOff(id, date, off) } }
+    /** Férias/viagem: um período inteiro sem estudo (ou devolvido), com uma reorganização só. */
+    fun setDaysOff(from: LocalDate, to: LocalDate, off: Boolean) = _state.value.activePlan?.id?.let { id -> launch(if (off) "Reservando os dias sem estudo" else "Devolvendo os dias") { service.setDaysOff(id, from, to, off) } }
     /** Arrastar no mês (pago): o estudo fica fixado no dia escolhido. */
     fun moveTask(taskId: String, date: LocalDate) = launch("Mudando o dia") { service.moveTask(taskId, date) }
     fun swapTasks(a: String, b: String) = launch("Trocando de dia") { service.swapTasks(a, b) }

@@ -93,8 +93,11 @@ fun PlanManagementScreen(
     onContextText: () -> Unit,
     onEditAvailability: () -> Unit,
     onUpdateSubject: (Long, PlanPriority, Boolean) -> Unit,
+    onDaysOff: (java.time.LocalDate, java.time.LocalDate, Boolean) -> Unit = { _, _, _ -> },
 ) {
     var confirm by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
+    var daysOffDialog by remember { mutableStateOf(false) }
+    if (daysOffDialog) DaysOffDialog(state, onDismiss = { daysOffDialog = false }, onDaysOff = onDaysOff)
     confirm?.let { (message, action) -> ConfirmDialog("Confirmar alteração", message, onDismiss = { confirm = null }, onConfirm = action) }
     androidx.activity.compose.BackHandler(onBack = onBack)
 
@@ -161,6 +164,7 @@ fun PlanManagementScreen(
                         Text(active.objective, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer, maxLines = 3)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilledTonalButton(onClick = onEditAvailability, shape = RoundedCornerShape(12.dp)) { Icon(Icons.Outlined.Schedule, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Horas por dia") }
+                            FilledTonalButton(onClick = { daysOffDialog = true }, shape = RoundedCornerShape(12.dp)) { Icon(Icons.Outlined.CalendarMonth, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Dias sem estudo") }
                             OutlinedButton(onClick = { planMenu = active }, shape = RoundedCornerShape(12.dp)) { Icon(Icons.Outlined.MoreHoriz, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Mais") }
                         }
                     }
@@ -234,4 +238,61 @@ private fun priorityLabel(priority: PlanPriority): String = when (priority.name)
     "MEDIUM" -> "Média"
     "LOW" -> "Baixa"
     else -> priority.name.lowercase().replaceFirstChar(Char::uppercase)
+}
+
+/**
+ * Férias, viagem, plantão, semana de provas da faculdade: a pessoa marca um período e o plano empurra o
+ * conteúdo para depois, sem ela precisar tirar dia por dia. Os períodos já marcados aparecem para devolver.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DaysOffDialog(state: ActivePlanUiState, onDismiss: () -> Unit, onDaysOff: (java.time.LocalDate, java.time.LocalDate, Boolean) -> Unit) {
+    val zone = java.time.ZoneOffset.UTC
+    val today = state.today
+    val range = rememberDateRangePickerState(
+        selectableDates = object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long) = java.time.Instant.ofEpochMilli(utcTimeMillis).atZone(zone).toLocalDate() >= today
+        },
+    )
+    // Períodos futuros já sem estudo (dias seguidos viram um intervalo só).
+    val offDays = state.dayOverrides.filter { it.unavailable && it.epochDay >= today.toEpochDay() }.map { it.epochDay }.sorted()
+    val periods = buildList {
+        var start: Long? = null; var prev = 0L
+        for (d in offDays) {
+            if (start == null) start = d else if (d != prev + 1) { add(start to prev); start = d }
+            prev = d
+        }
+        if (start != null) add(start to prev)
+    }
+    fun fmt(day: Long) = java.time.LocalDate.ofEpochDay(day).let { "%02d/%02d".format(it.dayOfMonth, it.monthValue) }
+    val from = range.selectedStartDateMillis?.let { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }
+    val to = range.selectedEndDateMillis?.let { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate() } ?: from
+    DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(onClick = { if (from != null && to != null) { onDaysOff(from, to, true); onDismiss() } }, enabled = from != null) {
+                Text(if (from == null) "Escolha os dias" else "Sem estudo de ${fmt(from.toEpochDay())} a ${fmt(to!!.toEpochDay())}")
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Fechar") } },
+    ) {
+        Column {
+            Text(
+                "Férias, viagem ou plantão? Marque o período: nada fica marcado nesses dias e o plano empurra o conteúdo para depois.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 16.dp),
+            )
+            if (periods.isNotEmpty()) Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text("Já sem estudo", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
+                periods.take(4).forEach { (a, b) ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (a == b) fmt(a) else "${fmt(a)} a ${fmt(b)}", Modifier.weight(1f).padding(start = 8.dp), style = MaterialTheme.typography.bodyMedium)
+                        TextButton(onClick = { onDaysOff(java.time.LocalDate.ofEpochDay(a), java.time.LocalDate.ofEpochDay(b), false); onDismiss() }) { Text("Devolver") }
+                    }
+                }
+            }
+            DateRangePicker(range, Modifier.weight(1f, fill = false).heightIn(max = 460.dp), title = null, headline = null, showModeToggle = false)
+        }
+    }
 }

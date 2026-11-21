@@ -230,6 +230,33 @@ object Planning {
         return replan(freed, planId, ReplanReason.DAY_MISSED)
     }
 
+    /** Férias/viagem: todos os dias de [from] a [to] sem estudo (ou devolvidos), com uma reorganização só. */
+    fun setDaysOff(data: Snapshot, planId: String, from: Long, to: Long, off: Boolean): Snapshot {
+        val first = minOf(from, to); val last = maxOf(from, to)
+        require(last - first <= 366) { "Escolha um período de até um ano." }
+        var next = data
+        for (day in first..last) {
+            val exists = next.array("studyDayOverrides").any { (it as? JsonObject)?.let { o -> o.str("planId") == planId && o.long("day") == day } == true }
+            next = if (exists) next.edit("studyDayOverrides") { if (it.str("planId") == planId && it.long("day") == day) it.with("unavailable" to JsonPrimitive(off)) else it }
+            else next.append("studyDayOverrides", jsonOf("planId" to planId, "day" to day, "minutes" to null, "unavailable" to off, "locked" to false))
+        }
+        if (off) next = next.edit(Keys.TASKS) {
+            if (it.str("planId") == planId && (it.long("day") ?: -1) in first..last && it.bool("locked") == true && it.str("status") in PENDING) it.with("locked" to JsonPrimitive(false), "updatedAt" to JsonPrimitive(now())) else it
+        }
+        return replan(next, planId, ReplanReason.DAY_MISSED)
+    }
+
+    /** Períodos futuros sem estudo (dias seguidos viram um intervalo). */
+    fun offPeriods(data: Snapshot, planId: String, today: Long): List<Pair<Long, Long>> {
+        val days = data.array("studyDayOverrides").mapNotNull { it as? JsonObject }
+            .filter { it.str("planId") == planId && it.bool("unavailable") == true }.mapNotNull { it.long("day") }.filter { it >= today }.sorted()
+        val out = mutableListOf<Pair<Long, Long>>()
+        var start: Long? = null; var prev = 0L
+        for (d in days) { if (start == null) start = d else if (d != prev + 1) { out += start to prev; start = d }; prev = d }
+        if (start != null) out += start to prev
+        return out
+    }
+
     /** Estudos que contam no dia (cópias de reorganizações e não feitos que já voltaram ao plano ficam fora). */
     fun tasksOfDay(data: Snapshot, planId: String, day: Long) =
         data.tasks.filter { it.planId == planId && it.day == day && it.status !in setOf("REPROGRAMADA", "CANCELADA", "NAO_REALIZADA") }
