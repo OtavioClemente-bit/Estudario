@@ -119,7 +119,9 @@ fun LoginScreen() {
     // O fundo vivo e a turma acompanhando o mouse; tudo sai junto com a tela.
     DisposableEffect(Unit) {
         val root = document.querySelector(".login") as? org.w3c.dom.HTMLElement
-        val ambient = runCatching { root?.let { window.asDynamic().estudarioAmbient(it) } }.getOrNull()
+        val ambient = runCatching { root?.let { window.asDynamic().estudarioAmbient(it, js("({ stamps: false })")) } }.getOrNull()
+        // Clique no papel: vários adesivos da turma pulam e quicam, como no estudario.com.br.
+        val burst = runCatching { root?.let { window.asDynamic().estudarioBurst(it) } }.getOrNull()
         val move: (org.w3c.dom.events.Event) -> Unit = { e ->
             val ev = e.asDynamic()
             if (ev.pointerType == "mouse") {
@@ -140,6 +142,7 @@ fun LoginScreen() {
         onDispose {
             window.removeEventListener("pointermove", move)
             runCatching { ambient?.destroy() }
+            runCatching { burst?.destroy() }
         }
     }
 

@@ -191,3 +191,79 @@
     };
   };
 })();
+
+// Adesivos que pulam do clique (como no estudario.com.br): vários ícones da turma saem do ponto,
+// caem com peso, quicam no pé da tela e somem. Uso: const b = estudarioBurst(raiz); b.destroy()
+(function () {
+  window.estudarioBurst = function (root) {
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const rand = (a, b) => a + Math.random() * (b - a);
+    const names = ["Star", "Heart", "Fire", "Bolt", "Trophy", "Check", "Bulb", "Medal", "Gem", "Books", "Pencil", "Target", "Cap", "Calendar"];
+    const imgs = [];
+    if (window.estudarioGlyphUri) names.forEach((n) => { const u = estudarioGlyphUri(n); if (u) { const i = new Image(); i.src = u; imgs.push(i); } });
+    const canvas = document.createElement("canvas");
+    canvas.setAttribute("aria-hidden", "true");
+    canvas.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:70";
+    document.body.appendChild(canvas);
+    const g = canvas.getContext("2d");
+    let W = 0, H = 0, raf = 0, last = 0;
+    const parts = [], rings = [];
+    function size() {
+      const dpr = Math.min(devicePixelRatio || 1, 2);
+      W = innerWidth; H = innerHeight;
+      canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+      g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    size();
+    function frame(now) {
+      raf = 0;
+      const dt = Math.min(2.5, (now - last) / 16.7); last = now;
+      g.clearRect(0, 0, W, H);
+      for (let i = rings.length - 1; i >= 0; i--) {
+        const r = rings[i], t = (now - r.t) / 520;
+        if (t >= 1) { rings.splice(i, 1); continue; }
+        g.globalAlpha = (1 - t) * .7; g.strokeStyle = r.color; g.lineWidth = 3 * (1 - t) + .5;
+        g.beginPath(); g.arc(r.x, r.y, 10 + t * 46, 0, 6.283); g.stroke();
+      }
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const p = parts[i], age = now - p.t;
+        if (age >= p.life) { parts.splice(i, 1); continue; }
+        p.vy += .5 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.r += p.vr * dt;
+        const floor = H - p.s * .42;
+        if (p.y > floor && p.vy > 0) { p.y = floor; p.vy *= -.48; p.vx *= .72; p.vr *= .6; if (Math.abs(p.vy) < 1.2) p.vy = 0; }
+        if (p.x < p.s * .4 && p.vx < 0 || p.x > W - p.s * .4 && p.vx > 0) p.vx *= -.6;
+        const pop = Math.min(1, age / 130), s = p.s * (pop < 1 ? .4 + pop * .75 : 1);
+        g.globalAlpha = Math.min(1, (p.life - age) / 380);
+        g.save(); g.translate(p.x, p.y); g.rotate(p.r);
+        if (p.img.complete && p.img.naturalWidth) g.drawImage(p.img, -s / 2, -s / 2, s, s);
+        g.restore();
+      }
+      g.globalAlpha = 1;
+      if (parts.length || rings.length) raf = requestAnimationFrame(frame);
+    }
+    function burst(x, y, n, power) {
+      if (reduce || !imgs.length) return;
+      n = n || 7; power = power || 1;
+      const now = performance.now();
+      rings.push({ x, y, t: now, color: getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() || "#4B3FD9" });
+      for (let k = 0; k < n; k++) {
+        const ang = -Math.PI / 2 + rand(-1.25, 1.25), sp = rand(7, 14) * power;
+        parts.push({ x, y, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp - 2, r: rand(-.5, .5), vr: rand(-.22, .22), s: rand(30, 52), img: imgs[(Math.random() * imgs.length) | 0], t: now, life: rand(1500, 2400) });
+      }
+      while (parts.length > 110) parts.shift();
+      if (!raf) { last = now; raf = requestAnimationFrame(frame); }
+    }
+    const click = (e) => {
+      if (e.button !== 0 || (root && !root.contains(e.target))) return;
+      if (e.target.closest("a,button,input,textarea,select,label,summary,iframe,[role=button],.no-stamp,estudario-folha,.login-card")) return;
+      if (String(getSelection && getSelection()).length) return;
+      burst(e.clientX, e.clientY);
+    };
+    addEventListener("click", click);
+    addEventListener("resize", size);
+    return {
+      burst,
+      destroy() { removeEventListener("click", click); removeEventListener("resize", size); if (raf) cancelAnimationFrame(raf); canvas.remove(); },
+    };
+  };
+})();
