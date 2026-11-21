@@ -537,7 +537,9 @@ object StudyPlanBlueprint {
                 PlanPhaseKind.APROFUNDAMENTO -> 14
                 PlanPhaseKind.RETA_FINAL -> 7
             }
-            val seen = input.topics.count { it.studied }
+            // Visto também é o tópico treinado direto em questões (reta final, quem domina): sem isso quem só faz questões
+            // nunca tinha "estudado" nada e ficava com um simulado só (o diagnóstico) até a prova.
+            val seen = input.topics.count { it.studied || it.evidence.answered >= DIAGNOSTIC_QUESTIONS }
             val due = input.lastSimulation?.plusDays(interval.toLong()) ?: input.today
             // Fora o diagnóstico, só com alguma coisa estudada para cobrar.
             // Com o prazo apertado (sem espaço para treino), o simulado de reforço cede ao conteúdo, como o
