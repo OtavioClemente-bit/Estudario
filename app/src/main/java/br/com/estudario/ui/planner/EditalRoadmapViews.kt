@@ -122,7 +122,7 @@ private fun VerdictCard(roadmap: EditalRoadmapResult, onEditAvailability: () -> 
         focused -> Triple(Color(0xFF2F5BD3), Icons.Outlined.CheckCircle, "Foco no que mais cai")
         roadmap.verdict == RoadmapVerdict.COMFORTABLE -> Triple(Color(0xFF2EA56F), Icons.Outlined.CheckCircle, "Seu edital cabe com folga")
         roadmap.verdict == RoadmapVerdict.TIGHT -> Triple(Color(0xFFE08A00), Icons.Outlined.WarningAmber, "Cabe, mas no limite")
-        else -> Triple(MaterialTheme.colorScheme.error, Icons.Outlined.ErrorOutline, "O edital inteiro não cabe nas suas horas")
+        else -> Triple(MaterialTheme.colorScheme.tertiary, Icons.Outlined.ErrorOutline, "Suas horas não cobrem tudo, e há dois caminhos")
     }
     val daily = roadmap.minutesPerStudyDay
     val extra = roadmap.extraMinutesPerDayToFit
@@ -134,7 +134,7 @@ private fun VerdictCard(roadmap: EditalRoadmapResult, onEditAvailability: () -> 
         roadmap.verdict == RoadmapVerdict.COMFORTABLE ->
             "Você vê o último tópico em ${roadmap.coverageDate!!.toJavaLocalDate().label()} e ainda sobram ${roadmap.slackDays} dias antes da reta final."
         roadmap.verdict == RoadmapVerdict.TIGHT ->
-            "O último tópico entra em ${roadmap.coverageDate!!.toJavaLocalDate().label()}, colado na reta final. Qualquer atraso aperta a revisão."
+            "O último tópico entra em ${roadmap.coverageDate!!.toJavaLocalDate().label()}, pouco antes da reta final. Se um dia escapar, o plano se reorganiza; só sobra menos folga para revisar."
         else -> buildString {
             append("Com ${dayLength(daily)} por dia de estudo, ficam $leftOut de fora")
             if (roadmap.atRiskSubjects.isNotEmpty()) append(", principalmente de ${roadmap.atRiskSubjects.take(2).joinToString(" e ")}")

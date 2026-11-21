@@ -23,7 +23,7 @@ object PlanningExplanationBuilder {
      */
     fun explain(subjectName: String, need: StudyNeed, limit: Int = 3): String {
         val parts = need.topReasons(limit).mapNotNull { phraseFor(it) }
-        if (parts.isEmpty()) return "$subjectName entra no rodízio normal do seu edital."
+        if (parts.isEmpty()) return "$subjectName aparece de forma regular, junto com as outras matérias."
         return "$subjectName ${verbFor(need)} " + join(parts) + "."
     }
 
@@ -89,7 +89,7 @@ object PlanningExplanationBuilder {
             known ->
                 "Você já tem base em $subjectName. O plano começa por consolidação, não por teoria."
             else ->
-                "$subjectName entra no rodízio padrão. Dá para ajustar depois, com os dados das suas questões."
+                "$subjectName aparece de forma regular. Com as suas questões, o plano ajusta o peso dela sozinho."
         }
     }
 
@@ -101,14 +101,14 @@ object PlanningExplanationBuilder {
         FeasibilityVerdict.COMFORTABLE ->
             "Seu tempo está confortável. Com ${hours(report.weeklyCapacityMinutes)} por semana há espaço para " +
                 "terminar o conteúdo até ${report.targetCoverageDate?.formatDayMonth()} e ainda reservar " +
-                "${report.consolidationDays} dias de consolidação antes da prova."
+                "${report.consolidationDays} dias só de revisão e questões antes da prova."
         FeasibilityVerdict.TIGHT ->
             "Sua agenda está apertada para este edital. Com ${hours(report.weeklyCapacityMinutes)} por semana o " +
                 "conteúdo fecha em ${report.projectedCoverageDate?.formatDayMonth()}, depois da meta de " +
                 "${report.targetCoverageDate?.formatDayMonth()}, sobra menos tempo de revisão final."
         FeasibilityVerdict.INFEASIBLE ->
-            "Com ${hours(report.weeklyCapacityMinutes)} por semana, a projeção ultrapassa a data da prova. " +
-                "Dá para priorizar o que mais vale ou aumentar a carga semanal."
+            "Com ${hours(report.weeklyCapacityMinutes)} por semana, o edital todo não fecha até a prova. " +
+                "Você pode estudar primeiro o que mais cai ou acrescentar um pouco de tempo por dia. As duas opções funcionam."
     }
 
     /** As opções que a pessoa escolhe quando o tempo não fecha. O motor calcula; ela decide. */

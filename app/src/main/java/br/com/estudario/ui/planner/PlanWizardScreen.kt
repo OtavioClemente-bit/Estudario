@@ -284,7 +284,7 @@ fun PlanWizardScreen(
                             NumeroSlider("Discursivas por mês", discursives, 0..12, 1) { discursives = it }
                             Explicacao("A meta de questões é fechada por baterias semanais quando as questões dos tópicos não dão conta sozinhas. A discursiva cai no seu dia mais livre.")
                         }
-                        else -> PreviaDoPlano(preview, name, selectedSubjects, weeklyCapacity)
+                        else -> PreviaDoPlano(preview, name, selectedSubjects, weeklyCapacity, availability.count { !it.unavailable && it.availableMinutes > 0 }, examDate != null)
                     }
                 }
             }
@@ -369,7 +369,7 @@ private fun buildPreview(
 }
 
 @Composable
-private fun PreviaDoPlano(preview: WizardPreview, name: String, subjects: List<SubjectEntity>, weeklyCapacity: Int) {
+private fun PreviaDoPlano(preview: WizardPreview, name: String, subjects: List<SubjectEntity>, weeklyCapacity: Int, studyDayCount: Int = 7, hasExam: Boolean = false) {
     Text(name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
     if (subjects.isEmpty()) {
         Aviso("Sem matérias no edital não há o que planejar. Volte ao passo do concurso.")
@@ -377,14 +377,19 @@ private fun PreviaDoPlano(preview: WizardPreview, name: String, subjects: List<S
     }
     ElevatedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Primeiras 4 semanas", fontWeight = FontWeight.Bold)
-            Text("${minutesLabel(weeklyCapacity)} por semana • ${preview.topicsInHorizon} tópico(s) novo(s) no período")
+            Text("Seu ritmo", fontWeight = FontWeight.Bold)
+            val studyDays = studyDayCount.coerceAtLeast(1)
+            Text("Cerca de ${minutesLabel(weeklyCapacity / studyDays)} por dia de estudo. Nas próximas 4 semanas você vê ${preview.topicsInHorizon} tópico(s) novo(s), começando pelo que mais cai.")
+            preview.weeksToFinishSyllabus?.let { weeks ->
+                val end = LocalDate.now().plusWeeks(weeks.toLong())
+                Text("Você termina o edital por volta de %02d/%02d.".format(end.dayOfMonth, end.monthValue) + if (hasExam) " Depois disso, até a prova, o tempo vai para questões e revisão." else " No ritmo que você escolheu.", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+            }
             LinearProgressIndicator(
                 { if (preview.horizonCapacity == 0) 0f else (preview.plannedMinutes.toFloat() / preview.horizonCapacity).coerceIn(0f, 1f) },
                 Modifier.fillMaxWidth(),
             )
             Text(
-                if (preview.plannedMinutes > preview.horizonCapacity) "A demanda passa da sua disponibilidade, o que não couber é remarcado automaticamente."
+                if (preview.plannedMinutes > preview.horizonCapacity) "Tem mais conteúdo do que horas neste começo. Tudo bem: o que não der para fazer no dia passa para o próximo dia livre, e o mais importante vem primeiro."
                 else "${minutesLabel(preview.plannedMinutes)} planejados de ${minutesLabel(preview.horizonCapacity)} disponíveis.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

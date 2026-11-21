@@ -260,7 +260,7 @@ object StudyPlanBlueprint {
             return javaRound(subject.weight * factor).toInt().coerceIn(1, MAX_ROTATION_WEIGHT)
         }
 
-        notes += "Fase atual: ${phase.kind.label}, ${mix.describe()}."
+        notes += "Agora você está na fase ${phase.kind.label}: ${mix.describe()}."
         val pace = input.pace
         if (pace.theorySamples >= PersonalPace.MIN_THEORY_TOPICS && kotlin.math.abs(config.theoryPace - 1.0) >= 0.08) {
             val typical = roundTo5(THEORY_BASE_MINUTES * config.theoryPace)
@@ -379,7 +379,7 @@ object StudyPlanBlueprint {
             // estudou nela (não de hoje). Assim o ritmo não depende de quantas vezes o plano se refaz:
             // contar de hoje deixava o primeiro tópico sempre "para hoje", e quem conclui tarefas o dia
             // todo engolia o edital em semanas.
-            // Diagnósticos de quem diz dominar não seguem o ritmo da teoria: são feitos logo, dois por dia por matéria,
+            // Diagnósticos de quem diz dominar não seguem o ritmo da teoria: são feitos logo, um por dia por matéria (o dia não vira 18 baterias picadas),
             // para em uma ou duas semanas o plano saber o que precisa de leitura (antes iam até perto da reta final).
             val diagnoses = pending.filter { it.second == Track.DIAGNOSE }
             val learning = pending.filter { it.second != Track.DIAGNOSE }
@@ -396,7 +396,7 @@ object StudyPlanBlueprint {
                 // O m-ésimo tópico desde o começo do último dia de estudo cai no dia floor(m × intervalo);
                 // os já feitos naquele dia contam, para a matéria que anda mais de um por dia não travar em um.
                 val done = if (last == null) 0 else input.theoryCountOnLastDay[subject.subjectId] ?: 1
-                val anchor = if (track == Track.DIAGNOSE) input.today.plusDays((diagIndex++ / 2).toLong())
+                val anchor = if (track == Track.DIAGNOSE) input.today.plusDays((diagIndex++).toLong())
                     else (last ?: input.today).plusDays(kotlin.math.floor((done + k) * interval).toLong()).let { if (it.isBefore(input.today)) input.today else it }
                 if (!anchor.isBefore(horizonEndContent)) { if (track == Track.DIAGNOSE) continue else break }
                 if (track != Track.DIAGNOSE) k++
@@ -623,14 +623,17 @@ object StudyPlanBlueprint {
         activeSubjects.forEachIndexed { index, subject ->
             if (subject.subjectId in input.liveSubjectMixes) return@forEachIndexed
             val seen = topicsBySubject[subject.subjectId].orEmpty().count { trackOf(it, subject) == Track.COVERED }
+            // Matéria com só um ou dois tópicos vistos (quem tem pouco tempo demora a avançar nela) também volta, a cada
+            // 4 semanas e menor: antes ela sumia por meses e a pessoa esquecia o pouco que tinha visto.
             if (seen < MIN_SEEN_FOR_SUBJECT_MIX) return@forEachIndexed
+            val few = seen < MIN_SEEN_FOR_SUBJECT_MIX
             val last = input.lastSubjectMixBySubject[subject.subjectId]
-            val due = last?.plusDays(SUBJECT_MIX_INTERVAL_DAYS.toLong()) ?: input.today.plusDays((index % 7).toLong() + 3)
+            val due = last?.plusDays((if (few) 2 * SUBJECT_MIX_INTERVAL_DAYS else SUBJECT_MIX_INTERVAL_DAYS).toLong()) ?: input.today.plusDays((index % 7).toLong() + 3)
             if (!due.isBefore(horizonEnd2)) return@forEachIndexed
             // Até o que a matéria tem para fazer: a soma das questões ainda não acertadas dos tópicos vistos.
             val available = topicsBySubject[subject.subjectId].orEmpty().filter { trackOf(it, subject) == Track.COVERED }
                 .sumOf { it.questionsLeft ?: it.questionCap ?: SUBJECT_MIX_QUESTIONS }
-            val quantidade = minOf(SUBJECT_MIX_QUESTIONS, available)
+            val quantidade = minOf(if (few) 10 else SUBJECT_MIX_QUESTIONS, available)
             if (quantidade < MIN_PRACTICE_QUESTIONS || quantidade * config.minutesPerQuestion < MIN_PRACTICE_MINUTES) return@forEachIndexed
             mixCount++
             demands += TaskDemand(
@@ -678,12 +681,12 @@ object StudyPlanBlueprint {
         }
 
         if (config.includeFlashcards && mix.reviewPercent > 0) {
-            notes += "Marcar um tópico como estudado agenda sozinho as revisões D+1, D+7 e D+30, e depois delas o tópico continua voltando, com intervalo maior a cada rodada."
+            notes += "Marcar um tópico como estudado faz ele voltar para revisão no dia seguinte, depois de uma semana e depois de um mês, e depois disso o tópico continua voltando, com intervalo maior a cada rodada."
         }
 
         val planned = demands.sumOf { it.minutes }
         if (planned > horizonCapacity) {
-            notes += "A demanda do período passa da sua disponibilidade: o que não couber é remarcado automaticamente."
+            notes += "Tem mais conteúdo do que horas neste começo. Tudo bem: o que não der para fazer no dia passa para o próximo dia livre, e o mais importante vem primeiro."
         }
 
         // "Por que este plano": as matérias que mais receberam espaço explicam a própria presença,

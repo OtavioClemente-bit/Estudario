@@ -465,7 +465,7 @@ private fun PlanOverview(planId: String, tasks: List<PlanTask>, todayEpoch: Long
             Div({ classes("row") }) {
                 Icon(if (focus) "center_focus_strong" else "error")
                 Div({ classes("grow") }) {
-                    H2 { Text(if (focus) "Foco no que mais cai" else "O edital inteiro não cabe nas suas horas") }
+                    H2 { Text(if (focus) "Foco no que mais cai" else "Suas horas não cobrem tudo, e há dois caminhos") }
                     P({ classes("small", "muted") }) {
                         Text(
                             if (focus) "Você cobre ${r.weightCoveredPercent}% do peso da prova. Ficam para o fim os $leftOut que menos caem nas provas${from?.let { ", mais de $it" } ?: ""}: se sobrar tempo, eles entram."
@@ -593,7 +593,7 @@ private fun WeeklyBalanceCard(planId: String) {
             val text = when {
                 r.verdict != br.com.estudario.domain.planner.RoadmapVerdict.DOES_NOT_FIT && r.coverageDate != null ->
                     "No seu ritmo, o edital fecha em ${Queries.dayLabel(r.coverageDate)}" + (if (r.slackDays > 0) ", ${r.slackDays} dias antes da reta final. Você vai conseguir." else ", colado na reta final.")
-                r.verdict == br.com.estudario.domain.planner.RoadmapVerdict.DOES_NOT_FIT -> "No ritmo de hoje ficam ${r.topicsLeftOut} tópicos de fora; veja abaixo como resolver."
+                r.verdict == br.com.estudario.domain.planner.RoadmapVerdict.DOES_NOT_FIT -> "No ritmo de hoje ${r.topicsLeftOut} tópicos ficariam para depois. Isso é comum e tem saída: veja abaixo."
                 else -> null
             }
             text?.let { P({ classes("small", "strong"); attr("style", "margin:10px 0 0") }) { Text(it) } }

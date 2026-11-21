@@ -51,7 +51,7 @@ fun WeeklyBalanceCard(balance: WeeklyBalance, roadmap: EditalRoadmapResult?) {
                     r.verdict != RoadmapVerdict.DOES_NOT_FIT && r.coverageDate != null ->
                         "No seu ritmo, o edital fecha em ${r.coverageDate!!.toJavaLocalDate().format(day)}" +
                             (if (r.slackDays > 0) ", ${r.slackDays} dias antes da reta final. Você vai conseguir." else ", colado na reta final.")
-                    r.verdict == RoadmapVerdict.DOES_NOT_FIT -> "No ritmo de hoje ficam ${r.topicsLeftOut} tópicos de fora; veja abaixo como resolver."
+                    r.verdict == RoadmapVerdict.DOES_NOT_FIT -> "No ritmo de hoje ${r.topicsLeftOut} tópicos ficariam para depois. Isso é comum e tem saída: veja abaixo."
                     else -> null
                 }
                 text?.let { Text(it, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold) }
