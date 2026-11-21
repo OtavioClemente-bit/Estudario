@@ -155,10 +155,12 @@ object StudyPlanBlueprint {
         return when (subject.dimensions.initialKnowledge) {
             InitialKnowledge.NONE, InitialKnowledge.CONTACT -> Track.FULL
             InitialKnowledge.BASIC -> Track.SHORT
-            // Disse que domina: diagnóstico primeiro; se já fez e errou, a teoria volta (curta se foi perto).
+            // Disse que domina: diagnóstico primeiro. Foi razoável (60%+): segue só com questões (se continuar
+            // errando, a teoria de retomada volta sozinha); foi perto: teoria curta; foi mal: teoria inteira.
             InitialKnowledge.SOLID, InitialKnowledge.STRONG -> when {
                 ev.answered < DIAGNOSTIC_QUESTIONS -> Track.DIAGNOSE
-                accuracy >= 0.5 -> Track.SHORT
+                accuracy >= 0.6 -> Track.COVERED
+                accuracy >= 0.4 -> Track.SHORT
                 else -> Track.FULL
             }
         }
@@ -377,22 +379,27 @@ object StudyPlanBlueprint {
             // estudou nela (não de hoje). Assim o ritmo não depende de quantas vezes o plano se refaz:
             // contar de hoje deixava o primeiro tópico sempre "para hoje", e quem conclui tarefas o dia
             // todo engolia o edital em semanas.
-            val interval = window * 0.92 / pending.size
+            // Diagnósticos de quem diz dominar não seguem o ritmo da teoria: são feitos logo, dois por dia por matéria,
+            // para em uma ou duas semanas o plano saber o que precisa de leitura (antes iam até perto da reta final).
+            val diagnoses = pending.filter { it.second == Track.DIAGNOSE }
+            val learning = pending.filter { it.second != Track.DIAGNOSE }
+            val interval = window * 0.92 / learning.size.coerceAtLeast(1)
+            var diagIndex = 0
             // Conteúdo (teoria + questões do tópico) que esta matéria precisa ver no período para fechar no prazo.
             contentNeeded += pending.sumOf { minutesOf(it.second) * (1.0 + config.questionsPerTopic * config.minutesPerQuestion.toDouble() / THEORY_BASE_MINUTES) } * (input.horizonDays / window).coerceAtMost(1.0)
             val last = input.lastTheoryBySubject[subject.subjectId]
             var used = 0
             var k = 0
             val units = mutableListOf<List<TaskDemand>>()
-            for ((topic, track) in pending) {
+            for ((topic, track) in diagnoses + learning) {
                 val minutes = minutesOf(track)
                 // O m-ésimo tópico desde o começo do último dia de estudo cai no dia floor(m × intervalo);
                 // os já feitos naquele dia contam, para a matéria que anda mais de um por dia não travar em um.
                 val done = if (last == null) 0 else input.theoryCountOnLastDay[subject.subjectId] ?: 1
-                val offset = kotlin.math.floor((done + k) * interval).toLong()
-                val anchor = (last ?: input.today).plusDays(offset).let { if (it.isBefore(input.today)) input.today else it }
-                if (!anchor.isBefore(horizonEndContent)) break
-                k++
+                val anchor = if (track == Track.DIAGNOSE) input.today.plusDays((diagIndex++ / 2).toLong())
+                    else (last ?: input.today).plusDays(kotlin.math.floor((done + k) * interval).toLong()).let { if (it.isBefore(input.today)) input.today else it }
+                if (!anchor.isBefore(horizonEndContent)) { if (track == Track.DIAGNOSE) continue else break }
+                if (track != Track.DIAGNOSE) k++
                 val unit = mutableListOf<TaskDemand>()
                 if (track == Track.DIAGNOSE) {
                     if ((topic.topicId to PlanTaskType.QUESTIONS) !in input.occupied) {
