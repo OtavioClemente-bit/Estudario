@@ -397,7 +397,7 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
                     theories.forEach { other ->
                         Button({
                             classes("mo-swap")
-                            onClick { Store.update { Planning.swapTasks(it, p.task.id, other.id) }; pending = null; Toast.show("Trocados de dia.") }
+                            onClick { try { Store.update { Planning.swapTasks(it, p.task.id, other.id) }; Toast.show("Trocados de dia.") } catch (e: Throwable) { Toast.show(e.message ?: "Não deu para trocar.") }; pending = null }
                         }) {
                             B { Text("Trocar com ${other.topicName ?: other.subjectName}") }
                             Span({ classes("small", "muted") }) { Text(" · ${other.subjectName}") }
@@ -410,7 +410,7 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
                 P { Text("\"$name\" vai para ${dayTitle(p.swapWith.day, todayEpoch)} e \"${p.swapWith.topicName ?: p.swapWith.subjectName}\" vai para ${dayTitle(p.task.day, todayEpoch)}. Os dois ficam fixados.") }
                 Div({ classes("row", "end", "wrap"); attr("style", "gap:8px;margin-top:14px") }) {
                     Btn("Cancelar", { pending = null }, style = "ghost")
-                    Btn("Trocar", { Store.update { Planning.swapTasks(it, p.task.id, p.swapWith.id) }; pending = null; Toast.show("Trocados de dia.") })
+                    Btn("Trocar", { try { Store.update { Planning.swapTasks(it, p.task.id, p.swapWith.id) }; Toast.show("Trocados de dia.") } catch (e: Throwable) { Toast.show(e.message ?: "Não deu para trocar.") }; pending = null })
                 }
             } else {
                 H3 { Text(if (p.limit == 0) "Esse dia é de folga" else "Esse dia passa do seu limite") }
@@ -427,7 +427,7 @@ fun PlanMonth(planId: String, planTasks: List<PlanTask>, todayEpoch: Long, month
                         swappable.forEach { other ->
                             Button({
                                 classes("mo-swap")
-                                onClick { Store.update { Planning.swapTasks(it, p.task.id, other.id) }; pending = null; Toast.show("Trocados de dia.") }
+                                onClick { try { Store.update { Planning.swapTasks(it, p.task.id, other.id) }; Toast.show("Trocados de dia.") } catch (e: Throwable) { Toast.show(e.message ?: "Não deu para trocar.") }; pending = null }
                             }) {
                                 B { Text(other.topicName ?: other.subjectName) }
                                 Span({ classes("small", "muted") }) { Text(" · ${other.subjectName} · ${short(other.minutes)}") }

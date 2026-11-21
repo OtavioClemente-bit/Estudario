@@ -313,6 +313,11 @@ class StudyPlanApplicationService(
     suspend fun swapTasks(a: String, b: String) = db.withTransaction {
         val ta = planner.task(a) ?: error("Tarefa não encontrada.")
         val tb = planner.task(b) ?: error("Tarefa não encontrada.")
+        require(ta.planId == tb.planId && ta.status in pendingStatuses && tb.status in pendingStatuses) { "Só dá para trocar estudos que ainda não foram feitos." }
+        // Teoria e questões do mesmo tópico: trocar poria as questões antes da leitura.
+        require(!(ta.topicId != null && ta.topicId == tb.topicId && ta.type != tb.type && (ta.type == br.com.estudario.domain.planner.PlanTaskType.THEORY || tb.type == br.com.estudario.domain.planner.PlanTaskType.THEORY))) {
+            "A teoria vem antes das questões do mesmo tópico: escolha outro estudo para trocar."
+        }
         val plan = planner.plan(ta.planId) ?: error("Plano não encontrado.")
         require(planner.claimRevision(plan.id, plan.revision, System.currentTimeMillis()) == 1)
         val now = System.currentTimeMillis()

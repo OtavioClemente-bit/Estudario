@@ -278,6 +278,11 @@ object Planning {
     fun swapTasks(data: Snapshot, a: String, b: String): Snapshot {
         val ta = data.tasks.firstOrNull { it.id == a } ?: return data
         val tb = data.tasks.firstOrNull { it.id == b } ?: return data
+        require(ta.planId == tb.planId && ta.status in PENDING && tb.status in PENDING) { "Só dá para trocar estudos que ainda não foram feitos." }
+        // Teoria e questões do mesmo tópico: trocar poria as questões antes da leitura (como no app).
+        require(!(ta.topicId != null && ta.topicId == tb.topicId && ta.type != tb.type && (ta.type == "THEORY" || tb.type == "THEORY"))) {
+            "A teoria vem antes das questões do mesmo tópico: escolha outro estudo para trocar."
+        }
         val at = now()
         return data.edit(Keys.TASKS) {
             when (it.str("id")) {

@@ -131,9 +131,16 @@ class StudyPlannerEngine(
         val theoryFloating = snapshot.tasks.filter {
             it.type == PlanTaskType.THEORY && it.topicId != null && it.status in liveStatuses && !dropped(it) && !keeps(it)
         }.mapTo(hashSetOf()) { it.topicId } + theoryBack
+        // Teoria fixada pela pessoa num dia mais à frente (arrastou a leitura para depois): as questões do tópico
+        // que ficaram antes dela voltam a ser encaixadas, e só depois da teoria. Antes ficavam no dia antigo.
+        val pinnedTheoryDay: Map<Long, LocalDate> = snapshot.tasks.filter {
+            it.type == PlanTaskType.THEORY && it.topicId != null && it.locked && it.status in liveStatuses
+        }.groupBy { it.topicId!! }.mapValues { (_, l) -> l.maxOf { it.date } }
         val waitsForTheory: (PlannerTask) -> Boolean = { task ->
-            task.type != PlanTaskType.THEORY && task.topicId in theoryFloating && task.status == PlanTaskStatus.PLANEJADA && !task.locked &&
-                snapshot.dayOverrides[task.date]?.locked != true && (task.topicId in theoryBack || !(dayKeeping && task.date <= snapshot.today))
+            task.type != PlanTaskType.THEORY && task.status == PlanTaskStatus.PLANEJADA && !task.locked && snapshot.dayOverrides[task.date]?.locked != true && (
+                (task.topicId in theoryFloating && (task.topicId in theoryBack || !(dayKeeping && task.date <= snapshot.today))) ||
+                    (task.topicId != null && pinnedTheoryDay[task.topicId]?.let { task.date < it } == true)
+                )
         }
         val fixedTasks = snapshot.tasks.filter { task -> !dropped(task) && keeps(task) && !waitsForTheory(task) }
         // Por id: a previsão roda o motor semana a semana com centenas de tarefas, e procurar cada uma
@@ -312,8 +319,10 @@ class StudyPlannerEngine(
         // Teto por dia e por matéria: evita quatro horas seguidas da mesma coisa. Quando nenhum dia
         // aceita a matéria, a segunda passada roda sem o teto para não desperdiçar capacidade.
         fun dateFor(demand: TaskDemand, respectShare: Boolean, skip: Set<LocalDate> = emptySet(), atLeast: Int = 1): LocalDate? {
-            val from = demand.anchorDate
-            val window = if (from == null) dates else dates.filterNot { it.isBefore(from) }.ifEmpty { dates }
+            // Questões de um tópico com a teoria fixada mais à frente só entram do dia da teoria em diante.
+            val afterTheory = if (demand.type != PlanTaskType.THEORY) demand.topicId?.let { pinnedTheoryDay[it] } else null
+            val from = listOfNotNull(demand.anchorDate, afterTheory).maxOrNull()
+            val window = if (from == null) dates else dates.filterNot { it.isBefore(from) }.ifEmpty { if (afterTheory != null) emptyList() else dates }
             return window.firstOrNull { date ->
                 if (date in skip || freeByDate.getValue(date) < atLeast) return@firstOrNull false
                 if (!topicFits(demand, date)) return@firstOrNull false
