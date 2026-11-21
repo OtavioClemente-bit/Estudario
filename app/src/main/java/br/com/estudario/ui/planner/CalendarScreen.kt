@@ -50,7 +50,12 @@ fun CalendarScreen(
             // Teoria concluída em qualquer tarefa vale (uma "não realizada" antiga não pode acusar "pulada" o que já foi feito).
             .groupBy { it.topicId!! }.mapValues { (_, l) -> l.filter { it.status == PlanTaskStatus.CONCLUIDA }.maxByOrNull { it.scheduledEpochDay } ?: l.maxBy { it.scheduledEpochDay } }
     }
-    androidx.compose.runtime.CompositionLocalProvider(br.com.estudario.ui.components.LocalOpenTaskTopic provides onOpenTopic, br.com.estudario.ui.components.LocalTheoryByTopic provides theoryByTopic) {
+    // Primeira teoria concluída de cada tópico: uma teoria marcada depois dela é retomada ("por que esta tarefa").
+    val firstTheoryDone = remember(state.tasks) {
+        state.tasks.map { it.entity }.filter { it.type == br.com.estudario.domain.planner.PlanTaskType.THEORY && it.topicId != null && it.status == PlanTaskStatus.CONCLUIDA }
+            .groupBy { it.topicId!! }.mapValues { (_, l) -> l.minOf { it.scheduledEpochDay } }
+    }
+    androidx.compose.runtime.CompositionLocalProvider(br.com.estudario.ui.components.LocalOpenTaskTopic provides onOpenTopic, br.com.estudario.ui.components.LocalTheoryByTopic provides theoryByTopic, br.com.estudario.ui.components.LocalFirstTheoryDone provides firstTheoryDone) {
     // Os chips "Acompanhe seu plano" (Hoje/Semana/Mês/Visão geral) escolhem qual destas visões
     // aparece, antes eles só destacavam o próprio chip e a tela sempre mostrava o dia selecionado.
     when (state.selectedSection) {

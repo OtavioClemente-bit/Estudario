@@ -622,6 +622,16 @@ fun TaskRow(task: PlanTask, onComplete: () -> Unit) {
                 task.status == "NAO_REALIZADA" -> Span { Text("não realizada") }
             }
         }
+        // Por que esta tarefa está aqui (o mesmo texto do app).
+        if (!done) {
+            val type = runCatching { br.com.estudario.domain.planner.PlanTaskType.valueOf(task.type) }.getOrNull()
+            val retake = task.type == "THEORY" && task.topicId != null && Store.data.tasks.any {
+                it.planId == task.planId && it.topicId == task.topicId && it.type == "THEORY" && it.status == "CONCLUIDA" && it.day < task.day
+            }
+            type?.let { br.com.estudario.domain.planner.TaskWhy.text(it, task.topicId != null, retake, task.subjectName) }?.let { why ->
+                P({ classes("small", "muted"); attr("style", "margin:2px 0 0") }) { Text(why) }
+            }
+        }
         // O tópico está entre os que mais caem nas provas de verdade da matéria (a mesma régua do plano).
         if (task.topicId != null && task.topicId in br.com.estudario.web.data.TopicIncidence.hot()) {
             val n = br.com.estudario.web.data.TopicIncidence.counts()[task.topicId]

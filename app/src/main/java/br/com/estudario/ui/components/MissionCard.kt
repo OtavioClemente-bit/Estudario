@@ -34,6 +34,8 @@ import br.com.estudario.ui.planner.minutesLabelPtBr
 
 /** A teoria vigente de cada tópico no plano (para o cartão de questões dizer onde ela está). */
 val LocalTheoryByTopic = androidx.compose.runtime.staticCompositionLocalOf<Map<Long, br.com.estudario.data.local.planner.PlanTaskEntity>> { emptyMap() }
+/** Dia da primeira teoria concluída de cada tópico: teoria marcada depois dela é retomada. */
+val LocalFirstTheoryDone = androidx.compose.runtime.staticCompositionLocalOf<Map<Long, Long>?> { null }
 
 /** Abre o tópico de uma tarefa ao tocar no nome dela (dado pelo plano; concluída ou não). */
 val LocalOpenTaskTopic = androidx.compose.runtime.staticCompositionLocalOf<((Long) -> Unit)?> { null }
@@ -142,6 +144,15 @@ fun MissionCard(
                     modifier = if (openTopic != null && topicId != null) Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(6.dp)).clickable(onClickLabel = "Abrir o conteúdo") { openTopic(topicId) } else Modifier,
                 )
                 
+                // Por que esta tarefa está aqui (o mesmo texto do site).
+                val firstDone = LocalFirstTheoryDone.current
+                // Fora do plano (sem a lista de teorias feitas) não dá para saber se é retomada: a teoria fica sem motivo.
+                if (task.status != PlanTaskStatus.CONCLUIDA && (task.type != PlanTaskType.THEORY || firstDone != null)) {
+                    val retake = task.type == PlanTaskType.THEORY && topicId != null && (firstDone?.get(topicId)?.let { it < task.scheduledEpochDay } == true)
+                    br.com.estudario.domain.planner.TaskWhy.text(task.type, topicId != null, retake, task.subjectNameSnapshot)?.let { why ->
+                        Text(why, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
                 // O tópico está entre os que mais caem nas provas de verdade da matéria.
                 if (topicId != null) {
                     val context = androidx.compose.ui.platform.LocalContext.current
