@@ -31,7 +31,13 @@ enum class StudyProfile(val label: String, val summary: String) {
 data class StudyMix(val theoryPercent: Int, val questionsPercent: Int, val reviewPercent: Int) {
     init { require(theoryPercent + questionsPercent + reviewPercent == 100) { "A divisão do tempo precisa somar 100%." } }
 
-    fun describe() = "$theoryPercent% teoria • $questionsPercent% questões • $reviewPercent% revisão"
+    // Texto honesto do foco da fase. Antes prometia porcentagens exatas ("45% revisão") que o plano não segue ao pé
+    // da letra: o ritmo vem do edital e das horas, e as revisões espaçadas ficam na aba Revisões, não no plano.
+    fun describe() = when {
+        theoryPercent >= 50 -> "foco em conteúdo novo, cada tópico seguido das questões dele"
+        theoryPercent > 0 -> "conteúdo novo junto com mais questões e simulados"
+        else -> "sem conteúdo novo: questões, simulados e revisão do que você já viu"
+    }
 
     companion object {
         val BASE = StudyMix(55, 30, 15)
