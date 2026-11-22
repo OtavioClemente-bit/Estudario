@@ -181,8 +181,8 @@ private fun metrics(size: NoteSize) = when (size) {
     else -> NoteMetrics(54.dp, 44.dp, 30.dp, 15.5f, 27.dp, 2)
 }
 
-private val BackX = 6.dp
-private val BackY = 7.dp
+private val BackX = 5.dp
+private val BackY = 5.dp
 
 /**
  * O botão folha de caderno, com texto. `glyph` troca o ícone da ação (sem ícone: os furos do
@@ -278,7 +278,7 @@ internal fun NoteSurface(
             .drawBehind {
                 drawNote(
                     pal = pal, pen = pen, back = back, hole = hole, rail = m.rail.toPx(), holes = if (showRail) 0 else m.holes,
-                    press = press, fold = fold, sweep = sweep.value, stamp = stamp.value, ruled = true,
+                    press = press, fold = fold, sweep = sweep.value, stamp = stamp.value, ruled = false,
                 )
             },
         propagateMinConstraints = true,
@@ -352,9 +352,10 @@ private fun DrawScope.drawNote(
     val smallR = minOf(small, h / 2f)
     // 1. a folha de baixo
     val base = pageShape(w, h, smallR, bigR, 0f)
-    val bx = (5f + (1f - 5f) * press).dp.toPx()
-    val by = (6f + (1f - 6f) * press).dp.toPx()
-    val br = 2f + (0.8f - 2f) * press
+    // Deslocamento fixo e pequeno, sem girar: girar fazia uma cunha enorme nos botões largos.
+    val bx = (4f + (1f - 4f) * press).dp.toPx()
+    val by = (4f + (1f - 4f) * press).dp.toPx()
+    val br = 0f
     translate(bx, by) {
         rotate(br, pivot = Offset(w / 2f, h / 2f)) {
             drawPath(base, back)

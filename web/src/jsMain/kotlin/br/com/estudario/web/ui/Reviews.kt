@@ -155,7 +155,7 @@ fun ReviewsScreen() {
                                 }
                                 Span({ classes("rvx-go") }) { Icon("play_arrow"); Span({ classes("rvx-go-l") }) { Text("Revisar") } }
                             }
-                            Button({ classes("nb-ic", "rvx-skip"); attr("type", "button"); attr("title", "Pular esta revisão"); attr("aria-label", "Pular esta revisão"); onClick { Store.update { Actions.ignoreReview(it, review.id) }; Toast.show("Revisão pulada") } }) { Text("Pular") }
+                            Button({ classes("rvx-skip"); attr("type", "button"); attr("title", "Pular esta revisão"); attr("aria-label", "Pular esta revisão"); onClick { Store.update { Actions.ignoreReview(it, review.id) }; Toast.show("Revisão pulada") } }) { Text("Pular") }
                         }
                     }
                 }
