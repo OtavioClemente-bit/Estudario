@@ -381,7 +381,11 @@ class StudyPlanApplicationService(
                 planner.deletePlanSubjects(planId, removedIds)
             }
             var position = (current.maxOfOrNull { it.position } ?: -1) + 1
+            // A mesma matéria nos dois editais (Português e Português) entra uma vez só: antes o plano estudava as duas.
+            fun norm(s: String) = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD).replace(Regex("\\p{M}+"), "").lowercase().trim()
+            val names = current.filter { it.subjectId in keepIds }.mapTo(hashSetOf()) { norm(it.subjectNameSnapshot) }
             val missing = allSubjects.filter { it.competitionId in wanted && it.id !in keepIds }.sortedWith(compareBy({ it.competitionId }, { it.position }))
+                .filter { names.add(norm(it.name)) }
             if (missing.isNotEmpty()) planner.upsertPlanSubjects(missing.map { PlanSubjectEntity(planId = planId, subjectId = it.id, subjectNameSnapshot = it.name, priority = PlanPriority.MEDIUM, position = position++) })
             planner.deactivateOthersOf(planId, wanted)
             planner.insertRevision(StudyPlanRevisionEntity(plan.id, plan.revision + 1, plan.revision, "SUBJECT_CHANGED", summary = "Concursos do plano: ${wanted.size}."))

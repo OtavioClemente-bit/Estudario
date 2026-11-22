@@ -284,7 +284,7 @@ object StudyPlanBlueprint {
                 append(" mais treino até $until, começando pelos assuntos que você errou.")
             }
         }
-        notes += "Teoria usa blocos de $block minutos; tarefas de questões usam cerca de ${config.minutesPerQuestion} min por questão."
+        notes += "Cada leitura tem cerca de $block minutos, e as questões contam uns ${config.minutesPerQuestion} min cada."
 
         // 1. Revisões espaçadas (D+1, D+7, D+30 e as seguintes) vivem na aba Revisões, com o ritmo que
         // a pessoa dá a cada uma (Difícil volta amanhã). O plano não cria um cartão por revisão, o que
@@ -295,8 +295,8 @@ object StudyPlanBlueprint {
         val dueReviews = input.pendingReviews.filter { it.topicId in studiedTopicIds && it.dueDate.isBefore(horizonEnd) }
         val overdueCount = dueReviews.filter { !it.dueDate.isAfter(input.today) }.distinctBy { it.topicId }.size
         if (dueReviews.isNotEmpty()) {
-            notes += if (overdueCount > 0) "$overdueCount revisão(ões) para hoje na aba Revisões, como extra: elas não tiram tempo do seu plano."
-            else "As revisões espaçadas ficam na aba Revisões, como extra: elas não tiram tempo do seu plano."
+            notes += if (overdueCount > 0) "$overdueCount revisão(ões) para hoje na aba Revisões. O plano já guarda um tempinho do dia para elas (até um terço); se acumularem, comece pelas primeiras da lista."
+            else "As revisões espaçadas ficam na aba Revisões, e o plano já guarda um tempinho do dia para elas."
         }
 
 

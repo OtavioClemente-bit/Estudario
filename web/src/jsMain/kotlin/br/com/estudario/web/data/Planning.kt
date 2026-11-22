@@ -390,7 +390,10 @@ object Planning {
         val current = data.planSubjects.filter { it.planId == planId }
         val keepIds = current.filter { subjectCompetition[it.subjectId] in wanted }.mapTo(hashSetOf()) { it.subjectId }
         val removedIds = current.filter { it.subjectId !in keepIds }.mapTo(hashSetOf()) { it.subjectId }
+        // A mesma matéria nos dois editais (Português e Português) entra uma vez só, como no app.
+        val names = current.filter { it.subjectId in keepIds }.mapTo(hashSetOf()) { br.com.estudario.text.stripAccents(it.name).lowercase().trim() }
         val missing = data.subjects.filter { it.competitionId in wanted && it.id !in keepIds }.sortedWith(compareBy({ it.competitionId }, { it.position }))
+            .filter { names.add(br.com.estudario.text.stripAccents(it.name).lowercase().trim()) }
         var position = (current.maxOfOrNull { it.position } ?: -1) + 1
         var next = data
             .edit(Keys.PLAN_SUBJECTS) { if (it.str("planId") == planId && it.long("subjectId") in removedIds) null else it }
