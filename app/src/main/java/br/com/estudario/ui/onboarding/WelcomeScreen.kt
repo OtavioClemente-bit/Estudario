@@ -259,7 +259,7 @@ internal fun GoogleSignInButton(loading: Boolean, onClick: () -> Unit) {
     val border = if (dark) Color(0xFF8E918F) else Color(0xFF747775)
     val content = if (dark) Color(0xFFE3E3E3) else Color(0xFF1F1F1F)
 
-    OutlinedButton(
+    androidx.compose.material3.OutlinedButton(
         onClick = { if (!loading) onClick() },
         enabled = !loading,
         shape = RoundedCornerShape(percent = 50),
