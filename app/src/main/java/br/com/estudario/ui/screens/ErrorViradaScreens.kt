@@ -287,7 +287,7 @@ fun ViradaScreen(viewModel: AppViewModel, onMission: (Long?) -> Unit, onTrainErr
                                 style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = scheme.error,
                             )
                         }
-                        FilledTonalButton(onClick = { onTrainTopic(topicId) }, contentPadding = PaddingValues(horizontal = 12.dp)) { Text("Treinar 3") }
+                        FilledTonalButton(kind = br.com.estudario.ui.brand.NoteKind.Practice, onClick = { onTrainTopic(topicId) }, contentPadding = PaddingValues(horizontal = 12.dp)) { Text("Treinar 3") }
                     }
                 }
             }
@@ -326,10 +326,10 @@ fun ViradaScreen(viewModel: AppViewModel, onMission: (Long?) -> Unit, onTrainErr
                                 Icon(if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, if (expanded) "Fechar" else "Ver as questões", tint = scheme.onSurfaceVariant)
                             }
                             if (g.due > 0 || expanded) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                if (g.due > 0) Button(onClick = { onMission(g.topicId) }, contentPadding = PaddingValues(horizontal = 14.dp)) {
+                                if (g.due > 0) Button(kind = br.com.estudario.ui.brand.NoteKind.Practice, onClick = { onMission(g.topicId) }, contentPadding = PaddingValues(horizontal = 14.dp)) {
                                     Icon(Icons.Outlined.Replay, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Virar ${g.due} ${if (g.due == 1) "erro" else "erros"}")
                                 }
-                                g.topicId?.let { id -> TextButton(onClick = { onOpenTopic(id) }) { Text("Ler a teoria") } }
+                                g.topicId?.let { id -> TextButton(kind = br.com.estudario.ui.brand.NoteKind.Study, onClick = { onOpenTopic(id) }) { Text("Ler a teoria") } }
                             }
                             if (expanded) g.entries.mapNotNull { byId[it.id] }.forEach { item ->
                                 val note = ErrorVirada.noteOf(item.entry.comment)
@@ -601,6 +601,6 @@ private fun MissionItem(
         }
     }
     if (right != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-        Button(onClick = onNext) { Text("Próximo erro"); Spacer(Modifier.width(6.dp)); Icon(Icons.AutoMirrored.Outlined.ArrowForward, null) }
+        Button(kind = br.com.estudario.ui.brand.NoteKind.Next, onClick = onNext) { Text("Próximo erro"); Spacer(Modifier.width(6.dp)); Icon(Icons.AutoMirrored.Outlined.ArrowForward, null) }
     }
 }

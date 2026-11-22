@@ -277,7 +277,7 @@ fun InitialSetupFlow(
                 },
                 navigationIcon = {
                     if (snapshot.step != InitialSetupStep.INTRO) {
-                        androidx.compose.material3.IconButton(onClick = { if (planMode && planFirstStep) cancelPlanMode() else viewModel.goBack() }) {
+                        br.com.estudario.ui.brand.IconButton(onClick = { if (planMode && planFirstStep) cancelPlanMode() else viewModel.goBack() }) {
                             Icon(Icons.Outlined.ArrowBack, contentDescription = "Voltar")
                         }
                     }
@@ -285,7 +285,7 @@ fun InitialSetupFlow(
                 actions = {
                     if (snapshot.step != InitialSetupStep.READY) {
                         if (planMode) TextButton(onClick = { cancelPlanMode() }) { Text("Cancelar") }
-                        else TextButton(onClick = viewModel::defer) { Text("Configurar depois") }
+                        else TextButton(kind = br.com.estudario.ui.brand.NoteKind.Settings, onClick = viewModel::defer) { Text("Configurar depois") }
                     }
                 },
             )
@@ -418,7 +418,7 @@ fun InitialSetupFlow(
             title = { Text("Confira seu plano") },
             text = { Text("${preview.value.planName}\n\n${preview.value.importedTaskCount} tarefa(s) encontradas. ${preview.value.unresolvedReferences.size} referência(s) precisam ser resolvidas.") },
             confirmButton = {
-                TextButton(onClick = { viewModel.confirmPlanImport(preview.raw) }, enabled = preview.value.unresolvedReferences.isEmpty()) { Text("Importar plano") }
+                TextButton(kind = br.com.estudario.ui.brand.NoteKind.Upload, onClick = { viewModel.confirmPlanImport(preview.raw) }, enabled = preview.value.unresolvedReferences.isEmpty()) { Text("Importar plano") }
             },
             dismissButton = { TextButton(onClick = viewModel::clearOperation) { Text("Escolher outro") } },
         )
@@ -435,7 +435,7 @@ fun InitialSetupFlow(
                 )
             },
             confirmButton = {
-                TextButton(onClick = { picker.launch(arrayOf("application/json", "text/plain", "*/*")) }) {
+                TextButton(kind = br.com.estudario.ui.brand.NoteKind.Upload, onClick = { picker.launch(arrayOf("application/json", "text/plain", "*/*")) }) {
                     Text("Importar outro arquivo")
                 }
             },
@@ -743,7 +743,7 @@ private fun ExamDateStep(snapshot: InitialSetupSnapshot, viewModel: InitialSetup
             )
         }
         if (date.isNotBlank()) {
-            TextButton(onClick = { date = "" }) { Text("Remover data") }
+            TextButton(kind = br.com.estudario.ui.brand.NoteKind.Danger, onClick = { date = "" }) { Text("Remover data") }
         }
 
         Spacer(Modifier.height(16.dp))
@@ -769,7 +769,7 @@ private fun ExamDateStep(snapshot: InitialSetupSnapshot, viewModel: InitialSetup
         DatePickerDialog(
             onDismissRequest = { showPicker = false },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(kind = br.com.estudario.ui.brand.NoteKind.Confirm, onClick = {
                     pickerState.selectedDateMillis?.let { millis ->
                         date = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate().toString()
                     }
@@ -880,7 +880,7 @@ private fun ManualSyllabusEditor(snapshot: InitialSetupSnapshot, viewModel: Init
                 label = { Text("Nova matéria") },
                 singleLine = true,
             )
-            Button(
+            Button(kind = br.com.estudario.ui.brand.NoteKind.Primary, glyph = br.com.estudario.ui.brand.Glyph.Plus,
                 onClick = {
                     val clean = newSubject.trim()
                     if (clean.isNotBlank() && subjects.none { it.equals(clean, ignoreCase = true) }) {
@@ -930,7 +930,7 @@ private fun ManualSyllabusEditor(snapshot: InitialSetupSnapshot, viewModel: Init
                         Text(if (subject.equals(selectedSubject, ignoreCase = true)) "Matéria selecionada" else "Toque para editar os tópicos", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             TextButton(onClick = { editingSubject = subject; editingSubjectDraft = subject }) { Text("Editar") }
-                            TextButton(onClick = { viewModel.deleteManualSubject(subject) }) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
+                            TextButton(kind = br.com.estudario.ui.brand.NoteKind.Danger, onClick = { viewModel.deleteManualSubject(subject) }) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
                         }
                     }
                 }
@@ -950,7 +950,7 @@ private fun ManualSyllabusEditor(snapshot: InitialSetupSnapshot, viewModel: Init
                     label = { Text("Novo tópico") },
                     singleLine = true,
                 )
-                Button(
+                Button(kind = br.com.estudario.ui.brand.NoteKind.Primary, glyph = br.com.estudario.ui.brand.Glyph.Plus,
                     onClick = {
                         val clean = newTopic.trim()
                         if (clean.isNotBlank() && topics.none { it.equals(clean, ignoreCase = true) }) {
@@ -989,7 +989,7 @@ private fun ManualSyllabusEditor(snapshot: InitialSetupSnapshot, viewModel: Init
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text(topic, Modifier.weight(1f))
                         TextButton(onClick = { editingTopicIndex = index; editingTopicDraft = topic }) { Text("Editar") }
-                        TextButton(onClick = { viewModel.deleteManualTopic(selectedSubject, index) }) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
+                        TextButton(kind = br.com.estudario.ui.brand.NoteKind.Danger, onClick = { viewModel.deleteManualTopic(selectedSubject, index) }) { Text("Excluir", color = MaterialTheme.colorScheme.error) }
                     }
                 }
             }
@@ -1219,7 +1219,7 @@ private fun ReadyStep(onFinish: () -> Unit) {
             )
         }
         SetupBottomBar {
-            Button(
+            Button(kind = br.com.estudario.ui.brand.NoteKind.Study,
                 onClick = { if (!launching) launching = true },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(18.dp),
@@ -1459,7 +1459,7 @@ private fun StudioAiCard(
                 Icon(Icons.Outlined.CheckCircle, null, Modifier.size(16.dp), tint = Color.White)
                 Text("Vai usar “${attachment.name}”", style = MaterialTheme.typography.labelMedium, color = Color.White, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             }
-            Button(
+            Button(kind = br.com.estudario.ui.brand.NoteKind.Upload,
                 onClick = onOpen,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(16.dp),
@@ -1531,7 +1531,7 @@ private fun ImportPreviewDialog(preview: br.com.estudario.data.transfer.EstudoPr
                 if (preview.duplicateCount > 0) Text("${preview.duplicateCount} item(ns) já existem e serão preservados.", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
             }
         },
-        confirmButton = { Button(onClick = onConfirm) { Text("Importar e continuar") } },
+        confirmButton = { Button(kind = br.com.estudario.ui.brand.NoteKind.Upload, onClick = onConfirm) { Text("Importar e continuar") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Escolher outro") } },
     )
 }

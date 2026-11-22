@@ -74,7 +74,7 @@ fun UpgradeModal(reason: UpgradeReason, onDismiss: () -> Unit) {
     Div({ classes("offer"); attr("role", "dialog"); attr("aria-modal", "true") }) {
         Div({ classes("offer-glow") })
         Div({ classes("offer-in") }) {
-            Button({ classes("offer-x"); attr("aria-label", "Fechar"); onClick { onDismiss() } }) { Text("✕") }
+            Button({ classes("nb-ic", "offer-x"); attr("aria-label", "Fechar"); onClick { onDismiss() } }) { Text("✕") }
             Folha("wave", 110)
             H2({ classes("offer-title") }) { Text(reason.title) }
             P({ classes("offer-body") }) { Text(reason.body) }
@@ -91,8 +91,8 @@ fun UpgradeModal(reason: UpgradeReason, onDismiss: () -> Unit) {
                 }
             }
             P({ classes("offer-note") }) { Text("No Grátis continuam a matéria do plano de hoje, as revisões, o treino e o caderno.") }
-            Button({ classes("offer-cta"); onClick { onDismiss(); Router.go(Route.PlanLimits) } }) { Text("Conhecer os planos") }
-            Button({ classes("offer-later"); onClick { onDismiss() } }) { Text("Agora não") }
+            Button({ classes("btn", "k-pro", "offer-cta"); onClick { onDismiss(); Router.go(Route.PlanLimits) } }) { Icon("Gem"); Text("Conhecer os planos") }
+            Button({ classes("btn", "small", "k-paper", "offer-later"); onClick { onDismiss() } }) { Text("Agora não") }
             P({ classes("offer-fine") }) { Text("Assinatura pelo app, na Google Play. Vale aqui na mesma conta. Cancela quando quiser.") }
         }
     }

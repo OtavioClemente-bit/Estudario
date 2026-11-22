@@ -276,7 +276,7 @@ private fun TopicRow(topic: Topic, depth: Int, childCount: Int, priority: Priori
                 Text(if (childCount > 0) "Dividido em $childCount subtópicos · gere o material em cada um" else if (hasMaterial) "${Queries.topicStatusLabel(topic.status)} · material pronto" else Queries.topicStatusLabel(topic.status))
             }
         }
-        if (!hasMaterial && childCount == 0 && !Store.demo) Button({ classes("gen-btn"); onClick { e -> e.stopPropagation(); onGenerate(topic.id) } }) { Folha("happy", 22); Text("Gerar") }
+        if (!hasMaterial && childCount == 0 && !Store.demo) Button({ classes("btn", "small", "k-study", "gen-btn"); onClick { e -> e.stopPropagation(); onGenerate(topic.id) } }) { Folha("happy", 22); Text("Gerar") }
         Icon("chevron_right", extraClass = "faint", plain = true)
     }
 }

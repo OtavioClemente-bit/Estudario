@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.IconButton
 import br.com.estudario.ui.brand.FilterChip
 import br.com.estudario.ui.brand.TextButton
 import br.com.estudario.ui.brand.LinearProgressIndicator
@@ -311,7 +312,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
             title = { Text(title) },
             text = { Text(message) },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(kind = br.com.estudario.ui.brand.NoteKind.Complete, onClick = {
                     completionWarning = null
                     if (pendingFocusIsActive) showFocusChoice = true
                     else scope.launch { finishTopicCompletion(stopLinkedFocus = false) }
@@ -326,12 +327,12 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
             title = { Text("Modo foco em andamento") },
             text = { Text("Quer encerrar e salvar esta sessão no histórico junto com a conclusão do tópico?") },
             confirmButton = {
-                TextButton(onClick = { scope.launch { finishTopicCompletion(stopLinkedFocus = true) } }) {
+                TextButton(kind = br.com.estudario.ui.brand.NoteKind.Complete, onClick = { scope.launch { finishTopicCompletion(stopLinkedFocus = true) } }) {
                     Text("Salvar foco e concluir")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { scope.launch { finishTopicCompletion(stopLinkedFocus = false) } }) {
+                TextButton(kind = br.com.estudario.ui.brand.NoteKind.Complete, onClick = { scope.launch { finishTopicCompletion(stopLinkedFocus = false) } }) {
                     Text("Manter foco e concluir")
                 }
             },
@@ -414,7 +415,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
         title = { Text("Parar o cronômetro?") },
         text = { Text("Você está há ${focusSession.elapsedMinutes(focusNow).coerceAtLeast(1)} min estudando ${topic.title}. Se continuar contando, o cronômetro segue no topo do app.") },
         confirmButton = { TextButton(onClick = { focusLeaveAsk = false; scope.launch { viewModel.stopFocus(); onBack() } }) { Text("Parar e salvar") } },
-        dismissButton = { TextButton(onClick = { focusLeaveAsk = false; onBack() }) { Text("Continuar contando") } },
+        dismissButton = { TextButton(kind = br.com.estudario.ui.brand.NoteKind.Next, onClick = { focusLeaveAsk = false; onBack() }) { Text("Continuar contando") } },
     )
     if (focusStopAsk) AlertDialog(
         onDismissRequest = { focusStopAsk = false },
@@ -422,7 +423,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
         title = { Text("Encerrar o foco?") },
         text = { Text("${br.com.estudario.ui.focus.focusClock(focusSession, focusNow)} de estudo em ${topic.title} vão para o seu histórico. Para registrar o tópico como estudado, use Concluir estudo.") },
         confirmButton = { TextButton(onClick = { focusStopAsk = false; scope.launch { viewModel.stopFocus() } }) { Text("Encerrar e salvar") } },
-        dismissButton = { TextButton(onClick = { focusStopAsk = false }) { Text("Continuar") } },
+        dismissButton = { TextButton(kind = br.com.estudario.ui.brand.NoteKind.Next, onClick = { focusStopAsk = false }) { Text("Continuar") } },
     )
     // Começar a ler sem o foco ligado: pergunta se quer ligar (o tempo de estudo do desempenho é o do foco).
     val focusAskPrefs = remember { context.getSharedPreferences("leitura_foco", android.content.Context.MODE_PRIVATE) }
@@ -443,7 +444,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(kind = br.com.estudario.ui.brand.NoteKind.Focus, onClick = {
                     if (never) focusAskPrefs.edit().putBoolean("nunca", true).apply()
                     readFocusAsk = null
                     viewModel.startFocus(topic.title, topicId = topicId, taskId = taskId); go()
@@ -458,7 +459,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
         title = { Text("Já tem um foco rodando") },
         text = { Text("O cronômetro está contando ${focusSession.title.ifBlank { "outra sessão" }}. Encerrar e salvar aquela sessão e começar aqui?") },
         confirmButton = {
-            TextButton(onClick = {
+            TextButton(kind = br.com.estudario.ui.brand.NoteKind.Next, onClick = {
                 focusSwitchAsk = false
                 scope.launch { viewModel.stopFocus(); viewModel.startFocus(topic.title, topicId = topicId, taskId = taskId) }
             }) { Text("Começar aqui") }
@@ -588,11 +589,11 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                     topicQuestions.isNotEmpty() -> Triple("Treinar questões (${topicQuestions.size} salvas)", Icons.Outlined.Quiz, { quizPicker = true })
                     else -> Triple("Gerar material com o Estudário", Icons.Outlined.AutoAwesome, { showContentPrompt = true })
                 }
-                Button(onClick = action, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp)) {
+                Button(kind = br.com.estudario.ui.brand.NoteKind.Study, onClick = action, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp)) {
                     Icon(icon, null); Spacer(Modifier.width(10.dp)); Text(label, style = MaterialTheme.typography.titleSmall)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (focusHere) Button(
+                    if (focusHere) Button(kind = br.com.estudario.ui.brand.NoteKind.Focus,
                         onClick = { focusStopAsk = true },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(14.dp),
@@ -604,7 +605,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                             else -> "Foco · ${br.com.estudario.ui.focus.focusClock(focusSession, focusNow)}"
                         })
                     }
-                    else FilledTonalButton(
+                    else FilledTonalButton(kind = br.com.estudario.ui.brand.NoteKind.Focus,
                         onClick = {
                             if (focusSession.active) focusSwitchAsk = true
                             else { viewModel.startFocus(topic.title, topicId = topicId, taskId = taskId); onFocus() }
@@ -612,13 +613,13 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(14.dp),
                     ) { Icon(Icons.Outlined.Timer, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Modo foco") }
-                    if (studied && isPendingReviewTask && !completedNow) OutlinedButton(onClick = ::requestTopicCompletion, enabled = !completionBusy, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
+                    if (studied && isPendingReviewTask && !completedNow) OutlinedButton(kind = br.com.estudario.ui.brand.NoteKind.Complete, onClick = ::requestTopicCompletion, enabled = !completionBusy, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
                         Icon(Icons.Outlined.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Concluir revisão")
-                    } else if (studied && hasPendingTheoryTask && !completedNow) OutlinedButton(onClick = ::requestTopicCompletion, enabled = !completionBusy, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
+                    } else if (studied && hasPendingTheoryTask && !completedNow) OutlinedButton(kind = br.com.estudario.ui.brand.NoteKind.Complete, onClick = ::requestTopicCompletion, enabled = !completionBusy, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
                         Icon(Icons.Outlined.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Concluir estudo")
-                    } else if (studied) OutlinedButton(onClick = {}, enabled = false, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
+                    } else if (studied) OutlinedButton(kind = br.com.estudario.ui.brand.NoteKind.Complete, onClick = {}, enabled = false, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
                         Icon(Icons.Outlined.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Concluído")
-                    } else OutlinedButton(onClick = { finishStudy = true }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
+                    } else OutlinedButton(kind = br.com.estudario.ui.brand.NoteKind.Complete, onClick = { finishStudy = true }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(14.dp)) {
                         Icon(Icons.Outlined.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Concluir estudo")
                     }
                 }
@@ -858,7 +859,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                                 TopicStat("${topicQuestions.count { it.question.answerCount == 0 }}", "nunca vistas", null, Modifier.weight(1f))
                                 TopicStat(accuracy?.let { "$it%" } ?: "-", "de acerto", null, Modifier.weight(1f))
                             }
-                            Button(onClick = { quizPicker = true }, enabled = topicQuestions.isNotEmpty(), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                            Button(kind = br.com.estudario.ui.brand.NoteKind.Practice, onClick = { quizPicker = true }, enabled = topicQuestions.isNotEmpty(), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
                                 Icon(Icons.Outlined.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text("Treinar este tópico")
                             }
                         }
@@ -1058,7 +1059,7 @@ private fun QuizCountSheet(total: Int, onDismiss: () -> Unit, onStart: (Int) -> 
                     FilterChip(selected = count == n, onClick = { count = n }, label = { Text(if (n == total) "Todas ($total)" else "$n") }, modifier = Modifier.weight(1f))
                 }
             }
-            Button(onClick = { onStart(count) }, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp)) {
+            Button(kind = br.com.estudario.ui.brand.NoteKind.Next, onClick = { onStart(count) }, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp)) {
                 Text("Começar $count ${if (count == 1) "questão" else "questões"}", style = MaterialTheme.typography.titleSmall)
             }
         }

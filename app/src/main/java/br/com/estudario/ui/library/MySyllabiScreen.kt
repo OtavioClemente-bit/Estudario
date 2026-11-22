@@ -73,12 +73,12 @@ fun MySyllabiScreen(viewModel: MySyllabiViewModel) {
                                     }
                                 }
                                 row.local?.let { local ->
-                                    OutlinedButton(onClick = { confirmLocalRemoval = local.id }) {
+                                    OutlinedButton(kind = br.com.estudario.ui.brand.NoteKind.Danger, onClick = { confirmLocalRemoval = local.id }) {
                                         Text("Remover deste dispositivo")
                                     }
                                 }
                                 row.remote?.let { remote ->
-                                    TextButton(onClick = { confirmRemoteDeletion = remote.remoteSyllabusId }) {
+                                    TextButton(kind = br.com.estudario.ui.brand.NoteKind.Danger, onClick = { confirmRemoteDeletion = remote.remoteSyllabusId }) {
                                         Text("Excluir da minha conta")
                                     }
                                 }
@@ -96,7 +96,7 @@ fun MySyllabiScreen(viewModel: MySyllabiViewModel) {
             title = { Text("Remover deste dispositivo?") },
             text = { Text("Se houver uma cópia privada na conta, ela será mantida.") },
             confirmButton = {
-                TextButton(onClick = { confirmLocalRemoval = null; viewModel.removeFromDevice(localId) }) { Text("Remover") }
+                TextButton(kind = br.com.estudario.ui.brand.NoteKind.Danger, onClick = { confirmLocalRemoval = null; viewModel.removeFromDevice(localId) }) { Text("Remover") }
             },
             dismissButton = { TextButton(onClick = { confirmLocalRemoval = null }) { Text("Cancelar") } },
         )
@@ -107,7 +107,7 @@ fun MySyllabiScreen(viewModel: MySyllabiViewModel) {
             title = { Text("Excluir da sua conta?") },
             text = { Text("A cópia privada será excluída da conta. Qualquer cópia local deste edital será mantida.") },
             confirmButton = {
-                TextButton(onClick = { confirmRemoteDeletion = null; viewModel.deleteFromAccount(remoteId) }) { Text("Excluir da conta") }
+                TextButton(kind = br.com.estudario.ui.brand.NoteKind.Danger, onClick = { confirmRemoteDeletion = null; viewModel.deleteFromAccount(remoteId) }) { Text("Excluir da conta") }
             },
             dismissButton = { TextButton(onClick = { confirmRemoteDeletion = null }) { Text("Cancelar") } },
         )

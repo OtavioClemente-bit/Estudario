@@ -21,6 +21,7 @@ import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.IconButton
 import br.com.estudario.ui.brand.TextButton
 import br.com.estudario.ui.brand.FilterChip
 import br.com.estudario.ui.brand.Surface
@@ -121,7 +122,7 @@ fun ErrorsScreen(viewModel: AppViewModel, onTrainErrors: () -> Unit, onOpenTopic
                         }
                         Text("${(fraction * 100).toInt()}% dos erros já corrigidos (acertou ao refazer em sequência)", style = MaterialTheme.typography.labelSmall)
                     }
-                    Button(onClick = onTrainErrors, modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)) {
+                    Button(kind = br.com.estudario.ui.brand.NoteKind.Practice, onClick = onTrainErrors, modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)) {
                         Icon(Icons.Outlined.PlayArrow, null); Spacer(Modifier.width(8.dp))
                         Text(if (paraHoje > 0) "Refazer os $paraHoje de hoje" else "Treinar meus erros")
                     }

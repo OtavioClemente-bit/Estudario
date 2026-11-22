@@ -39,7 +39,7 @@ import br.com.estudario.ui.brand.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import br.com.estudario.ui.brand.Icon
-import androidx.compose.material3.IconButton
+import br.com.estudario.ui.brand.IconButton
 import androidx.compose.material3.MaterialTheme
 import br.com.estudario.ui.brand.OutlinedButton
 import br.com.estudario.ui.brand.Surface
@@ -334,7 +334,7 @@ private fun Hero(currentTier: String?, renewsAt: String?, onDismiss: () -> Unit)
                     }
                 }
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, "Fechar", tint = Color.White) }
+                IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, "Fechar") }
             }
             Spacer(Modifier.height(20.dp))
             Text(
@@ -488,7 +488,7 @@ private fun AdRewardCard(visible: Boolean, busy: Boolean, onClick: () -> Unit) {
                 Text("Anúncio curto e opcional. Até 2 por dia.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f))
             }
             Spacer(Modifier.width(8.dp))
-            Button(
+            Button(kind = br.com.estudario.ui.brand.NoteKind.Primary, glyph = br.com.estudario.ui.brand.Glyph.Play,
                 onClick = onClick,
                 enabled = !busy,
                 shape = RoundedCornerShape(14.dp),

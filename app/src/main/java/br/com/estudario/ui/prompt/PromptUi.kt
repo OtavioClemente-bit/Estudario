@@ -46,7 +46,7 @@ import br.com.estudario.ui.brand.ElevatedCard
 import br.com.estudario.ui.brand.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import br.com.estudario.ui.brand.Icon
-import androidx.compose.material3.IconButton
+import br.com.estudario.ui.brand.IconButton
 import androidx.compose.material3.MaterialTheme
 import br.com.estudario.ui.brand.OutlinedButton
 import br.com.estudario.ui.brand.Surface

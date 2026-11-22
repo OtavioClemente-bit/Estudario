@@ -56,7 +56,7 @@ private fun ReviewHelp(onClose: () -> Unit) {
                 H2 { Text("Revisão espaçada, etapa por etapa") }
                 P({ classes("gx-topic") }) { Text("A gente esquece rápido o que estuda. Revisar na hora certa, um pouco antes de esquecer, é o que faz o conteúdo ficar.") }
             }
-            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close") }
+            Button({ classes("nb-ic", "gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close") }
         }
         Div({ classes("gx-controls", "solo") }) {
             GxSection("menu_book", "Estudou um tópico, nasceu uma revisão", "Cada tópico que você estuda entra aqui sozinho, com a data certa de voltar.", "#A78BFF") {}
@@ -155,7 +155,7 @@ fun ReviewsScreen() {
                                 }
                                 Span({ classes("rvx-go") }) { Icon("play_arrow"); Span({ classes("rvx-go-l") }) { Text("Revisar") } }
                             }
-                            Button({ classes("rvx-skip"); attr("type", "button"); attr("title", "Pular esta revisão"); attr("aria-label", "Pular esta revisão"); onClick { Store.update { Actions.ignoreReview(it, review.id) }; Toast.show("Revisão pulada") } }) { Text("Pular") }
+                            Button({ classes("nb-ic", "rvx-skip"); attr("type", "button"); attr("title", "Pular esta revisão"); attr("aria-label", "Pular esta revisão"); onClick { Store.update { Actions.ignoreReview(it, review.id) }; Toast.show("Revisão pulada") } }) { Text("Pular") }
                         }
                     }
                 }
@@ -333,9 +333,9 @@ private fun RvCount(icon: String, label: String, value: Int, available: Int, max
             B { Text(label) }
             Span({ classes("xs", "muted") }) { Text(if (available == 0) "Este tópico ainda não tem" else if (value > available) "Vai usar as $available que o tópico tem" else "O tópico tem $available") }
         }
-        Button({ classes("rv-step-btn"); attr("aria-label", "Menos"); if (value <= 0) attr("disabled", ""); onClick { onChange((value - 1).coerceAtLeast(0)) } }) { Icon("remove") }
+        Button({ classes("nb-ic", "rv-step-btn"); attr("aria-label", "Menos"); if (value <= 0) attr("disabled", ""); onClick { onChange((value - 1).coerceAtLeast(0)) } }) { Icon("remove") }
         B({ classes("rv-count-n") }) { Text("$shown") }
-        Button({ classes("rv-step-btn"); attr("aria-label", "Mais"); if (value >= max || value >= available) attr("disabled", ""); onClick { onChange((value + 1).coerceAtMost(max)) } }) { Icon("add") }
+        Button({ classes("nb-ic", "rv-step-btn"); attr("aria-label", "Mais"); if (value >= max || value >= available) attr("disabled", ""); onClick { onChange((value + 1).coerceAtMost(max)) } }) { Icon("add") }
     }
 }
 
@@ -637,8 +637,8 @@ fun ReviewSessionScreen(reviewId: Long) {
                 }
                 if (flipped) P({ classes("rv-hint"); attr("style", "margin-bottom:-4px") }) { B { Text("Você lembrou antes de virar o cartão?") } }
                 if (flipped) Div({ classes("rv-choice") }) {
-                    Button({ classes("rv-btn", "no"); onClick { rateCard(card, false) } }) { Icon("close"); Text("Não lembrei") }
-                    Button({ classes("rv-btn", "yes"); onClick { rateCard(card, true) } }) { Icon("check"); Text("Lembrei") }
+                    Button({ classes("btn", "k-paper", "rv-btn", "no"); onClick { rateCard(card, false) } }) { Icon("close"); Text("Não lembrei") }
+                    Button({ classes("btn", "k-confirm", "rv-btn", "yes"); onClick { rateCard(card, true) } }) { Icon("check"); Text("Lembrei") }
                 } else Div({ classes("rv-choice") }) { Btn("Virar o cartão", { flipped = true }, style = "primary", icon = "flip") }
                 if (flipped) Div({ classes("rv-choice") }) { Btn("Voltar à pergunta", { flipped = false }, style = "ghost", icon = "flip") }
             }

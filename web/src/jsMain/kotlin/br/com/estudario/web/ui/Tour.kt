@@ -120,9 +120,9 @@ fun WelcomeTour() {
                 Div({ classes("tour-dots") }) {
                     welcomeTour.indices.forEach { i -> Span({ classes(*listOfNotNull("dot", if (i == index) "on" else null).toTypedArray()) }) }
                 }
-                Button({ classes("tour-skip"); onClick { close() } }) { Text(if (last) "Fechar" else "Pular") }
-                if (index > 0) Button({ classes("tour-nav"); attr("aria-label", "Voltar"); onClick { index-- } }) { Icon("arrow_back") }
-                Button({ classes("tour-nav", "go"); attr("aria-label", if (last) "Começar" else "Avançar"); onClick { if (last) close() else index++ } }) {
+                Button({ classes("btn", "small", "k-paper", "tour-skip"); onClick { close() } }) { Text(if (last) "Fechar" else "Pular") }
+                if (index > 0) Button({ classes("nb-ic", "tour-nav"); attr("aria-label", "Voltar"); onClick { index-- } }) { Icon("arrow_back") }
+                Button({ classes("nb-ic", "tour-nav", "go"); attr("aria-label", if (last) "Começar" else "Avançar"); onClick { if (last) close() else index++ } }) {
                     if (last) Text("Começar") else Icon("arrow_forward")
                 }
             }

@@ -19,7 +19,7 @@ import br.com.estudario.ui.brand.Button
 import br.com.estudario.ui.brand.ElevatedCard
 import br.com.estudario.ui.brand.FilterChip
 import br.com.estudario.ui.brand.Icon
-import androidx.compose.material3.IconButton
+import br.com.estudario.ui.brand.IconButton
 import br.com.estudario.ui.brand.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import br.com.estudario.ui.brand.OutlinedButton
@@ -186,7 +186,7 @@ fun SimulationResultScreen(
                                 Text(subject.subjectName, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                                 Text("${subject.correct}/${subject.total} · ${subject.percent}%", style = MaterialTheme.typography.labelLarge)
                                 subjects.firstOrNull { it.name == subject.subjectName && it.competitionId == current.competitionId }?.let { entity ->
-                                    if (subject.percent < target) TextButton(onClick = { onTrainSubject(entity.id) }) { Text("Treinar") }
+                                    if (subject.percent < target) TextButton(kind = br.com.estudario.ui.brand.NoteKind.Practice, onClick = { onTrainSubject(entity.id) }) { Text("Treinar") }
                                 }
                             }
                             LinearProgressIndicator(
@@ -215,7 +215,7 @@ fun SimulationResultScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(topic?.title ?: "Tópico", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                                 Text("−${lost.lost} de ${lost.total}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.error)
-                                topic?.let { TextButton(onClick = { onTrainSubject(it.subjectId) }) { Text("Treinar") } }
+                                topic?.let { TextButton(kind = br.com.estudario.ui.brand.NoteKind.Practice, onClick = { onTrainSubject(it.subjectId) }) { Text("Treinar") } }
                             }
                             lost.trap?.let {
                                 Text("Armadilha: $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -229,7 +229,7 @@ fun SimulationResultScreen(
         if (history.size >= 2) item { EvolutionChart(history.mapNotNull { it.scorePercent }, target) }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onOpenSimulations, modifier = Modifier.fillMaxWidth()) { Text("Voltar aos simulados") }
+                OutlinedButton(kind = br.com.estudario.ui.brand.NoteKind.Simulado, onClick = onOpenSimulations, modifier = Modifier.fillMaxWidth()) { Text("Voltar aos simulados") }
                 Text("Os erros ficam aqui no resultado e no seu Desempenho: o simulado mede, o treino dos erros é nas revisões e nas questões do plano.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }

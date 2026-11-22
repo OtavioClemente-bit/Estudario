@@ -117,7 +117,7 @@ private fun WidgetCard(context: Context, option: WidgetOption) {
             )
         }
         Text(option.description, style = MaterialTheme.typography.bodyMedium, color = g.ink)
-        Button(onClick = { pin(context, option.receiver) }, modifier = Modifier.fillMaxWidth()) { Text("Adicionar à tela inicial") }
+        Button(kind = br.com.estudario.ui.brand.NoteKind.Primary, glyph = br.com.estudario.ui.brand.Glyph.Widgets, onClick = { pin(context, option.receiver) }, modifier = Modifier.fillMaxWidth()) { Text("Adicionar à tela inicial") }
     }
 }
 

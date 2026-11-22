@@ -6,7 +6,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.material3.IconButton
+import br.com.estudario.ui.brand.IconButton
 import br.com.estudario.ui.brand.Button
 import androidx.compose.material.icons.outlined.Login
 import androidx.compose.material.icons.outlined.Close

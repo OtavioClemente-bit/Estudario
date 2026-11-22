@@ -26,7 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.WorkspacePremium
-import androidx.compose.material3.IconButton
+import br.com.estudario.ui.brand.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -283,7 +283,7 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
                     else "As questões dele somem do aparelho.",
                 )
             },
-            confirmButton = { TextButton(onClick = { scope.launch { service.delete(simulation.id) }; deleting = null }) { Text("Excluir") } },
+            confirmButton = { TextButton(kind = br.com.estudario.ui.brand.NoteKind.Danger, onClick = { scope.launch { service.delete(simulation.id) }; deleting = null }) { Text("Excluir") } },
             dismissButton = { TextButton(onClick = { deleting = null }) { Text("Manter") } },
         )
     }
@@ -400,7 +400,7 @@ private fun ExamSettings(board: String?, pending: Boolean, url: String?, style: 
         if (pending && board != null) {
             Text("O Estudário encontrou a banca $board na internet. Está certo?", style = MaterialTheme.typography.bodyMedium, color = Gx.ink)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Button(onClick = onConfirm) { Text("Confirmar") }
+                Button(kind = br.com.estudario.ui.brand.NoteKind.Confirm, onClick = onConfirm) { Text("Confirmar") }
                 OutlinedButton(onClick = onChangeBoard) { Text("Não é essa") }
                 url?.let { TextButton(onClick = { runCatching { uri.openUri(it) } }) { Text("Fonte") } }
             }

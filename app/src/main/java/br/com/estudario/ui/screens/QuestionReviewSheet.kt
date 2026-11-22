@@ -187,7 +187,7 @@ fun QuestionReviewSheet(
                 }
             }
 
-            OutlinedButton(
+            OutlinedButton(kind = br.com.estudario.ui.brand.NoteKind.Study,
                 onClick = { onDismiss(); onOpenTopic(question.topicId) },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Abrir o tópico inteiro") }

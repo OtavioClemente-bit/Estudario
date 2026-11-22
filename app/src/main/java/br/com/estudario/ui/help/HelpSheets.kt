@@ -47,14 +47,10 @@ import br.com.estudario.ui.studio.GxSection
 /** O botão redondo "?" que abre a ajuda da tela. */
 @Composable
 fun HelpButton(label: String, onClick: () -> Unit) {
-    Box(
-        // O "?" do caderno: bolinha amarela de marca-texto com borda de tinta e sombra dura (igual ao site).
-        Modifier.padding(4.dp).size(38.dp).clickable(onClick = onClick).semantics { contentDescription = label }
-            .drawBehind { drawCircle(Color(0xFF1C1E25), radius = size.minDimension / 2 - 1.dp.toPx(), center = center + androidx.compose.ui.geometry.Offset(2.dp.toPx(), 3.dp.toPx())) }
-            .padding(end = 2.dp, bottom = 3.dp)
-            .clip(CircleShape).background(Color(0xFFFFD23F)).border(2.5.dp, Color(0xFF1C1E25), CircleShape),
-        contentAlignment = Alignment.Center,
-    ) { br.com.estudario.ui.brand.BrandIcon(Glyph.Help, size = 30.dp) }
+    // O "?" do caderno: o quadradinho de papel amarelo dos botões folha, com o Help da turma.
+    br.com.estudario.ui.brand.IconButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = label }, kind = br.com.estudario.ui.brand.NoteKind.Focus) {
+        br.com.estudario.ui.brand.BrandIcon(Glyph.Help, size = 28.dp)
+    }
 }
 
 @Composable
@@ -67,8 +63,8 @@ private fun HelpDialog(kicker: String, title: String, subtitle: String, cta: Str
                     Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = Gx.strong)
                     Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Gx.mute)
                 }
-                Box(Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(Gx.tint(0.06f)).clickable(onClick = onClose), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.Close, "Fechar", tint = Gx.strong)
+                br.com.estudario.ui.brand.IconButton(onClick = onClose) {
+                    Icon(Icons.Rounded.Close, "Fechar")
                 }
             }
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)

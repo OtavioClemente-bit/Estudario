@@ -103,8 +103,8 @@ internal fun RoutineWeek(minutes: List<Int>, onChange: (List<Int>) -> Unit, maxM
                         }
                     }) { Div({ classes("wk-fill"); attr("style", "width:${(value / visualMax * 100).coerceIn(0.0, 100.0)}%") }) }
                     Span({ classes("pill-v", "wk-v") }) { Text(if (value == 0) "Folga" else Queries.minutesLabel(value)) }
-                    Button({ classes("step-btn"); attr("aria-label", "Menos 15 minutos"); if (value <= 0) attr("disabled", ""); onClick { set(day, value - 15) } }) { Text("−") }
-                    Button({ classes("step-btn"); attr("aria-label", "Mais 15 minutos"); if (value >= maxMinutes) attr("disabled", ""); onClick { set(day, value + 15) } }) { Text("+") }
+                    Button({ classes("nb-ic", "step-btn"); attr("aria-label", "Menos 15 minutos"); if (value <= 0) attr("disabled", ""); onClick { set(day, value - 15) } }) { Text("−") }
+                    Button({ classes("nb-ic", "step-btn"); attr("aria-label", "Mais 15 minutos"); if (value >= maxMinutes) attr("disabled", ""); onClick { set(day, value + 15) } }) { Text("+") }
                 }
             }
         }
@@ -123,9 +123,9 @@ internal fun BlockSizePicker(value: Int, onChange: (Int) -> Unit, range: IntRang
     Div({ classes("blk"); attr("style", "--c:${AxisColor.BLOCK}") }) {
         Div({ classes("blk-head") }) {
             Span({ classes("muted", "grow") }) { Text("Cada tarefa do plano dura") }
-            Button({ classes("step-btn"); attr("aria-label", "Menos 5 minutos"); if (value <= range.first) attr("disabled", ""); onClick { latest.value((value - 5).coerceAtLeast(range.first)) } }) { Text("−") }
+            Button({ classes("nb-ic", "step-btn"); attr("aria-label", "Menos 5 minutos"); if (value <= range.first) attr("disabled", ""); onClick { latest.value((value - 5).coerceAtLeast(range.first)) } }) { Text("−") }
             Span({ classes("pill-v") }) { Text("$value min") }
-            Button({ classes("step-btn"); attr("aria-label", "Mais 5 minutos"); if (value >= range.last) attr("disabled", ""); onClick { latest.value((value + 5).coerceAtMost(range.last)) } }) { Text("+") }
+            Button({ classes("nb-ic", "step-btn"); attr("aria-label", "Mais 5 minutos"); if (value >= range.last) attr("disabled", ""); onClick { latest.value((value + 5).coerceAtMost(range.last)) } }) { Text("+") }
         }
         Div({ classes("lvl-bars", "blk-bars") }) {
             presets.forEachIndexed { i, m ->

@@ -90,7 +90,7 @@ internal fun MedalDetail(item: br.com.estudario.domain.BadgeProgress, all: List<
     val ladder = all.filter { it.badge.category == b.category }.sortedBy { it.badge.tier }
     Div({ classes("medal-modal"); onClick { onClose() } }) {
         Div({ classes("medal-sheet", "rise"); attr("role", "dialog"); attr("aria-label", b.name); onClick { it.stopPropagation() } }) {
-            Button({ classes("medal-close"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close") }
+            Button({ classes("nb-ic", "medal-close"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close") }
             // a arte grande do emblema, entrando com brilho
             androidx.compose.runtime.key(b.id) {
                 Div({ classes(*listOfNotNull("medal-hero", if (item.earned) "earned" else "locked").toTypedArray()) }) {

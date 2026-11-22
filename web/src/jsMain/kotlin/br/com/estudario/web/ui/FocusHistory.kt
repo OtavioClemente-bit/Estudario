@@ -233,7 +233,7 @@ fun FocusHistoryScreen() {
                     classes("gx-input"); value(query); attr("placeholder", "Buscar pelo conteúdo: tópico, matéria ou título")
                     onInput { query = it.value; shownCount = 30 }
                 }
-                if (query.isNotBlank()) Button({ classes("gx-board-x"); attr("type", "button"); attr("aria-label", "Limpar busca"); onClick { query = "" } }) { Text("✕") }
+                if (query.isNotBlank()) Button({ classes("nb-ic", "gx-board-x"); attr("type", "button"); attr("aria-label", "Limpar busca"); onClick { query = "" } }) { Text("✕") }
             }
             if (subjectNames.size > 1) GxPicker(listOf("all" to "Todas as matérias") + subjectNames.map { it to it }, subjectFilter, limit = 6, searchHint = "Buscar matéria") { subjectFilter = it; shownCount = 30 }
             P({ classes("xs", "muted"); attr("style", "margin:6px 0 4px") }) {
@@ -246,7 +246,7 @@ fun FocusHistoryScreen() {
             if (others > 0 || showOthers) P({ classes("xs", "muted"); attr("style", "margin:0 0 6px") }) {
                 val one = others == 1
                 Text(if (showOthers) "Mostrando também as sessões dos outros concursos. " else "$others ${if (one) "sessão" else "sessões"} em tópicos de outro concurso não ${if (one) "aparece" else "aparecem"} aqui. ")
-                Button({ classes("link-btn"); attr("type", "button"); onClick { showOthers = !showOthers } }) { Text(if (showOthers) "Só este concurso" else "Mostrar também") }
+                Button({ classes("btn", "small", "k-paper", "link-btn"); attr("type", "button"); onClick { showOthers = !showOthers } }) { Text(if (showOthers) "Só este concurso" else "Mostrar também") }
             }
             val list30 = list
             Div({ classes("stack") }) {

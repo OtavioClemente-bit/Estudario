@@ -48,7 +48,7 @@ import androidx.compose.material.icons.outlined.WarningAmber
 import br.com.estudario.ui.brand.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import br.com.estudario.ui.brand.Icon
-import androidx.compose.material3.IconButton
+import br.com.estudario.ui.brand.IconButton
 import androidx.compose.material3.MaterialTheme
 import br.com.estudario.ui.brand.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -334,8 +334,8 @@ private fun AiSourceConfirmation(
                 InfoLine("Cargo/área", preferences.role.ifBlank { "Não informado" })
                 InfoLine("Arquivo", content.source.fileName)
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { editing = !editing }) { Text(if (editing) "Fechar edição" else "Editar informações") }
-                    if (preflight.canGenerate) TextButton(onClick = onPickSource) { Text("Trocar PDF") }
+                    TextButton(kind = br.com.estudario.ui.brand.NoteKind.Upload, onClick = { editing = !editing }) { Text(if (editing) "Fechar edição" else "Editar informações") }
+                    if (preflight.canGenerate) TextButton(kind = br.com.estudario.ui.brand.NoteKind.Upload, onClick = onPickSource) { Text("Trocar PDF") }
                 }
                 if (editing || !preferences.isComplete) AiSyllabusPreferencesForm(preferences, onPreferencesChange)
             }
@@ -367,7 +367,7 @@ private fun AiSourceConfirmation(
                 textAlign = TextAlign.Center,
             )
         } else {
-            Button(onClick = onPickSource, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp)) { Text("Escolher outro PDF") }
+            Button(kind = br.com.estudario.ui.brand.NoteKind.Upload, onClick = onPickSource, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp)) { Text("Escolher outro PDF") }
         }
     }
 }
@@ -490,7 +490,7 @@ private fun AiGate(
                         // Respostas obrigatórias: vão para o servidor e orientam o que a IA extrai.
                         AiSyllabusPreferencesForm(preferences, onPreferencesChange)
                         if (!preferences.isComplete) Text("Preencha o nome do concurso e o cargo para continuar.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                        Button(
+                        Button(kind = br.com.estudario.ui.brand.NoteKind.Upload,
                             onClick = onPickSource,
                             enabled = preferences.isComplete,
                             modifier = Modifier.fillMaxWidth().height(54.dp).testTag("ai_pick_source"),
@@ -581,7 +581,7 @@ private fun AiDraftEditor(
             StatTile("$topicCount", "tópicos", estudarioColors().completed, Modifier.weight(1f))
             StatTile("${draft.warnings.size}", "avisos", if (draft.warnings.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant else estudarioColors().attention, Modifier.weight(1f))
         }
-        TextButton(onClick = onPickSource) {
+        TextButton(kind = br.com.estudario.ui.brand.NoteKind.Upload, onClick = onPickSource) {
             Icon(Icons.Outlined.SwapHoriz, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Trocar PDF de origem")
         }
         if (draft.warnings.isNotEmpty()) {
@@ -787,7 +787,7 @@ private fun AiFailure(content: AiReviewContent.Failure, onRetry: () -> Unit, onF
             Text(content.message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
             Spacer(Modifier.height(4.dp))
             if (content.canRetry) PrimaryAction("Tentar novamente", onRetry)
-            OutlinedButton(onClick = onPickSource, modifier = Modifier.fillMaxWidth().testTag("ai_failure_change_source")) { Text("Trocar PDF") }
+            OutlinedButton(kind = br.com.estudario.ui.brand.NoteKind.Upload, onClick = onPickSource, modifier = Modifier.fillMaxWidth().testTag("ai_failure_change_source")) { Text("Trocar PDF") }
             TextButton(onClick = onEditInformation) { Text("Editar informações") }
             OutlinedButton(onClick = onFallback, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) {
                 Text("Montar manualmente")

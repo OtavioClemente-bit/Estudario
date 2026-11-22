@@ -89,7 +89,7 @@ internal fun TeamDashboard() {
                     val time = runCatching { kotlin.js.Date(at).toLocaleTimeString("pt-BR").take(5) }.getOrDefault(at.take(16))
                     P({ classes("gx-topic") }) { Text(if (d.s("cachedAt").isNotBlank()) "Calculado às $time · o servidor atualiza a cada 15 minutos" else "Atualizado agora · $time") }
                 }
-                Button({ classes("gx-ghost", "small"); attr("type", "button"); onClick { reload++ } }) { Icon("autorenew"); Span { Text("Atualizar") } }
+                Button({ classes("btn", "small", "k-paper", "gx-ghost", "small"); attr("type", "button"); onClick { reload++ } }) { Icon("autorenew"); Span { Text("Atualizar") } }
             }
             Div({ classes("td-kpis") }) {
                 TdKpi("menu_book", fmtN(lib.n("materias")), "matérias na biblioteca", "${lib.n("subjects")} matérias-mãe · ${lib.n("drafts")} rascunhos", "#A78BFF")
@@ -226,7 +226,7 @@ private fun TdList(
                         classes("gx-input"); value(query); attr("placeholder", "Buscar nesta lista")
                         onInput { query = it.value }
                     }
-                    if (query.isNotBlank()) Button({ classes("gx-board-x"); attr("type", "button"); onClick { query = "" } }) { Text("✕") }
+                    if (query.isNotBlank()) Button({ classes("nb-ic", "gx-board-x"); attr("type", "button"); onClick { query = "" } }) { Text("✕") }
                 }
                 Div({ classes("td-rows") }) {
                     (if (all || q.isNotEmpty()) shownItems else shownItems.take(8)).forEachIndexed { i, it ->
@@ -244,7 +244,7 @@ private fun TdList(
                 }
                 Div({ classes("td-actions") }) {
                     if (q.isEmpty() && shownItems.size > 8) Button({ classes("gx-more"); attr("type", "button"); onClick { all = !all } }) { Text(if (all) "Mostrar menos" else "Ver todas (${shownItems.size})") }
-                    Button({ classes("gx-ghost", "small"); attr("type", "button"); onClick {
+                    Button({ classes("btn", "small", "k-paper", "gx-ghost", "small"); attr("type", "button"); onClick {
                         val text = shownItems.joinToString("\n") { rowCopy(it) }
                         window.navigator.asDynamic().clipboard?.writeText(text)
                         Toast.show("${shownItems.size} itens copiados")

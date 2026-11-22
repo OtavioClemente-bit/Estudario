@@ -224,7 +224,7 @@ fun MissionCard(
             ) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     if (task.status == PlanTaskStatus.CONCLUIDA) {
-                        FilledTonalButton(
+                        FilledTonalButton(kind = br.com.estudario.ui.brand.NoteKind.Complete,
                             onClick = { },
                             enabled = false,
                             colors = ButtonDefaults.filledTonalButtonColors(
@@ -237,7 +237,7 @@ fun MissionCard(
                             Text("Concluída")
                         }
                     } else if (isOverdue && onReprogram != null) {
-                        Button(
+                        Button(kind = br.com.estudario.ui.brand.NoteKind.Primary, glyph = br.com.estudario.ui.brand.Glyph.Calendar,
                             onClick = onReprogram,
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.error
@@ -255,7 +255,7 @@ fun MissionCard(
                             }
                         }
                     } else {
-                        Button(
+                        Button(kind = br.com.estudario.ui.brand.NoteKind.Study,
                             onClick = onStart,
                         ) {
                             if (isFuture) {

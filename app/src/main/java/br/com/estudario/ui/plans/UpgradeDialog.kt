@@ -33,7 +33,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material3.IconButton
+import br.com.estudario.ui.brand.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -154,7 +154,7 @@ fun UpgradeDialog(reason: UpgradeReason, onDismiss: () -> Unit, onSignIn: (() ->
             ) {
                 Row(Modifier.fillMaxWidth()) {
                     Spacer(Modifier.weight(1f))
-                    IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, "Fechar", tint = Color.White.copy(alpha = 0.8f)) }
+                    IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, "Fechar") }
                 }
                 Folha(110.dp, mood = FolhaMood.WAVE)
                 Spacer(Modifier.height(12.dp))
@@ -246,6 +246,6 @@ private fun OfferCard(plan: OfferPlan, modifier: Modifier = Modifier) {
 @Composable
 fun UpgradeCta(reason: UpgradeReason, modifier: Modifier = Modifier, label: String = "Ver planos", onSignIn: (() -> Unit)? = null, openAtStart: Boolean = false) {
     var open by remember { mutableStateOf(openAtStart) }
-    br.com.estudario.ui.brand.Button(onClick = { open = true }, modifier = modifier.fillMaxWidth().height(52.dp)) { Text(label, fontWeight = FontWeight.Bold) }
+    br.com.estudario.ui.brand.Button(onClick = { open = true }, modifier = modifier.fillMaxWidth().height(52.dp), kind = br.com.estudario.ui.brand.NoteKind.Subscribe) { Text(label, fontWeight = FontWeight.Bold) }
     if (open) UpgradeDialog(reason, onDismiss = { open = false }, onSignIn = onSignIn)
 }

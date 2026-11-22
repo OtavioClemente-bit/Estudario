@@ -182,7 +182,7 @@ private fun QualityOverQuantityDialog(gate: GenerationGate.OverDailyPlan, onCont
                 style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
             )
             br.com.estudario.ui.brand.Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Deixar para amanhã") }
-            TextButton(onClick = onContinue, modifier = Modifier.fillMaxWidth()) { Text("Seguir mesmo assim (usa 1 do mês)") }
+            TextButton(kind = br.com.estudario.ui.brand.NoteKind.Next, onClick = onContinue, modifier = Modifier.fillMaxWidth()) { Text("Seguir mesmo assim (usa 1 do mês)") }
         }
     }
 }

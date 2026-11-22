@@ -23,6 +23,7 @@ import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.IconButton
 import br.com.estudario.ui.brand.TextButton
 import br.com.estudario.ui.brand.LinearProgressIndicator
 import br.com.estudario.ui.brand.Surface
@@ -416,8 +417,8 @@ fun QuizScreen(
                         else Text("Explicação oculta pela sua configuração.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (correct == false) {
                             FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                FilledTonalButton(onClick = { revisao = current }) { Text("Revisar este assunto") }
-                                TextButton(onClick = { onOpenTopic(current.question.topicId) }) { Text("Abrir tópico") }
+                                FilledTonalButton(kind = br.com.estudario.ui.brand.NoteKind.Review, onClick = { revisao = current }) { Text("Revisar este assunto") }
+                                TextButton(kind = br.com.estudario.ui.brand.NoteKind.Study, onClick = { onOpenTopic(current.question.topicId) }) { Text("Abrir tópico") }
                             }
                         }
                     }
@@ -428,17 +429,17 @@ fun QuizScreen(
             if (simulation) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = { if (index > 0) index-- }, enabled = index > 0, modifier = Modifier.weight(1f)) { Text("Anterior") }
-                    if (index < sessionQuestions.lastIndex) Button(onClick = { index++ }, enabled = selected != null, modifier = Modifier.weight(1f)) { Text("Próxima") }
-                    else Button(onClick = {
+                    if (index < sessionQuestions.lastIndex) Button(kind = br.com.estudario.ui.brand.NoteKind.Next, onClick = { index++ }, enabled = selected != null, modifier = Modifier.weight(1f)) { Text("Próxima") }
+                    else Button(kind = br.com.estudario.ui.brand.NoteKind.Confirm, onClick = {
                         requestFinish {
                             sessionQuestions.forEach { question -> selections[question.question.id]?.let { key -> results[question.question.id] = viewModel.answer(question, key, sessionId) } }
                         }
                     }, enabled = selections.size == sessionQuestions.size && !finishing, modifier = Modifier.weight(1f)) { Text(if (finishing) "Salvando…" else "Finalizar") }
                 }
             } else if (!confirmed) {
-                Button(onClick = { scope.launch { results[current.question.id] = viewModel.answer(current, selected!!, sessionId) } }, enabled = selected != null, modifier = Modifier.fillMaxWidth()) { Text("Confirmar resposta") }
+                Button(kind = br.com.estudario.ui.brand.NoteKind.Confirm, onClick = { scope.launch { results[current.question.id] = viewModel.answer(current, selected!!, sessionId) } }, enabled = selected != null, modifier = Modifier.fillMaxWidth()) { Text("Confirmar resposta") }
             } else {
-                Button(
+                Button(kind = br.com.estudario.ui.brand.NoteKind.Next,
                     onClick = { if (index < sessionQuestions.lastIndex) index++ else requestFinish() },
                     enabled = !finishing,
                     modifier = Modifier.fillMaxWidth(),

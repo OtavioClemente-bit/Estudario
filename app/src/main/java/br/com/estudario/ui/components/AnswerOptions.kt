@@ -96,5 +96,5 @@ fun AnswerOptions(
 
 @Composable
 fun ConfirmAnswerButton(enabled: Boolean, onConfirm: () -> Unit) {
-    Button(enabled = enabled, onClick = onConfirm, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Confirmar", fontWeight = FontWeight.Bold) }
+    Button(kind = br.com.estudario.ui.brand.NoteKind.Confirm, enabled = enabled, onClick = onConfirm, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Confirmar", fontWeight = FontWeight.Bold) }
 }

@@ -16,6 +16,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.IconButton
 import br.com.estudario.ui.brand.TextButton
 import br.com.estudario.ui.brand.LinearProgressIndicator
 import br.com.estudario.ui.brand.Surface
@@ -196,7 +197,7 @@ private fun CatalogContestSheet(contest: CatalogContest, onDismiss: () -> Unit, 
                 comparison?.let { ComparisonResult(it, contest.year) }
             }
         },
-        confirmButton = { Button(onClick = onUse) { Text("Usar este concurso") } },
+        confirmButton = { Button(kind = br.com.estudario.ui.brand.NoteKind.Next, onClick = onUse) { Text("Usar este concurso") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Voltar") } },
     )
 }
@@ -316,7 +317,7 @@ fun CatalogReviewDialog(onDismiss: () -> Unit) {
                         Text(pending.subjects.joinToString(" • "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 6, overflow = TextOverflow.Ellipsis)
                         contest.editalUrl?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, maxLines = 2, overflow = TextOverflow.Ellipsis) }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = { review(contest.id, true) }, modifier = Modifier.weight(1f)) { Text("Aprovar") }
+                            Button(kind = br.com.estudario.ui.brand.NoteKind.Confirm, onClick = { review(contest.id, true) }, modifier = Modifier.weight(1f)) { Text("Aprovar") }
                             OutlinedButton(onClick = { review(contest.id, false) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Recusar") }
                         }
                     }

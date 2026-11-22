@@ -20,6 +20,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.IconButton
 import br.com.estudario.ui.brand.TextButton
 import br.com.estudario.ui.brand.Slider
 import br.com.estudario.ui.brand.FilterChip

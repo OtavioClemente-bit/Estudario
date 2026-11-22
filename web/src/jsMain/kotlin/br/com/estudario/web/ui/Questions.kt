@@ -210,7 +210,7 @@ private fun TrainHelp(onClose: () -> Unit) {
                 H2 { Text("Treinar do seu jeito") }
                 P({ classes("gx-topic") }) { Text("Escolha o modo, filtre se quiser e comece. O que você erra vai para o caderno de erros sozinho.") }
             }
-            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close") }
+            Button({ classes("nb-ic", "gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close") }
         }
         Div({ classes("gx-controls", "solo") }) {
             GxSection("insights", "Seu diagnóstico", "O medidor mostra seu acerto geral. Embaixo, até 3 treinos prontos (o primeiro é o recomendado agora) e as matérias da mais fraca para a mais forte: toque numa para treinar só ela.", "#22D3EE") {}
@@ -556,15 +556,15 @@ private fun QuizAttempt(scope: String, onRepeat: () -> Unit) {
                 Markdown(explanation)
             }
             StatementSource(question.statement)
-            Btn(if (index + 1 < initial.size) "Próxima questão" else "Ver resultado", { next() }, block = true, icon = "arrow_forward")
+            Btn(if (index + 1 < initial.size) "Próxima questão" else "Ver resultado", { next() }, block = true, icon = "arrow_forward", kind = "next")
         } else {
             Div({ classes("row", "wrap") }) {
                 Btn("Ver correção", { revealed = true }, style = "tonal", icon = "visibility")
-                Btn(if (index + 1 < initial.size) "Próxima" else "Ver resultado", { next() }, icon = "arrow_forward")
+                Btn(if (index + 1 < initial.size) "Próxima" else "Ver resultado", { next() }, icon = "arrow_forward", kind = "next")
             }
         }
     } else {
-        Btn("Confirmar resposta", { confirm() }, block = true, icon = "check", enabled = marked != null)
+        Btn("Confirmar resposta", { confirm() }, block = true, icon = "check", enabled = marked != null, kind = "confirm")
         P({ classes("small", "faint"); attr("style", "text-align:center") }) { Text("Dica: A a E (ou 1 a 5) marcam a alternativa, Enter confirma e → passa para a próxima.") }
     }
 }

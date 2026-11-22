@@ -259,16 +259,16 @@ private fun CelebrationScreen(item: Celebration, onCloseNow: () -> Unit) {
                 }
             }
             Div({ classes("cel-actions", "lv-late"); attr("style", "--ld:${r + 0.45}s") }) {
-                if (item is Celebration.NewBadge) Button({ classes("cel-ghost"); onClick { onCloseNow(); Router.go(Route.Achievements) } }) { Text("Ver conquistas") }
+                if (item is Celebration.NewBadge) Button({ classes("btn", "small", "k-paper", "cel-ghost"); onClick { onCloseNow(); Router.go(Route.Achievements) } }) { Text("Ver conquistas") }
                 if (item is Celebration.NewPiece) {
-                    Button({ classes("cel-ghost"); onClick { onCloseNow(); Router.go(Route.Wardrobe) } }) { Text("Abrir o armário") }
-                    Button({ classes("cel-cta"); onClick {
+                    Button({ classes("btn", "small", "k-paper", "cel-ghost"); onClick { onCloseNow(); Router.go(Route.Wardrobe) } }) { Text("Abrir o armário") }
+                    Button({ classes("btn", "k-next", "cel-cta"); onClick {
                         item.items.forEach { FolhaLook.choose(it) }
                         Toast.show(if (item.items.size == 1) "O Folha está usando: ${item.items[0].name}" else "O Folha vestiu as peças novas")
                         onClose()
                     } }) { Text(if (item.items.size == 1) "Usar agora" else "Vestir tudo") }
-                    Button({ classes("cel-ghost"); onClick { onClose() } }) { Text("Fechar") }
-                } else Button({ classes("cel-cta"); onClick { onClose() } }) { Text(if (item is Celebration.StreakDay) "Bora continuar" else "Continuar") }
+                    Button({ classes("btn", "small", "k-paper", "cel-ghost"); onClick { onClose() } }) { Text("Fechar") }
+                } else Button({ classes("btn", "k-next", "cel-cta"); onClick { onClose() } }) { Text(if (item is Celebration.StreakDay) "Bora continuar" else "Continuar") }
             }
         }
     }

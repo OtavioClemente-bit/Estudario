@@ -78,7 +78,8 @@ class StudyPlanBlueprintTest {
 
     @Test
     fun `o plano comeca com um diagnostico no dia mais livre`() {
-        val result = StudyPlanBlueprint.build(input())
+        // Quem começa do zero espera alguns tópicos estudados antes do primeiro simulado; quem já viu a teoria abre com o diagnóstico.
+        val result = StudyPlanBlueprint.build(input(config = StudyMethodConfig(profile = StudyProfile.APROFUNDANDO)))
         val simulado = result.demands.single { it.type == PlanTaskType.SIMULATION }
         assertEquals(StudyPlanBlueprint.PLAN_DIAGNOSTIC_QUESTIONS, simulado.questions)
         assertEquals(DayOfWeek.SATURDAY, (simulado.anchorDate ?: today).dayOfWeek)

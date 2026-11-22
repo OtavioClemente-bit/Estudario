@@ -237,7 +237,7 @@ fun FocusScreen(
                     }
                     if (keepScreenOn) Linha(Icons.Outlined.Lightbulb, "Tela ligada", "A tela fica acesa enquanto esta tela estiver aberta.")
                     stopError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-                    Button(
+                    Button(kind = br.com.estudario.ui.brand.NoteKind.Complete,
                         enabled = !stopping,
                         onClick = {
                             if (stopping) return@Button
@@ -262,7 +262,7 @@ fun FocusScreen(
                         Text("Sessão salva", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Text("Você estudou ${formatMinutes(minutes)}.")
                         if (savedTaskId != null) {
-                            OutlinedButton(onClick = onOpenPlan, modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(kind = br.com.estudario.ui.brand.NoteKind.Complete, onClick = onOpenPlan, modifier = Modifier.fillMaxWidth()) {
                                 Text("Abrir o Plano para concluir a tarefa")
                             }
                         }
@@ -300,7 +300,7 @@ fun FocusScreen(
                             )
                         }
                     }
-                    Button(
+                    Button(kind = br.com.estudario.ui.brand.NoteKind.Focus,
                         onClick = {
                             val selectedNames = subjects.filter { it.id in selectedIds }.map { it.name }
                             val title = selectedNames.joinToString(" · ").ifBlank { "Estudo livre" }

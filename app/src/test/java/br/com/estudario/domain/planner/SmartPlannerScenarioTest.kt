@@ -415,7 +415,7 @@ class SmartPlannerScenarioTest {
     fun `o texto de viabilidade nunca promete o que nao cabe`() {
         val impossivel = analise(topicCount = 100, weeklyMinutes = 360, examInDays = 180)
         val texto = PlanningExplanationBuilder.feasibility(impossivel)
-        assertTrue(texto.contains("ultrapassa a data da prova"))
+        assertTrue(texto.contains("não fecha até a prova"))
         impossivel.options.forEach {
             assertTrue(PlanningExplanationBuilder.describeOption(it).isNotBlank())
         }

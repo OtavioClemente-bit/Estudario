@@ -40,7 +40,7 @@ import androidx.compose.material.icons.outlined.Quiz
 import br.com.estudario.ui.brand.Button
 import androidx.compose.material3.ButtonDefaults
 import br.com.estudario.ui.brand.Icon
-import androidx.compose.material3.IconButton
+import br.com.estudario.ui.brand.IconButton
 import androidx.compose.material3.MaterialTheme
 import br.com.estudario.ui.brand.OutlinedButton
 import androidx.compose.material3.Text
@@ -386,7 +386,7 @@ fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Lon
                     Text(if (pages.isEmpty()) "Estude o primeiro tópico" else if (flippedToday) "Feita! Quer folhear de novo?" else "${pages.size} ${if (pages.size == 1) "página separada" else "páginas separadas"} para você", color = Color.White, fontWeight = FontWeight.Black, fontSize = 20.sp)
                     Text(if (pages.isEmpty()) "Leia a teoria e marque como estudado: o resumo, as dicas e os cartões viram páginas daqui." else "Do que você viu e está começando a esquecer.", color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
                     Spacer(Modifier.height(4.dp))
-                    Button(
+                    Button(kind = br.com.estudario.ui.brand.NoteKind.Review,
                         onClick = { if (pages.isEmpty()) onEdital() else onFlip() }, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Gold, contentColor = Color(0xFF3B2300)),
                     ) {
@@ -407,7 +407,7 @@ fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Lon
                                 Text(t.title, fontWeight = FontWeight.Bold, color = Ink, fontSize = 14.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                                 Text("${StudyNotebook.firmnessLabel(f)} · ${StudyNotebook.firmnessReason(t, now)}", fontSize = 12.sp, color = Muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                             }
-                            if (t.id in withQuestions) Button(onClick = { onTrain(t.id) }, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)) { Text("Treinar 5", fontWeight = FontWeight.Bold) }
+                            if (t.id in withQuestions) Button(kind = br.com.estudario.ui.brand.NoteKind.Practice, onClick = { onTrain(t.id) }, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)) { Text("Treinar 5", fontWeight = FontWeight.Bold) }
                         }
                     }
                 }
@@ -564,7 +564,7 @@ fun NotebookFlipScreen(viewModel: AppViewModel, onClose: () -> Unit, onPage: (Lo
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
             if (index > 0) OutlinedButton(onClick = { index-- }) { Text("Voltar") }
-            Button(onClick = { index++ }) { Text(if (index == pages.lastIndex) "Terminar" else "Virar página", fontWeight = FontWeight.Black) }
+            Button(kind = br.com.estudario.ui.brand.NoteKind.Next, onClick = { index++ }) { Text(if (index == pages.lastIndex) "Terminar" else "Virar página", fontWeight = FontWeight.Black) }
         }
     }
 }
@@ -643,7 +643,7 @@ fun NotebookPageScreen(
             page.topic == null && savedCount > 0 -> item(key = "saved-only") { SavedOnlyPage(viewModel, topicId, onOpenTheory, onTheory, onTrainFavorites) }
             page.topic == null -> {
                 item(key = "blank") { Text("Esta página ainda está em branco: estude o tópico (leia a teoria e marque como estudado) e ele vira página do seu caderno.", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 8.dp)) }
-                item(key = "blank-go") { Button(onClick = { onTheory(topicId) }, Modifier.padding(horizontal = 8.dp)) { Text("Abrir o tópico") } }
+                item(key = "blank-go") { Button(kind = br.com.estudario.ui.brand.NoteKind.Study, onClick = { onTheory(topicId) }, modifier = Modifier.padding(horizontal = 8.dp)) { Text("Abrir o tópico") } }
             }
             else -> {
                 // Primeiro o caderno; depois o que a pessoa guardou: os grifos (uma vez só, por cor) e os outros salvos.
@@ -848,8 +848,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.notebookPage(
 @Composable
 private fun PageActions(topicId: Long, hasQuestions: Boolean, onTheory: (Long) -> Unit, onTrain: (Long) -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = { onTheory(topicId) }, Modifier.weight(1f)) { Icon(Icons.Outlined.MenuBook, null); Spacer(Modifier.width(6.dp)); Text("Ler a teoria") }
-        if (hasQuestions) Button(onClick = { onTrain(topicId) }, Modifier.weight(1f)) { Icon(Icons.Outlined.Quiz, null); Spacer(Modifier.width(6.dp)); Text("Treinar 5") }
+        OutlinedButton(kind = br.com.estudario.ui.brand.NoteKind.Study, onClick = { onTheory(topicId) }, modifier = Modifier.weight(1f)) { Icon(Icons.Outlined.MenuBook, null); Spacer(Modifier.width(6.dp)); Text("Ler a teoria") }
+        if (hasQuestions) Button(kind = br.com.estudario.ui.brand.NoteKind.Practice, onClick = { onTrain(topicId) }, modifier = Modifier.weight(1f)) { Icon(Icons.Outlined.Quiz, null); Spacer(Modifier.width(6.dp)); Text("Treinar 5") }
     }
 }
 

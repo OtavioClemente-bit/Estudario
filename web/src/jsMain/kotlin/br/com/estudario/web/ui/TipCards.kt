@@ -201,8 +201,8 @@ private fun TrapChallenge(tip: Snippet, shape: TipShape, counter: String?, answe
                 Div({ classes("tnote-body") }) {
                     Div({ classes("tnote-claim") }) { Inline("“${shape.claim}”") }
                     Div({ classes("tnote-ask") }) {
-                        Button({ type(ButtonType.Button); classes("tnote-btn", "ok"); onClick { onAnswer(1) } }) { Text("✔ Verdadeiro") }
-                        Button({ type(ButtonType.Button); classes("tnote-btn", "no"); onClick { onAnswer(2) } }) { Text("✘ É pegadinha") }
+                        Button({ type(ButtonType.Button); classes("btn", "k-confirm", "tnote-btn", "ok"); onClick { onAnswer(1) } }) { Text("✔ Verdadeiro") }
+                        Button({ type(ButtonType.Button); classes("btn", "k-practice", "tnote-btn", "no"); onClick { onAnswer(2) } }) { Text("✘ É pegadinha") }
                     }
                 }
             }
@@ -215,7 +215,7 @@ private fun TrapChallenge(tip: Snippet, shape: TipShape, counter: String?, answe
                 }
                 Div({ classes("tnote-body") }) {
                     TipParas(shape, true)
-                    Button({ type(ButtonType.Button); classes("tnote-again"); onClick { onAnswer(0) } }) { Icon("replay"); Text("Ver a frase de novo") }
+                    Button({ type(ButtonType.Button); classes("btn", "small", "k-paper", "tnote-again"); onClick { onAnswer(0) } }) { Icon("replay"); Text("Ver a frase de novo") }
                 }
             }
         }

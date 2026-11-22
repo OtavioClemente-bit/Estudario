@@ -278,7 +278,7 @@ private fun DailyMission(tasks: List<PlanTask>, data: Snapshot, hour: Int, seed:
         }
         Div({ classes("ms2-foot") }) {
             Xp(earned, green = complete)
-            Button({ classes("gx-ghost", "small"); attr("type", "button"); onClick { Router.go(Route.Plan) } }) { Icon("calendar_month"); Span { Text("Ver o plano inteiro") } }
+            Button({ classes("btn", "small", "k-paper", "gx-ghost", "small"); attr("type", "button"); onClick { Router.go(Route.Plan) } }) { Icon("calendar_month"); Span { Text("Ver o plano inteiro") } }
         }
         if (planned > 0 && !complete && done == 0) P({ classes("gx-note", "ms2-hint") }) { Text("Dica: siga os passos na ordem, de cima para baixo. Toque em qualquer passo para abrir; o ✓ ao lado marca como feito o que você já fez fora daqui.") }
     }
@@ -1040,7 +1040,7 @@ private fun HomeOverdue(data: Snapshot, planId: String) {
                     }
                 }
             }
-            if (late.size > 3) Button({ classes("od-more"); onClick { all = !all } }) { Text(if (all) "Mostrar menos" else "Ver todas as ${late.size}") }
+            if (late.size > 3) Button({ classes("btn", "small", "k-paper", "od-more"); onClick { all = !all } }) { Text(if (all) "Mostrar menos" else "Ver todas as ${late.size}") }
         }
         Div({ classes("row", "wrap"); attr("style", "margin-top:12px;gap:8px") }) {
             Btn("Encaixar nos próximos dias", {

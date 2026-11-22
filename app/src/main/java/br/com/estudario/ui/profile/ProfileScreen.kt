@@ -34,6 +34,7 @@ import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.IconButton
 import br.com.estudario.ui.brand.OutlinedButton
 import br.com.estudario.ui.brand.TextButton
 import br.com.estudario.ui.brand.LinearProgressIndicator
@@ -437,7 +438,7 @@ private fun AccountBand(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(EstudarioSpacing.medium))
-            Button(onClick = onSignIn, modifier = Modifier.fillMaxWidth()) {
+            Button(kind = br.com.estudario.ui.brand.NoteKind.Primary, glyph = br.com.estudario.ui.brand.Glyph.Person, onClick = onSignIn, modifier = Modifier.fillMaxWidth()) {
                 Text("G", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold); Spacer(Modifier.width(10.dp)); Text("Continuar com Google")
             }
             Spacer(Modifier.height(EstudarioSpacing.tight))
@@ -461,7 +462,7 @@ private fun AccountBand(
             HorizontalDivider(Modifier.padding(vertical = EstudarioSpacing.small), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
             BackupRow(Icons.Outlined.CloudDownload, "Restaurar do Google Drive", "Traz o backup mais recente para este aparelho", onRestore)
             Spacer(Modifier.height(EstudarioSpacing.small))
-            TextButton(onClick = onSignOut) { Text("Sair da conta") }
+            TextButton(kind = br.com.estudario.ui.brand.NoteKind.Danger, onClick = onSignOut) { Text("Sair da conta") }
         }
     }
 }
@@ -649,7 +650,7 @@ private fun AvatarPickerSheet(current: String?, onPick: (br.com.estudario.ui.com
             OutlinedButton(onClick = onGallery, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Outlined.PhotoCamera, null, Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text("Usar uma foto da galeria")
             }
-            if (current != null) TextButton(onClick = onRemove, modifier = Modifier.fillMaxWidth()) { Text("Remover imagem") }
+            if (current != null) TextButton(kind = br.com.estudario.ui.brand.NoteKind.Danger, onClick = onRemove, modifier = Modifier.fillMaxWidth()) { Text("Remover imagem") }
         }
     }
 }

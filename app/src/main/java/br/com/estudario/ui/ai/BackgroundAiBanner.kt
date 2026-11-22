@@ -14,7 +14,7 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.CircularProgressIndicator
 import br.com.estudario.ui.brand.FilledTonalButton
 import br.com.estudario.ui.brand.Icon
-import androidx.compose.material3.IconButton
+import br.com.estudario.ui.brand.IconButton
 import androidx.compose.material3.MaterialTheme
 import br.com.estudario.ui.brand.Surface
 import androidx.compose.material3.Text
@@ -74,7 +74,7 @@ private fun TaskRow(task: BackgroundAiTasks.Task, onOpen: (String, Long?) -> Uni
                 )
             }
             if (status is BackgroundAiTasks.Status.Ready) {
-                FilledTonalButton(onClick = { BackgroundAiTasks.dismiss(task.id); task.open?.invoke() ?: onOpen(status.result, status.competitionId) }) { Text("Revisar") }
+                FilledTonalButton(kind = br.com.estudario.ui.brand.NoteKind.Review, onClick = { BackgroundAiTasks.dismiss(task.id); task.open?.invoke() ?: onOpen(status.result, status.competitionId) }) { Text("Revisar") }
             }
             if (status is BackgroundAiTasks.Status.Failed) {
                 IconButton(onClick = { BackgroundAiTasks.dismiss(task.id) }) { Icon(Icons.Outlined.Close, "Dispensar aviso", Modifier.size(18.dp)) }

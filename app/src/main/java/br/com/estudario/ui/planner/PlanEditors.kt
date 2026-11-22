@@ -199,7 +199,7 @@ internal fun AvailabilityEditorDialog(current: List<StudyAvailabilityEntity>, on
                     Text(minutesLabel(minutes.sum()), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.height(14.dp))
-                Button(
+                Button(kind = br.com.estudario.ui.brand.NoteKind.Primary, glyph = br.com.estudario.ui.brand.Glyph.Calendar,
                     onClick = { onConfirm(minutes.mapIndexed { index, value -> StudyAvailabilityEntity("pending", index + 1, value, value == 0) }); onDismiss() },
                     enabled = minutes.any { it > 0 },
                     modifier = Modifier.fillMaxWidth(),

@@ -52,6 +52,7 @@ import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.Quiz
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.IconButton
 import br.com.estudario.ui.brand.FilterChip
 import br.com.estudario.ui.brand.LinearProgressIndicator
 import br.com.estudario.ui.brand.ElevatedCard

@@ -294,7 +294,7 @@ fun TourOverlay(
                         modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     )
-                    Button(onClick = onNext) {
+                    Button(kind = br.com.estudario.ui.brand.NoteKind.Complete, onClick = onNext) {
                         if (stepIndex + 1 >= stepCount) {
                             Text("Concluir"); Spacer(Modifier.width(6.dp)); Icon(Icons.Outlined.Check, null)
                         } else {

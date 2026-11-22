@@ -16,6 +16,7 @@ import br.com.estudario.ui.components.SwipeToHide
 import br.com.estudario.ui.components.offerUndo
 import kotlinx.coroutines.launch
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.IconButton
 import br.com.estudario.ui.brand.TextButton
 import br.com.estudario.ui.brand.FilterChip
 import br.com.estudario.ui.brand.Button
@@ -112,7 +113,7 @@ fun QuestionBankScreen(viewModel: AppViewModel, onBack: () -> Unit, onStart: (Qu
                 items(topics.filter { subjectId == null || it.subjectId == subjectId }, key = { it.id }) { value -> FilterChip(topicId == value.id, { topicId = value.id }, { Text(value.title) }) }
             }
         }
-        item { Button(onClick = { onStart(QuizConfig(filtered.size.coerceAtMost(30), subjectId = subjectId, mode = when { favorites -> "favorites"; status == "new" -> "new"; status == "errors" -> "errors"; else -> "random" })) }, enabled = filtered.isNotEmpty() && !showHidden, modifier = Modifier.fillMaxWidth()) { Text("Treinar esta seleção") } }
+        item { Button(kind = br.com.estudario.ui.brand.NoteKind.Practice, onClick = { onStart(QuizConfig(filtered.size.coerceAtMost(30), subjectId = subjectId, mode = when { favorites -> "favorites"; status == "new" -> "new"; status == "errors" -> "errors"; else -> "random" })) }, enabled = filtered.isNotEmpty() && !showHidden, modifier = Modifier.fillMaxWidth()) { Text("Treinar esta seleção") } }
         if (filtered.isEmpty()) item { EmptyState("Nenhuma questão", if (showHidden) "Nenhuma questão oculta com esses filtros." else "Ajuste os filtros ou importe um pacote com questões.") }
         items(filtered, key = { it.question.id }) { row ->
             val topic = topics.firstOrNull { it.id == row.question.topicId }

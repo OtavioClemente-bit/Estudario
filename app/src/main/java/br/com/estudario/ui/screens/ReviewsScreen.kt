@@ -16,6 +16,7 @@ import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.IconButton
 import br.com.estudario.ui.brand.FilterChip
 import br.com.estudario.ui.brand.TextButton
 import androidx.compose.runtime.*
@@ -294,7 +295,7 @@ private fun DueRow(stage: Int, color: Color, subject: String, title: String, met
             }
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onTopic) { Text("Ver tópico") }
+            TextButton(kind = br.com.estudario.ui.brand.NoteKind.Study, onClick = onTopic) { Text("Ver tópico") }
             TextButton(onClick = onSkip) { Text("Pular", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             Spacer(Modifier.weight(1f))
             Row(

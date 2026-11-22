@@ -94,7 +94,7 @@ fun FolhaGiftDialog(items: List<FolhaItem>, onUse: () -> Unit, onClose: () -> Un
         },
         actions = {
             OutlinedButton(onClick = onClose, shape = RoundedCornerShape(14.dp), modifier = Modifier.heightIn(min = 52.dp)) { Text("Fechar", color = Color.White) }
-            Button(onClick = onUse, shape = RoundedCornerShape(14.dp), modifier = Modifier.heightIn(min = 52.dp), colors = ButtonDefaults.buttonColors(containerColor = CelGold, contentColor = Color(0xFF2A1A05))) {
+            Button(kind = br.com.estudario.ui.brand.NoteKind.Subscribe, glyph = br.com.estudario.ui.brand.Glyph.Party, onClick = onUse, shape = RoundedCornerShape(14.dp), modifier = Modifier.heightIn(min = 52.dp), colors = ButtonDefaults.buttonColors(containerColor = CelGold, contentColor = Color(0xFF2A1A05))) {
                 Text(if (one) "Usar agora" else "Vestir tudo", fontWeight = FontWeight.Bold)
             }
         },

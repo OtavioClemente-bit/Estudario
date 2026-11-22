@@ -192,7 +192,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                         org.jetbrains.compose.web.dom.H2 { Text(title) }
                         topic?.title?.let { P({ classes("gx-topic") }) { Text(it) } }
                     }
-                    Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close") }
+                    Button({ classes("nb-ic", "gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close") }
                 }
                 Div({ classes("gx-main") }) {
                     Div({ classes("gx-controls") }) {
@@ -238,7 +238,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                                     classes("gx-input"); value(board); attr("placeholder", "Ex.: Cebraspe, FGV, FCC"); attr("maxlength", "40")
                                     onInput { board = it.value }
                                 }
-                                if (board.isNotBlank()) Button({ classes("gx-board-x"); attr("type", "button"); attr("aria-label", "Limpar banca"); onClick { board = "" } }) { Text("✕") }
+                                if (board.isNotBlank()) Button({ classes("nb-ic", "gx-board-x"); attr("type", "button"); attr("aria-label", "Limpar banca"); onClick { board = "" } }) { Text("✕") }
                             }
                             Div({ classes("gx-chips", "tight") }) {
                                 listOf("Cebraspe", "FGV", "FCC", "Vunesp", "Cesgranrio", "Quadrix").forEach { b ->
@@ -297,7 +297,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
                 Div({ classes("gx-done-actions") }) {
                     if (showQuestions) GxLaunch("Treinar agora", icon = "play_circle") { Generation.clear(topicId); onClose(); Router.go(Route.Quiz("topico-$topicId-10")) }
                     else GxLaunch("Ver material", icon = "menu_book") { Generation.clear(topicId); onClose(); Router.go(Route.Topic(topicId)) }
-                    Button({ classes("gx-ghost"); attr("type", "button"); onClick { close() } }) { Text("Fechar") }
+                    Button({ classes("btn", "small", "k-paper", "gx-ghost"); attr("type", "button"); onClick { close() } }) { Text("Fechar") }
                 }
             }
             else -> Div({ classes("gen-body", "gen-working", "gx-working") }) {

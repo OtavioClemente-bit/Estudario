@@ -34,7 +34,7 @@ import androidx.compose.material.icons.outlined.OutlinedFlag
 import br.com.estudario.ui.brand.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import br.com.estudario.ui.brand.Icon
-import androidx.compose.material3.IconButton
+import br.com.estudario.ui.brand.IconButton
 import br.com.estudario.ui.brand.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -209,8 +209,8 @@ fun SimulationExamScreen(simulationId: Long, onExit: () -> Unit, onFinished: (Lo
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
         Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedButton(onClick = { index = (safeIndex - 1).coerceAtLeast(0) }, enabled = safeIndex > 0, modifier = Modifier.weight(1f)) { Text("Anterior") }
-            if (safeIndex < questions.lastIndex) Button(onClick = { index = safeIndex + 1 }, modifier = Modifier.weight(1f)) { Text("Próxima") }
-            else Button(onClick = { confirmSubmit = true }, modifier = Modifier.weight(1f)) { Text("Entregar") }
+            if (safeIndex < questions.lastIndex) Button(kind = br.com.estudario.ui.brand.NoteKind.Next, onClick = { index = safeIndex + 1 }, modifier = Modifier.weight(1f)) { Text("Próxima") }
+            else Button(kind = br.com.estudario.ui.brand.NoteKind.Simulado, onClick = { confirmSubmit = true }, modifier = Modifier.weight(1f)) { Text("Entregar") }
         }
     }
 
@@ -231,7 +231,7 @@ fun SimulationExamScreen(simulationId: Long, onExit: () -> Unit, onFinished: (Lo
                     ) { Text("${position + 1}", color = if (answered) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold) }
                 }
             }
-            Button(onClick = { grid = false; confirmSubmit = true }, modifier = Modifier.fillMaxWidth()) { Text("Entregar a prova") }
+            Button(kind = br.com.estudario.ui.brand.NoteKind.Simulado, onClick = { grid = false; confirmSubmit = true }, modifier = Modifier.fillMaxWidth()) { Text("Entregar a prova") }
         }
     }
     if (confirmSubmit) {
@@ -265,6 +265,6 @@ fun SimulationExamScreen(simulationId: Long, onExit: () -> Unit, onFinished: (Lo
         title = { Text("Tempo esgotado") },
         text = { Text("Na prova de verdade, a folha seria recolhida agora. Você pode entregar como está ou continuar sem limite (o tempo extra aparece no resultado).") },
         confirmButton = { TextButton(onClick = { submit() }) { Text("Entregar agora") } },
-        dismissButton = { TextButton(onClick = { timeUp = false; overtime = true }) { Text("Continuar") } },
+        dismissButton = { TextButton(kind = br.com.estudario.ui.brand.NoteKind.Next, onClick = { timeUp = false; overtime = true }) { Text("Continuar") } },
     )
 }

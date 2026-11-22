@@ -69,7 +69,7 @@ fun HomeSyllabus(data: Snapshot, subjects: List<Subject>) {
             }
         }
         Div({ classes("hs-actions") }) {
-            if (subjects.size > 4) Button({ classes("hs-more"); onClick { showAll = !showAll } }) { Text(if (showAll) "Mostrar menos" else "Ver todas as ${subjects.size} matérias") }
+            if (subjects.size > 4) Button({ classes("btn", "small", "k-paper", "hs-more"); onClick { showAll = !showAll } }) { Text(if (showAll) "Mostrar menos" else "Ver todas as ${subjects.size} matérias") }
             Btn("Abrir o edital", { Router.go(Route.Edital) }, style = "outline", small = true)
         }
     }

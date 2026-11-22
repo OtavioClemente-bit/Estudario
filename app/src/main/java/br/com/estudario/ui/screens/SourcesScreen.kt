@@ -12,6 +12,7 @@ import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.IconButton
 import br.com.estudario.ui.brand.TextButton
 import br.com.estudario.ui.brand.FilterChip
 import br.com.estudario.ui.brand.ElevatedCard
@@ -219,7 +220,7 @@ private fun GrupoRecolhivel(
             if (aberto) {
                 Column(Modifier.padding(12.dp, 0.dp, 12.dp, 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     conteudo()
-                    if (acao != null) TextButton(onClick = acao, contentPadding = PaddingValues(0.dp)) { Text("Abrir o tópico") }
+                    if (acao != null) TextButton(kind = br.com.estudario.ui.brand.NoteKind.Study, onClick = acao, contentPadding = PaddingValues(0.dp)) { Text("Abrir o tópico") }
                 }
             }
         }

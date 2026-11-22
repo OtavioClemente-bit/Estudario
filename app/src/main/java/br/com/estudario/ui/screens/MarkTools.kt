@@ -31,12 +31,12 @@ import androidx.compose.material.icons.outlined.EventRepeat
 import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.IconButton
+import br.com.estudario.ui.brand.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import br.com.estudario.ui.brand.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -157,7 +157,7 @@ fun QuoteFlashcardSheet(quote: String, onDismiss: () -> Unit, onSave: (front: St
             OutlinedTextField(front, { front = it.take(2000) }, Modifier.fillMaxWidth(), label = { Text("Frente") }, placeholder = { Text("Uma pergunta: o que diz o artigo sobre…?") }, minLines = 2, maxLines = 6)
             OutlinedTextField(back, { back = it.take(4000) }, Modifier.fillMaxWidth(), label = { Text("Verso") }, placeholder = { Text("A resposta ou um complemento (opcional)") }, minLines = 2, maxLines = 6)
             Text("O cartão fica nos flashcards deste tópico e em Salvos, no Caderno de estudo.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Button(onClick = { onSave(front.trim(), back.trim()) }, Modifier.fillMaxWidth(), enabled = front.isNotBlank()) { Text("Salvar flashcard") }
+            Button(kind = br.com.estudario.ui.brand.NoteKind.Review, onClick = { onSave(front.trim(), back.trim()) }, modifier = Modifier.fillMaxWidth(), enabled = front.isNotBlank()) { Text("Salvar flashcard") }
         }
     }
 }
@@ -213,7 +213,7 @@ fun TopicMarksPanel(viewModel: AppViewModel, topicId: Long, onOpenTheory: (theor
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(scheme.surfaceVariant.copy(alpha = .5f)).padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { MarkColors.all.forEach { Box(Modifier.size(14.dp).clip(CircleShape).background(it.color)) } }
                 Text("Na teoria, selecione um trecho e toque em Grifar: cada cor tem um sentido (cai muito, entendi, revisar, lei e artigo, pegadinha). Os grifos ficam aqui, separados por cor.", fontSize = 14.sp, lineHeight = 21.sp, color = scheme.onSurfaceVariant)
-                if (topicId >= 0) TextButton(onClick = { onOpenTopic(topicId) }) { Icon(Icons.Outlined.MenuBook, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Grifar na teoria") }
+                if (topicId >= 0) TextButton(kind = br.com.estudario.ui.brand.NoteKind.Study, onClick = { onOpenTopic(topicId) }) { Icon(Icons.Outlined.MenuBook, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Grifar na teoria") }
             }
             return@Column
         }

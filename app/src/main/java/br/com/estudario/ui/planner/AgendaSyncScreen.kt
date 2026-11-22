@@ -105,7 +105,7 @@ fun AgendaSyncScreen(planName: String?, loadTasks: suspend () -> List<PlanTaskEn
         title = { Text("Tirar o plano da agenda?") },
         text = { Text("Apagamos só o calendário \"Plano de Estudos - Estudário\" e os $events evento(s) dele. Seus outros compromissos não são tocados, e o plano continua no app.") },
         confirmButton = {
-            TextButton(onClick = {
+            TextButton(kind = br.com.estudario.ui.brand.NoteKind.Danger, onClick = {
                 confirmDelete = false
                 scope.launch {
                     withContext(Dispatchers.IO) { service.removeAll() }
@@ -166,14 +166,14 @@ fun AgendaSyncScreen(planName: String?, loadTasks: suspend () -> List<PlanTaskEn
         }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onClick = startSync, enabled = !busy && planName != null, modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp)) {
+                Button(kind = br.com.estudario.ui.brand.NoteKind.Primary, glyph = br.com.estudario.ui.brand.Glyph.Calendar, onClick = startSync, enabled = !busy && planName != null, modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp)) {
                     if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                     else Icon(Icons.Outlined.Sync, null)
                     Spacer(Modifier.width(8.dp))
                     Text(if (settings.enabled && events > 0) "Atualizar a agenda" else "Salvar plano na agenda")
                 }
                 if (planName == null) Text("Crie ou ative um plano de estudo para salvar na agenda.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                if (events > 0 || settings.enabled) OutlinedButton(
+                if (events > 0 || settings.enabled) OutlinedButton(kind = br.com.estudario.ui.brand.NoteKind.Danger,
                     onClick = { confirmDelete = true },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),

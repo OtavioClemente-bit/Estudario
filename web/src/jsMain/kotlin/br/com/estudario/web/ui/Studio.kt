@@ -173,16 +173,8 @@ fun GxSwitchRow(title: String, subtitle: String, checked: Boolean, onChange: (Bo
 /** O botão de lançar: grande, com brilho correndo. */
 @Composable
 fun GxLaunch(label: String, icon: String = "Pencil", enabled: Boolean = true, onClick: () -> Unit) {
-    val latest = rememberUpdatedState(onClick)
-    Button({
-        classes("gx-launch"); attr("type", "button")
-        if (!enabled) disabled()
-        onClick { latest.value() }
-    }) {
-        Span({ classes("gx-launch-ic") }) { Icon(icon, filled = true) }
-        Span { Text(label) }
-        I({ classes("gx-launch-shine") })
-    }
+    // Agora é o botão folha de caderno de largura toda; a ação (cor e bicho) sai do texto.
+    Btn(label, onClick, style = "primary", icon = icon, block = true, size = "lg", enabled = enabled)
 }
 
 /**
@@ -204,7 +196,7 @@ fun <T> GxPicker(options: List<Pair<T, String>>, selected: T, limit: Int = 8, se
             classes("gx-input"); value(query); attr("placeholder", searchHint)
             onInput { query = it.value; if (it.value.isNotBlank()) open = true }
         }
-        if (query.isNotBlank()) Button({ classes("gx-board-x"); attr("type", "button"); attr("aria-label", "Limpar busca"); onClick { query = "" } }) { Text("✕") }
+        if (query.isNotBlank()) Button({ classes("nb-ic", "gx-board-x"); attr("type", "button"); attr("aria-label", "Limpar busca"); onClick { query = "" } }) { Text("✕") }
     }
     val shown = when {
         open || q.isNotEmpty() -> filtered

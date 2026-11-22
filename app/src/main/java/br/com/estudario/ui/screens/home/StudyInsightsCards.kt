@@ -9,6 +9,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.GpsFixed
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.IconButton
 import br.com.estudario.ui.brand.OutlinedButton
 import br.com.estudario.ui.brand.Icon
 import androidx.compose.runtime.*
@@ -113,7 +114,7 @@ private fun WeakSpot(spot: StudyInsights.WeakSpot, onTrain: () -> Unit) {
                 )
             }
         }
-        Button(onClick = onTrain, modifier = Modifier.fillMaxWidth()) {
+        Button(kind = br.com.estudario.ui.brand.NoteKind.Practice, onClick = onTrain, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Outlined.GpsFixed, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Treinar 10 questões de ${spot.subject}", fontWeight = FontWeight.Bold)
         }
     }
@@ -164,7 +165,7 @@ private fun MissionDone(r: StudyInsights.MissionResult, onAgain: () -> Unit, onC
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (r.after < 70) Button(onClick = onAgain, modifier = Modifier.weight(1f)) {
+            if (r.after < 70) Button(kind = br.com.estudario.ui.brand.NoteKind.Practice, onClick = onAgain, modifier = Modifier.weight(1f)) {
                 Icon(Icons.Outlined.GpsFixed, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Mais 10 questões", fontWeight = FontWeight.Bold)
             }
             OutlinedButton(onClick = onClose, modifier = Modifier.weight(1f)) { Text("Fechar") }

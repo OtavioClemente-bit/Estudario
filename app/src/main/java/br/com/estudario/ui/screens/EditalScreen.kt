@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.IconButton
 import br.com.estudario.ui.brand.TextButton
 import br.com.estudario.ui.brand.FilterChip
 import br.com.estudario.ui.brand.Surface
@@ -208,7 +209,7 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text("Comece pelo seu concurso", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text("Envie o PDF do edital e o Estudário organiza as matérias e os tópicos. Depois, cada tópico vira teoria, flashcards e questões.")
-                        Button(onClick = { addCompetition = true }, Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Outlined.Add, null); Spacer(Modifier.width(8.dp)); Text("Criar meu concurso") }
+                        Button(kind = br.com.estudario.ui.brand.NoteKind.Primary, glyph = br.com.estudario.ui.brand.Glyph.Plus, onClick = { addCompetition = true }, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Outlined.Add, null); Spacer(Modifier.width(8.dp)); Text("Criar meu concurso") }
                     }
                 }
             }

@@ -17,6 +17,7 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Sell
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.IconButton
 import br.com.estudario.ui.brand.Button
 import br.com.estudario.ui.brand.TextButton
 import br.com.estudario.ui.brand.Icon
@@ -119,7 +120,7 @@ fun NotePaperEditor(
         onDismissRequest = { confirmDelete = false },
         title = { Text("$deleteLabel?") },
         text = { Text("Ela sai do app, do site e do Caderno de estudo.") },
-        confirmButton = { TextButton(onClick = { confirmDelete = false; onDelete() }) { Text("Apagar", color = scheme.error) } },
+        confirmButton = { TextButton(kind = br.com.estudario.ui.brand.NoteKind.Danger, onClick = { confirmDelete = false; onDelete() }) { Text("Apagar", color = scheme.error) } },
         dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Manter") } },
     )
     if (picking && topics != null) TopicPickerDialog(topics, topicId, onPick = { topicId = it; picking = false }, onDismiss = { picking = false })
@@ -331,7 +332,7 @@ fun NoteViewSheet(
         onDismissRequest = { confirm = false },
         title = { Text(if (quote != null) "Excluir esta nota?" else "Excluir esta anotação?") },
         text = { Text(if (quote != null) "O trecho continua grifado." else "Ela sai do app, do site e do Caderno de estudo.") },
-        confirmButton = { TextButton(onClick = { confirm = false; onDelete() }) { Text("Excluir", color = scheme.error) } },
+        confirmButton = { TextButton(kind = br.com.estudario.ui.brand.NoteKind.Danger, onClick = { confirm = false; onDelete() }) { Text("Excluir", color = scheme.error) } },
         dismissButton = { TextButton(onClick = { confirm = false }) { Text("Manter") } },
     )
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheet, containerColor = paper, dragHandle = { BottomSheetDefaults.DragHandle(color = margin) }) {
@@ -370,9 +371,9 @@ fun NoteViewSheet(
                 }
             }
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = { confirm = true }) { Icon(Icons.Outlined.DeleteOutline, null, Modifier.size(18.dp), tint = scheme.error); Spacer(Modifier.width(4.dp)); Text("Excluir", color = scheme.error) }
+                TextButton(kind = br.com.estudario.ui.brand.NoteKind.Danger, onClick = { confirm = true }) { Icon(Icons.Outlined.DeleteOutline, null, Modifier.size(18.dp), tint = scheme.error); Spacer(Modifier.width(4.dp)); Text("Excluir", color = scheme.error) }
                 if (onRemoveHighlight != null) TextButton(onClick = onRemoveHighlight) { Text("Tirar grifo") }
-                if (onOpen != null) TextButton(onClick = onOpen) { Text("Abrir na teoria") }
+                if (onOpen != null) TextButton(kind = br.com.estudario.ui.brand.NoteKind.Study, onClick = onOpen) { Text("Abrir na teoria") }
             }
             Button(onClick = onEdit, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).height(50.dp), shape = RoundedCornerShape(14.dp)) {
                 Text("Editar", fontWeight = FontWeight.Bold)

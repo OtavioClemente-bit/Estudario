@@ -137,7 +137,7 @@ private fun TopicHelp(onClose: () -> Unit) {
                 H2 { Text("Tudo o que dá para fazer aqui") }
                 P({ classes("gx-topic") }) { Text("Grifar, anotar, fixar na tela e ajustar a letra. Grifos e notas vão para o Caderno de estudo e aparecem no app e no site.") }
             }
-            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close") }
+            Button({ classes("nb-ic", "gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close") }
         }
         Div({ classes("gx-controls", "solo") }) {
             GxSection("menu_book", "Ler e voltar de onde parou", "O progresso sobe sozinho conforme você rola o texto e vai para o celular. \"Continuar leitura\" leva ao ponto onde você parou.", "#A78BFF") {
@@ -891,7 +891,7 @@ private fun TheoryReader(theory: Theory) {
     }
     // Tela menor: o sumário vem num botão flutuante.
     if (chapters.size > 1 && (inText || tocOpen)) {
-        Button({ classes("toc-fab"); attr("aria-label", "Capítulos"); onClick { tocOpen = !tocOpen } }) {
+        Button({ classes("nb-ic", "toc-fab"); attr("aria-label", "Capítulos"); onClick { tocOpen = !tocOpen } }) {
             Icon(if (tocOpen) "close" else "toc"); Span { Text("${activeChapter + 1}/${chapters.size}") }
         }
         if (tocOpen) {

@@ -39,6 +39,7 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.IconButton
 import br.com.estudario.ui.brand.ElevatedCard
 import br.com.estudario.ui.brand.FilterChip
 import br.com.estudario.ui.brand.Icon

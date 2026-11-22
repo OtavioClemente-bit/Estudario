@@ -11,6 +11,7 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.IconButton
 import br.com.estudario.ui.brand.TextButton
 import br.com.estudario.ui.brand.Slider
 import br.com.estudario.ui.brand.FilterChip
@@ -163,7 +164,7 @@ fun PlanWizardScreen(
                             OutlinedButton(onClick = { if (step > 0) step-- else onCancel() }, modifier = Modifier.weight(1f)) {
                                 Text(if (step > 0) "Voltar" else "Cancelar")
                             }
-                            Button(
+                            Button(kind = br.com.estudario.ui.brand.NoteKind.Next,
                                 onClick = {
                                     if (step < PASSOS.lastIndex) step++ else {
                                         onCreate(

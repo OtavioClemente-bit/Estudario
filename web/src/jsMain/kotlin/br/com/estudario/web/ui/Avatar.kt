@@ -118,7 +118,7 @@ fun AvatarPickerHost() {
                 H2 { Text("Quem é você no Estudário?") }
                 P({ classes("gx-topic") }) { Text("Escolha um dos nossos personagens ou use uma foto sua.") }
             }
-            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { close() } }) { Icon("close") }
+            Button({ classes("nb-ic", "gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { close() } }) { Icon("close") }
         }
         Div({ classes("gx-controls", "solo") }) {
             Div({ classes("av-grid") }) {
@@ -165,7 +165,7 @@ fun AvatarPickerHost() {
                     }
                 }
             }
-            if (AvatarChoice.value != null) Button({ classes("gx-ghost"); attr("type", "button"); onClick { AvatarChoice.set(null); close() } }) { Text(if (Store.session?.avatarUrl != null) "Voltar para a foto da conta" else "Remover imagem") }
+            if (AvatarChoice.value != null) Button({ classes("btn", "small", "k-paper", "gx-ghost"); attr("type", "button"); onClick { AvatarChoice.set(null); close() } }) { Text(if (Store.session?.avatarUrl != null) "Voltar para a foto da conta" else "Remover imagem") }
             P({ classes("gx-note") }) { Text("A imagem fica na sua conta: aparece igual no app e no site.") }
         }
     }

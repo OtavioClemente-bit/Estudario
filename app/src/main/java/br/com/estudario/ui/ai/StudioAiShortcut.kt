@@ -45,7 +45,7 @@ fun StudioAiShortcut(text: String, buttonLabel: String, enabled: Boolean, onClic
                 )
             }
             Text(text, style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.9f))
-            Button(
+            Button(kind = br.com.estudario.ui.brand.NoteKind.Paper,
                 onClick = onClick,
                 enabled = enabled,
                 modifier = Modifier.fillMaxWidth().height(46.dp),

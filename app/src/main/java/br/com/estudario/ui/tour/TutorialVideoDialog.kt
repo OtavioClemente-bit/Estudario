@@ -18,7 +18,7 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Replay
 import br.com.estudario.ui.brand.Button
 import br.com.estudario.ui.brand.Icon
-import androidx.compose.material3.IconButton
+import br.com.estudario.ui.brand.IconButton
 import androidx.compose.material3.MaterialTheme
 import br.com.estudario.ui.brand.Surface
 import androidx.compose.material3.Text
@@ -98,7 +98,7 @@ fun TutorialVideoDialog(tutorial: TutorialVideo, onDismiss: () -> Unit) {
                         )
                     }
                 }
-                Button(
+                Button(kind = br.com.estudario.ui.brand.NoteKind.Paper, glyph = br.com.estudario.ui.brand.Glyph.Play,
                     onClick = { videoView.seekTo(0); videoView.start() },
                     enabled = !playbackError,
                     modifier = Modifier.fillMaxWidth(),

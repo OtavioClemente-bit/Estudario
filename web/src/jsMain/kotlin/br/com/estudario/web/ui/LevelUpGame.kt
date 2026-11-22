@@ -124,8 +124,8 @@ private fun GameSay(line: String, mood: String = "proud", showFolha: Boolean = t
 @Composable
 private fun GameActions(primary: String, onPrimary: () -> Unit, ghost: String? = null, onGhost: () -> Unit = {}) {
     Div({ classes("lvx-actions") }) {
-        Button({ classes("lvx-go"); attr("type", "button"); onClick { onPrimary() } }) { Text(primary) }
-        if (ghost != null) Button({ classes("lvx-ghost"); attr("type", "button"); onClick { onGhost() } }) { Text(ghost) }
+        Button({ classes("btn", "k-next", "lvx-go"); attr("type", "button"); onClick { onPrimary() } }) { Text(primary) }
+        if (ghost != null) Button({ classes("btn", "small", "k-paper", "lvx-ghost"); attr("type", "button"); onClick { onGhost() } }) { Text(ghost) }
     }
 }
 
@@ -302,7 +302,7 @@ internal fun StreakSavedGame(days: Int, left: Int, dayLabel: String, semana: Str
             )
         }
         if (!revealed) {
-            Div({ classes("lvx-forge-skip") }) { Button({ classes("lvx-ghost"); attr("type", "button"); onClick { revealed = true } }) { Text("Pular") } }
+            Div({ classes("lvx-forge-skip") }) { Button({ classes("btn", "small", "k-paper", "lvx-ghost"); attr("type", "button"); onClick { revealed = true } }) { Text("Pular") } }
             return@GameShell
         }
         GameHead("QUASE APAGOU", "ACESA", "SEQUÊNCIA SALVA!") {
@@ -381,7 +381,7 @@ internal fun BadgeGame(badge: Badge, leaving: Boolean, onClose: () -> Unit, onTr
             })
             GameActions("Continuar", onClose, "Ver conquistas", onTrophies)
         } else Div({ classes("lvx-forge-skip") }) {
-            Button({ classes("lvx-ghost"); attr("type", "button"); onClick { revealed = true } }) { Text("Pular") }
+            Button({ classes("btn", "small", "k-paper", "lvx-ghost"); attr("type", "button"); onClick { revealed = true } }) { Text("Pular") }
         }
     }
 }

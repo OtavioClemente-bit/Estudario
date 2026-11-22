@@ -46,7 +46,7 @@ fun NameEditHost() {
         (kotlinx.browser.document.querySelector(".name-input") as? org.w3c.dom.HTMLInputElement)?.let { it.focus(); it.select() }
     }
     Modal(onDismiss = close, extraClass = "name-modal") {
-        Button({ classes("gx-x", "name-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { close() } }) { Icon("close") }
+        Button({ classes("nb-ic", "gx-x", "name-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { close() } }) { Icon("close") }
         Div({ classes("name-hero") }) {
             Span({ classes("avatar", "name-avatar") }) { AvatarContent() }
             Span({ classes("name-folha") }) { Folha(if (valid) "happy" else "idle", 76) }

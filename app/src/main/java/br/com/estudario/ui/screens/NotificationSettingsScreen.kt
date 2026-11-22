@@ -17,6 +17,7 @@ import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.IconButton
 import br.com.estudario.ui.brand.Surface
 import br.com.estudario.ui.brand.ElevatedCard
 import br.com.estudario.ui.brand.FilledTonalButton

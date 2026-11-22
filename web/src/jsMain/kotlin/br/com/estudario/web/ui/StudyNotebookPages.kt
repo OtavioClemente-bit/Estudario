@@ -107,7 +107,7 @@ private fun NotebookHelp(onClose: () -> Unit) {
                 H2 { Text("O caderno que se escreve sozinho") }
                 P({ classes("gx-topic") }) { Text("Cada tópico que você estuda vira uma página. O caderno acompanha o que está firme na memória e avisa o que está esfriando.") }
             }
-            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close") }
+            Button({ classes("nb-ic", "gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close") }
         }
         Div({ classes("gx-controls", "solo") }) {
             GxSection("auto_stories", "Você não monta nada", "Estudou o tópico, a página aparece pronta: o essencial em pontos curtos, seus grifos e notas, as dicas de prova, as pegadinhas e os cartões para lembrar.", "#A78BFF") {}
@@ -220,12 +220,12 @@ fun NotebookHome() {
             Span({ classes("cb-eyebrow") }) { Text(if (flippedToday) "FOLHEADA DE HOJE · FEITA" else "FOLHEADA DO DIA · ~${StudyNotebook.minutes(pages)} MIN") }
             H3 { Text(if (flippedToday) "Feita! Quer folhear de novo?" else "${pages.size} ${if (pages.size == 1) "página separada" else "páginas separadas"} para você") }
             P { Text("Do que você viu e está começando a esquecer.") }
-            Button({ classes("cb-cta"); onClick { Router.go(Route.NotebookFlip) } }) { Icon("auto_stories", filled = true); Text(if (flippedToday) "Folhear de novo" else "Folhear agora") }
+            Button({ classes("btn", "k-review", "cb-cta"); onClick { Router.go(Route.NotebookFlip) } }) { Icon("auto_stories", filled = true); Text(if (flippedToday) "Folhear de novo" else "Folhear agora") }
         } else Div({ classes("cb-today", "empty") }) {
             Span({ classes("cb-eyebrow") }) { Text("FOLHEADA DO DIA") }
             H3 { Text("Estude o primeiro tópico") }
             P { Text("Leia a teoria e marque como estudado: o resumo, as dicas, as pegadinhas e os cartões viram páginas do seu caderno.") }
-            Button({ classes("cb-cta"); onClick { Router.go(Route.Edital) } }) { Icon("menu_book", filled = true); Text("Ir para o edital") }
+            Button({ classes("btn", "k-study", "cb-cta"); onClick { Router.go(Route.Edital) } }) { Icon("menu_book", filled = true); Text("Ir para o edital") }
         }
         if (warm.isNotEmpty()) {
             Div({ classes("cb-sect") }) { B { Text(if (coldCount > 0) "Aqueça agora" else "Quase firmes") }; if (warm.any { it.id in withQuestions }) Span { Text("5 questões cada") } }

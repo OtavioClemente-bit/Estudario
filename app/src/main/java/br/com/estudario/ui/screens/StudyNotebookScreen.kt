@@ -48,9 +48,8 @@ import br.com.estudario.ui.brand.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.ExtendedFloatingActionButton
 import br.com.estudario.ui.brand.Icon
-import androidx.compose.material3.IconButton
+import br.com.estudario.ui.brand.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
@@ -258,7 +257,7 @@ fun StudyNotebookScreen(
         val here = place(opened.takeIf { it >= 0 })
         Scaffold(
             floatingActionButton = {
-                ExtendedFloatingActionButton(onClick = { editingNote = UserNoteEntity(topicId = here.topic?.id, text = "") }, icon = { Icon(Icons.Outlined.Add, null) }, text = { Text("Anotar") })
+                br.com.estudario.ui.brand.NoteButton(br.com.estudario.ui.brand.NoteKind.Primary, "Anotar", onClick = { editingNote = UserNoteEntity(topicId = here.topic?.id, text = "") }, glyph = br.com.estudario.ui.brand.Glyph.Pencil)
             },
         ) { padding ->
             LazyColumn(
@@ -388,7 +387,7 @@ fun StudyNotebookScreen(
     val allCards = orderedBags.flatMap { it.value.cards }
     Scaffold(
         floatingActionButton = {
-            ExtendedFloatingActionButton(onClick = { editingNote = UserNoteEntity(text = "") }, icon = { Icon(Icons.Outlined.Add, null) }, text = { Text("Nova anotação") })
+            br.com.estudario.ui.brand.NoteButton(br.com.estudario.ui.brand.NoteKind.Primary, "Nova anotação", onClick = { editingNote = UserNoteEntity(text = "") }, glyph = br.com.estudario.ui.brand.Glyph.Pencil)
         },
     ) { padding ->
         LazyColumn(
@@ -567,7 +566,7 @@ private fun TopicBagHeader(
                         Text(bagSummary(listOf(bag)), style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
                     }
                 }
-                if (onReview != null) Button(onClick = onReview, modifier = Modifier.fillMaxWidth().height(50.dp)) {
+                if (onReview != null) Button(kind = br.com.estudario.ui.brand.NoteKind.Review, onClick = onReview, modifier = Modifier.fillMaxWidth().height(50.dp)) {
                     Icon(Icons.Outlined.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text("Revisar este tópico, um por um")
                 }
                 androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -635,11 +634,11 @@ internal fun NotebookReview(title: String, cards: List<ReviewCard>, allowNavigat
                             br.com.estudario.ui.components.StudyInlineText(br.com.estudario.ui.components.NoteTags.split(card.body).let { (tag, body) -> (tag?.let { "[$it] " } ?: "") + body }, style = MaterialTheme.typography.bodyLarge)
                         }
                     }
-                    card.open?.takeIf { allowNavigation }?.let { open -> TextButton(onClick = { onClose(); open() }) { Text("Abrir na teoria") } }
+                    card.open?.takeIf { allowNavigation }?.let { open -> TextButton(kind = br.com.estudario.ui.brand.NoteKind.Study, onClick = { onClose(); open() }) { Text("Abrir na teoria") } }
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     br.com.estudario.ui.brand.OutlinedButton(onClick = { index-- }, enabled = index > 0, modifier = Modifier.weight(1f).height(52.dp), shape = RoundedCornerShape(14.dp)) { Text("Anterior") }
-                    Button(onClick = { if (index < cards.lastIndex) index++ else onClose() }, modifier = Modifier.weight(1f).height(52.dp)) { Text(if (index < cards.lastIndex) "Próximo" else "Concluir") }
+                    Button(kind = br.com.estudario.ui.brand.NoteKind.Next, onClick = { if (index < cards.lastIndex) index++ else onClose() }, modifier = Modifier.weight(1f).height(52.dp)) { Text(if (index < cards.lastIndex) "Próximo" else "Concluir") }
                 }
             }
         }
@@ -848,8 +847,8 @@ private fun MarkCardsReview(
                 }
                 if (shown) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     br.com.estudario.ui.brand.OutlinedButton(onClick = { onColor(card, 2); shown = false; index++ }, modifier = Modifier.weight(1f).height(52.dp), shape = RoundedCornerShape(14.dp)) { Text("Não lembrei") }
-                    Button(onClick = { if (card.color == 2) onColor(card, 1); remembered++; shown = false; index++ }, modifier = Modifier.weight(1f).height(52.dp)) { Text("Lembrei") }
-                } else Button(onClick = { shown = true }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Mostrar o trecho") }
+                    Button(kind = br.com.estudario.ui.brand.NoteKind.Confirm, onClick = { if (card.color == 2) onColor(card, 1); remembered++; shown = false; index++ }, modifier = Modifier.weight(1f).height(52.dp)) { Text("Lembrei") }
+                } else Button(kind = br.com.estudario.ui.brand.NoteKind.Review, onClick = { shown = true }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Mostrar o trecho") }
             }
         }
     }

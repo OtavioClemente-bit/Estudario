@@ -132,7 +132,7 @@ fun PerformanceAndStanding(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                TextButton(onClick = onOpenStatistics) {
+                TextButton(kind = br.com.estudario.ui.brand.NoteKind.Practice, onClick = onOpenStatistics) {
                     Text("Resolver questões →", style = MaterialTheme.typography.labelLarge)
                 }
             } else {

@@ -121,7 +121,7 @@ fun SimulationsScreen() {
                 H2 { Text("Simulados") }
                 P({ classes("gx-topic") }) { Text(competition.name + (profile.board?.let { " · banca $it" } ?: "")) }
             }
-            Button({ classes("gx-ghost", "sim-tune"); attr("type", "button"); onClick { editingProfile = true } }) { Icon("tune"); Span { Text("Banca e meta") } }
+            Button({ classes("btn", "small", "k-paper", "gx-ghost", "sim-tune"); attr("type", "button"); onClick { editingProfile = true } }) { Icon("tune"); Span { Text("Banca e meta") } }
         }
         Div({ classes("sx-stats") }) {
             SimStat("${finished.size}", if (finished.size == 1) "entregue" else "entregues")

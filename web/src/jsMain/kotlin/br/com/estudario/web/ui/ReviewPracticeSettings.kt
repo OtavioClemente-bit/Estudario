@@ -39,7 +39,7 @@ internal fun ReviewPracticeSettings(onSaved: () -> Unit = {}, onClose: () -> Uni
                 H2 { Text("Seu ritmo de revisão") }
                 P({ classes("gx-topic") }) { Text("Personalize as próximas sessões") }
             }
-            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar configurações da revisão"); onClick { onClose() } }) { Icon("close") }
+            Button({ classes("nb-ic", "gx-x"); attr("type", "button"); attr("aria-label", "Fechar configurações da revisão"); onClick { onClose() } }) { Icon("close") }
         }
         Div({ classes("gx-controls", "solo") }) {
             GxSection("quiz", "Questões por revisão", null, "#2FD39A") {
@@ -67,7 +67,7 @@ internal fun ReviewPracticeSettings(onSaved: () -> Unit = {}, onClose: () -> Uni
             }
             P({ classes("gx-note") }) { Text("A sessão em andamento mantém suas escolhas iniciais. Difícil continua repetindo a mesma etapa amanhã.") }
             Div({ classes("gx-go", "row") }) {
-                Button({ classes("gx-ghost"); attr("type", "button"); onClick { draft = ReviewPracticeOptions() } }) { Text("Restaurar padrão") }
+                Button({ classes("btn", "small", "k-paper", "gx-ghost"); attr("type", "button"); onClick { draft = ReviewPracticeOptions() } }) { Text("Restaurar padrão") }
                 GxLaunch("Salvar configurações", icon = "check_circle") {
                     runCatching { ReviewPreferences.save(draft) }
                         .onSuccess { Toast.show("Configurações salvas para as próximas revisões"); onSaved(); onClose() }

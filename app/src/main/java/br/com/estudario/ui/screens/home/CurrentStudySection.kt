@@ -182,7 +182,7 @@ private fun ReadyBody(state: CurrentStudyUiState.Ready, onStart: () -> Unit, onG
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Button(
+            Button(kind = br.com.estudario.ui.brand.NoteKind.Study,
                 onClick = onGenerate,
                 modifier = generateModifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
@@ -191,11 +191,11 @@ private fun ReadyBody(state: CurrentStudyUiState.Ready, onStart: () -> Unit, onG
                 Spacer(Modifier.width(8.dp))
                 Text("Gerar o material deste tópico", style = MaterialTheme.typography.labelLarge)
             }
-            OutlinedButton(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(kind = br.com.estudario.ui.brand.NoteKind.Next, onClick = onStart, modifier = Modifier.fillMaxWidth()) {
                 Text(task.ctaLabel, style = MaterialTheme.typography.labelLarge)
             }
         } else {
-            Button(
+            Button(kind = br.com.estudario.ui.brand.NoteKind.Next,
                 onClick = onStart,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
@@ -217,7 +217,7 @@ private fun NoPlanBody(onCreatePlan: () -> Unit, practiceAvailable: Boolean, onP
         )
         // O Folha no Início, falando (como no site): aqui ele convida a montar o plano.
         MissionFolha("Você não precisa organizar tudo sozinho. Me diz seu concurso e seu tempo que eu cuido da agenda!", br.com.estudario.ui.assistant.FolhaMood.WAVE, onCreatePlan)
-        Button(
+        Button(kind = br.com.estudario.ui.brand.NoteKind.Primary, glyph = br.com.estudario.ui.brand.Glyph.Calendar,
             onClick = onCreatePlan,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
@@ -225,7 +225,7 @@ private fun NoPlanBody(onCreatePlan: () -> Unit, practiceAvailable: Boolean, onP
             Text("Criar meu plano", style = MaterialTheme.typography.labelLarge)
         }
         if (practiceAvailable) {
-            TextButton(onClick = onPractice, modifier = Modifier.fillMaxWidth()) {
+            TextButton(kind = br.com.estudario.ui.brand.NoteKind.Practice, onClick = onPractice, modifier = Modifier.fillMaxWidth()) {
                 Text("Ou responda 10 questões enquanto isso", style = MaterialTheme.typography.labelLarge)
             }
         }
@@ -254,7 +254,7 @@ private fun NoTaskTodayBody(practiceAvailable: Boolean, onPractice: () -> Unit) 
         )
         MissionFolha(freeDayLine(), br.com.estudario.ui.assistant.FolhaMood.HAPPY, if (practiceAvailable) onPractice else null)
         if (practiceAvailable) {
-            OutlinedButton(onClick = onPractice, modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(kind = br.com.estudario.ui.brand.NoteKind.Practice, onClick = onPractice, modifier = Modifier.fillMaxWidth()) {
                 Text("Responder 10 questões", style = MaterialTheme.typography.labelLarge)
             }
         }

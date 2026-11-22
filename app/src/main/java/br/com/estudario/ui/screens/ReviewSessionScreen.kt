@@ -32,6 +32,7 @@ import androidx.compose.material.icons.outlined.Quiz
 import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.IconButton
 import br.com.estudario.ui.brand.OutlinedButton
 import br.com.estudario.ui.brand.TextButton
 import br.com.estudario.domain.ComputedReviewStatus
@@ -365,9 +366,9 @@ fun ReviewSessionScreen(
                 }
                 item {
                     if (!dumpShown) Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Button(onClick = { dumpShown = true }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Já puxei da memória", fontWeight = FontWeight.Bold) }
+                        Button(kind = br.com.estudario.ui.brand.NoteKind.Review, onClick = { dumpShown = true }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Já puxei da memória", fontWeight = FontWeight.Bold) }
                         br.com.estudario.ui.brand.TextButton(onClick = { advance() }) { Text("Pular") }
-                    } else Button(onClick = { advance() }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                    } else Button(kind = br.com.estudario.ui.brand.NoteKind.Next, onClick = { advance() }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
                         Text(if (RvStep.RECALL in steps) "Ir para os cartões" else if (RvStep.TEST in steps) "Ir para as questões" else "Avaliar a revisão", fontWeight = FontWeight.Bold)
                     }
                 }
@@ -414,7 +415,7 @@ fun ReviewSessionScreen(
                 item {
                     val somCtx = androidx.compose.ui.platform.LocalContext.current
                     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        if (!flipped) Button(onClick = { flipped = true }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Virar o cartão", fontWeight = FontWeight.Bold) }
+                        if (!flipped) Button(kind = br.com.estudario.ui.brand.NoteKind.Review, onClick = { flipped = true }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Virar o cartão", fontWeight = FontWeight.Bold) }
                         else {
                             Text("Você lembrou antes de virar o cartão?", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -482,7 +483,7 @@ fun ReviewSessionScreen(
                 }
                 if (study.tips.isNotEmpty()) item { PaperCard("DICAS DE PROVA") { study.tips.forEach { QuickItem("✓", it, RvMint, Color.White) } } }
                 if (study.traps.isNotEmpty()) item { PaperCard("ONDE A BANCA PEGA") { study.traps.forEach { QuickItem("!", it, RvRed, Color.White, RvRed) } } }
-                item { Button(onClick = { advance() }, Modifier.fillMaxWidth()) { Text(if (RvStep.TEST in steps) "Ir para as questões" else "Avaliar a revisão") } }
+                item { Button(kind = br.com.estudario.ui.brand.NoteKind.Next, onClick = { advance() }, modifier = Modifier.fillMaxWidth()) { Text(if (RvStep.TEST in steps) "Ir para as questões" else "Avaliar a revisão") } }
             }
             RvStep.TEST -> {
                 val question = questions[questionIndex.coerceAtMost(questions.lastIndex)]
@@ -586,8 +587,8 @@ fun ReviewSessionScreen(
                     }
                 }
                 item {
-                    if (answered == null) Button(enabled = selected != null, onClick = { scope.launch { val ok = viewModel.answer(question, selected!!, sessionId); answered = ok; if (ok == true) correct++; results = results + (ok == true) } }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Confirmar", fontWeight = FontWeight.Bold) }
-                    else Button(onClick = { crossed = emptySet(); if (questionIndex < questions.lastIndex) { questionIndex++; selected = null; answered = null } else advance() }, Modifier.fillMaxWidth().height(52.dp)) {
+                    if (answered == null) Button(kind = br.com.estudario.ui.brand.NoteKind.Confirm, enabled = selected != null, onClick = { scope.launch { val ok = viewModel.answer(question, selected!!, sessionId); answered = ok; if (ok == true) correct++; results = results + (ok == true) } }, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Confirmar", fontWeight = FontWeight.Bold) }
+                    else Button(kind = br.com.estudario.ui.brand.NoteKind.Next, onClick = { crossed = emptySet(); if (questionIndex < questions.lastIndex) { questionIndex++; selected = null; answered = null } else advance() }, modifier = Modifier.fillMaxWidth().height(52.dp)) {
                         Text(if (questionIndex < questions.lastIndex) "Próxima questão" else "Avaliar a revisão", fontWeight = FontWeight.Bold)
                     }
                 }
@@ -737,7 +738,7 @@ private fun ReviewStart(topicTitle: String, repeating: Boolean, lastSeen: Long?,
         PlanItem(Icons.Outlined.StarOutline, "Como foi", "Difícil volta amanhã; Normal e Fácil avançam a etapa")
         tuner()
         StageLadder(stage, repeating)
-        Button(onClick = onStart, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Começar · ~$minutes min", fontWeight = FontWeight.Black) }
+        Button(kind = br.com.estudario.ui.brand.NoteKind.Next, onClick = onStart, modifier = Modifier.fillMaxWidth().height(52.dp)) { Text("Começar · ~$minutes min", fontWeight = FontWeight.Black) }
     }
 }
 
@@ -920,7 +921,7 @@ private fun RateCard(review: ReviewScheduleEntity, all: List<ReviewScheduleEntit
                 }
             }
         }
-        Button(onClick = { onDone(pick) }, Modifier.fillMaxWidth().padding(top = 4.dp)) { Text(if (pick == ReviewDifficulty.DIFICIL) "Salvar e repetir amanhã" else "Concluir etapa") }
+        Button(kind = br.com.estudario.ui.brand.NoteKind.Complete, onClick = { onDone(pick) }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) { Text(if (pick == ReviewDifficulty.DIFICIL) "Salvar e repetir amanhã" else "Concluir etapa") }
     }
 }
 
@@ -974,10 +975,10 @@ private fun ReviewDone(title: String, days: Long, available: Int, repeatedStage:
                 )
             }
         }
-        if (onNext != null) Button(onClick = onNext, Modifier.fillMaxWidth()) { Text("Próxima revisão", fontWeight = FontWeight.Black) }
-        if (available > 0) (if (onNext != null) OutlinedButton(onClick = onQuiz, Modifier.fillMaxWidth()) { Text("Fazer ${minOf(5, available)} questões") } else Button(onClick = onQuiz, Modifier.fillMaxWidth()) { Text("Fazer ${minOf(5, available)} questões") })
-        else if (onNext == null) Button(onClick = onGenerate, Modifier.fillMaxWidth()) { Text("Gerar questões") }
-        TextButton(onClick = onBack) { Text("Voltar às revisões") }
+        if (onNext != null) Button(kind = br.com.estudario.ui.brand.NoteKind.Review, onClick = onNext, modifier = Modifier.fillMaxWidth()) { Text("Próxima revisão", fontWeight = FontWeight.Black) }
+        if (available > 0) (if (onNext != null) OutlinedButton(kind = br.com.estudario.ui.brand.NoteKind.Practice, onClick = onQuiz, modifier = Modifier.fillMaxWidth()) { Text("Fazer ${minOf(5, available)} questões") } else Button(kind = br.com.estudario.ui.brand.NoteKind.Practice, onClick = onQuiz, modifier = Modifier.fillMaxWidth()) { Text("Fazer ${minOf(5, available)} questões") })
+        else if (onNext == null) Button(kind = br.com.estudario.ui.brand.NoteKind.Practice, onClick = onGenerate, modifier = Modifier.fillMaxWidth()) { Text("Gerar questões") }
+        TextButton(kind = br.com.estudario.ui.brand.NoteKind.Review, onClick = onBack) { Text("Voltar às revisões") }
     }
 }
 

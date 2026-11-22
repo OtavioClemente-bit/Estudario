@@ -254,8 +254,8 @@ fun WardrobeScreen() {
                     }
                 }
                 Div({ classes("wdg-hud-actions") }) {
-                    Button({ type(ButtonType.Button); classes("wdg-btn", "small"); attr("title", "Surpreenda-me: um visual sorteado"); onClick { FolhaLook.chooseAll(FolhaWardrobe.random(progress).values); trying = null; cheer++ } }) { Icon("casino"); Span({ classes("wdg-btn-l") }) { Text("Sortear") } }
-                    Button({ type(ButtonType.Button); classes("wdg-btn", "ghost", "small"); attr("title", "Voltar ao visual clássico"); onClick { FolhaLook.chooseAll(FolhaSlot.entries.map { FolhaWardrobe.default(it) }); trying = null; cheer++ } }) { Icon("restart_alt"); Span({ classes("wdg-btn-l") }) { Text("Clássico") } }
+                    Button({ type(ButtonType.Button); classes("btn", "k-paper", "wdg-btn", "small"); attr("title", "Surpreenda-me: um visual sorteado"); onClick { FolhaLook.chooseAll(FolhaWardrobe.random(progress).values); trying = null; cheer++ } }) { Icon("casino"); Span({ classes("wdg-btn-l") }) { Text("Sortear") } }
+                    Button({ type(ButtonType.Button); classes("btn", "k-paper", "wdg-btn", "ghost", "small"); attr("title", "Voltar ao visual clássico"); onClick { FolhaLook.chooseAll(FolhaSlot.entries.map { FolhaWardrobe.default(it) }); trying = null; cheer++ } }) { Icon("restart_alt"); Span({ classes("wdg-btn-l") }) { Text("Clássico") } }
                 }
             }
             // ---- o palco
@@ -286,7 +286,7 @@ fun WardrobeScreen() {
                             Span({ classes("wdg-try-tag") }) { Icon("visibility", filled = true); Text("Provando a coleção") }
                             B { Text(ts.first) }
                             Span({ classes("wdg-try-req") }) { Text("Assim o Folha fica com as peças e a recompensa.") }
-                            Button({ type(ButtonType.Button); classes("wdg-btn", "ghost", "small"); onClick { tryingSet = null } }) { Icon("undo"); Text("Voltar ao meu visual") }
+                            Button({ type(ButtonType.Button); classes("btn", "k-paper", "wdg-btn", "ghost", "small"); onClick { tryingSet = null } }) { Icon("undo"); Text("Voltar ao meu visual") }
                         }
                     } else if (t != null) {
                         Div({ classes("wdg-try", rarityClass(t.rarity)) }) {
@@ -299,7 +299,7 @@ fun WardrobeScreen() {
                                     Span({ classes("wdg-xp-n") }) { Text("$cur / $target $unit") }
                                 }
                             }
-                            Button({ type(ButtonType.Button); classes("wdg-btn", "ghost", "small"); onClick { trying = null } }) { Icon("undo"); Text("Voltar ao meu visual") }
+                            Button({ type(ButtonType.Button); classes("btn", "k-paper", "wdg-btn", "ghost", "small"); onClick { trying = null } }) { Icon("undo"); Text("Voltar ao meu visual") }
                         }
                     } else {
                         Div({ classes("wdg-emotes"); attr("aria-label", "Testar movimentos") }) {
@@ -460,8 +460,8 @@ private fun CollectionRow(c: br.com.estudario.domain.FolhaCollection, progress: 
         Div({ classes("wd-crow-head") }) {
             B { Text(c.name) }
             Span({ classes("wd-crow-n") }) { if (complete) Icon("check_circle", filled = true); Text("$have/${pieces.size}") }
-            if (complete) Button({ type(ButtonType.Button); classes("wdg-btn", "small", "wd-crow-dress"); onClick { onDress(pieces + reward) } }) { Icon("checkroom"); Text("Vestir") }
-            else Button({ type(ButtonType.Button); classes(*listOfNotNull("wdg-btn", "ghost", "small", "wd-crow-dress", if (tryingAll) "on" else null).toTypedArray()); attr("title", "Ver o Folha com a coleção inteira"); onClick { onTrySet(pieces + reward) } }) { Icon("visibility"); Text(if (tryingAll) "Provando" else "Provar") }
+            if (complete) Button({ type(ButtonType.Button); classes("btn", "k-paper", "wdg-btn", "small", "wd-crow-dress"); onClick { onDress(pieces + reward) } }) { Icon("checkroom"); Text("Vestir") }
+            else Button({ type(ButtonType.Button); classes(*listOfNotNull("btn", "k-paper", "wdg-btn", "ghost", "small", "wd-crow-dress", if (tryingAll) "on" else null).toTypedArray()); attr("title", "Ver o Folha com a coleção inteira"); onClick { onTrySet(pieces + reward) } }) { Icon("visibility"); Text(if (tryingAll) "Provando" else "Provar") }
         }
         P({ classes("wd-crow-desc"); attr("title", c.description) }) { Text(c.description) }
         Div({ classes("wd-crow-row") }) {

@@ -21,7 +21,7 @@ import androidx.compose.material3.CardDefaults
 import br.com.estudario.ui.brand.ElevatedCard
 import androidx.compose.material3.HorizontalDivider
 import br.com.estudario.ui.brand.Icon
-import androidx.compose.material3.IconButton
+import br.com.estudario.ui.brand.IconButton
 import br.com.estudario.ui.brand.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import br.com.estudario.ui.brand.OutlinedButton
@@ -132,7 +132,7 @@ internal fun SyllabusReviewStep(
                             Icon(Icons.Outlined.Add, null, Modifier.padding(end = 8.dp))
                             Text("Adicionar tópico")
                         }
-                        TextButton(onClick = { removingSubject = subject }) {
+                        TextButton(kind = br.com.estudario.ui.brand.NoteKind.Danger, onClick = { removingSubject = subject }) {
                             Icon(Icons.Outlined.DeleteOutline, null, Modifier.padding(end = 8.dp), tint = MaterialTheme.colorScheme.error)
                             Text("Remover matéria", color = MaterialTheme.colorScheme.error)
                         }
@@ -219,7 +219,7 @@ private fun SyllabusRemovalDialog(title: String, description: String, onDismiss:
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) }, text = { Text(description) },
-        confirmButton = { TextButton(onClick = onConfirm) { Text("Remover", color = MaterialTheme.colorScheme.error) } },
+        confirmButton = { TextButton(kind = br.com.estudario.ui.brand.NoteKind.Danger, onClick = onConfirm) { Text("Remover", color = MaterialTheme.colorScheme.error) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )
 }

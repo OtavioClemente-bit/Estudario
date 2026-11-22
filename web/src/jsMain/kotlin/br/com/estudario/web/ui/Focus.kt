@@ -46,7 +46,7 @@ fun FocusScreen() {
                 H2 { Text(if (active) (if (TopicFocus.running) "Focado. Bom trabalho!" else "Pausado") else "Escolha e comece") }
                 P({ classes("gx-topic") }) { Text(if (active && TopicFocus.title.isNotBlank()) TopicFocus.title else "O tempo sobe e segue com você pelo site. Hoje: ${Queries.minutesLabel(todayMinutes)} de estudo.") }
             }
-            Button({ classes("gx-ghost", "small"); attr("type", "button"); onClick { Router.go(Route.FocusHistory) } }) { Icon("history"); Span { Text("Histórico") } }
+            Button({ classes("btn", "small", "k-paper", "gx-ghost", "small"); attr("type", "button"); onClick { Router.go(Route.FocusHistory) } }) { Icon("history"); Span { Text("Histórico") } }
         }
         // O relógio: anel que enche até a meta, com o tempo grande no meio.
         Div({ classes("fc-dial-wrap") }) {
@@ -61,9 +61,9 @@ fun FocusScreen() {
             Div({ classes("fc-actions") }) {
                 if (TopicFocus.running) GxLaunch("Pausar", icon = "timer") { TopicFocus.pause() }
                 else GxLaunch("Continuar", icon = "play_circle") { TopicFocus.resume() }
-                Button({ classes("gx-ghost"); attr("type", "button"); onClick { TopicFocus.stop() } }) { Text("Encerrar e salvar") }
-                TopicFocus.topicId?.let { id -> Button({ classes("gx-ghost"); attr("type", "button"); onClick { Router.go(Route.Topic(id)) } }) { Text("Abrir o tópico") } }
-                Button({ classes("gx-ghost"); attr("type", "button"); onClick { TopicFocus.setClockHidden(!TopicFocus.clockHidden) } }) { Text(if (TopicFocus.clockHidden) "Mostrar o tempo" else "Esconder o tempo") }
+                Button({ classes("btn", "small", "k-paper", "gx-ghost"); attr("type", "button"); onClick { TopicFocus.stop() } }) { Text("Encerrar e salvar") }
+                TopicFocus.topicId?.let { id -> Button({ classes("btn", "small", "k-paper", "gx-ghost"); attr("type", "button"); onClick { Router.go(Route.Topic(id)) } }) { Text("Abrir o tópico") } }
+                Button({ classes("btn", "small", "k-paper", "gx-ghost"); attr("type", "button"); onClick { TopicFocus.setClockHidden(!TopicFocus.clockHidden) } }) { Text(if (TopicFocus.clockHidden) "Mostrar o tempo" else "Esconder o tempo") }
             }
             if (TopicFocus.elapsedMs < 60_000) P({ classes("gx-note", "fc-center") }) { Text("Sessões com menos de 1 minuto não entram no histórico.") }
         } else Div({ classes("gx-controls", "solo") }) {

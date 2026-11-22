@@ -89,7 +89,7 @@ fun RecallCard(
                     }
                     trailing?.invoke()
                 }
-                Button(onClick = { flip(true) }, modifier = Modifier.fillMaxWidth().padding(end = 8.dp)) { Text("Ver a resposta") }
+                Button(kind = br.com.estudario.ui.brand.NoteKind.Review, onClick = { flip(true) }, modifier = Modifier.fillMaxWidth().padding(end = 8.dp)) { Text("Ver a resposta") }
             }
         } else {
             Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -109,7 +109,7 @@ fun RecallCard(
                 when (verdict) {
                     0 -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         OutlinedButton(onClick = { br.com.estudario.ui.brand.EstudarioSom.play(somCtx, "nao_lembrei"); if (onVerdict != null) onVerdict(false) else verdict = 2 }, modifier = Modifier.weight(1f)) { Text("Não lembrei") }
-                        Button(onClick = { br.com.estudario.ui.brand.EstudarioSom.play(somCtx, "lembrei"); if (onVerdict != null) onVerdict(true) else verdict = 1 }, modifier = Modifier.weight(1f)) { Text("Lembrei") }
+                        Button(kind = br.com.estudario.ui.brand.NoteKind.Confirm, onClick = { br.com.estudario.ui.brand.EstudarioSom.play(somCtx, "lembrei"); if (onVerdict != null) onVerdict(true) else verdict = 1 }, modifier = Modifier.weight(1f)) { Text("Lembrei") }
                     }
                     1 -> Text("Boa! Essa já está na cabeça.", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
                     else -> Text("Sem problema. Leia de novo com calma e tente mais tarde.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

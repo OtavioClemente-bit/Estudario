@@ -79,7 +79,7 @@ fun OverdueRescueCard(state: ActivePlanUiState, onFit: () -> Unit, onPush: () ->
                 }
                 Text("Ou reorganize o plano:", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
             }
-            Button(onClick = onFit, modifier = Modifier.fillMaxWidth()) { Text("Encaixar nos próximos dias") }
+            Button(kind = br.com.estudario.ui.brand.NoteKind.Next, onClick = onFit, modifier = Modifier.fillMaxWidth()) { Text("Encaixar nos próximos dias") }
             Text(
                 "Voltam na frente e o resto do plano se ajusta ao seu ritmo, sem passar das suas horas.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -149,7 +149,7 @@ fun DayOffAction(state: ActivePlanUiState, onDayOff: (LocalDate, Boolean) -> Uni
             )
         },
         confirmButton = { TextButton(onClick = { asking = false; onDayOff(state.today, true) }) { Text("Passar para a frente") } },
-        dismissButton = { TextButton(onClick = { asking = false }) { Text("Vou estudar") } },
+        dismissButton = { TextButton(kind = br.com.estudario.ui.brand.NoteKind.Study, onClick = { asking = false }) { Text("Vou estudar") } },
     )
 }
 

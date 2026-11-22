@@ -62,19 +62,95 @@ fun Btn(
     block: Boolean = false,
     size: String? = null,
     enabled: Boolean = true,
+    kind: String? = null,
 ) {
     // O mesmo elemento pode ser reaproveitado com outra ação (ex.: Continuar de um passo para o outro).
     val latestClick = androidx.compose.runtime.rememberUpdatedState(onClick)
     val latestEnabled = androidx.compose.runtime.rememberUpdatedState(enabled)
+    val k = kind ?: noteKind(style, label)
+    val railIcon = noteIcon(k, icon, label)
     Button({
         type(ButtonType.Button)
-        classes(*listOfNotNull("btn", style, if (small) "small" else null, size, if (block) "block" else null).toTypedArray())
+        classes(*listOfNotNull("btn", style, "k-$k", if (small) "small" else null, size, if (block) "block" else null).toTypedArray())
         if (!enabled) disabled()
         onClick { if (latestEnabled.value) latestClick.value() }
     }) {
-        if (icon != null) Icon(icon)
+        if (railIcon != null) Icon(railIcon)
         Text(label)
     }
+}
+
+/**
+ * Botão "folha de caderno" (aprovado 22/11): cada ação tem a sua cor e o seu bicho da turma na faixa do
+ * fichário. kind: study, confirm, practice, review, sim, focus, done, pro, upload, next, main, paper, danger.
+ * size: null (normal), "small" ou "block" (largura toda). O desenho todo está no fim de styles.css.
+ */
+@Composable
+fun NoteButton(kind: String, text: String, icon: String? = null, size: String? = null, enabled: Boolean = true, onClick: () -> Unit) =
+    Btn(
+        text, onClick,
+        style = if (kind == "danger") "danger" else if (kind == "paper") "outline" else "primary",
+        icon = icon, small = size == "small", block = size == "block", enabled = enabled, kind = kind,
+    )
+
+/** Qual ação é este botão, pelo texto (quando quem chama não diz). */
+fun noteKind(style: String, label: String): String {
+    val l = label.lowercase()
+    fun has(vararg w: String) = w.any { l.contains(it) }
+    return when {
+        style == "danger" || has("apagar", "excluir", "sair da conta", "remover", "descartar", "zerar") -> "danger"
+        l.startsWith("voltar") || l.startsWith("cancelar") || l.startsWith("fechar") || l.startsWith("agora não") -> "paper"
+        has("confirmar", "responder") -> "confirm"
+        has("simulado", "prova oficial", "prova completa", "fazer a prova") -> "sim"
+        has("foco", "pomodoro", "cronômetro") -> "focus"
+        has("concluir", "concluí", "marcar como", "terminei") -> "done"
+        has("assinar", "planos", "premium", "desbloquear", "liberar") -> "pro"
+        has("pdf", "enviar edital", "enviar o edital", "importar") -> "upload"
+        has("revis", "flashcard", "cartões", "cartas", "baralho", "folhear") -> "review"
+        has("treinar", "questões", "questão", "resolver", "praticar") -> "practice"
+        has("estudar", "teoria", "ler ", "abrir tópico", "abrir o tópico", "material") -> "study"
+        has("próxim", "continuar", "avançar", "seguir", "bora", "ver resultado") -> "next"
+        style == "primary" -> "main"
+        else -> "paper"
+    }
+}
+
+/** O desenho da faixa: o da ação; nas ações comuns, o ícone que quem chama pediu (ou os furos do fichário). */
+fun noteIcon(kind: String, icon: String?, label: String): String? = when (kind) {
+    "study" -> "OpenBook"
+    "confirm" -> "Check"
+    "practice" -> "Target"
+    "review" -> "Cards"
+    "sim", "focus" -> "Timer"
+    "done" -> "Medal"
+    "pro" -> "Gem"
+    "upload" -> "Doc"
+    "next" -> icon ?: "arrow_forward"
+    "danger" -> if (icon != null && glyphSvg(icon) != null) icon else "Warning"
+    else -> icon ?: label.lowercase().let { l ->
+        when {
+            l.contains("ajuste") || l.contains("configur") -> "Gear"
+            l.contains("ajuda") || l.contains("como funciona") -> "Help"
+            l.contains("notifica") || l.contains("lembrete") -> "Bell"
+            l.startsWith("voltar") -> "arrow_back"
+            else -> null
+        }
+    }
+}
+
+/** Carimbo do clique: qualquer botão de folha ganha "stamp" por meio segundo (anel + animação do ícone no toque). */
+fun installNoteStamp() {
+    val doc = kotlinx.browser.document
+    doc.addEventListener("pointerdown", { e ->
+        val t = e.target.asDynamic()
+        val el = (if (t?.closest != null) t.closest(".btn, .icon-btn, .nb-ic") else null) as? org.w3c.dom.Element
+        if (el != null && !el.hasAttribute("disabled")) {
+            el.classList.remove("stamp")
+            el.asDynamic().offsetWidth
+            el.classList.add("stamp")
+            kotlinx.browser.window.setTimeout({ el.classList.remove("stamp") }, 520)
+        }
+    }, true)
 }
 
 @Composable

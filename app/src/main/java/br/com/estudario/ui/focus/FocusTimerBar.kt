@@ -33,7 +33,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import br.com.estudario.ui.brand.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import br.com.estudario.ui.brand.Icon
-import androidx.compose.material3.IconButton
+import br.com.estudario.ui.brand.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -194,7 +194,7 @@ fun FocusSessionSheet(
                 }
             }
             Text("Encerrar salva o tempo estudado no histórico. As pausas não contam.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (onOpenTopic != null) OutlinedButton(onClick = onOpenTopic, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+            if (onOpenTopic != null) OutlinedButton(kind = br.com.estudario.ui.brand.NoteKind.Study, onClick = onOpenTopic, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
                 Icon(Icons.Outlined.OpenInNew, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Voltar para o tópico")
             }
             HorizontalDivider()
@@ -208,7 +208,7 @@ fun FocusSessionSheet(
                 supportingContent = { Text("Útil para ler sem a tela apagar") },
                 trailingContent = { Switch(keepScreenOn, onKeepScreenOn) },
             )
-            OutlinedButton(onClick = onHistory, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+            OutlinedButton(kind = br.com.estudario.ui.brand.NoteKind.Focus, onClick = onHistory, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
                 Icon(Icons.Outlined.History, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Histórico de foco")
             }
         }

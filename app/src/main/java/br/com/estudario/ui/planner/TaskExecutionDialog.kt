@@ -48,7 +48,7 @@ fun TaskExecutionDialog(task: PlannerTaskUi, measuredMinutes: Int? = null, onDis
             OutlinedTextField(note, { note = it }, label = { Text("Observação opcional") }, modifier = Modifier.fillMaxWidth())
             // Já estudou este tópico antes: sai a teoria, entram as revisões e o plano segue para o próximo.
             if (onAlreadyStudied != null && task.entity.type == br.com.estudario.domain.planner.PlanTaskType.THEORY && task.entity.topicId != null) {
-                TextButton(onClick = { onAlreadyStudied(); onDismiss() }) { Text("Já estudei este tópico") }
+                TextButton(kind = br.com.estudario.ui.brand.NoteKind.Study, onClick = { onAlreadyStudied(); onDismiss() }) { Text("Já estudei este tópico") }
             }
             if (!valid) Text("Use números não negativos e acertos entre zero e o total.", color = MaterialTheme.colorScheme.error)
             else Text(

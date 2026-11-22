@@ -74,9 +74,9 @@ fun FocusTimeUpDialog(plannedMinutes: Int, title: String, onContinue: () -> Unit
                     textAlign = TextAlign.Center,
                 )
                 // Encerrar e concluir: fecha o cronômetro, marca o tópico como estudado e conclui a tarefa do plano.
-                if (onFinishAndComplete != null) Button(onClick = onFinishAndComplete, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) { Text("Encerrar e concluir o tópico") }
-                if (onFinishAndComplete != null) TextButton(onClick = onContinue, modifier = Modifier.fillMaxWidth()) { Text("Ok, vou seguir") }
-                else Button(onClick = onContinue, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) { Text("Ok, vou seguir") }
+                if (onFinishAndComplete != null) Button(kind = br.com.estudario.ui.brand.NoteKind.Complete, onClick = onFinishAndComplete, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) { Text("Encerrar e concluir o tópico") }
+                if (onFinishAndComplete != null) TextButton(kind = br.com.estudario.ui.brand.NoteKind.Next, onClick = onContinue, modifier = Modifier.fillMaxWidth()) { Text("Ok, vou seguir") }
+                else Button(kind = br.com.estudario.ui.brand.NoteKind.Next, onClick = onContinue, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) { Text("Ok, vou seguir") }
                 TextButton(onClick = onFinish, modifier = Modifier.fillMaxWidth()) { Text("Só encerrar a sessão") }
             }
         }

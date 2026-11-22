@@ -87,7 +87,7 @@ fun StudyFocusCard(
                     Text(task.entity.type.displayNamePtBr(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
                     Text(task.entity.status.displayNamePtBr(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
                 }
-                Button(
+                Button(kind = br.com.estudario.ui.brand.NoteKind.Study,
                     onClick = onStart,
                     enabled = task.entity.status != PlanTaskStatus.CONCLUIDA,
                     modifier = Modifier.fillMaxWidth(),

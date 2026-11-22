@@ -32,10 +32,10 @@ import androidx.compose.material.icons.outlined.Quiz
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.Style
 import androidx.compose.material.icons.outlined.TipsAndUpdates
-import androidx.compose.material3.IconButton
+import br.com.estudario.ui.brand.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import br.com.estudario.ui.brand.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -210,7 +210,7 @@ fun TopicSavedPanel(
         when (chosen) {
             SavedKind.MARKS -> saved.marks.forEach { m ->
                 PaperItem("GRIFO", br.com.estudario.ui.components.MarkColors.of(m.color).color, plainPreview(m.quote), m.note.takeIf { it.isNotBlank() }?.let { br.com.estudario.ui.components.NoteTags.split(it).second }) {
-                    TextButton(onClick = { onOpenTheory(m.theoryId, m.blockIndex) }) { Icon(Icons.Outlined.MenuBook, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("Abrir na teoria") }
+                    TextButton(kind = br.com.estudario.ui.brand.NoteKind.Study, onClick = { onOpenTheory(m.theoryId, m.blockIndex) }) { Icon(Icons.Outlined.MenuBook, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("Abrir na teoria") }
                     IconButton(onClick = { viewModel.deleteTheoryMark(m) }) { Icon(Icons.Outlined.DeleteOutline, "Apagar grifo", tint = scheme.onSurfaceVariant) }
                 }
             }
@@ -222,13 +222,13 @@ fun TopicSavedPanel(
                         IconButton(onClick = { viewModel.toggleQuestionFavorite(row.question) }) { Icon(Icons.Outlined.Star, "Tirar dos salvos", tint = Accent) }
                     }
                 }
-                if (topicId >= 0) Button(onClick = { onTrainFavorites(topicId) }, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text(if (saved.questions.size == 1) "Treinar a questão salva" else "Treinar as ${saved.questions.size} salvas") }
+                if (topicId >= 0) Button(kind = br.com.estudario.ui.brand.NoteKind.Study, onClick = { onTrainFavorites(topicId) }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Outlined.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text(if (saved.questions.size == 1) "Treinar a questão salva" else "Treinar as ${saved.questions.size} salvas") }
             }
             SavedKind.TIPS, SavedKind.TRAPS -> {
                 val trap = chosen == SavedKind.TRAPS
                 (if (trap) saved.traps else saved.tips).forEach { s ->
                     PaperItem(if (trap) "PEGADINHA" else "DICA", if (trap) Color(0xFFEE6A4B) else Color(0xFF1FA97F), s.text, s.answer?.takeIf { it.isNotBlank() }?.let { "Resposta: $it" }, markdown = true) {
-                        s.topicId?.let { t -> TextButton(onClick = { onOpenTopic(t) }) { Icon(Icons.Outlined.MenuBook, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("Abrir no tópico") } }
+                        s.topicId?.let { t -> TextButton(kind = br.com.estudario.ui.brand.NoteKind.Study, onClick = { onOpenTopic(t) }) { Icon(Icons.Outlined.MenuBook, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("Abrir no tópico") } }
                         IconButton(onClick = { viewModel.saveSnippet(s.copy(isFavorite = false)) }) { Icon(Icons.Outlined.Star, "Tirar dos salvos", tint = Accent) }
                     }
                 }
@@ -237,7 +237,7 @@ fun TopicSavedPanel(
                 saved.decks.forEach { d ->
                     val n = remember(d.markdown) { br.com.estudario.ui.components.FlashcardParser.parse(d.markdown).size }
                     PaperItem("BARALHO", Accent, d.title.ifBlank { "Flashcards" }, "$n cartões") {
-                        TextButton(onClick = { deckFor = d }) { Icon(Icons.Outlined.PlayArrow, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("Praticar") }
+                        TextButton(kind = br.com.estudario.ui.brand.NoteKind.Practice, onClick = { deckFor = d }) { Icon(Icons.Outlined.PlayArrow, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("Praticar") }
                         IconButton(onClick = { viewModel.updateSummary(d.copy(isFavorite = false)) }) { Icon(Icons.Outlined.Star, "Tirar dos salvos", tint = Accent) }
                     }
                 }
@@ -331,6 +331,6 @@ fun SavedOnlyPage(viewModel: AppViewModel, topicId: Long, onOpenTheory: (Long, I
         if (t == null) Text("O que você guardou sem um tópico do edital.", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         TopicMarksPanel(viewModel, topicId, onOpenTheory, onOpenTopic)
         TopicSavedPanel(viewModel, topicId, onOpenTheory, onOpenTopic, onTrainFavorites, withMarks = false)
-        if (t != null) OutlinedButton(onClick = { onOpenTopic(topicId) }, Modifier.fillMaxWidth()) { Icon(Icons.Outlined.MenuBook, null); Spacer(Modifier.width(6.dp)); Text("Abrir o tópico") }
+        if (t != null) OutlinedButton(kind = br.com.estudario.ui.brand.NoteKind.Study, onClick = { onOpenTopic(topicId) }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Outlined.MenuBook, null); Spacer(Modifier.width(6.dp)); Text("Abrir o tópico") }
     }
 }

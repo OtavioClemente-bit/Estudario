@@ -11,6 +11,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.*
+import br.com.estudario.ui.brand.IconButton
 import br.com.estudario.ui.brand.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -275,7 +276,7 @@ fun FocusHistoryScreen(viewModel: AppViewModel) {
                 onDismissRequest = { confirmDelete = false },
                 title = { Text("Excluir sessão?") },
                 text = { Text("Ela sai do histórico do foco aqui e no site.") },
-                confirmButton = { TextButton(onClick = { confirmDelete = false; viewModel.deleteFocusSession(session.id) }) { Text("Excluir") } },
+                confirmButton = { TextButton(kind = br.com.estudario.ui.brand.NoteKind.Danger, onClick = { confirmDelete = false; viewModel.deleteFocusSession(session.id) }) { Text("Excluir") } },
                 dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancelar") } },
             )
             val at = Instant.ofEpochMilli(session.startedAt).atZone(zone)

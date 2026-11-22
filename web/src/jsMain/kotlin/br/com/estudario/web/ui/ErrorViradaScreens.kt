@@ -99,7 +99,7 @@ private fun ViradaHelp(onClose: () -> Unit) {
                 H2 { Text("A Virada: erro que vira acerto") }
                 P({ classes("gx-topic") }) { Text("O caderno de erros não é um depósito. Cada erro é uma questão que você ainda vai acertar na prova.") }
             }
-            Button({ classes("gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close") }
+            Button({ classes("nb-ic", "gx-x"); attr("type", "button"); attr("aria-label", "Fechar"); onClick { onClose() } }) { Icon("close") }
         }
         Div({ classes("gx-controls", "solo") }) {
             GxSection("error", "1. Errou, foi para a mesa", "Toda questão que você erra vem para cá sozinha, com o tópico e o motivo do erro.", "#FF5A7A") {}
@@ -173,7 +173,7 @@ fun ViradaScreen() {
             Div({ classes("vr-peek") }) {
                 ErrorVirada.missionByTopic(mission).forEach { (t, n) -> Span { B { Text("$n") }; Text(" · " + (t?.let { topics[it]?.title?.trimEnd('.') } ?: "Erro")) } }
             }
-            Button({ classes("vr-cta"); onClick { ViradaUi.topicId = null; Router.go(Route.ErrorMission) } }) { Icon("replay", filled = true); Text("Começar a virada") }
+            Button({ classes("btn", "k-practice", "vr-cta"); onClick { ViradaUi.topicId = null; Router.go(Route.ErrorMission) } }) { Icon("replay", filled = true); Text("Começar a virada") }
         } else if (all.isNotEmpty()) Div({ classes("vr-card", "vr-mission") }) {
             H3 { Text("Nada vencendo hoje") }
             P { Text("Os erros voltam no dia certo (3, 10 e 30 dias). Quer treinar os que estão na mesa mesmo assim?") }

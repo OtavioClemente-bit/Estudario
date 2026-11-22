@@ -92,7 +92,7 @@ fun DeleteMaterialDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                 )
-                Button(
+                Button(kind = br.com.estudario.ui.brand.NoteKind.Danger,
                     onClick = { onConfirm(includeQuestions); onDismiss() },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError),
                     modifier = Modifier.fillMaxWidth(),

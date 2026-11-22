@@ -168,7 +168,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                         TextButton(onClick = onFinish) { Text("Pular", style = MaterialTheme.typography.labelLarge) }
                         Spacer(Modifier.width(4.dp))
                     }
-                    Button(
+                    Button(kind = br.com.estudario.ui.brand.NoteKind.Next,
                         onClick = { if (isLast) onFinish() else scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } },
                         shape = RoundedCornerShape(18.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
