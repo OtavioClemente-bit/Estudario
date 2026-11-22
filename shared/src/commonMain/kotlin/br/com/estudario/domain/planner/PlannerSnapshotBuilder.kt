@@ -307,6 +307,7 @@ object PlannerSnapshotBuilder {
                 lastSubjectMixBySubject = lastSubjectMix,
                 liveSubjectMixes = liveSubjectMixes,
                 liveTheoryTopics = tasks.filter { it.status in live && it.type == PlanTaskType.THEORY }.mapNotNullTo(hashSetOf()) { it.topicId },
+                liveTheoryDateByTopic = tasks.filter { it.status in live && it.type == PlanTaskType.THEORY && it.topicId != null }.groupBy { it.topicId!! }.mapValues { (_, l) -> l.minOf { it.date } },
                 // Retomada pulada também conta (senão voltava no dia seguinte, todo dia).
                 lastTheoryByTopic = (theoryDone + tasks.filter { it.type == PlanTaskType.THEORY && it.status == PlanTaskStatus.NAO_REALIZADA && it.topicId != null && it.date <= today })
                     .groupBy { it.topicId!! }.mapValues { (_, l) -> l.maxOf { it.date } },

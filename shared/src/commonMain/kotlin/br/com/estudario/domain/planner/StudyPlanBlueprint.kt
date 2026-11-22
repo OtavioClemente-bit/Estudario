@@ -76,6 +76,8 @@ data class BlueprintInput(
     val simuladoFocus: SimuladoFocus? = null,
     /** Tópicos com teoria marcada e ainda não feita. */
     val liveTheoryTopics: Set<Long> = emptySet(),
+    /** Dia da teoria marcada (a mais cedo) de cada tópico com teoria viva. */
+    val liveTheoryDateByTopic: Map<Long, LocalDate> = emptyMap(),
     /** Já tem simulado do plano marcado e ainda não feito. */
     val liveSimulation: Boolean = false,
     /** Matérias que já têm uma revisão de matéria marcada e ainda não feita. */
@@ -142,6 +144,14 @@ object StudyPlanBlueprint {
     private const val MIN_PRACTICE_QUESTIONS = 3
     /** Nem um treino de poucos minutos: abaixo disso a bateria fica para quando houver mais questões. */
     private const val MIN_PRACTICE_MINUTES = 8
+    /** Matéria ativa sem contato há esse tanto de dias passa na frente da fila de conteúdo (rodízio justo). */
+    private const val STARVED_SUBJECT_DAYS = 21
+    /** Ordem da unidade da matéria esquecida: abaixo da faixa das tarefas já marcadas (o motor usa ~-1.002.000 a 0). */
+    private const val STARVED_ORDER_BASE = -3_000_000
+    /** Teoria já marcada da matéria esquecida serve de contato se cair até esse tanto de dias do último contato. */
+    private const val STARVED_CONTACT_LIMIT_DAYS = 30
+    /** Bateria de contato (tópico já lido) quando a matéria esquecida não tem tópico novo a tempo. */
+    private const val STARVED_CONTACT_QUESTIONS = 10
 
     /** A trilha de um tópico, decidida pelo que a pessoa declarou e, acima disso, pelo que as questões mostraram. */
     private enum class Track { FULL, SHORT, DIAGNOSE, COVERED }
@@ -445,8 +455,54 @@ object StudyPlanBlueprint {
 
         // Conteúdo novo na ordem do dia em que cada tópico pode entrar; no mesmo dia, a matéria de mais
         // peso primeiro. A âncora segura cada tópico no dia dele: o motor não adianta conteúdo novo.
-        val ordered = anchoredUnits.sortedWith(compareBy<Triple<LocalDate, Int, List<TaskDemand>>> { it.first }.thenByDescending { it.second })
-        ordered.forEach { (_, _, unit) -> unit.forEach { demand -> demands += demand.copy(order = next()) } }
+        //
+        // Rodízio justo: com pouco tempo a fila de conteúdo estoura e a matéria de menos peso sempre perdia
+        // (sumia por 100+ dias). Matéria sem nenhum contato (teoria, questões ou revisão de matéria) há
+        // STARVED_SUBJECT_DAYS ou mais tem o próximo tópico dela (a unidade inteira: teoria e depois as questões
+        // do mesmo tópico) trazido para hoje e posto na frente da fila; o resto segue data e peso. Como a unidade
+        // anda inteira, a questão continua depois da teoria; o resto da matéria segue o ritmo de sempre.
+        // Se a matéria já tem teoria marcada a tempo, é ela que dá o contato; se a teoria marcada está longe
+        // demais (ou não há tópico novo), o contato é uma bateria curta de questões de um tópico já LIDO dela
+        // (nunca de tópico sem teoria), o que foi treinado há mais tempo.
+        val starvedGap = mutableMapOf<Long, Int>()
+        val contactDemands = mutableListOf<TaskDemand>()
+        if (contentDays > 0) activeSubjects.forEach { subject ->
+            val subjectTopics = topicsBySubject[subject.subjectId].orEmpty()
+            val ids = subjectTopics.map { it.topicId }
+            val last = (listOfNotNull(input.lastTheoryBySubject[subject.subjectId], input.lastSubjectMixBySubject[subject.subjectId]) +
+                ids.mapNotNull { input.lastPracticeByTopic[it] } + ids.mapNotNull { input.lastTheoryByTopic[it] }).maxOrNull() ?: input.planStart
+            val gap = daysBetween(last, input.today).toInt()
+            if (gap < STARVED_SUBJECT_DAYS) return@forEach
+            val liveDate = ids.mapNotNull { input.liveTheoryDateByTopic[it] }.minOrNull()
+            if (liveDate != null && daysBetween(last, liveDate) <= STARVED_CONTACT_LIMIT_DAYS) return@forEach
+            val hasUnit = liveDate == null && anchoredUnits.any { u -> u.third.first().subjectId == subject.subjectId && u.third.any { it.type == PlanTaskType.THEORY } }
+            if (hasUnit) { starvedGap[subject.subjectId] = gap; return@forEach }
+            val read = subjectTopics.filter { t ->
+                t.studied && t.topicId in input.lastTheoryByTopic && t.topicId !in input.liveTheoryTopics
+            }
+            // Já há treino marcado de um tópico lido: ele dá o contato (sem bateria a mais).
+            if (read.any { (it.topicId to PlanTaskType.QUESTIONS) in input.occupied }) return@forEach
+            val topic = read.minByOrNull { input.lastPracticeByTopic[it.topicId] ?: input.lastTheoryByTopic.getValue(it.topicId) } ?: return@forEach
+            val quantidade = topic.questionCap?.let { minOf(STARVED_CONTACT_QUESTIONS, it) } ?: STARVED_CONTACT_QUESTIONS
+            if (quantidade < MIN_PRACTICE_QUESTIONS || quantidade * config.minutesPerQuestion < MIN_PRACTICE_MINUTES) return@forEach
+            contactDemands += TaskDemand(
+                id = "contact:${topic.topicId}", subjectId = subject.subjectId, topicId = topic.topicId,
+                type = PlanTaskType.QUESTIONS, minutes = quantidade * config.minutesPerQuestion, questions = quantidade,
+                priority = subject.priority, subjectPosition = subject.position, topicPosition = topic.position,
+            )
+            questionsPlanned += quantidade * config.minutesPerQuestion
+        }
+        contactDemands.forEach { demands += it.copy(order = STARVED_ORDER_BASE + next()) }
+        val starvedUnits = anchoredUnits.filter { u -> u.third.first().subjectId in starvedGap && u.third.any { it.type == PlanTaskType.THEORY } }
+            .groupBy { it.third.first().subjectId }.values.map { l -> l.minBy { it.first } }.toSet()
+        val rescued = anchoredUnits.filter { it in starvedUnits }
+            .sortedWith(compareByDescending<Triple<LocalDate, Int, List<TaskDemand>>> { starvedGap.getValue(it.third.first().subjectId) }.thenByDescending { it.second })
+            .map { Triple(input.today, it.second, it.third.map { d -> d.copy(anchorDate = null) }) }
+        val regular = anchoredUnits.filter { it !in starvedUnits }.sortedWith(compareBy<Triple<LocalDate, Int, List<TaskDemand>>> { it.first }.thenByDescending { it.second })
+        val ordered = rescued + regular
+        // A unidade da matéria esquecida vem antes até do que já estava marcado (que anda um pouco para a frente).
+        rescued.forEach { (_, _, unit) -> unit.forEach { demand -> demands += demand.copy(order = STARVED_ORDER_BASE + next()) } }
+        regular.forEach { (_, _, unit) -> unit.forEach { demand -> demands += demand.copy(order = next()) } }
         val subjectsAdvancing = ordered.map { it.third.first().subjectId }.distinct().size
         if (ordered.isNotEmpty()) {
             notes += "$subjectsAdvancing matéria(s) avançando no período, cada uma no ritmo de fechar antes da reta final (as de mais peso primeiro)."
