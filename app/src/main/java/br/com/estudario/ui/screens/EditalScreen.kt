@@ -231,11 +231,12 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
                 val allTopics = topics.filter { t -> selectedSubjects.any { it.id == t.subjectId } }
                 val withContent = allTopics.count { it.id in contentTopicIds }
                 val studied = allTopics.count { it.status != TopicStatus.NAO_ESTUDADO }
-                Surface(shape = EstudarioShapes.spotlight, color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.fillMaxWidth()) {
+                // Cartão de capa do concurso: índigo da marca com texto claro (antes ficava um quadrado branco).
+                Surface(shape = EstudarioShapes.spotlight, color = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(verticalAlignment = Alignment.Top) {
-                            Text(selectedCompetition?.name ?: "", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer, maxLines = 3)
-                            IconButton(onClick = { competitionMenu = selectedCompetition }) { Icon(Icons.Outlined.MoreVert, "Opções do concurso", tint = MaterialTheme.colorScheme.onPrimaryContainer) }
+                            Text(selectedCompetition?.name ?: "", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary, maxLines = 3)
+                            IconButton(onClick = { competitionMenu = selectedCompetition }) { Icon(Icons.Outlined.MoreVert, "Opções do concurso", tint = MaterialTheme.colorScheme.onPrimary) }
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                             EditalStat("${selectedSubjects.size}", "matérias")
@@ -243,11 +244,11 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
                             EditalStat("$withContent", "com material")
                             EditalStat("$studied", "estudados")
                         }
-                        ProgressLine(if (allTopics.isEmpty()) 0f else withContent.toFloat() / allTopics.size, MaterialTheme.colorScheme.primary)
+                        ProgressLine(if (allTopics.isEmpty()) 0f else withContent.toFloat() / allTopics.size, Color(0xFFFFC94A), MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.25f))
                         Text(
-                            if (withContent < allTopics.size) "Abra um tópico e toque em Gerar: o Estudário escreve a teoria, os flashcards e as questões dele."
+                            if (withContent < allTopics.size) "Toque num tópico para gerar a teoria, os flashcards e as questões dele."
                             else "Todo o edital tem material. Agora é estudar e treinar.",
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimary,
                         )
                     }
                 }
@@ -313,8 +314,8 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
 @Composable
 private fun EditalStat(value: String, label: String) {
     Column {
-        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimary)
     }
 }
 
@@ -462,11 +463,6 @@ private fun TopicRow(topic: TopicEntity, depth: Int, viewModel: AppViewModel, ha
                 style = MaterialTheme.typography.labelSmall,
                 color = if (hasContent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
-        if (!hasContent && childCount == 0) {
-            FilledTonalButton(onClick = onGenerateContent, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp), modifier = Modifier.height(34.dp)) {
-                br.com.estudario.ui.assistant.Folha(22.dp); Spacer(Modifier.width(4.dp)); Text("Gerar", style = MaterialTheme.typography.labelMedium)
-            }
         }
         IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "Opções do tópico") }
     }

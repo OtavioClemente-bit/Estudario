@@ -12,5 +12,6 @@ fun main() {
     if (kotlinx.browser.window.location.hash.startsWith("#demo") || kotlinx.browser.window.location.search.contains("demo")) Store.startDemo() else Store.start()
     // Tira o "Carregando…" do HTML antes de desenhar o app no mesmo lugar.
     kotlinx.browser.document.getElementById("root")?.innerHTML = ""
+    br.com.estudario.web.ui.installNoteStamp()
     renderComposable(rootElementId = "root") { App() }
 }

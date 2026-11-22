@@ -35,6 +35,7 @@ fun Icon(
     modifier: Modifier = Modifier,
     tint: Color = Color.Unspecified,
 ) {
+    if (LocalNoteRail.current) return
     val glyph = glyphFor(imageVector.name)
     if (glyph == null) {
         androidx.compose.material3.Icon(imageVector, contentDescription, modifier, if (tint.isSpecified) tint else LocalContentColor.current)
@@ -54,12 +55,16 @@ fun Icon(
 }
 
 @Composable
-fun Icon(painter: Painter, contentDescription: String?, modifier: Modifier = Modifier, tint: Color = LocalContentColor.current) =
+fun Icon(painter: Painter, contentDescription: String?, modifier: Modifier = Modifier, tint: Color = LocalContentColor.current) {
+    if (LocalNoteRail.current) return
     androidx.compose.material3.Icon(painter, contentDescription, modifier, tint)
+}
 
 @Composable
-fun Icon(bitmap: ImageBitmap, contentDescription: String?, modifier: Modifier = Modifier, tint: Color = LocalContentColor.current) =
+fun Icon(bitmap: ImageBitmap, contentDescription: String?, modifier: Modifier = Modifier, tint: Color = LocalContentColor.current) {
+    if (LocalNoteRail.current) return
     androidx.compose.material3.Icon(bitmap, contentDescription, modifier, tint)
+}
 
 private fun isGrey(color: Color): Boolean {
     val hi = max(color.red, max(color.green, color.blue))

@@ -60,6 +60,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -387,8 +388,6 @@ internal fun PlanActionBar(
     onClick: () -> Unit,
 ) {
     val tone by animateColorAsState(color, tween(450), label = "cta")
-    val shine = rememberInfiniteTransition(label = "shine")
-    val sweep by shine.animateFloat(-0.4f, 1.4f, infiniteRepeatable(tween(2200, delayMillis = 600, easing = LinearEasing)), label = "sweep")
     val press = remember { MutableInteractionSource() }
     Column(
         Modifier
@@ -398,32 +397,21 @@ internal fun PlanActionBar(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(58.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .background(if (enabled) tone else tone.copy(alpha = 0.45f))
-                .drawBehind {
-                    if (enabled) {
-                        val x = size.width * sweep
-                        drawRect(
-                            Brush.linearGradient(
-                                listOf(Color.Transparent, Color.White.copy(alpha = 0.28f), Color.Transparent),
-                                start = Offset(x - 120f, 0f), end = Offset(x + 120f, size.height),
-                            ),
-                        )
-                    }
-                }
-                .clickable(interactionSource = press, indication = null, enabled = enabled && !busy, onClick = onClick),
-            contentAlignment = Alignment.Center,
+        // O botão folha de "assinar" (gema), na cor do plano escolhido.
+        val night = br.com.estudario.ui.brand.isCadernoNight()
+        val ink = if (tone.luminance() > 0.5f) Color(0xFF26234A) else Color.White
+        br.com.estudario.ui.brand.NoteSurface(
+            kind = br.com.estudario.ui.brand.NoteKind.Subscribe, size = br.com.estudario.ui.brand.NoteSize.Block,
+            enabled = enabled && !busy, glyph = br.com.estudario.ui.brand.Glyph.Gem, onClick = onClick,
+            modifier = Modifier.fillMaxWidth(), contentDescription = null, interactionSource = press, rail = null,
+            paletteOverride = br.com.estudario.ui.brand.notePalette(br.com.estudario.ui.brand.NoteKind.Subscribe, night).copy(face = tone, ink = ink),
         ) {
-            if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.5.dp, color = Color.White)
+            if (busy) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.5.dp, color = ink)
             else AnimatedContent(
                 targetState = label,
                 transitionSpec = { (slideInVertically { it / 2 } + fadeIn()) togetherWith (slideOutVertically { -it / 2 } + fadeOut()) },
                 label = "ctaLabel",
-            ) { text -> Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = Color.White) }
+            ) { text -> Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = ink, maxLines = 1) }
         }
         if (sublabel != null) Text(sublabel, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
     }

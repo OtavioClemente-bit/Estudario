@@ -498,27 +498,20 @@ fun GxSwitchRow(title: String, subtitle: String, checked: Boolean, onChange: (Bo
 /** O botão de lançar: grande, em degradê, com brilho correndo e o desenho da turma. */
 @Composable
 fun GxLaunch(label: String, glyph: Glyph = Glyph.Pencil, enabled: Boolean = true, modifier: Modifier = Modifier.fillMaxWidth(), colors: List<Color> = listOf(GxPen), ink: Color = Color.White, onClick: () -> Unit) {
-    // o brilho é lido só no desenho, numa camada própria: antes refazia a tela inteira a cada quadro
-    val run = rememberInfiniteTransition(label = "gx-brilho").animateFloat(-0.3f, 1.3f, infiniteRepeatable(tween(3_200, easing = LinearEasing)), label = "gx-brilho-x")
-    val shape = RoundedCornerShape(18.dp)
-    Box(
-        modifier.heightIn(min = 58.dp).gxClick(enabled = enabled, onClick = onClick)
-            .gxCut(GxCutTile, if (enabled) colors.first() else Gx.off, shadow = if (enabled) 4.dp else 0.dp)
-            .graphicsLayer()
-            .drawWithContent {
-                drawContent()
-                if (enabled) {
-                    val x = size.width * run.value
-                    drawRect(Brush.linearGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.35f), Color.Transparent), Offset(x - 60f, 0f), Offset(x + 60f, size.height)))
-                }
-            },
-        contentAlignment = Alignment.Center,
+    // Agora é o botão folha de caderno, como o resto do app: o desenho vai na faixa, a cor é a do lançador.
+    val kind = when (glyph) {
+        Glyph.Target -> br.com.estudario.ui.brand.NoteKind.Practice
+        Glyph.Timer -> br.com.estudario.ui.brand.NoteKind.Simulado
+        Glyph.Cards -> br.com.estudario.ui.brand.NoteKind.Review
+        else -> br.com.estudario.ui.brand.NoteKind.Primary
+    }
+    val night = br.com.estudario.ui.brand.isCadernoNight()
+    br.com.estudario.ui.brand.NoteSurface(
+        kind = kind, size = br.com.estudario.ui.brand.NoteSize.Block, enabled = enabled, glyph = glyph, onClick = onClick,
+        modifier = modifier, contentDescription = null, interactionSource = null, rail = null,
+        paletteOverride = br.com.estudario.ui.brand.notePalette(kind, night).copy(face = colors.first(), ink = ink),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 20.dp)) {
-            BrandIcon(glyph, size = 30.dp, muted = !enabled)
-            Spacer(Modifier.width(10.dp))
-            Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = if (enabled) ink else Gx.mute, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
+        Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

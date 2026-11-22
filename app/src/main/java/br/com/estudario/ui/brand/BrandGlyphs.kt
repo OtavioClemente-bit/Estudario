@@ -41,6 +41,7 @@ enum class Glyph {
 
 @Composable
 fun BrandIcon(glyph: Glyph, modifier: Modifier = Modifier, size: Dp = 28.dp, muted: Boolean = false) {
+    if (LocalNoteRail.current) return
     // Aqui o cinza é aba fora de foco ou item não escolhido, não algo desligado: o toque anima também.
     Canvas(modifier.size(size).turmaMotion(glyph)) { drawGlyph(glyph, muted) }
 }

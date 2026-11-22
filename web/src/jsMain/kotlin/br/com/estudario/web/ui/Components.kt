@@ -68,13 +68,14 @@ fun Btn(
     val latestClick = androidx.compose.runtime.rememberUpdatedState(onClick)
     val latestEnabled = androidx.compose.runtime.rememberUpdatedState(enabled)
     val k = kind ?: noteKind(style, label)
+    val railIcon = noteIcon(k, icon, label)
     Button({
         type(ButtonType.Button)
         classes(*listOfNotNull("btn", style, "k-$k", if (small) "small" else null, size, if (block) "block" else null).toTypedArray())
         if (!enabled) disabled()
         onClick { if (latestEnabled.value) latestClick.value() }
     }) {
-        if (icon != null) Icon(icon)
+        if (railIcon != null) Icon(railIcon)
         Text(label)
     }
 }
