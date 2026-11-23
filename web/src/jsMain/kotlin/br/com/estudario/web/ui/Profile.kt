@@ -855,7 +855,7 @@ fun PlanLimitsScreen() {
         }
     }
     WebSubscriptionBox()
-    P({ classes("pl-fine") }) { Text("Pague aqui pelo Mercado Pago (cartão ou Pix) ou no app Android, pela Google Play. Vale na hora na mesma conta, no celular e aqui no site.") }
+    P({ classes("pl-fine") }) { Text(if (WebBilling.SITE_PAYMENT_OPEN) "Pague aqui pelo Mercado Pago (cartão ou Pix) ou no app Android, pela Google Play. Vale na hora na mesma conta, no celular e aqui no site." else "Assine no app Android, pela Google Play: vale na hora na mesma conta, no celular e aqui no site. Cartão e Pix pelo site chegam em breve.") }
 
     // ---------- a comparação completa
     Div({ classes("pl-section-head") }) { org.jetbrains.compose.web.dom.H2 { Text("Tudo o que cada plano tem") } }

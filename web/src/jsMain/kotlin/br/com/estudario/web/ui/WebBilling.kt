@@ -38,6 +38,12 @@ import org.jetbrains.compose.web.dom.Text
  * que consulta o Mercado Pago.
  */
 object WebBilling {
+    /**
+     * Cartão e Pix pelo site (Mercado Pago). Desligado enquanto o servidor usa as credenciais de teste
+     * (pessoas reais viam "uma das partes é de teste"). Ligar quando MP_ACCESS_TOKEN for o de produção.
+     */
+    const val SITE_PAYMENT_OPEN = false
+
     class Sub(val id: String, val kind: String, val tier: String, val period: String, val state: String, val expiresAt: String?, val autoRenewing: Boolean, val amountCents: Int?)
     class Result(val planTier: String?, val subs: List<Sub>, val error: String?, val url: String?)
 
@@ -112,16 +118,20 @@ fun PayChooser(tier: String, yearly: Boolean, planName: String, priceText: Strin
                 Icon("shop")
                 Span { B { Text("Google Play") }; Span { Text("No app Android. Cobrança e cancelamento pela Play.") } }
             }
-            Button({ classes("pay-opt"); if (busy != null) attr("disabled", ""); onClick { go("card") } }) {
-                Icon("credit_card")
-                Span { B { Text(if (busy == "card") "Abrindo…" else "Cartão de crédito") }; Span { Text(if (yearly) "Renova sozinho a cada ano. Cancela quando quiser." else "Renova sozinho todo mês. Cancela quando quiser.") } }
+            if (WebBilling.SITE_PAYMENT_OPEN) {
+                Button({ classes("pay-opt"); if (busy != null) attr("disabled", ""); onClick { go("card") } }) {
+                    Icon("credit_card")
+                    Span { B { Text(if (busy == "card") "Abrindo…" else "Cartão de crédito") }; Span { Text(if (yearly) "Renova sozinho a cada ano. Cancela quando quiser." else "Renova sozinho todo mês. Cancela quando quiser.") } }
+                }
+                Button({ classes("pay-opt"); if (busy != null) attr("disabled", ""); onClick { go("once") } }) {
+                    Icon("pix")
+                    Span { B { Text(if (busy == "once") "Abrindo…" else "Pix ou pagamento único") }; Span { Text(if (yearly) "Paga uma vez e vale 1 ano. Não renova sozinho." else "Paga uma vez e vale 1 mês. Não renova sozinho.") } }
+                }
+                error?.let { P({ classes("pay-err") }) { Text(it) } }
+                P({ classes("pay-fine") }) { Text("Pagamento seguro pelo Mercado Pago. O Estudário não vê os dados do seu cartão.") }
+            } else {
+                P({ classes("pay-fine") }) { Text("Pagamento com cartão ou Pix aqui pelo site chega em breve.") }
             }
-            Button({ classes("pay-opt"); if (busy != null) attr("disabled", ""); onClick { go("once") } }) {
-                Icon("pix")
-                Span { B { Text(if (busy == "once") "Abrindo…" else "Pix ou pagamento único") }; Span { Text(if (yearly) "Paga uma vez e vale 1 ano. Não renova sozinho." else "Paga uma vez e vale 1 mês. Não renova sozinho.") } }
-            }
-            error?.let { P({ classes("pay-err") }) { Text(it) } }
-            P({ classes("pay-fine") }) { Text("Pagamento seguro pelo Mercado Pago. O Estudário não vê os dados do seu cartão.") }
             Button({ classes("btn", "small", "k-paper"); onClick { onDismiss() } }) { Text("Voltar") }
         }
     }

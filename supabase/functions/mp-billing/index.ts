@@ -145,7 +145,8 @@ async function handle(request: Request): Promise<Response> {
           auto_return: "approved",
           notification_url: notify,
           statement_descriptor: "ESTUDARIO",
-          payment_methods: { installments: period === "YEAR" ? 12 : 1 },
+          // sem boleto (e sem lotérica): demora dias para compensar; ficam Pix e cartão
+          payment_methods: { installments: period === "YEAR" ? 12 : 1, excluded_payment_types: [{ id: "ticket" }, { id: "atm" }] },
         }),
       });
       const p = await r.json() as Record<string, unknown>;
