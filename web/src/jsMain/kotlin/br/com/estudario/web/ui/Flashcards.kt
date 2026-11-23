@@ -55,7 +55,7 @@ fun PaperFlashCard(
         Div({ classes("pcard-inner") }) {
             Div({ classes("pcard-face", "front") }) {
                 Div({ classes("pcard-top") }) { Span({ classes("pcard-tag") }) { tagIcon?.let { Icon(it, filled = true) }; Text(frontTag) }; if (count.isNotBlank()) Span({ classes("pcard-num") }) { Text(count) } }
-                Div({ classes("pcard-q") }) { Inline(front) }
+                Div({ classes("pcard-q") }) { Span({ classes("pcard-q-t") }) { Inline(front) } }
                 Span({ classes("pcard-hint") }) { Icon("touch_app"); Text(hint) }
             }
             Div({ classes("pcard-face", "back") }) {
