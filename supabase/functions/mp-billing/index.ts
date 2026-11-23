@@ -61,6 +61,19 @@ async function handle(request: Request): Promise<Response> {
       return json({ mp: r.status, prefix: t.slice(0, 8), length: t.length, nickname: me.nickname ?? null, site: me.site_id ?? null, test: Array.isArray(me.tags) ? (me.tags as string[]).includes("test_user") : null, message: me.message ?? null });
     }
 
+    if (action === "recent") {
+      // pagamentos recentes DESTA conta no Mercado Pago (pela referência), e já grava o que achar
+      const r = await mp(`/v1/payments/search?sort=date_created&criteria=desc&limit=20`);
+      const body = await r.json() as { results?: Record<string, any>[] };
+      const mine = (body.results ?? []).filter((p) => String(p.external_reference ?? "").includes(userId));
+      for (const p of mine) await syncPayment(String(p.id));
+      return json({
+        mp: r.status,
+        payments: mine.map((p) => ({ id: p.id, status: p.status, detail: p.status_detail, ref: String(p.external_reference).split("|")[0], amount: p.transaction_amount })),
+        planTier: await profileTier(userId), subscriptions: await subscriptions(userId),
+      });
+    }
+
     if (action === "status") {
       return json({ planTier: await profileTier(userId), subscriptions: await subscriptions(userId) });
     }
@@ -118,6 +131,7 @@ async function handle(request: Request): Promise<Response> {
         });
         const p = await r.json() as Record<string, unknown>;
         if (!r.ok || !p.init_point) { console.error("mp-billing preapproval", r.status, JSON.stringify(p)); return json({ error: { code: "CHECKOUT_FAILED", message: "Não deu para abrir o pagamento agora.", mp: { status: r.status, message: p.message, error: p.error, cause: p.cause } } }, 502); }
+        // credenciais de teste atuais: mesmo checkout, logado com a compradora de teste
         return json({ url: p.init_point });
       }
 
@@ -136,7 +150,8 @@ async function handle(request: Request): Promise<Response> {
       });
       const p = await r.json() as Record<string, unknown>;
       if (!r.ok || !p.init_point) { console.error("mp-billing preference", r.status, JSON.stringify(p)); return json({ error: { code: "CHECKOUT_FAILED", message: "Não deu para abrir o pagamento agora.", mp: { status: r.status, message: p.message, error: p.error, cause: p.cause } } }, 502); }
-      return json({ url: p.init_point });
+      // credenciais de teste atuais: mesmo checkout, logado com a compradora de teste
+        return json({ url: p.init_point });
     }
 
     return fail("INVALID_ACTION", 400);

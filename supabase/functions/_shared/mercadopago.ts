@@ -138,6 +138,9 @@ export async function validSignature(request: Request, dataId: string): Promise<
   const secret = Deno.env.get("MP_WEBHOOK_SECRET")?.trim();
   if (!secret) return true; // sem segredo, a segurança vem de reconsultar tudo na API
   const header = request.headers.get("x-signature") ?? "";
+  // Aviso no formato antigo (IPN, do notification_url) vem sem assinatura: aceita, porque todo
+  // estado é reconsultado na API. Só recusa assinatura presente e errada.
+  if (!header) return true;
   const parts = Object.fromEntries(header.split(",").map((kv) => kv.trim().split("=", 2) as [string, string]));
   if (!parts.ts || !parts.v1) return false;
   const manifest = `id:${dataId.toLowerCase()};request-id:${request.headers.get("x-request-id") ?? ""};ts:${parts.ts};`;
