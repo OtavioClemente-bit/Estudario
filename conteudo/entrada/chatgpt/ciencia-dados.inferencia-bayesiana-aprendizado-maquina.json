@@ -1,0 +1,1866 @@
+{
+  "id": "ciencia-dados.inferencia-bayesiana-aprendizado-maquina",
+  "subject": "Ciência de Dados",
+  "title": "Inferência bayesiana e modelos probabilísticos",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Inferência bayesiana e modelos probabilísticos",
+    "Inferência bayesiana e modelos probabilísticos em aprendizado de máquina"
+  ],
+  "scope": {
+    "covers": "Teorema de Bayes; priori, verossimilhança, posteriori, preditiva e decisão; conjugação Beta–Binomial, Dirichlet–Multinomial, Poisson–Gama forma–taxa com exposições e binomial negativa preditiva; Normal–Normal com variância conhecida e cálculo por precisões; Naive Bayes, grafos, HMM, misturas, EM, processos gaussianos; MCMC/HMC/NUTS, inferência variacional, Laplace, modelos hierárquicos; calibração, diagnóstico, incerteza, uso em aprendizado de máquina.",
+    "excludes": "Demonstrações avançadas de medida e integração; provas assintóticas gerais; arquiteturas profundas específicas, implementações extensas e tuning de hardware."
+  },
+  "theoryTitle": "Inferência bayesiana e modelos probabilísticos: teoria, modelos conjugados e aplicações",
+  "chapters": [
+    {
+      "title": "Fundamentos da inferência bayesiana e probabilidade condicional",
+      "markdown": "## 1. Probabilidade como instrumento de inferência\n\nA inferência bayesiana atualiza o conhecimento sobre quantidades desconhecidas à luz de observações. Dados \\(D\\), parâmetro \\(\\theta\\), distribuição prévia *a priori* \\(p(\\theta)\\), verossimilhança \\(p(D\\mid\\theta)\\) e distribuição *a posteriori* \\(p(\\theta\\mid D)\\) são os elementos essenciais. Pelo teorema de Bayes,\n\n\\[\np(\\theta\\mid D)=\\frac{p(D\\mid\\theta)p(\\theta)}{p(D)},\\qquad\np(D)=\\int p(D\\mid\\theta)p(\\theta)\\,d\\theta.\n\\]\n\nO termo \\(p(D)\\), chamado de evidência ou verossimilhança marginal, normaliza a posteriori; em espaços discretos, usa-se soma. Para encontrar apenas a forma da posteriori, frequentemente basta escrever \\(p(\\theta\\mid D)\\propto p(D\\mid\\theta)p(\\theta)\\). Essa proporcionalidade não autoriza ignorar a constante quando se quer uma densidade normalizada ou comparar evidências de modelos.\n\n### 1.1 Condicionalidade, verossimilhança e informação\n\nVerossimilhança não é, em geral, uma distribuição de probabilidade sobre \\(\\theta\\): é a função \\(p(D\\mid\\theta)\\) avaliada como função do parâmetro, para dados fixos. O fato de uma hipótese oferecer grande verossimilhança aos dados não significa, isoladamente, que a hipótese tenha grande probabilidade a posteriori; importam a prévia e todas as hipóteses concorrentes. Para hipóteses discretas \\(H_1,H_0\\), as chances posteriores são as chances anteriores multiplicadas pela razão de verossimilhanças. Para eventos \\(A,B\\), a identidade \\(P(A\\mid B)=P(B\\mid A)P(A)/P(B)\\) depende de \\(P(B)>0\\). Confundir \\(P(A\\mid B)\\) com \\(P(B\\mid A)\\) é a inversão da condicional, um erro clássico de concurso.\n\nA escolha de uma distribuição prévia pode representar experiência anterior, restrições físicas ou regularização. Prévia informativa concentra massa em faixas plausíveis; prévia fracamente informativa evita parâmetros extremos sem impor valores muito estreitos. Prévia dita não informativa não é invariável sob toda reparametrização nem isenta de pressupostos. Uma prévia imprópria não integra para 1; só se pode obter inferência probabilística quando a posteriori resultante é própria, e evidências de modelo podem deixar de ser bem definidas.\n\n### 1.2 Resumos posteriores e decisões\n\nA posteriori não equivale a um único número. Média posterior minimiza a perda quadrática esperada; mediana posterior minimiza perda absoluta; estimativa MAP maximiza a densidade posterior, dependendo da parametrização. Um intervalo de credibilidade de 95% contém, por construção, 95% da probabilidade posterior do parâmetro sob o modelo e dados observados. Ele não deve ser identificado mecanicamente com o intervalo de confiança frequentista, cujo enunciado formal se refere à cobertura do procedimento em repetições hipotéticas da amostragem.\n\nA inferência preditiva integra a incerteza paramétrica: \\(p(\\tilde y\\mid D)=\\int p(\\tilde y\\mid\\theta)p(\\theta\\mid D)\\,d\\theta\\). Essa mistura distingue a previsão completa da simples substituição de \\(\\theta\\) por uma estimativa pontual. Em problemas decisórios, uma ação \\(a\\) é escolhida para minimizar \\(\\mathbb E[L(a,\\theta)\\mid D]\\); nem sempre a ação ótima coincide com o parâmetro mais provável.\n\n### 1.3 Fluxo de trabalho e alertas\n\nO fluxo sólido é: definir mecanismo gerador, declarar unidades e escala dos parâmetros, escolher prioris, verificar plausibilidade preditiva *a priori*, atualizar com dados, investigar ajustes e sensibilidade, avaliar previsões fora da amostra e explicitar decisões. A estatística bayesiana não elimina vieses de seleção, erros de medição, confusão causal nem mudança de distribuição. Ela condiciona conclusões ao modelo que foi especificado. Em classificação, a frequência-base de uma classe altera substancialmente o valor preditivo de um teste; alta sensibilidade não implica necessariamente alta probabilidade de ocorrência do evento quando ele é raro."
+    },
+    {
+      "title": "Conjugação discreta e modelo Poisson–Gama",
+      "markdown": "## 2. Família conjugada: quando a posteriori conserva a forma\n\nUma prévia é conjugada a determinada função de verossimilhança quando a posteriori pertence à mesma família de distribuições. Isso simplifica o cálculo e permite atualizações sequenciais por estatísticas suficientes. Conjugação é propriedade de um **par de modelo e prévia**, não característica isolada da distribuição observada. Ela facilita a álgebra, mas não garante adequação substantiva da prévia nem validade do mecanismo amostral.\n\n### 2.1 Bernoulli–Beta e Binomial–Beta\n\nSuponha \\(X_i\\mid p\\sim \\operatorname{Bernoulli}(p)\\), condicionalmente independentes, com \\(p\\sim\\operatorname{Beta}(\\alpha,\\beta)\\). Se houver \\(s\\) sucessos e \\(f\\) fracassos, \\(p\\mid D\\sim\\operatorname{Beta}(\\alpha+s,\\beta+f)\\). A média posterior é \\((\\alpha+s)/(\\alpha+\\beta+s+f)\\), enquanto a média prévia é \\(\\alpha/(\\alpha+\\beta)\\). Em uma nova tentativa, a probabilidade preditiva de sucesso coincide com a média posterior de \\(p\\). Por exemplo, Beta(2,2), seguida de 3 sucessos e 1 fracasso, produz Beta(5,3), média 5/8.\n\nA conjugação se estende às contagens multinomiais por meio da distribuição Dirichlet: se \\(\\boldsymbol\\pi\\sim\\operatorname{Dirichlet}(\\alpha_1,\\ldots,\\alpha_K)\\), a posteriori atualiza cada componente com a contagem \\(n_k\\). A distribuição das probabilidades é conjunta, pois \\(\\sum_k\\pi_k=1\\); tratá-las como proporções independentes livres viola a restrição do simplex.\n\n### 2.2 Poisson–Gama com **taxa**, não escala\n\nDefina cuidadosamente a parametrização: \\(\\lambda\\sim\\operatorname{Gama}(\\alpha,\\beta)\\), em que \\(\\alpha>0\\) é o parâmetro de **forma** e \\(\\beta>0\\) o parâmetro de **taxa** (*rate*). A densidade é proporcional a \\(\\lambda^{\\alpha-1}e^{-\\beta\\lambda}\\), sua média é \\(\\alpha/\\beta\\) e a variância é \\(\\alpha/\\beta^2\\). Se \\(Y_i\\mid\\lambda\\sim\\operatorname{Poisson}(\\lambda)\\), de maneira independente, com \\(n\\) exposições unitárias, então\n\n\\[\n\\lambda\\mid y_1,\\ldots,y_n\\sim\\operatorname{Gama}\\left(\\alpha+\\sum_i y_i,\\ \\beta+n\\right).\n\\]\n\nO motivo é multiplicar \\(\\lambda^{\\alpha-1}e^{-\\beta\\lambda}\\) pelo núcleo da verossimilhança \\(\\lambda^{\\sum y_i}e^{-n\\lambda}\\). A soma observada atualiza a forma; o número de períodos de exposição atualiza a taxa. Exemplo: Gama(2,1), quatro contagens 1, 0, 2, 3; a posteriori é Gama(8,5), média 1,6 e variância 8/25.\n\nPara exposições conhecidas \\(t_i>0\\), \\(Y_i\\mid\\lambda\\sim\\operatorname{Poisson}(\\lambda t_i)\\), a atualização é **Gama(\\(\\alpha+\\sum y_i,\\beta+\\sum t_i\\))**. Uma observação sem evento ainda informa sobre a taxa se houve tempo sob risco. A prévia não precisa ser chamada de equivalente a um número literal de observações sem ressalvas: a interpretação depende da unidade de tempo e da parametrização.\n\n### 2.3 Distribuição preditiva da contagem\n\nPara exposição futura \\(t\\), \\(Y_{\\mathrm{novo}}\\mid\\lambda\\sim\\operatorname{Poisson}(t\\lambda)\\). Misturar Poisson com posteriori Gama(\\(a,b\\)) produz uma **binomial negativa**: \\(P(Y_{\\mathrm{novo}}=k\\mid D)=\\frac{\\Gamma(a+k)}{\\Gamma(a)k!}(\\frac b{b+t})^a(\\frac t{b+t})^k\\), \\(k=0,1,\\ldots\\). Sua média é \\(at/b\\) e variância é \\(at/b+a(t/b)^2\\), maior que a média quando \\(a,t,b\\) são finitos positivos. O excesso de variância traduz incerteza sobre \\(\\lambda\\), não necessariamente um novo mecanismo de contagem.\n\n### 2.4 Cuidado com bibliotecas\n\nAlgumas APIs parametrizam Gama por **escala** \\(s=1/\\beta\\), e não taxa. Em `scipy.stats.gamma`, usa-se `scale=1/beta` para representar Gama de taxa \\(\\beta\\); confundir `scale=beta` com `rate=beta` troca a média por um fator. Também se deve distinguir a taxa de um processo Poisson do parâmetro de probabilidade de sucesso usado em variantes da binomial negativa. Todas as fórmulas devem explicitar unidades, hipóteses de independência condicional e intervalo de exposição."
+    },
+    {
+      "title": "Modelo Normal–Normal e inferência gaussiana",
+      "markdown": "## 3. Modelo Normal–Normal: precisão e ponderação de informações\n\nO par Normal–Normal é conjugado quando a variância observacional é **conhecida**. Considere \\(X_i\\mid\\mu\\sim\\mathcal N(\\mu,\\sigma^2)\\), independentes condicionalmente a \\(\\mu\\), e a prévia \\(\\mu\\sim\\mathcal N(\\mu_0,\\tau_0^2)\\). A média desconhecida \\(\\mu\\) recebe a posteriori normal:\n\n\\[\n\\tau_n^2=\\left(\\frac1{\\tau_0^2}+\\frac n{\\sigma^2}\\right)^{-1},\\qquad\n\\mu_n=\\tau_n^2\\left(\\frac{\\mu_0}{\\tau_0^2}+\\frac{n\\bar x}{\\sigma^2}\\right).\n\\]\n\nA expressão aparece naturalmente pela soma das **precisões**: precisão é o inverso da variância, não do desvio-padrão. A precisão posterior é a precisão da prévia mais a precisão total da amostra. A média posterior pode ser escrita \\(\\mu_n=w\\bar x+(1-w)\\mu_0\\), onde \\(w=(n/\\sigma^2)/(1/\\tau_0^2+n/\\sigma^2)\\). É a média ponderada por **precisões**; maior precisão observacional atribui maior peso aos dados.\n\n### 3.1 Exemplo numérico integral\n\nAdote \\(\\mu_0=10\\), \\(\\tau_0^2=4\\), desvio-padrão observacional \\(\\sigma=2\\) e quatro observações cuja média é 14. A precisão prévia é 1/4; a precisão dos quatro dados é \\(4/4=1\\). A variância posterior é \\(1/(1/4+1)=0,8\\), e a média é \\(0,8(10/4+4\\cdot14/4)=13,2\\). O peso da média amostral é 0,8 e o peso da média prévia é 0,2. Um intervalo central posterior exige usar o desvio-padrão \\(\\sqrt{0,8}\\), jamais 0,8 como se fosse desvio-padrão.\n\nSe chegar uma quinta observação, é possível atualizar sequencialmente a posteriori anterior, sem recuperar toda a sequência, desde que o modelo e as condições de independência permaneçam válidos. Os parâmetros de precisão e precisão vezes média são aditivos. Esse mecanismo se conecta a filtragem probabilística e aprendizado on-line.\n\n### 3.2 Previsão e incerteza\n\nUma futura observação \\(X_{\\mathrm{novo}}\\mid\\mu\\sim\\mathcal N(\\mu,\\sigma^2)\\) tem distribuição preditiva \\(\\mathcal N(\\mu_n,\\sigma^2+\\tau_n^2)\\). A variância preditiva é a soma da variância de observação e da incerteza posterior sobre a média; um intervalo para **nova observação** costuma ser mais largo do que o intervalo para \\(\\mu\\). No exemplo, a preditiva é Normal com média 13,2 e variância 4,8. Essa conta manifesta a lei da variância total: \\(Var(X_{\\mathrm{novo}}\\mid D)=E[Var(X_{\\mathrm{novo}}\\mid\\mu,D)\\mid D]+Var(E[X_{\\mathrm{novo}}\\mid\\mu,D]\\mid D)\\).\n\nSe a variância dos dados também é desconhecida, o par Normal–Normal, sozinho, não resolve conjugadamente as duas incógnitas. Outras famílias conjuntas, como Normal–Inversa-Gama sob parametrização apropriada, e métodos numéricos podem ser usados. Substituir uma variância estimada por uma conhecida sem reconhecer a incerteza tende a estreitar indevidamente intervalos.\n\n### 3.3 Conexões com regressão e regularização\n\nPara regressão linear gaussiana \\(y=X\\beta+\\varepsilon\\), \\(\\varepsilon\\sim\\mathcal N(0,\\sigma^2I)\\), prior normal multivariada para \\(\\beta\\) e variância conhecida, a posteriori também é normal multivariada. Quando a precisão prévia é proporcional à identidade, a moda posterior se relaciona a uma penalização quadrática (ridge); isso não significa que a regressão ridge forneça automaticamente toda a distribuição posterior. Prévia correlacionada permite regularizar combinações de coeficientes.\n\nA escolha entre centralizar e padronizar preditores influencia a interpretação da escala prévia. Multicolinearidade pode tornar a verossimilhança pouco informativa sobre coeficientes individuais, mas a prévia e a estrutura de covariância tornam a posteriori identificável sob condições adequadas. A variância marginal de um coeficiente não deve ser confundida com a variabilidade irrestrita das previsões fora da amostra; estas dependem também de covariâncias e do erro observacional."
+    },
+    {
+      "title": "Modelos probabilísticos no aprendizado de máquina",
+      "markdown": "## 4. Modelos probabilísticos em aprendizado de máquina\n\nModelos probabilísticos representam relações entre observações, classes e variáveis latentes mediante distribuições explícitas. Em classificação, interessa \\(P(Y=c\\mid X=x,D)\\); em regressão probabilística, uma distribuição para \\(Y_{\\mathrm{novo}}\\), não apenas a previsão pontual. Modelos **gerativos** especificam a distribuição conjunta \\(p(x,y)\\), por exemplo via \\(p(x\\mid y)p(y)\\), enquanto modelos discriminativos modelam diretamente \\(p(y\\mid x)\\). Um modelo gerativo pode classificar usando Bayes, mas nem toda técnica probabilística de classificação aprende uma distribuição gerativa completa para os atributos.\n\n### 4.1 Naive Bayes e suas variantes\n\nO classificador Naive Bayes assume que os atributos \\(X_1,\\ldots,X_d\\) são condicionalmente independentes **dada a classe** \\(Y\\): \\(p(x\\mid y)=\\prod_jp(x_j\\mid y)\\). Isso não afirma independência marginal dos atributos e não significa ausência de dependências reais nos dados. Na predição, comparam-se \\(p(y=c)\\prod_jp(x_j\\mid y=c)\\), normalizando sobre as classes. GaussianNB modela cada atributo contínuo por distribuição normal condicionada à classe; MultinomialNB usa contagens de atributos; BernoulliNB trabalha com atributos binários. Suavização, como adição de pseudocontagens, evita estimativas de probabilidade nula para eventos não vistos em certas variantes.\n\nNaive Bayes frequentemente produz classificações eficientes, mas probabilidades extremas mal calibradas quando a hipótese de independência é inadequada. Boa acurácia não demonstra boa calibração. Transformações dos dados, seleção de atributos e prevalências de classes na população podem alterar a performance.\n\n### 4.2 Grafos probabilísticos e variáveis latentes\n\nEm uma rede bayesiana, um grafo acíclico dirigido (DAG) fatoriza a distribuição conjunta como \\(p(x_1,\\ldots,x_d)=\\prod_jp(x_j\\mid \\mathrm{pais}(x_j))\\). O grafo organiza independências condicionais modeladas; uma seta não comprova causalidade por si só. Redes de Markov usam fatorações em potenciais sobre cliques e requerem normalização adequada. Inferência consiste em obter distribuições condicionais ou marginais a partir das evidências, por eliminação de variáveis, propagação de mensagens ou aproximações.\n\nModelos ocultos de Markov (HMM) descrevem sequência de estados latentes com dependência de primeira ordem e emissões condicionais aos estados. A filtragem estima estado atual com observações até o instante corrente; o alisamento (*smoothing*) incorpora observações futuras; Viterbi busca a sequência de estados mais provável, que não se confunde com a escolha separada de estado mais provável a cada tempo.\n\nMisturas gaussianas introduzem uma variável latente de pertencimento a componente: \\(p(x)=\\sum_{k=1}^K\\pi_k\\mathcal N(x\\mid\\mu_k,\\Sigma_k)\\). O algoritmo EM alterna cálculo de responsabilidades condicionais (passo E) e atualização de parâmetros que melhora, sob condições usuais, a verossimilhança observada (passo M). EM padrão busca estimativas pontuais, não uma posteriori completa sobre os parâmetros. Rótulos dos componentes são intercambiáveis, fato ligado ao *label switching* em misturas bayesianas.\n\n### 4.3 Processos gaussianos e função aleatória\n\nUm processo gaussiano (GP) define distribuições normais conjuntas para qualquer conjunto finito de valores de uma função desconhecida. É especificado por função média e núcleo de covariância \\(k(x,x')\\); o núcleo codifica regularidade, escala de variação e semelhança entre entradas. Na regressão GP com ruído gaussiano, obtém-se distribuição preditiva gaussiana para valores latentes e observações; não se trata apenas de interpolação determinística. Núcleo RBF implica forte suavidade nas amostras de funções sob a especificação usual.\n\nEm problemas de classificação GP, o vínculo não gaussiano entre função latente e rótulo geralmente impede posteriori analítica simples, exigindo métodos aproximativos. Métodos exatos de regressão GP densa podem ter custo cúbico no número de observações para fatoração, motivando aproximações escaláveis. Modelos gerativos e discriminativos, paramétricos e não paramétricos, não formam uma única dicotomia: as classificações tratam de eixos conceituais diferentes."
+    },
+    {
+      "title": "Métodos computacionais e modelos hierárquicos",
+      "markdown": "## 5. Quando a posteriori exige computação\n\nEm aplicações reais, o integral normalizador ou as marginais posteriores podem ser intratáveis. Existem métodos de amostragem e aproximação que não devem ser confundidos entre si. Amostragem de Monte Carlo aproxima esperanças por médias de valores simulados; se as amostras forem correlacionadas, a precisão depende do tamanho efetivo da amostra, não apenas do número bruto de sorteios. Repetir simulações independentes do modelo gerador é diferente de simular parâmetros **condicionados aos dados**.\n\n### 5.1 MCMC, Metropolis, Gibbs, HMC e NUTS\n\nMétodos de Monte Carlo via cadeias de Markov (MCMC) constroem transições que, sob hipóteses apropriadas e após convergência, têm a posteriori como distribuição estacionária. Em Metropolis–Hastings, a aceitação depende da densidade-alvo e da proposta em ambas as direções; para proposta simétrica, a razão se simplifica. Gibbs amostra sucessivamente de distribuições condicionais completas, quando disponíveis, mas também requer cuidado com mistura e dependência serial.\n\nHamiltonian Monte Carlo (HMC) explora gradientes da log-densidade e variáveis auxiliares de momento para propor trajetórias eficientes em muitos espaços contínuos. O NUTS adapta o comprimento das trajetórias para evitar retrocessos ineficientes. Não são métodos exatos em aritmética finita sem verificação: divergências, explorações parciais, baixa eficiência e parametrização inadequada exigem investigação. Modelos hierárquicos com geometrias difíceis podem beneficiar-se de parametrização não centrada, respeitadas as condições da aplicação.\n\n### 5.2 Diagnósticos e limites\n\nCadeias múltiplas com inicializações diferentes ajudam a detectar problemas. O diagnóstico \\(\\hat R\\) avalia concordância da variância entre cadeias com a variância interna; valores próximos de 1 são desejáveis, mas não provam convergência perfeita. O tamanho efetivo (ESS) e o erro-padrão de Monte Carlo (MCSE) informam precisão numérica de estimativas. Inspecionar traços, autocorrelação, divergências e sensibilidade é parte da análise. Amostrar muitas iterações sem mistura adequada pode produzir falsa impressão de precisão; estimativa estatística e erro computacional são fontes diferentes de incerteza.\n\n### 5.3 Inferência variacional e Laplace\n\nNa inferência variacional, escolhe-se uma família tratável \\(q(\\theta)\\) e otimiza-se proximidade com a posteriori, frequentemente por maximização do ELBO, um limite inferior para o log da evidência. Em termos gerais, \\(\\log p(D)=\\mathrm{ELBO}(q)+\\mathrm{KL}(q(\\theta)\\|p(\\theta\\mid D))\\). Maximizar o ELBO minimiza essa divergência para a família escolhida; isso não torna a aproximação exata. Famílias *mean-field* fatorizadas podem subestimar dependências e incertezas. A aproximação de Laplace usa uma distribuição normal local em torno de uma moda, com curvatura da log-posteriori; pode falhar em assimetria, multimodalidade ou limites de suporte.\n\n### 5.4 Hierarquias e aprendizado parcial\n\nModelos hierárquicos representam parâmetros de grupos \\(\\theta_j\\) com uma distribuição comum condicionada a hiperparâmetros. Isso produz *partial pooling*: grupos com pouca informação podem ser retraídos em direção ao padrão compartilhado, enquanto grupos bem informados dependem mais de seus próprios dados. Não equivale a impor um único parâmetro a todos (*complete pooling*) nem a estimar cada grupo isoladamente (*no pooling*). Inferência empírico-bayesiana estima hiperparâmetros a partir dos dados e então os trata como fixos na etapa seguinte; uma hierarquia totalmente bayesiana propaga também sua incerteza. Confundir esses procedimentos causa discrepâncias de intervalos e excesso de confiança."
+    },
+    {
+      "title": "Validação preditiva, incerteza e decisão bayesiana",
+      "markdown": "## 6. Verificação do modelo, qualidade de probabilidades e uso decisório\n\nA qualidade de um modelo bayesiano não se avalia apenas pela aparência de sua posteriori. **Verificações preditivas posteriores** simulam dados replicados \\(D^{rep}\\) sob os parâmetros amostrados da posteriori e confrontam estatísticas, padrões ou gráficos com os dados reais. Elas permitem detectar falta de caudas, dispersão, dependência residual, estrutura temporal e heterogeneidade não modelada. Não constituem prova definitiva de adequação e, por reutilizarem dados para ajuste e verificação, não substituem uma avaliação preditiva honestamente fora da amostra.\n\n### 6.1 Incerteza preditiva e decisão\n\nA incerteza **aleatória** (*aleatoric*) decorre da variabilidade observacional não explicada, enquanto a **epistêmica** está associada à falta de conhecimento de parâmetros ou funções. A decomposição depende do modelo: nem toda componente epistêmica desaparece simplesmente aumentando dados quando há má especificação ou falta de representatividade. Uma previsão plug-in condicionada a um único parâmetro deixa de fora parte da incerteza epistêmica. Em regressão Normal–Normal, por exemplo, a variância preditiva tem componente observacional e componente posterior da média.\n\nSob perda assimétrica, não basta predizer média ou classe mais provável: deve-se escolher a ação de menor risco posterior. Se o custo de falso negativo é alto, o limiar decisório ótimo pode diferir de 0,5, dependendo dos custos e da probabilidade posterior calibrada. Erros de classificação, custo financeiro e riscos distributivos precisam ser explicitados. Intervalo de credibilidade para parâmetro e intervalo preditivo para nova ocorrência atendem a perguntas diferentes.\n\n### 6.2 Calibração, discriminação e escores\n\nUm classificador é bem calibrado quando, entre previsões perto de 0,7, a frequência observada do evento aproxima-se de 70%, considerados dados e tamanho amostral suficientes. Discriminação, como AUC ROC, mede ordenação relativa, não necessariamente calibração. O Brier score médio para classe binária é a média de \\((p_i-y_i)^2\\), com menor valor preferível; a perda logarítmica penaliza fortemente atribuir probabilidades próximas de zero a eventos observados. Escores próprios estimulam probabilidades honestas em expectativa, sob as hipóteses correspondentes.\n\nA calibração por função sigmoide ou regressão isotônica precisa usar separação apropriada de dados de treinamento, validação e teste, para evitar vazamento e avaliação otimista. Sob alteração de prevalência ou deriva de dados, probabilidades aparentemente calibradas no passado podem degradar-se. Validação cruzada e avaliação temporal devem respeitar agrupamentos e causalidade temporal. Bons números agregados podem ocultar erros graves em subgrupos.\n\n### 6.3 Comparação e sensibilidade\n\nA evidência marginal integra a verossimilhança sobre a prévia e entra em fatores de Bayes; por isso comparações podem ser sensíveis à escolha de prévias, especialmente em regiões pouco identificadas. Critérios preditivos e validação cruzada respondem a questão distinta: desempenho futuro esperado, e não simples razão de evidências. Em modelos complexos, examinam-se erros de previsão, estabilidade sob perturbações da prévia, verificação preditiva e robustez à má especificação.\n\n### 6.4 Implementação responsável\n\nUm pipeline reprodutível registra unidades, transformações, critérios de ausência, sementes quando aplicáveis, versões de bibliotecas, limites das inferências e privacidade dos dados. Bibliotecas como Stan, PyMC e ArviZ ajudam a declarar modelos, amostrar, gerar predições e diagnosticar cadeias; o resultado ainda depende da qualidade da especificação e dos dados. O exercício de concurso costuma pedir que se identifiquem falsas equivalências: posteriori versus verossimilhança; taxa versus escala Gama; precisão versus variância Normal; MAP versus média; bom desempenho classificatório versus boa calibração; amostragem MCMC versus otimização variacional. Dominar essas distinções permite resolver casos mesmo sem executar código."
+    }
+  ],
+  "summary": "A inferência bayesiana combina distribuição prévia e verossimilhança para produzir posteriori e previsões que propagam incerteza. A conjugação simplifica cálculos: Beta–Bernoulli atualiza sucessos e fracassos; Gama–Poisson, **na parametrização forma–taxa**, soma contagens à forma e exposições à taxa; Normal–Normal, com variância de observação conhecida, soma precisões para obter variância e média posteriores. Modelos probabilísticos incluem Naive Bayes, redes gráficas, HMMs, misturas e processos gaussianos. Quando a posteriori é intratável, usam-se MCMC, HMC/NUTS ou inferência variacional, com diagnósticos adequados. O aprendizado confiável exige predição posterior, checagem de adequação, calibração, avaliação fora da amostra e atenção aos custos de decisões. Não confunda taxa Gama com escala, intervalo de credibilidade com intervalo de confiança, MAP com média posterior, nem acurácia com qualidade de probabilidades.",
+  "flashcards": [
+    {
+      "front": "Qual é a forma do teorema de Bayes para um parâmetro contínuo?",
+      "back": "p(θ|D) = p(D|θ)p(θ)/p(D), com p(D) = ∫p(D|θ)p(θ)dθ."
+    },
+    {
+      "front": "Por que a verossimilhança não é necessariamente probabilidade sobre θ?",
+      "back": "Porque p(D|θ), com D fixo, é função de θ e não precisa integrar 1 no espaço paramétrico."
+    },
+    {
+      "front": "O que é evidência marginal?",
+      "back": "A integral ou soma da verossimilhança ponderada pela prévia; normaliza a posteriori e participa de fatores de Bayes."
+    },
+    {
+      "front": "Como interpretar um intervalo de credibilidade de 95%?",
+      "back": "Sob dados e modelo, a distribuição posterior atribui 95% de probabilidade ao intervalo para o parâmetro."
+    },
+    {
+      "front": "Qual estimador é ótimo sob perda quadrática?",
+      "back": "A média posterior; sob perda absoluta, uma mediana posterior."
+    },
+    {
+      "front": "O que define conjugação bayesiana?",
+      "back": "A posteriori permanece na mesma família de distribuições da prévia para a verossimilhança considerada."
+    },
+    {
+      "front": "Como atualizar Beta(α,β) após sucessos e fracassos?",
+      "back": "Posteriori Beta(α+s, β+f), com s sucessos e f fracassos."
+    },
+    {
+      "front": "Como atualizar Dirichlet após contagens multinomiais?",
+      "back": "A cada parâmetro de concentração α_k soma-se a contagem da categoria n_k."
+    },
+    {
+      "front": "Qual é a parametrização Gama adotada na matéria?",
+      "back": "Gama(α,β), com forma α e TAXA β; média α/β e variância α/β²."
+    },
+    {
+      "front": "Poisson–Gama: como atualizar taxa com exposições t_i?",
+      "back": "Posteriori Gama(α+Σy_i, β+Σt_i). A contagem agrega à forma e a exposição agrega à taxa."
+    },
+    {
+      "front": "Qual é a distribuição preditiva do modelo Poisson–Gama?",
+      "back": "Binomial negativa quando se integra a taxa λ sob a posteriori Gama."
+    },
+    {
+      "front": "Como converter taxa Gama em escala usada em SciPy?",
+      "back": "Se a taxa é β, use scale=1/β em scipy.stats.gamma."
+    },
+    {
+      "front": "Normal–Normal de variância conhecida: precisão posterior?",
+      "back": "1/τ_n² = 1/τ_0² + n/σ², somando a precisão prévia e a amostral."
+    },
+    {
+      "front": "Normal–Normal: qual é a média posterior?",
+      "back": "μ_n = τ_n²(μ_0/τ_0² + n x̄/σ²), média ponderada por precisões."
+    },
+    {
+      "front": "Qual é a variância da preditiva Normal–Normal?",
+      "back": "σ² + τ_n²: ruído da nova observação somado à incerteza posterior da média."
+    },
+    {
+      "front": "Qual a hipótese central do Naive Bayes?",
+      "back": "Independência dos atributos condicionada à classe, não necessariamente independência marginal."
+    },
+    {
+      "front": "Qual é a fatoração de uma rede bayesiana dirigida?",
+      "back": "p(x_1,...,x_d)=∏_j p(x_j|pais(x_j)) em um grafo acíclico dirigido."
+    },
+    {
+      "front": "Qual a distinção entre EM e amostragem de posteriori?",
+      "back": "EM usual estima parâmetros por otimização de verossimilhança; MCMC aproxima distribuições por amostras."
+    },
+    {
+      "front": "O que define um processo gaussiano?",
+      "back": "Uma coleção de variáveis tal que qualquer subconjunto finito tem distribuição normal multivariada, caracterizada por média e kernel."
+    },
+    {
+      "front": "O que representa o tamanho efetivo de amostra em MCMC?",
+      "back": "Uma medida da informação de amostras correlacionadas, útil para avaliar precisão de estimativas numéricas."
+    },
+    {
+      "front": "O que é ELBO?",
+      "back": "Limite inferior do log da evidência, otimizado na inferência variacional para aproximar a posteriori."
+    },
+    {
+      "front": "O que é partial pooling em hierarquias?",
+      "back": "Compartilhamento parcial de informação entre grupos, com retração dependente de dados e da estrutura prévia."
+    },
+    {
+      "front": "O que é calibração de probabilidades?",
+      "back": "Compatibilidade entre probabilidades preditas e frequência relativa observada em conjuntos semelhantes de previsões."
+    },
+    {
+      "front": "Como diferem verificação preditiva posterior e teste fora da amostra?",
+      "back": "A primeira busca inadequação do modelo simulando dados a partir da posteriori; o segundo estima desempenho em dados não usados no ajuste."
+    }
+  ],
+  "tips": [
+    "Antes de derivar uma posteriori, escreva explicitamente a verossimilhança, a prévia e a unidade de cada parâmetro.",
+    "Em Poisson–Gama, memorize o par (forma, taxa): forma soma contagens; taxa soma exposições.",
+    "No Normal–Normal, resolva primeiro pelas precisões e depois inverta para encontrar a variância posterior.",
+    "Para distinguir inferência e previsão, pergunte se a variável-alvo é parâmetro latente ou nova observação.",
+    "Em problemas de classificação, verifique simultaneamente prevalência, discriminação, calibração e custo de erros.",
+    "Ao analisar aproximações computacionais, separe erro do modelo, incerteza dos dados e erro numérico."
+  ],
+  "traps": [
+    "Confundir P(doença|teste positivo) com P(teste positivo|doença), desprezando a prevalência.",
+    "Trocar taxa por escala em Gama: ambas são positivas, mas uma é o inverso da outra.",
+    "Somar desvios-padrão onde a conjugação Normal exige soma de precisões, inversos das variâncias.",
+    "Supor que a preditiva é a mesma distribuição que a posteriori do parâmetro.",
+    "Concluir que probabilidades do Naive Bayes são calibradas só porque a acurácia é elevada.",
+    "Afirmar que R-hat próximo de 1 garante, isoladamente, convergência ou que ELBO maximizado produz a posteriori exata."
+  ],
+  "activeRecall": [
+    {
+      "question": "De uma população rara com prevalência de 1%, teste com 90% sensibilidade e 90% especificidade: qual a ordem da probabilidade pós-teste positivo?",
+      "answer": "P(doença|+) = 0,90·0,01/(0,90·0,01+0,10·0,99) = 0,009/0,108 ≈ 8,33%; a prevalência controla o valor preditivo."
+    },
+    {
+      "question": "Uma prévia Beta(3,2) recebe 7 sucessos e 3 falhas. Quais posteriori e probabilidade do próximo sucesso?",
+      "answer": "Beta(10,5); probabilidade preditiva de sucesso igual à média posterior, 10/15 = 2/3."
+    },
+    {
+      "question": "Uma taxa de Poisson com prior Gama(2,3) recebe soma de eventos 9 em exposição total 4. Atualize.",
+      "answer": "Gama(11,7) na parametrização forma–taxa; média posterior 11/7."
+    },
+    {
+      "question": "Por que uma observação Poisson de zero evento não é desinformativa?",
+      "answer": "A verossimilhança contém exp(-tλ), de modo que o tempo exposto t aumenta o parâmetro de taxa posterior mesmo sem evento."
+    },
+    {
+      "question": "Qual a posteriori Normal–Normal se μ0=0, τ0²=1, n=2, σ²=2 e média observada 4?",
+      "answer": "Precisão posterior 1+2/2=2, variância 1/2 e média (0+2·4/2)/2=2."
+    },
+    {
+      "question": "Por que intervalo preditivo normalmente é mais largo que intervalo para média no Normal–Normal?",
+      "answer": "Além da incerteza sobre μ, uma nova observação contém ruído com variância σ²; a preditiva tem variância σ²+τn²."
+    },
+    {
+      "question": "Como diferenciar filtragem, suavização e Viterbi em um HMM?",
+      "answer": "Filtragem usa observações até t para inferir estado em t; suavização inclui dados posteriores a t; Viterbi encontra a sequência globalmente mais provável."
+    },
+    {
+      "question": "Quando o ELBO maximizado pode ser enganoso?",
+      "answer": "Quando a família variacional é restritiva ou omite modos/correlações: pode otimizar a aproximação escolhida sem representar fielmente a verdadeira posteriori."
+    },
+    {
+      "question": "O que são calibração e discriminação?",
+      "answer": "Calibração relaciona probabilidades preditas a frequências; discriminação mede separação/ordenação de casos de classes distintas."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Inversão de probabilidades condicionais",
+      "summary": "Erro de trocar P(H|D) por P(D|H), ignorando probabilidades prévias e normalização. Corrige-se com o teorema de Bayes e base rates."
+    },
+    {
+      "key": "e2",
+      "title": "Conjugação e parametrização Gama",
+      "summary": "Confusão entre forma, taxa e escala em Poisson–Gama. Corrige-se explicitando α, β e exposições: posteriori Gama(α+Σy, β+Σt)."
+    },
+    {
+      "key": "e3",
+      "title": "Precisão e variância Normal–Normal",
+      "summary": "Erro de ponderar médias por desvios-padrão ou confundir intervalo paramétrico com preditivo. Usa-se precisão inversa da variância."
+    },
+    {
+      "key": "e4",
+      "title": "Hipóteses de modelos probabilísticos",
+      "summary": "Independência condicional do Naive Bayes não implica independência marginal; grafos probabilísticos não comprovam causalidade; EM não é amostragem posterior."
+    },
+    {
+      "key": "e5",
+      "title": "Diagnósticos, calibração e avaliação",
+      "summary": "Confundir ajuste com boa predição, R-hat com garantia absoluta, ou acurácia/AUC com calibração. Avaliar incerteza, verificações e dados independentes."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Se a hipótese de uma doença for rara, um teste altamente sensível pode produzir valor preditivo positivo relativamente baixo, pois o cálculo posterior depende também da prevalência e da especificidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A probabilidade posterior de doença após resultado positivo combina sensibilidade, especificidade e prevalência. Quando a prevalência é muito pequena, resultados falsos positivos podem representar parcela expressiva dos positivos; sensibilidade isolada não responde à pergunta.",
+      "section": "Fundamentos da inferência bayesiana e probabilidade condicional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo bayesiano de parâmetro contínuo θ, qual é a função da evidência marginal p(D)?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Normalizar o produto da verossimilhança pela prévia para formar uma densidade posterior.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir a distribuição prévia pela máxima verossimilhança observada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Indicar, por definição, a probabilidade de θ ser igual ao seu valor médio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Medir exclusivamente a variância dos erros de previsão fora da amostra.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dispensar a escolha de uma distribuição para os parâmetros.",
+          "correct": false
+        }
+      ],
+      "explanation": "A evidência marginal é a integral da verossimilhança ponderada pela prévia, garantindo que a distribuição posterior integre 1. Ela não substitui a prévia, não é probabilidade pontual de parâmetro contínuo nem mede, sozinha, desempenho fora da amostra.",
+      "section": "Fundamentos da inferência bayesiana e probabilidade condicional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A função de verossimilhança L(θ;D), considerada com os dados D fixos, deve integrar necessariamente 1 quando integrada sobre todos os valores possíveis de θ.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Verossimilhança é uma função do parâmetro para dados fixados, mas não precisa ser densidade de probabilidade em θ. A normalização adequada surge ao combinar verossimilhança e prévia e dividir pela evidência marginal do modelo.",
+      "section": "Fundamentos da inferência bayesiana e probabilidade condicional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise bayesiana precisa escolher uma estimativa pontual para o parâmetro e define como perda a diferença absoluta entre a estimativa e o valor verdadeiro. Qual resumo posterior minimiza a perda esperada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A moda da distribuição prévia, independentemente dos dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O valor que maximiza apenas a verossimilhança.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma mediana da distribuição posterior.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Necessariamente a média da distribuição posterior.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sempre o limite superior de um intervalo de credibilidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "A mediana posterior minimiza a perda absoluta esperada; a média posterior corresponde à perda quadrática. Moda prévia, máxima verossimilhança e limites de intervalos resolvem outros problemas e não minimizam, em geral, a perda absoluta.",
+      "section": "Fundamentos da inferência bayesiana e probabilidade condicional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em inferência bayesiana, o intervalo de credibilidade de 95% para θ significa que o procedimento conteria θ em 95% das amostras futuras, independentemente da prévia adotada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A interpretação bayesiana fixa dados e modelo e atribui 95% da massa posterior ao intervalo. Cobertura em repetições é interpretação de procedimento frequentista; o resultado bayesiano pode depender da prévia e das hipóteses modeladas.",
+      "section": "Fundamentos da inferência bayesiana e probabilidade condicional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Considere hipóteses H1 e H0. A razão de verossimilhanças p(D|H1)/p(D|H0) é 4 e as chances prévias P(H1)/P(H0) são 1/3. Quais são as chances posteriores H1:H0?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "1:12.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "1:3.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "4:1.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "3:4.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "4:3.",
+          "correct": true
+        }
+      ],
+      "explanation": "As chances posteriores resultam do produto das chances prévias pela razão de verossimilhanças: (1/3)×4 = 4/3. Confundir razão de verossimilhança com probabilidade posterior ou inverter o produto produz as demais proporções.",
+      "section": "Fundamentos da inferência bayesiana e probabilidade condicional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em geral, obter a distribuição preditiva de uma nova observação exige integrar a distribuição da observação condicionada ao parâmetro contra a posteriori do parâmetro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A previsão bayesiana completa é uma mistura p(y_novo|D)=∫p(y_novo|θ)p(θ|D)dθ. Essa integração carrega a incerteza paramétrica para a distribuição preditiva, diferindo da substituição direta de θ por uma estimativa pontual.",
+      "section": "Fundamentos da inferência bayesiana e probabilidade condicional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista adota perda quadrática L(a,θ)=(a−θ)². Diante de uma posteriori assimétrica, qual ação pontual é ótima no sentido da menor perda posterior esperada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A moda posterior, por ser o ponto de maior densidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A média posterior de θ.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A mediana da distribuição prévia, por evitar observações atípicas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O ponto médio dos extremos do espaço paramétrico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O máximo da verossimilhança, ainda que a prévia seja informativa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para perda quadrática, a expansão de E[(a−θ)²|D] mostra mínimo em a=E[θ|D]. A moda é associada a otimização de densidade, e a mediana é adequada à perda absoluta, não sendo substitutos universais.",
+      "section": "Fundamentos da inferência bayesiana e probabilidade condicional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No par Beta–Bernoulli, uma prévia Beta(α,β) atualizada com s sucessos e f fracassos produz posteriori Beta(α+s,β+f), sob independência condicional e probabilidade comum de sucesso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A conjugação Beta–Bernoulli soma sucessos ao primeiro parâmetro e fracassos ao segundo porque a verossimilhança contém p elevado a s e (1−p) elevado a f. A fórmula pressupõe o mesmo p nas observações condicionais.",
+      "section": "Conjugação discreta e modelo Poisson–Gama",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma taxa λ tem prévia Gama(3,2), parametrizada por forma e taxa. Em cinco períodos unitários independentes observaram-se as contagens 0, 1, 2, 0 e 4. Qual é a posteriori de λ?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gama(8,9).",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Gama(10,2).",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gama(3,9).",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gama(10,7).",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Gama(7,10).",
+          "correct": false
+        }
+      ],
+      "explanation": "A soma das contagens é 7 e o número de exposições unitárias é 5. No modelo Poisson–Gama forma–taxa, a forma torna-se 3+7=10 e a taxa 2+5=7; trocar essas somas ou ignorar exposições altera a posteriori.",
+      "section": "Conjugação discreta e modelo Poisson–Gama",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo Poisson–Gama com λ como taxa de eventos e observação Y|λ~Poisson(λt), um período exposto sem evento não modifica a distribuição posterior de λ.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Mesmo quando Y=0, a verossimilhança contém o termo exp(−λt), que acrescenta t à taxa da Gama posterior. Assim, a exposição sem evento também informa sobre a intensidade do processo de contagem.",
+      "section": "Conjugação discreta e modelo Poisson–Gama",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A posteriori da taxa λ é Gama(6,3), em parâmetros forma–taxa. Qual é a média posterior e qual escala deve ser passada a scipy.stats.gamma para representá-la?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Média 18; scale=3.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Média 2; scale=1/3.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Média 1/2; scale=3.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Média 3; scale=6.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Média 2; scale=3.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para Gama com forma 6 e taxa 3, a média é 6/3=2 e a escala é o inverso da taxa, 1/3. A API de SciPy emprega escala, não taxa, por isso informar 3 como scale altera o modelo probabilístico.",
+      "section": "Conjugação discreta e modelo Poisson–Gama",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma distribuição Dirichlet conjugada a dados categóricos, a soma das probabilidades das categorias é 1; por isso, os componentes devem ser entendidos como variáveis conjuntamente restritas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma Dirichlet vive no simplex de probabilidades não negativas que somam 1. A atualização por contagens preserva essa restrição conjunta; modelar cada probabilidade como variável independente sem normalização não descreve a mesma distribuição.",
+      "section": "Conjugação discreta e modelo Poisson–Gama",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma posteriori λ|D~Gama(a,b) (forma–taxa), a próxima contagem Y|λ~Poisson(λ) terá, depois de integrar λ, qual característica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Distribuição binomial negativa, com média a/b e variância a/b+a/b².",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Distribuição Poisson, com média e variância exatamente a/b.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Distribuição Gama, com média a/b e variância a/b².",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Distribuição Normal exata, com variância invariavelmente igual a a/b.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Distribuição Bernoulli, com probabilidade de sucesso a/(a+b).",
+          "correct": false
+        }
+      ],
+      "explanation": "A mistura de Poisson com Gama na taxa produz binomial negativa. A média é E[λ]=a/b; pela lei da variância total, Var(Y|D)=E[λ]+Var(λ)=a/b+a/b², incorporando incerteza adicional sobre λ.",
+      "section": "Conjugação discreta e modelo Poisson–Gama",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se λ~Gama(α,β), com β definido como taxa, a média prévia é α/β² e a variância prévia é α/β.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A afirmação inverte os momentos. Na parametrização Gama forma–taxa, a média é α/β e a variância é α/β². A confusão decorre de misturar as expressões ou empregar a escala como se fosse a taxa.",
+      "section": "Conjugação discreta e modelo Poisson–Gama",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma taxa de ocorrências tem posteriori λ|D~Gama(4,2), forma–taxa. Para um intervalo futuro com exposição t=3, qual é a média preditiva e a variância preditiva da contagem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Média 2 e variância 3.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Média 6 e variância 6.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Média 12 e variância 20.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Média 3 e variância 7,5.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Média 6 e variância 15.",
+          "correct": true
+        }
+      ],
+      "explanation": "A média preditiva é t·a/b=3·4/2=6. Pela variância total, Var(Y)=t·a/b+t²·a/b²=6+9·4/4=15. Igualar a variância à média ignora a variabilidade posterior da taxa λ.",
+      "section": "Conjugação discreta e modelo Poisson–Gama",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo Normal–Normal com variância observacional conhecida, a precisão posterior da média é a soma da precisão prévia com n vezes a precisão de cada observação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Se μ tem prévia N(μ0,τ0²) e cada observação tem variância conhecida σ², a precisão posterior é 1/τ0²+n/σ². A soma envolve inversos das variâncias, não inversos dos desvios-padrão.",
+      "section": "Modelo Normal–Normal e inferência gaussiana",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma prévia para μ é Normal com média 5 e variância 9. Observam-se dados normais com variância conhecida 4 e tamanho n=4, de média 9. Qual é a variância posterior de μ?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "13.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "4/9.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "9/10.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "10/9.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "1/10.",
+          "correct": false
+        }
+      ],
+      "explanation": "A precisão anterior é 1/9 e a amostral é 4/4=1, somando 10/9. A variância posterior é seu inverso, 9/10. Somar variâncias ou tomar a soma de precisões como variância confunde unidades.",
+      "section": "Modelo Normal–Normal e inferência gaussiana",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No caso Normal–Normal, a média posterior é necessariamente a média aritmética simples entre a média prévia e a média amostral, qualquer que seja a quantidade de observações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A média posterior pondera a média prévia e a média amostral pelas respectivas precisões. Só quando as precisões totais coincidem os pesos são iguais; tamanho amostral e variâncias afetam o resultado.",
+      "section": "Modelo Normal–Normal e inferência gaussiana",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma prévia μ~Normal(10,4) usa o segundo parâmetro como variância. Quatro observações têm variância conhecida 4 e média 14. Qual é a média posterior de μ?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "12.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "13,0.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "14,0.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "13,2.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "10,8.",
+          "correct": false
+        }
+      ],
+      "explanation": "A precisão prévia é 1/4, enquanto a precisão da média amostral é 4/4=1. O peso dos dados é 1/(1+1/4)=0,8; logo, a média posterior é 0,8·14+0,2·10=13,2.",
+      "section": "Modelo Normal–Normal e inferência gaussiana",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo Normal–Normal com σ² conhecido, a variância preditiva de uma nova observação é apenas τn², a variância posterior da média desconhecida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma observação futura inclui também ruído observacional, cuja variância é σ². A preditiva é Normal com variância σ²+τn², maior que a variância posterior do parâmetro; reduzir uma à outra confunde previsão e estimação.",
+      "section": "Modelo Normal–Normal e inferência gaussiana",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Considere μ|D~Normal(13,2; 0,8), onde 0,8 é a variância posterior, e Xnovo|μ~Normal(μ,4). Qual é a distribuição preditiva de Xnovo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Normal com média 13,2 e variância 0,8.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Normal com média 13,2 e variância 4,8.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Normal com média 13,2 e variância 4.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Normal com média 17,2 e variância 4,8.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Normal com média 13,2 e variância 3,2.",
+          "correct": false
+        }
+      ],
+      "explanation": "A média preditiva coincide com a média posterior de μ. Pela lei da variância total, a variância de Xnovo soma a variância residual 4 à incerteza posterior 0,8, resultando em 4,8. Não se somam médias ou se descarta uma das variâncias.",
+      "section": "Modelo Normal–Normal e inferência gaussiana",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo Normal–Normal com observações independentes e variância conhecida, aumentar o número de observações mantém ou reduz a variância posterior da média quando a prévia e a variância amostral permanecem fixas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A variância posterior é o inverso de 1/τ0²+n/σ². Com variância amostral positiva fixa, aumentar n aumenta a precisão total e reduz a variância do parâmetro, respeitada a especificação probabilística adotada.",
+      "section": "Modelo Normal–Normal e inferência gaussiana",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma posteriori de μ tem precisão 5 e média 2. Uma nova observação x=8 chega com variância conhecida 1, sob o mesmo modelo Normal de média μ. Qual é a média posterior atualizada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "3.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "10/3.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "5.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "2.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "8.",
+          "correct": false
+        }
+      ],
+      "explanation": "Somam-se precisões: 5+1=6. A soma ponderada das médias é 5·2+1·8=18, de modo que a nova média é 18/6=3. Substituir a média antiga pelo novo dado ou aplicar média simples ignora a precisão acumulada.",
+      "section": "Modelo Normal–Normal e inferência gaussiana",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O classificador Naive Bayes pressupõe independência entre atributos condicionada à classe, mas essa hipótese não implica que os atributos sejam independentes quando a classe é desconhecida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A fatoração p(x|y)=∏p(xj|y) é uma hipótese de independência condicional. Misturar classes pode induzir dependência marginal entre atributos; confundir as duas formas de independência prejudica a interpretação do classificador.",
+      "section": "Modelos probabilísticos no aprendizado de máquina",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma tarefa de classificação de mensagens, os atributos são contagens de ocorrências de palavras. Qual variante clássica do Naive Bayes é mais diretamente associada a esse tipo de representação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gaussian Naive Bayes, que sempre exige atributos contínuos normais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Bernoulli Naive Bayes, que utiliza somente presença ou ausência de cada termo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Regressão logística sem hipótese de verossimilhança por classe.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Modelo de Markov oculto, que sempre usa uma sequência temporal de estados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Multinomial Naive Bayes.",
+          "correct": true
+        }
+      ],
+      "explanation": "MultinomialNB modela contagens de atributos e é comumente usado com frequências de palavras. BernoulliNB usa binarização e GaussianNB, densidades normais; os outros métodos não são a variante de Naive Bayes requerida pelo caso.",
+      "section": "Modelos probabilísticos no aprendizado de máquina",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A direção de uma aresta em um grafo de rede bayesiana demonstra, por si só, que alterar causalmente o nó de origem provocará mudança no nó de destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Um DAG de rede bayesiana especifica fatoração da distribuição e independências condicionais. Interpretar arestas causalmente exige hipóteses adicionais de identificação e ausência de confundimento, não decorrendo automaticamente do desenho do grafo.",
+      "section": "Modelos probabilísticos no aprendizado de máquina",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um modelo oculto de Markov foi ajustado a uma sequência. Deseja-se encontrar a sequência conjunta de estados ocultos mais provável dada toda a sequência observada. Qual procedimento é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Algoritmo de Viterbi.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Filtragem, que usa apenas observações disponíveis até cada instante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Classificação por Naive Bayes de cada instante independentemente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cálculo da média posterior global do número de estados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atualização conjugada de uma taxa de Poisson sem estados latentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Viterbi busca a sequência de estados que maximiza a probabilidade posterior conjunta. Filtragem infere distribuições de estados em cada instante e não equivale à trajetória mais provável; as demais operações não resolvem a otimização da sequência.",
+      "section": "Modelos probabilísticos no aprendizado de máquina",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O algoritmo EM, aplicado à mistura gaussiana clássica com parâmetros desconhecidos, é um procedimento que entrega automaticamente amostras independentes da distribuição posterior completa dos parâmetros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "EM usual alterna responsabilidades das classes latentes e maximização de parâmetros para elevar a verossimilhança; seu resultado é estimativa pontual. Amostragem posterior exige algoritmo próprio e, em modelos bayesianos, prioris definidas.",
+      "section": "Modelos probabilísticos no aprendizado de máquina",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao modelar uma função desconhecida por processo gaussiano, uma equipe precisa especificar matematicamente a dependência entre os valores f(x) e f(x'). Qual objeto tem esse papel?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um limiar único de classificação, independente das entradas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um vetor obrigatório de cinco probabilidades de classes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A matriz de confusão obtida em validação cruzada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma função de covariância ou kernel positivo semidefinido.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma regra determinística que atribui o mesmo valor a todas as entradas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O processo gaussiano é caracterizado por função média e função de covariância; o kernel define a associação entre valores da função em entradas distintas. Limiares, matrizes de confusão e regras constantes não substituem o kernel.",
+      "section": "Modelos probabilísticos no aprendizado de máquina",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rede bayesiana com três variáveis A, B e C e arestas A→B e A→C, a fatoração conjunta correspondente é p(A)p(B|A)p(C|A).",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A propriedade de fatoração de DAGs atribui a cada nó sua distribuição condicional aos pais. Como A não tem pais e B e C têm apenas A, a conjunta se expressa p(A)p(B|A)p(C|A), sem impor independência marginal entre B e C.",
+      "section": "Modelos probabilísticos no aprendizado de máquina",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo gaussiano é empregado para classificar rótulos binários usando uma função de ligação logística sobre uma função latente. Em comparação com regressão GP de ruído gaussiano, o que é esperado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O kernel deixa de ser uma função de covariância válida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A função latente passa a ter valores exclusivamente inteiros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A posteriori da função latente, em geral, deixa de ter solução gaussiana analítica simples.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O teorema de Bayes torna-se inaplicável à classificação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As saídas deixam de depender dos atributos de entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma ligação logística induz verossimilhança não gaussiana e destrói, em geral, a conjugação gaussiana disponível na regressão GP com ruído normal. Isso costuma motivar aproximações, sem invalidar kernel ou regra de Bayes.",
+      "section": "Modelos probabilísticos no aprendizado de máquina",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em MCMC, a mera geração de um grande número de iterações não garante precisão, pois cadeias fortemente autocorrelacionadas podem apresentar baixo tamanho efetivo de amostra.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O tamanho efetivo traduz a informação contida em sorteios dependentes. Muitas iterações com autocorrelação intensa ou má mistura não equivalem ao mesmo número de amostras independentes; são necessários diagnósticos de convergência e precisão.",
+      "section": "Métodos computacionais e modelos hierárquicos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe usa Hamiltonian Monte Carlo para amostrar uma posteriori diferenciável em dimensão elevada. Qual recurso distingue esse método de uma proposta aleatória ingênua?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A substituição da posteriori pela distribuição uniforme em todos os parâmetros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O emprego de gradientes da log-densidade e dinâmica hamiltoniana para gerar propostas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A eliminação completa de qualquer possibilidade de erro numérico ou divergência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A exigência de que a posteriori pertença à família Beta em todos os parâmetros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A garantia de amostras independentes sem necessidade de verificações.",
+          "correct": false
+        }
+      ],
+      "explanation": "HMC usa gradientes e uma dinâmica auxiliar para explorar a distribuição-alvo com propostas que podem percorrer grandes distâncias. O método continua sujeito a problemas geométricos e computacionais e não exige conjugação Beta.",
+      "section": "Métodos computacionais e modelos hierárquicos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A inferência variacional maximiza um limite inferior para o log da evidência usando uma família aproximadora; uma família restrita pode deixar de representar dependências ou caudas da posteriori.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O ELBO está associado à divergência entre aproximação e posteriori. Sua otimização encontra a melhor solução dentro da família proposta, que pode omitir correlações, modos e caudas; convergência da otimização não prova exatidão inferencial.",
+      "section": "Métodos computacionais e modelos hierárquicos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Considere q(θ) aproximando a posteriori p(θ|D), com divergência KL(q||p). Qual igualdade fundamenta a maximização do ELBO?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "log p(D) = ELBO(q) − KL(q(θ) || p(θ|D)).",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "p(D) = ELBO(q) × KL(q(θ) || p(θ|D)).",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ELBO(q) = KL(p(θ|D) || q(θ)) para toda aproximação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "log p(D) = ELBO(q) apenas se a posteriori for bimodal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "log p(D) = ELBO(q) + KL(q(θ) || p(θ|D)).",
+          "correct": true
+        }
+      ],
+      "explanation": "A identidade separa log da evidência em ELBO e divergência KL não negativa. Maximizar ELBO minimiza KL(q||posteriori), com igualdade à evidência apenas quando a aproximação reproduz a posteriori quase em toda parte.",
+      "section": "Métodos computacionais e modelos hierárquicos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em modelo hierárquico, o compartilhamento parcial de informação implica que todos os grupos devem receber estimativas idênticas para seus parâmetros, independentemente de seus dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Partial pooling produz retração adaptativa entre estimativas de grupos, mas preserva diferenças sustentadas por observações. Parâmetros idênticos para todos correspondem ao pooling completo; estimativas totalmente separadas são no pooling.",
+      "section": "Métodos computacionais e modelos hierárquicos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe ajusta um modelo hierárquico e decide estimar hiperparâmetros pelos dados, fixando-os ao calcular a posteriori dos parâmetros locais. Como se caracteriza essa abordagem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Bayes hierárquico completo, com integração obrigatória sobre cada hiperparâmetro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Amostragem preditiva posterior independente de qualquer modelo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Bayes empírico, que não propaga automaticamente toda a incerteza dos hiperparâmetros.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Inferência causal identificada apenas pelo uso de um nível de hierarquia.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Estimativa frequentista sem qualquer aplicação da regra de Bayes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bayes empírico obtém estimativas dos hiperparâmetros e as condiciona na etapa seguinte, frequentemente simplificando o cálculo. O tratamento totalmente bayesiano atribui distribuições aos hiperparâmetros e integra sua incerteza.",
+      "section": "Métodos computacionais e modelos hierárquicos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O diagnóstico R-hat próximo de 1, isoladamente, prova de forma matemática que uma cadeia de MCMC explorou todos os modos relevantes da posteriori.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "R-hat compara variação dentro das cadeias com variação entre elas; valores próximos de 1 são desejáveis, mas podem coexistir com modos não visitados ou má geometria. Também se examinam ESS, traços, divergências e sensibilidade.",
+      "section": "Métodos computacionais e modelos hierárquicos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um modelo com posteriori multimodal foi aproximado por uma normal centrada no máximo local e com covariância derivada da curvatura da log-posteriori. Qual técnica é descrita e qual sua limitação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gibbs sampling; garante amostras sem dependência serial.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Algoritmo de Viterbi; integra automaticamente todos os modos contínuos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Naive Bayes; sua hipótese central é normalidade conjunta dos atributos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aproximação de Laplace; pode representar mal modos distantes e assimetria.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Calibração isotônica; constrói a densidade posterior em torno do MAP.",
+          "correct": false
+        }
+      ],
+      "explanation": "A aproximação de Laplace usa expansão quadrática local perto de uma moda, gerando aproximação gaussiana. Em distribuições multimodais ou muito assimétricas, uma descrição local pode perder massa posterior relevante.",
+      "section": "Métodos computacionais e modelos hierárquicos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma verificação preditiva posterior compara dados reais com dados replicados gerados a partir da distribuição preditiva sob o modelo ajustado, podendo revelar padrões de inadequação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Posterior predictive checks geram réplicas a partir de parâmetros amostrados da posteriori e avaliam estatísticas ou gráficos. São ferramentas de diagnóstico da adequação, mas não substituem validação independente em novos dados.",
+      "section": "Validação preditiva, incerteza e decisão bayesiana",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um classificador binário, previsões de probabilidade próximas de 0,8 são emitidas para muitos casos. Qual resultado indicaria boa calibração nessa faixa, em amostra suficientemente grande?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aproximadamente 80% desses casos apresentarem o evento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma acurácia geral necessariamente igual a 100%.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma AUC ROC sempre exatamente igual a 0,8.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Todos os casos do grupo serem positivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As classes observadas estarem perfeitamente balanceadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Calibração relaciona probabilidade anunciada e frequência observada: previsões de 0,8 devem corresponder a frequência perto de 80%. AUC avalia ordenação e a acurácia global não determina essa concordância probabilística.",
+      "section": "Validação preditiva, incerteza e decisão bayesiana",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma AUC ROC elevada demonstra, independentemente de qualquer outra verificação, que as probabilidades previstas por um classificador são numericamente calibradas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "AUC ROC mede capacidade de ordenar positivos acima de negativos, ao passo que calibração avalia correspondência entre valores de probabilidade e frequências observadas. Um modelo pode separar classes bem e emitir probabilidades extremas erradas.",
+      "section": "Validação preditiva, incerteza e decisão bayesiana",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em cinco casos, um classificador binário prevê probabilidades (0,2; 0,7; 0,4; 0,9; 0,3), e os desfechos são (0; 1; 0; 1; 1). Qual é o Brier score médio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "0,70.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "0,28.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "0,158.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "0,07.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "0,50.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Brier score é a média de (p−y)²: 0,04+0,09+0,16+0,01+0,49=0,79; dividindo por cinco, obtém-se 0,158. Comparar apenas a taxa de acertos ou deixar de elevar os erros ao quadrado produz outro indicador.",
+      "section": "Validação preditiva, incerteza e decisão bayesiana",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo Normal–Normal com variância observacional conhecida, uma nova observação possui variância preditiva que inclui a variância residual e a variância posterior da média.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A lei da variância total separa ruído de observação e incerteza paramétrica. Com μ|D normal de variância τn² e ruído conhecido σ², a preditiva tem variância σ²+τn²; usar apenas um termo subestima a dispersão.",
+      "section": "Validação preditiva, incerteza e decisão bayesiana",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma ação A, a perda se o evento ocorrer é 2 e se ele não ocorrer é 6. Para a ação B, as perdas são respectivamente 8 e 1. Se a probabilidade posterior do evento é 0,7, qual ação minimiza a perda esperada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ação B, com perda esperada 3,1.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ação A, com perda esperada 3,2.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ação A, com perda esperada 6,0.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ação B, com perda esperada 8,0.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "As ações empatam porque a posteriori favorece o evento.",
+          "correct": false
+        }
+      ],
+      "explanation": "O risco posterior da ação A é 0,7·2+0,3·6=3,2; o da ação B é 0,7·8+0,3·1=5,9. Escolhe-se A pela menor perda esperada, não por comparar apenas a perda no cenário mais provável.",
+      "section": "Validação preditiva, incerteza e decisão bayesiana",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A mudança da prevalência de uma classe entre treinamento e implantação não pode afetar a calibração probabilística enquanto a ordenação dos casos permanecer semelhante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A afirmação é incorreta: probabilidades posteriores de classe incorporam frequências-base e podem perder calibração quando a prevalência muda. A ordenação dos casos pode persistir, mas as frequências reais divergem dos valores previstos.",
+      "section": "Validação preditiva, incerteza e decisão bayesiana",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe calibra probabilidades em dados usados para ajustar o classificador e anuncia excelente Brier score nesse mesmo conjunto. Qual procedimento melhora a credibilidade da avaliação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir a calibração no conjunto de teste e divulgar o melhor resultado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir todas as probabilidades por 0,5, sem avaliar o novo desempenho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o tamanho da rede neural sem alterar o protocolo de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar separação entre ajuste, calibração e teste, respeitando tempo e grupos dos dados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Escolher a curva de calibração com aparência mais próxima da diagonal e ignorar os casos não usados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Avaliar no mesmo conjunto em que se ajusta o calibrador tende a produzir resultados otimistas. A separação de dados ou validação cruzada corretamente organizada evita vazamento e oferece estimativa mais honesta de desempenho futuro.",
+      "section": "Validação preditiva, incerteza e decisão bayesiana",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Stan User’s Guide — Posterior Predictive Sampling",
+      "publisher": "Stan Development Team",
+      "reference": "Integração preditiva, modelo Poisson–Gama e previsão com incerteza",
+      "url": "https://mc-stan.org/docs/stan-users-guide/posterior-prediction.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Stan Reference Manual — MCMC Sampling",
+      "publisher": "Stan Development Team",
+      "reference": "HMC, NUTS e divergências",
+      "url": "https://mc-stan.org/docs/reference-manual/hamiltonian-monte-carlo.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Stan Reference Manual — Variational Inference",
+      "publisher": "Stan Development Team",
+      "reference": "ADVI, ELBO e aproximação da posteriori",
+      "url": "https://mc-stan.org/docs/reference-manual/variational.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Stan User's Guide — Hierarchical Regression Models",
+      "publisher": "Stan Development Team",
+      "reference": "Poolings completo, parcial e ausente",
+      "url": "https://mc-stan.org/docs/stan-users-guide/multivariate-hierarchical-priors.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "scikit-learn User Guide — Naive Bayes",
+      "publisher": "scikit-learn developers",
+      "reference": "Independência condicional e variantes de Naive Bayes",
+      "url": "https://scikit-learn.org/stable/modules/naive_bayes.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "scikit-learn User Guide — Gaussian Processes",
+      "publisher": "scikit-learn developers",
+      "reference": "Processos gaussianos de regressão e classificação",
+      "url": "https://scikit-learn.org/stable/modules/gaussian_process.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "scikit-learn User Guide — Probability Calibration",
+      "publisher": "scikit-learn developers",
+      "reference": "Calibração, curvas e métodos sigmoid/isotonic",
+      "url": "https://scikit-learn.org/stable/modules/calibration.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SciPy — scipy.stats.gamma",
+      "publisher": "SciPy developers",
+      "reference": "Distribuição Gama com parâmetro scale e conversão taxa–escala",
+      "url": "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.gamma.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PyMC API — Normal",
+      "publisher": "PyMC Developers",
+      "reference": "Distribuição Normal, média, dispersão e precisão",
+      "url": "https://www.pymc.io/projects/docs/en/stable/api/distributions/generated/pymc.Normal.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ArviZ — Bayesian workflow diagnostics",
+      "publisher": "ArviZ developers",
+      "reference": "Diagnósticos R-hat, ESS e visualizações",
+      "url": "https://python.arviz.org/en/stable/",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

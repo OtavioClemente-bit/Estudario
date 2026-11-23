@@ -1,0 +1,1970 @@
+{
+  "id": "redes-computadores.servicos-rede-servidores-aplicacao-desempenho",
+  "subject": "Redes de Computadores",
+  "title": "Serviços de rede, servidores de aplicação e análise de desempenho",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Serviços de rede, servidores de aplicação e análise de desempenho",
+    "Serviços de rede, servidores de aplicação e análise de desempenho"
+  ],
+  "scope": {
+    "covers": "DNS, DHCP, sincronização de tempo, serviços de infraestrutura; IPv4 privado, SNAT, DNAT, NAPT/PAT, CGNAT e publicação; SMB, NFS, SFTP, CUPS/IPP, impressão, bancos relacionais, transações, planos, backups e replicação; servidores web e aplicações, HTTP, TLS, proxies e balanceamento; desempenho, SNMP, métricas e troubleshooting; IANA, ICANN, registry, registrar, CGI.br, NIC.br e Registro.br.",
+    "excludes": "Configuração detalhada de fabricantes específicos, comandos dependentes de versões particulares, implementação criptográfica, políticas contratuais de registro de domínios e conteúdo avançado de roteamento BGP."
+  },
+  "theoryTitle": "Infraestrutura de serviços, NAT, aplicações, monitoramento e gestão de domínios",
+  "chapters": [
+    {
+      "title": "Serviços essenciais: DNS, DHCP, tempo e conectividade",
+      "markdown": "## Visão integrada dos serviços\nUma infraestrutura de rede não se resume ao encaminhamento de pacotes: serviços de apoio permitem que aplicações encontrem destinos, recebam configurações, autentiquem usuários e mantenham registros coerentes. É útil separar **plano de dados** (tráfego efetivo), **plano de controle** (roteamento e decisões de encaminhamento) e **plano de gerenciamento** (provisionamento, observabilidade, inventário e correções). Um computador pode alcançar um endereço IP e, ainda assim, falhar ao abrir um serviço por nome se o DNS estiver incorreto; pode resolver o nome e falhar na sessão TCP se houver filtragem ou indisponibilidade do destino. A sequência de diagnóstico importa mais que a suposição de que todo erro é 'da rede'.\n\n### DNS: nomes, zonas e resolução\nO **Domain Name System (DNS)** organiza nomes hierarquicamente. Um domínio não é sinônimo de servidor e uma zona DNS não é necessariamente igual a todo o domínio: a zona é a parcela da árvore administrada por autoridade específica, podendo conter delegações. Um **servidor autoritativo** fornece registros da zona sob sua responsabilidade; um **resolvedor recursivo** consulta outras fontes, mantém cache e devolve respostas aos clientes. Na resolução iterativa, um servidor consultado orienta o resolvedor para uma autoridade mais próxima da resposta. O tempo de vida (**TTL**) do registro afeta a validade do cache, não é um comando de atualização instantânea em todas as estações.\n\nRegistros recorrentes: **A** associa nome a IPv4; **AAAA**, a IPv6; **CNAME**, a um nome canônico; **MX**, a destinos de entrega de correio e suas prioridades; **NS**, a servidores de nomes da zona; **SOA**, a metadados essenciais da zona; **PTR**, a nomes em resolução reversa; **TXT**, a textos usados em políticas e verificações. Um CNAME não substitui automaticamente o registro de origem de uma delegação. **DNSSEC** permite validar a autenticidade e integridade de dados DNS assinados quando a cadeia de confiança é estabelecida; não fornece, por si só, sigilo do tráfego de consulta. DNS tradicional usa frequentemente UDP na porta 53 e pode usar TCP, inclusive quando a situação exige transporte confiável ou respostas maiores; não se deve dizer que TCP é exclusivo de transferência de zona.\n\nUm roteiro prático: conferir qual resolvedor o cliente usa, consultar o registro e observar se a resposta é autoritativa ou veio de cache, comparar a resolução em servidores diferentes, revisar TTL, delegações e possíveis erros de configuração. `nslookup` e `dig` ajudam a testar a resolução; a conectividade ao IP deve ser avaliada separadamente. Em cenários de migração de endereço, a existência de caches explica por que clientes podem observar destinos diferentes durante a janela de mudança.\n\n### DHCP e atribuição de parâmetros\nO **DHCPv4** fornece, conforme a configuração, endereço, máscara, roteador padrão, servidores DNS e outros parâmetros. Uma concessão (**lease**) tem duração: um endereço atribuído dinamicamente não é propriedade perpétua do cliente. No fluxo clássico, aparecem mensagens de descoberta, oferta, solicitação e confirmação (*discover, offer, request, acknowledge*); outras mensagens tratam de rejeição, liberação e renovação. Um **agente de retransmissão (relay)** permite atendimento de clientes em outra sub-rede, encaminhando as mensagens ao servidor apropriado, sem exigir um servidor DHCP local em toda VLAN. A atribuição pode ser dinâmica, ou uma reserva pode associar identificadores do cliente a um endereço.\n\nQuando clientes recebem endereço mas não acessam a Internet, verificar separadamente gateway, DNS, rota, ACL e NAT. Quando parte dos usuários falha, examinar esgotamento do escopo, conflitos, relay, VLAN e concessões. O DHCP não substitui o encaminhamento IP nem cria automaticamente regras de segurança. Em redes IPv6, **SLAAC** e **DHCPv6** são mecanismos distintos, e anúncios de roteador têm papel próprio; não se deve transportar sem ressalvas o fluxo de DHCPv4 para IPv6.\n\n### Tempo, autenticação e outros serviços\nO **NTP** favorece sincronização de relógios para logs correlacionáveis, autenticação sensível a horário e análise de incidentes. Um desvio de relógio pode fazer registros aparentemente contraditórios ou prejudicar mecanismos que verificam validade temporal. **LDAP** oferece acesso a informações de diretório, e soluções de identidade podem combiná-lo com outros protocolos; LDAP, Kerberos e Active Directory não são sinônimos. Serviços de e-mail distinguem envio e transferência por SMTP de acesso à caixa por IMAP ou POP. Para administração remota, **SSH** fornece canal criptografado, enquanto Telnet tradicional não oferece proteção comparável das credenciais. FTP tradicional distingue conexões de controle e dados; alternativas como SFTP operam sobre SSH e não equivalem ao simples 'FTP criptografado'.\n\n**Mapa de dependências:** aplicação → nome DNS → endereço → rota/ACL → sessão de transporte → autenticação → processo do serviço → banco ou arquivo. O erro de uma dependência pode propagar-se aos sistemas situados acima dela. Trate portas conhecidas como valores usuais, passíveis de configuração, e não como garantia de que o serviço está operacional. Identificar processo escutando, resolução correta, firewall e autorização do usuário evita diagnósticos superficiais."
+    },
+    {
+      "title": "NAT, endereçamento, publicação de serviços e segurança",
+      "markdown": "## Tradução de endereços na prática\n**Network Address Translation (NAT)** altera informações de endereçamento dos pacotes ao atravessar um dispositivo intermediário. O modelo tradicional distingue a tradução básica de endereços da **NAPT/PAT** (*Network Address and Port Translation*), que também manipula portas TCP/UDP e permite que vários equipamentos internos compartilhem um endereço externo por meio de mapeamentos distintos. É essencial distinguir **endereço privado** de **endereço público**: os intervalos IPv4 privados definidos para uso interno são `10.0.0.0/8`, `172.16.0.0/12` e `192.168.0.0/16`. Apenas uma fatia do espaço `172.0.0.0/8` é privada; nem todo endereço começando por 172 o é. A tradução em si não é requisito geral para que máquinas de uma rede privada se comuniquem entre si.\n\n### SNAT, DNAT e PAT\nEm um fluxo de saída, **SNAT** modifica o endereço de origem do pacote; com PAT, pode trocar também sua porta de origem. Exemplo ilustrativo: `192.168.10.20:51500` acessa um servidor `203.0.113.80:443`; o gateway pode representar a sessão externamente como `198.51.100.10:40001`. A tabela de tradução preserva a associação necessária para entregar a resposta ao cliente correto. Endereços dos blocos `192.0.2.0/24`, `198.51.100.0/24` e `203.0.113.0/24` são usados em documentação: não servem, por si, como endereço público real de implantação.\n\n**DNAT** altera o destino, frequentemente para publicar um serviço interno: acesso a um endereço/porta do roteador pode ser direcionado a um servidor específico. O redirecionamento de portas é uma forma prática de mapear serviço externo para destino interno; exige política de firewall, rota de retorno e processo servidor ativo. Tradução e **filtragem por firewall** são conceitos diferentes. O fato de o NAT dificultar certas conexões iniciadas de fora não significa que ele substitua controles de acesso, segmentação, atualização e monitoramento. A presença de uma tabela NAT também não prova que o aplicativo recebeu, processou ou respondeu à requisição.\n\n### Estado, retorno e limitações\nA maioria das traduções de sessões TCP/UDP é acompanhada por estado ou associações temporárias. Ao expirar um mapeamento, um pacote tardio pode não ter correspondência; aplicações que permanecem ociosas precisam considerar tempos de expiração e mecanismos adequados de manutenção de sessão. Há características específicas de comportamento dos tradutores, como regras de mapeamento e filtragem de tráfego, com consequências para VoIP, jogos e comunicações ponto a ponto. Algumas aplicações transportam IPs/portas dentro dos dados e podem exigir técnicas adicionais ou desenho compatível com NAT. **Hairpin NAT** é a capacidade, quando implementada, de clientes internos acessarem uma publicação usando o endereço externo e serem corretamente redirecionados ao destino interno; não é garantida em todo roteador.\n\n**NAT em cascata**, chamado frequentemente de duplo NAT, pode dificultar encaminhamento de portas e rastreamento de conexões. **CGNAT** compartilha endereços IPv4 públicos entre clientes de um provedor e costuma dificultar a hospedagem de serviços por iniciativa do assinante, salvo soluções fornecidas pelo provedor ou outros mecanismos. Um endereço recebido na WAN de um roteador não deve ser automaticamente presumido globalmente roteável. **NAT64**, em arquiteturas próprias, permite comunicação entre determinados clientes IPv6 e destinos IPv4; não se deve equipará-lo diretamente ao PAT tradicional entre redes IPv4. O IPv6 permite conectividade global sem exigir NAT como padrão arquitetural, mas continua demandando firewall e políticas de acesso.\n\n### Troubleshooting e rastreabilidade\nPara falhas de saída, testar: IP/máscara/gateway, rota até o tradutor, regra e interface corretas, tabela de tradução, acesso ao destino, retorno e resolução DNS. Para publicação de entrada, verificar correspondência da regra DNAT, colisão de portas, firewall de borda e do host, endereço atualizado, caminho de retorno e eventual CGNAT. Uma sessão pode falhar por roteamento assimétrico, tabela de estados cheia ou excesso de conexões, sem que o DNS seja culpado. Na auditoria, correlacionar **IP e porta de origem traduzidos, destino, protocolo e horário**, quando disponíveis, é muito mais preciso que utilizar somente o endereço público compartilhado. Sincronização de tempo é condição decisiva para cruzar logs de NAT e aplicação.\n\n**Pegadinhas clássicas:** NAT não criptografa dados; endereço privado não é automaticamente anônimo; NAT não é VPN; PAT não torna todos os fluxos indistinguíveis para o roteador, pois este mantém associações; uma regra DNAT não elimina a necessidade de controle de acesso. Faça distinção entre tradução, roteamento, proxy, balanceamento e filtragem: cada camada responde a uma pergunta diferente."
+    },
+    {
+      "title": "Servidores de arquivos, impressão e bancos de dados",
+      "markdown": "## Servidores de arquivos: compartilhamento não é somente armazenamento\nUm servidor de arquivos disponibiliza pastas e objetos sob políticas centralizadas. **SMB** é muito usado na interoperabilidade com clientes Windows, inclusive por implementações Samba em sistemas Unix-like; **NFS** é frequente em ambientes Unix/Linux. **SFTP** permite transferências de arquivos por SSH, mas não equivale a um sistema de arquivos compartilhado SMB/NFS com a mesma semântica de bloqueios, operações e permissões. A escolha exige avaliar interoperabilidade, concorrência, identidade, recuperação, desempenho e rede. File server não é necessariamente um NAS específico: o serviço pode rodar em um sistema geral, dispositivo especializado ou ambiente virtualizado.\n\n### Permissões, identidade, bloqueio e proteção\nDistingua **permissões do compartilhamento** e **permissões do sistema de arquivos**: o acesso efetivo não deve exceder aquilo que o sistema operacional permite. Identidade/grupos são centrais para o princípio do menor privilégio; concessões genéricas de escrita podem expor dados e aumentar o impacto de ransomware. Protocolos de arquivos lidam com operações concorrentes, bloqueios ou oportunidades de cache, que devem respeitar a coerência quando múltiplos clientes trabalham nos mesmos dados. **Quotas** limitam uso conforme política; **auditoria** registra acessos e alterações relevantes; **versionamento ou snapshots** podem melhorar a recuperação, mas não são substitutos universais de backup independente.\n\nProteção exige backups testados, políticas de retenção, controle de privilégios, criptografia quando apropriada, segmentação e atualizações. **RAID** mitiga certas falhas de discos e pode aumentar disponibilidade ou desempenho, conforme o arranjo; não garante restauração após exclusão lógica, malware ou incêndio. A replicação de conteúdo pode também replicar uma corrupção. Para diagnosticar lentidão em compartilhamentos, diferencie atraso da rede (RTT, perdas, saturação), armazenamento (IOPS, fila, latência de disco), antivírus, DNS/autenticação e lock concorrente. A taxa sequencial de transferência não resume comportamento de pequenos arquivos ou requisições aleatórias.\n\n### Servidor de impressão e filas\nUm **servidor de impressão** recebe trabalhos, mantém filas, aplica permissões, acompanha estados e encaminha a execução à impressora. No ecossistema Unix-like, **CUPS** emprega o protocolo **IPP** e gerencia trabalhos (*jobs*) e filas; outras opções de transporte podem existir conforme equipamento e configuração. A **fila** representa trabalhos pendentes e seus estados; o **spool** armazena temporariamente informações dos trabalhos enquanto aguardam processamento. Uma impressora 'online' não significa necessariamente que o serviço de impressão do host cliente está correto. Falhas comuns envolvem fila pausada, ausência de papel, driver/formato incompatível, permissões, serviço parado, endereço incorreto e indisponibilidade da própria impressora.\n\n**Exemplo de diagnóstico:** usuário envia documento, o trabalho permanece 'pendente' e outros usuários imprimem normalmente. Investigue a fila e credenciais daquele usuário antes de substituir o equipamento. Se todos os clientes exibem filas presas para a mesma impressora, avalie servidor, spooler, conectividade e estado físico da impressora. Logs e estados de jobs devem ser considerados em conjunto; apagar indiscriminadamente a fila pode destruir evidências operacionais e causar perda de trabalhos.\n\n### Servidores de banco de dados\nO servidor de banco de dados organiza persistência, transações, controle de concorrência, autenticação, integridade, backups e respostas a consultas. Em um SGBD relacional, **ACID** resume atomicidade, consistência, isolamento e durabilidade; não significa que toda consulta seja rápida. Uma transação isolada pode sofrer espera por lock; índices aceleram determinados predicados, mas têm custo de espaço e manutenção em escritas. Um **pool de conexões** reutiliza conexões e reduz custo de abertura, porém limites muito altos podem aumentar disputa por CPU e memória do SGBD. No PostgreSQL, `EXPLAIN` apresenta o plano estimado de execução; `EXPLAIN ANALYZE` executa a instrução e apresenta medições, devendo ser empregado com cuidado em comandos que modificam dados.\n\n**Replicação** melhora determinados cenários de disponibilidade e leitura, mas pode sofrer atraso: réplica não é cópia de backup logicamente isolada. **Backup restaurável** exige verificação de consistência e teste de recuperação; políticas de RPO e RTO orientam perda de dados e tempo de restabelecimento aceitáveis, respectivamente. **Particionamento** distribui dados conforme critério lógico/físico e pode reduzir trabalho em consultas quando a seleção elimina partições; **sharding** distribui dados entre nós e amplia a complexidade operacional. Para diferenciar falhas, separar CPU, memória, armazenamento, consultas lentas, locks, número de conexões, tráfego e dependências externas. Um gargalo no banco pode se manifestar como erro 504 no proxy da aplicação, embora o proxy não seja a causa primária."
+    },
+    {
+      "title": "Servidores de aplicação, web, proxies e balanceamento",
+      "markdown": "## Camadas de serviço e responsabilidades\nO **servidor web** recebe requisições HTTP e pode servir conteúdo estático, finalizar TLS ou encaminhar pedidos a aplicações; o **servidor de aplicação** hospeda componentes que executam lógica de negócio, atendem APIs, mantêm sessões e acessam dados. Na prática, um produto pode acumular funções, mas a distinção lógica é útil. Exemplo: navegador → proxy reverso → aplicação → banco de dados. O erro apresentado ao navegador pode ter origem em qualquer etapa. O **proxy direto (forward proxy)** atua em nome de clientes rumo a destinos; o **proxy reverso** recebe solicitações direcionadas ao serviço e as distribui ou encaminha a servidores de origem.\n\n### HTTP, HTTPS e estados\nHTTP é um protocolo de aplicação com métodos e respostas. **GET** busca representação de recurso, enquanto **POST** envia conteúdo para processamento conforme a semântica do alvo; segurança, idempotência e cache não podem ser inferidos apenas pela presença de HTTPS. HTTPS protege o tráfego HTTP por meio de TLS, mas não garante que o servidor ou o aplicativo não tenha vulnerabilidades. Em servidores web, a classe **2xx** indica resultados bem-sucedidos, **3xx** trata de redirecionamentos, **4xx** indica problemas atribuídos à requisição/cliente e **5xx** problemas no atendimento pelo servidor ou intermediários.\n\nCódigos especialmente úteis em concursos e incidentes: **502 (Bad Gateway)** quando gateway/proxy recebe resposta inválida de servidor a montante; **503 (Service Unavailable)** quando o serviço está temporariamente incapaz de atender, por exemplo por sobrecarga ou manutenção; **504 (Gateway Timeout)** quando o intermediário não recebe resposta tempestiva do upstream. Erro 504 não comprova congestionamento físico: pode resultar de aplicação bloqueada por consulta lenta no banco. Cabeçalhos como `Host`, `Content-Type`, `Cache-Control` e `Authorization` têm papéis diferentes; um cookie pode dar suporte à sessão, mas não é uma garantia de autenticação segura sem controles complementares.\n\n### Balanceamento e tolerância a falhas\nUm **balanceador de carga** distribui tráfego entre instâncias segundo uma política: *round-robin* alterna destinos em sequência; *least connections* leva em conta conexões ativas; políticas ponderadas consideram capacidades relativas. O NGINX documenta balanceamento HTTP com grupos de servidores (*upstream*). **Health checks** retiram ou evitam destinos não saudáveis de acordo com sua configuração; checar somente se a porta responde pode ser insuficiente para afirmar que a aplicação e suas dependências estão funcionando. Diferencie **disponibilidade** da mera multiplicidade de servidores: dois nós atrás de um único balanceador sem redundância podem manter um ponto único de falha.\n\n**Afinidade de sessão (sticky session)** prende um cliente a uma instância de acordo com política, mas pode prejudicar redistribuição após falha ou desequilíbrio. Alternativas incluem sessões externas compartilhadas e aplicações desenhadas para operar sem estado local persistente. **Escalabilidade vertical** aumenta recursos de um nó; **horizontal** acrescenta nós, exigindo coordenação apropriada de cache, sessão, fila e dados. Distribuir tráfego entre nós não soluciona automaticamente gargalos em banco compartilhado, storage ou rede. **Rate limiting** limita taxa de solicitações; **cache** evita parte do trabalho repetido, mas precisa de estratégia de invalidação e respeito a conteúdo privado.\n\n### Segurança, implantação e operação\nPadrões úteis: segmentação entre Internet, proxy, aplicação e banco; TLS, segredos fora do código, atualização de dependências, configuração explícita de portas, autenticação e autorização distintas, princípio do menor privilégio, logs estruturados e proteção contra abuso. Um WAF pode mitigar determinadas classes de tráfego malicioso, mas não elimina a necessidade de programação segura. Contêineres empacotam aplicação e dependências, mas não são sinônimos de máquinas virtuais nem garantia de isolamento absoluto. A implantação contínua deve conciliar teste, observabilidade, rollback e migrações de banco compatíveis. Em atendimento a incidentes, correlacione identificador de requisição, logs de proxy e aplicação, métricas e rastros distribuídos antes de concluir que a indisponibilidade reside em uma camada específica.\n\n**Fluxo para memorizar:** resolução DNS e estabelecimento de conexão precedem a execução da lógica de negócios; o TLS pode terminar no proxy; o aplicativo usa conexões persistentes/pool; o retorno passa novamente pelo intermediário. Em cada transição há filas, limites de tempo, possibilidades de recusa e pontos de observação. A arquitetura deve ser analisada de ponta a ponta."
+    },
+    {
+      "title": "Desempenho de rede, métricas, monitoração e diagnóstico",
+      "markdown": "## O que se mede e por quê\nAvaliação de desempenho requer hipóteses e métricas adequadas à experiência do usuário. **Largura de banda** é capacidade potencial de transporte; **throughput** é taxa efetivamente obtida de dados transferidos em certo intervalo; **goodput** enfatiza dados úteis da aplicação, descontando custos e retransmissões. **Latência** descreve atraso, **RTT** mede ida e volta, **jitter** expressa variação temporal de atrasos e **perda de pacotes** pode exigir retransmissões ou degradar aplicações em tempo real. Um enlace de alta capacidade pode ter latência elevada, e baixa latência não implica automaticamente alta vazão. Não misture **bits/s** e **bytes/s**: um byte tem oito bits, antes de considerar sobrecargas de protocolo.\n\n### Gargalos, filas e congestionamento\nSe a taxa de chegada excede de forma sustentada a capacidade de atendimento, as **filas** crescem, aumentando atrasos e podendo ocorrer descartes. Aplicações podem experimentar saturação em CPU, memória, disco, conexões, banco, pool de threads ou equipamento de rede. A **utilização** alta sinaliza investigação, mas o valor médio isolado pode ocultar picos curtos e filas. Um gráfico médio de latência de 100 ms não impede que pequena parcela dos usuários sofra vários segundos de espera: quantis **p95/p99** tornam visível a cauda da distribuição. O aumento de buffers pode absorver rajadas e, ao mesmo tempo, agravar atraso sob carga persistente (*bufferbloat*).\n\nOs efeitos do TCP dependem de congestionamento, perda, RTT, janela e recepção; retransmissões podem reduzir taxa útil. Em enlaces de longa distância, um limite pequeno de dados em voo restringe vazão mesmo sem saturação aparente do link. Medições devem indicar **janela temporal**, ponto de captura, sentido do tráfego e condições de teste. Comparar média de 24 horas com pico de cinco minutos sem normalização produz interpretações enganosas. O teste de throughput contra um servidor externo mede o caminho completo e também pode sofrer limitações do próprio servidor de teste.\n\n### Instrumentos, protocolos e fontes de evidência\n`ping` auxilia a verificar resposta ICMP e medir RTT quando esse tráfego é permitido; ausência de resposta não prova necessariamente host desligado. `traceroute` ou `tracert` ajudam a observar saltos, mas respostas podem variar por política de ICMP, balanceamento e rotas. `ss` ou `netstat` expõem sockets/conexões conforme plataforma; `tcpdump` e Wireshark permitem inspecionar pacotes quando autorizados, com atenção a privacidade e criptografia. **SNMP** oferece acesso a objetos de gerenciamento organizados por MIB e identificados por OID; versões e modelos de segurança diferem. **Syslog** centraliza eventos; **NetFlow/IPFIX** descreve fluxos; não se devem confundir essas fontes com capturas integrais de conteúdo dos pacotes.\n\nA observabilidade utiliza **métricas, logs e traces** complementares. No modelo Prometheus, contadores são adequados a quantidades acumuladas que aumentam ou reiniciam; gauges representam valores que sobem e descem; histogramas agregam observações em faixas, úteis para distribuição de latência. **Alertas** precisam de condições acionáveis e contexto; número isolado de erros 500 pode ser pouco útil sem taxa de requisições. Para serviço web, acompanhar volume, duração, erros e saturação; para banco, conexões, locks, consultas lentas, cache e latência de disco; para fileserver, operações, throughput, IOPS, permissões e filas; para impressão, fila, falhas e tempo de conclusão.\n\n### Metodologia de investigação e capacidade\n1. **Defina o sintoma**: quem é afetado, desde quando, qual aplicação, qual operação e qual impacto.\n2. **Localize a dependência**: DNS, conectividade IP, transporte, proxy, aplicação, banco, armazenamento ou identidade.\n3. **Compare evidências**: uma linha de base anterior, horário do incidente, picos e mudanças de configuração.\n4. **Isole variáveis**: faça testes controlados, preferencialmente sem alterar simultaneamente várias camadas.\n5. **Valide a hipótese**: repita a operação depois da correção e registre a causa e os limites das evidências.\n\nPara planejar capacidade, diferencie **carga média, pico e crescimento**, headroom e limites de concorrência. Testes de carga verificam comportamento sob demanda esperada; testes de estresse investigam limites e recuperação; testes de duração podem revelar vazamento de recursos. A medição deve evitar gerar indisponibilidade no ambiente de produção. SLO é objetivo de nível de serviço definido para um indicador; SLA é compromisso contratual quando aplicável. Exemplo: um serviço pode estar 99,9% do tempo respondendo, porém com cauda de latência inaceitável para uma operação crítica — disponibilidade e qualidade percebida devem ser avaliadas separadamente.\n\n**Armadilha de prova:** monitorar exclusivamente CPU não mede saúde de aplicação; monitorar apenas banda não revela perda ou atraso; resolver DNS corretamente não garante conexão; um teste bem-sucedido no servidor não comprova acesso pelos clientes através do firewall. A pergunta certa define a métrica certa."
+    },
+    {
+      "title": "Domínios: entidades de registro, governança e operação DNS",
+      "markdown": "## Quem faz o quê na governança de nomes\nA Internet utiliza uma organização de nomes distribuída. Na raiz lógica do DNS ficam delegações dos **domínios de topo (TLDs)**, que podem incluir domínios genéricos (**gTLDs**) e associados a países/territórios (**ccTLDs**). A **IANA** realiza funções relativas à gestão da zona raiz, como registrar delegações e informações técnicas de TLDs. A **ICANN** coordena aspectos do sistema global de identificadores, especialmente relações e políticas pertinentes a muitos gTLDs. **Registry (operador de registro)** administra a base de um TLD e sua infraestrutura de publicação; **registrar (registrador)** intermedeia solicitações de nomes de registrantes conforme as regras aplicáveis. O **registrant (titular)** é a pessoa ou organização em cujo nome o domínio é registrado. Não confunda registrador com **resolvedor DNS** nem operador de TLD com provedor de hospedagem.\n\n### O caso brasileiro\nO **CGI.br** formula diretrizes estratégicas relacionadas à Internet no Brasil; o **NIC.br** executa atividades operacionais e administrativas; o **Registro.br**, departamento do NIC.br, responde pelo registro e manutenção de nomes sob `.br`. É tecnicamente incorreto dizer que a IANA vende diretamente cada domínio `.br` ao usuário final ou que o Registro.br exerce a mesma função de um resolvedor recursivo público. O registro do nome, a gestão da zona DNS, a hospedagem do site e o serviço de e-mail podem ser prestados por entidades distintas, embora possam estar comercialmente agrupados. Categorias e exigências de registro sob `.br` seguem regras vigentes do Registro.br: sempre confira a versão publicada em casos que dependam de condições específicas.\n\n**Exemplo operacional:** a organização registra `exemplo.com.br` e contrata um serviço de hospedagem. O direito de usar o nome é tratado no registro; a resolução depende dos **NS autoritativos** configurados/delegados e dos registros adequados; o site depende do servidor web; as mensagens dependem de configuração MX e dos provedores de correio. Uma falha no site não implica, por si, perda da titularidade do domínio. Registrar o domínio também não cria automaticamente certificados TLS válidos, caixas de e-mail ou redundância de hospedagem.\n\n### Delegação, registros e continuidade\n**Delegar** uma zona significa apontar autoridade para servidores que respondam pela zona delegada, mediante registros correspondentes. Uma mudança de nameservers exige consistência nas configurações relevantes; em determinados casos, dados auxiliares de delegação (*glue*) ajudam a alcançar nameservers cujos nomes dependem da própria zona delegada. O servidor autoritativo contém informações da zona; o resolvedor recursivo obtém respostas e pode armazená-las até o vencimento do TTL. **DNSSEC** permite validar dados assinados e reduzir certos riscos de falsificação, mas exige manutenção correta de chaves e cadeia de confiança; sua ativação mal configurada pode causar falhas de validação.\n\nA governança operacional inclui titularidade correta, controle de acesso da conta, autenticação forte, renovação tempestiva, cadastro técnico atualizado, inventário de zonas e registros, segregação de funções e procedimentos para incidentes. **Vencimento do registro** e **expiração de um registro DNS em cache** são eventos diferentes: o primeiro envolve manutenção administrativa do direito de uso; o segundo regula a vida de respostas em resolvedores. Uma alteração de A/AAAA pode não ser observada instantaneamente por todos os clientes, ainda que o painel de DNS exiba o novo valor. Na migração planejada, conferir resposta em servidores autoritativos e resolver em diferentes caches pode ajudar a localizar a divergência.\n\n### Questões de prova e aplicação\nEm itens sobre entidades, observe o **objeto gerenciado**: nome de domínio sob um TLD, delegação da raiz, registro DNS dentro de uma zona, endereço IP de uma organização ou acesso ao site. Essas atividades se relacionam, mas não se substituem. A alocação de recursos numéricos (endereços IP e ASN) tem processos e entidades próprios, diferentes do registro nominal de domínios. No Brasil, o NIC.br também atua na gestão de recursos numéricos em articulação com o ecossistema regional, mas isso não transforma um servidor DNS em autoridade sobre roteamento BGP. Em resumo: propriedade administrativa do nome, publicação de registros DNS e funcionamento da aplicação são camadas independentes que precisam estar alinhadas."
+    }
+  ],
+  "summary": "## Revisão estratégica\n\n**Serviços essenciais:** DNS distingue autoridades e resolvedores recursivos; A aponta IPv4, AAAA aponta IPv6, MX organiza destinos de e-mail e TTL limita o cache. DHCP concede parâmetros por lease e pode usar relay entre sub-redes. NTP sincroniza relógios para autenticação e rastreabilidade.\n\n**NAT:** SNAT modifica origem, DNAT modifica destino e NAPT/PAT também manipula portas, permitindo múltiplos clientes IPv4 em um endereço compartilhado. NAT não é firewall, nem VPN, nem criptografia; CGNAT e regras de retorno são causas frequentes de problemas na publicação de servidores.\n\n**Servidores:** SMB/NFS compartilham arquivos com permissões; CUPS/IPP gerenciam impressão por filas; bancos gerem consultas, transações, locks e recuperação. Replicação/RAID não substituem backup. Um servidor de aplicação pode ficar atrás de proxy reverso e balanceador, com sessão e banco como dependências.\n\n**Desempenho:** throughput é vazão, goodput considera carga útil, latência/RTT e jitter medem aspectos temporais, perdas degradam serviços. Investigue percentis, erros, filas, saturação, logs, traces e dados de SNMP. Na governança de nomes, IANA atua sobre a raiz; registries operam TLDs; registrars intermedeiam registros; no Brasil, Registro.br é departamento do NIC.br para .br. Memorize sobretudo as distinções de função e os limites de cada ferramenta.",
+  "flashcards": [
+    {
+      "front": "Qual a diferença entre DNS autoritativo e resolvedor recursivo?",
+      "back": "O autoritativo publica dados de uma zona sob sua responsabilidade; o recursivo busca respostas para o cliente e pode manter cache."
+    },
+    {
+      "front": "Que registro DNS mapeia nome para IPv6?",
+      "back": "AAAA; o registro A corresponde ao endereço IPv4."
+    },
+    {
+      "front": "Para que serve um registro MX?",
+      "back": "Indica servidores/destinos relacionados à entrega de correio de um domínio, com informações de preferência."
+    },
+    {
+      "front": "O que é lease no DHCP?",
+      "back": "É o período de concessão de configuração/endereço ao cliente, sujeito a renovação e expiração."
+    },
+    {
+      "front": "Qual a finalidade do DHCP relay?",
+      "back": "Intermediar mensagens DHCP entre segmentos, permitindo atendimento por servidor localizado em outra sub-rede."
+    },
+    {
+      "front": "Qual a diferença entre NAT básico e NAPT/PAT?",
+      "back": "NAT básico traduz endereços; NAPT/PAT também traduz portas para diferenciar fluxos de vários clientes."
+    },
+    {
+      "front": "O que distingue SNAT de DNAT?",
+      "back": "SNAT altera endereço de origem; DNAT altera o de destino, frequentemente para publicar serviços internos."
+    },
+    {
+      "front": "NAT criptografa o tráfego?",
+      "back": "Não. Tradução não equivale a TLS, VPN ou filtragem de firewall."
+    },
+    {
+      "front": "Quais são os três intervalos IPv4 privados da RFC 1918?",
+      "back": "10.0.0.0/8, 172.16.0.0/12 e 192.168.0.0/16."
+    },
+    {
+      "front": "SMB e NFS são usados para quê?",
+      "back": "Compartilhamento de arquivos em rede; SMB é comum em ambientes Windows e NFS em Unix/Linux."
+    },
+    {
+      "front": "Qual a diferença entre RAID e backup?",
+      "back": "RAID pode melhorar disponibilidade contra certos defeitos de disco; backup restaurável protege contra exclusões e outras perdas lógicas conforme retenção."
+    },
+    {
+      "front": "Qual o papel do spool em impressão?",
+      "back": "Armazenar temporariamente dados/trabalhos enquanto esperam processamento no fluxo de impressão."
+    },
+    {
+      "front": "O que distingue EXPLAIN de EXPLAIN ANALYZE no PostgreSQL?",
+      "back": "EXPLAIN mostra plano estimado; EXPLAIN ANALYZE executa a instrução para obter medições observadas."
+    },
+    {
+      "front": "O que indica HTTP 504?",
+      "back": "Um gateway ou proxy não recebeu em tempo hábil a resposta necessária do servidor upstream."
+    },
+    {
+      "front": "Qual a diferença entre proxy direto e reverso?",
+      "back": "O direto representa clientes em acessos externos; o reverso recebe requisições destinadas ao serviço e as encaminha a origens."
+    },
+    {
+      "front": "Round-robin e least connections diferem em quê?",
+      "back": "O primeiro alterna destinos segundo a ordem/peso; o segundo seleciona considerando conexões ativas."
+    },
+    {
+      "front": "Por que p95/p99 pode ser melhor que média isolada?",
+      "back": "Porque evidencia a cauda de latência que afeta a parcela mais lenta das requisições."
+    },
+    {
+      "front": "Como diferenciar throughput e goodput?",
+      "back": "Throughput é vazão efetiva de transferência; goodput considera especialmente os dados úteis à aplicação, excluindo custos e retransmissões."
+    },
+    {
+      "front": "Qual o papel de registry, registrar e registrant?",
+      "back": "Registry opera o registro do TLD; registrar intermedeia registros; registrant é o titular do nome."
+    },
+    {
+      "front": "Qual a relação entre CGI.br, NIC.br e Registro.br?",
+      "back": "CGI.br define diretrizes; NIC.br desempenha funções operacionais; Registro.br, ligado ao NIC.br, registra e mantém domínios .br."
+    },
+    {
+      "front": "IANA e resolvedor DNS são a mesma coisa?",
+      "back": "Não. IANA participa da gestão de delegações na zona raiz; resolvedores buscam respostas DNS em nome dos clientes."
+    },
+    {
+      "front": "O que representa o TTL DNS?",
+      "back": "Prazo de vida de dados em cache; não é uma garantia de atualização instantânea de todas as máquinas."
+    }
+  ],
+  "tips": [
+    "Comece o diagnóstico por nome, IP, rota, transporte, autorização e aplicação; testar cada camada separadamente economiza tempo e evita alterações aleatórias.",
+    "Decore NAT pela direção do campo alterado: SNAT = origem; DNAT = destino; PAT = portas em conjunto com endereços.",
+    "Ao comparar SMB, impressão e banco, identifique o objeto gerido: arquivos/permissões, trabalhos/fila, transações/consultas.",
+    "Em códigos HTTP, 502 aponta resposta inválida de upstream, 503 indisponibilidade temporária e 504 expiração de espera por upstream.",
+    "Em desempenho, sempre peça taxa, latência, perdas, percentis e saturação com contexto temporal; CPU e banda isoladas raramente bastam.",
+    "Para questões sobre domínios, distinga titular, registrador, operador do registro, infraestrutura autoritativa e resolvedor recursivo."
+  ],
+  "traps": [
+    "Confundir DNS autoritativo com recursivo: um publica a zona, outro procura respostas e mantém cache.",
+    "Considerar privado todo IP 172.x.x.x: somente 172.16.0.0/12 integra os blocos privados RFC 1918.",
+    "Tratar NAT como firewall ou criptografia: tradução não substitui controles de acesso nem sigilo.",
+    "Confundir replicação ou RAID com backup restaurável e independente.",
+    "Dizer que 504 identifica, sozinho, o culpado: ele informa falta de resposta tempestiva do upstream, não a causa raiz.",
+    "Interpretar média de desempenho satisfatória como ausência de degradação na cauda p95/p99.",
+    "Supor que o registro do domínio inclui automaticamente DNS autoritativo próprio, hospedagem, e-mail e certificado TLS."
+  ],
+  "activeRecall": [
+    {
+      "question": "Um cliente abre aplicação por IP e falha pelo nome. Como separar causas?",
+      "answer": "Consultar DNS no resolvedor do cliente, confirmar registro e cache; depois comparar com autoridade e testar rota/transporte separadamente."
+    },
+    {
+      "question": "Duas estações saem com o mesmo IPv4 público. Como o NAT devolve cada resposta?",
+      "answer": "Pelos mapeamentos de protocolo, portas e endereços mantidos pelo tradutor durante o fluxo."
+    },
+    {
+      "question": "Por que redirecionamento de porta pode falhar mesmo com regra DNAT?",
+      "answer": "O provedor pode usar CGNAT; também podem falhar firewall, processo de destino, rotas de retorno ou mapeamentos."
+    },
+    {
+      "question": "Que provas diferenciam falha de autorização em SMB de falha de rede?",
+      "answer": "Confirmar conectividade ao serviço e autenticação, verificar permissões de compartilhamento e do sistema de arquivos e examinar logs de acesso."
+    },
+    {
+      "question": "Qual o efeito de aumentar indiscriminadamente um pool do banco?",
+      "answer": "Pode agravar consumo e contenção de recursos; medir conexões, esperas e capacidade antes do ajuste."
+    },
+    {
+      "question": "Uma aplicação devolve HTTP 504 em pico de carga. Que dependências investigar?",
+      "answer": "Proxy e timeout, filas da aplicação, conexões, consultas/locks no banco, armazenamento e rede, com correlação temporal."
+    },
+    {
+      "question": "Como analisar lentidão de pequeno grupo se a latência média está boa?",
+      "answer": "Examinar percentis elevados, erros segmentados, traces e padrões por operação, cliente ou dependência."
+    },
+    {
+      "question": "Qual a diferença entre renovar o domínio e alterar TTL?",
+      "answer": "Renovação preserva condição administrativa do registro; TTL controla duração da resposta em cache DNS."
+    },
+    {
+      "question": "Quem são IANA, registry, registrar e titular?",
+      "answer": "IANA gere elementos da raiz; registry opera um TLD; registrar comercializa/intermedeia registro; titular registra o nome em seu favor."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão de funções DNS e DHCP",
+      "summary": "Trocar resolução recursiva por autoridade de zona, TTL por atualização imediata ou DHCP por roteamento resulta em diagnóstico equivocado das dependências."
+    },
+    {
+      "key": "e2",
+      "title": "NAT confundido com proteção e disponibilidade",
+      "summary": "Traduzir origem/destino e portas não criptografa, não substitui firewall e não comprova que aplicações estejam acessíveis."
+    },
+    {
+      "key": "e3",
+      "title": "Recuperação e permissões de servidores",
+      "summary": "RAID/replicação não se equivalem a backup; permissões de compartilhamento não podem ignorar o sistema de arquivos."
+    },
+    {
+      "key": "e4",
+      "title": "Disponibilidade aparente em aplicações distribuídas",
+      "summary": "Balancear nós não elimina dependências críticas; status 504 e TLS não demonstram por si a causa raiz ou segurança da aplicação."
+    },
+    {
+      "key": "e5",
+      "title": "Métricas isoladas e evidência insuficiente",
+      "summary": "Banda, CPU média ou ping isolado não caracterizam toda a experiência; perdas, filas e percentis devem ser considerados."
+    },
+    {
+      "key": "e6",
+      "title": "Papéis institucionais no registro de domínios",
+      "summary": "Registro, hospedagem, DNS autoritativo e resolução recursiva são atividades distintas; IANA, registry, registrar e titular têm papéis próprios."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um servidor DNS autoritativo responde com dados de zonas pelas quais é responsável, ao passo que um resolvedor recursivo pode consultar outras autoridades e utilizar cache.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item distingue corretamente autoridade sobre uma zona e resolução recursiva. O resolvedor pode armazenar respostas pelo TTL; o autoritativo publica dados da zona. Confundir essas funções leva a diagnósticos incorretos de falhas de nomes.",
+      "section": "Serviços essenciais: DNS, DHCP, tempo e conectividade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista verifica que a página abre pelo endereço IPv4, mas não pelo nome. Qual teste é mais diretamente indicado como primeiro passo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Consultar o registro DNS do nome no resolvedor configurado pelo cliente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Consultar exclusivamente os registros PTR reversos de todos os clientes, pois a existência desses registros confirma que qualquer nome de aplicação é resolvido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar o controle de acesso da rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reiniciar a impressora do setor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar a quantidade de conexões do banco de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "O acesso por IP sugere que alguma conectividade até o serviço existe. A consulta DNS do cliente isola a etapa de tradução de nomes. Intervir em disco, impressão, firewall ou banco sem evidência não verifica essa hipótese.",
+      "section": "Serviços essenciais: DNS, DHCP, tempo e conectividade",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instituição quer distribuir automaticamente configuração IP a computadores de diferentes VLANs sem manter servidor DHCP em cada uma. Qual mecanismo atende ao cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colocar um servidor DNS autoritativo independente em cada VLAN, pois as respostas de zona eliminam a necessidade de retransmitir mensagens DHCP entre redes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Agentes DHCP relay nos equipamentos que interligam as VLANs.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Tradução estática de portas em todas as estações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumento do TTL dos registros A.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Proxy reverso instalado nas impressoras.",
+          "correct": false
+        }
+      ],
+      "explanation": "O relay recebe mensagens dos segmentos clientes e as encaminha ao DHCP central, respeitando a arquitetura de sub-redes. DNS reverso, NAT, cache e proxy não substituem o encaminhamento das solicitações de configuração.",
+      "section": "Serviços essenciais: DNS, DHCP, tempo e conectividade",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O TTL de um registro DNS obriga todos os resolvedores a descartar imediatamente a resposta anterior no exato momento em que o administrador edita a zona.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O TTL limita por quanto tempo a resposta pode permanecer em cache a partir da obtenção, não sincroniza instantaneamente as caches após uma edição. Mudanças podem ser percebidas em momentos distintos conforme o estado prévio dos clientes.",
+      "section": "Serviços essenciais: DNS, DHCP, tempo e conectividade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma consulta DNS, o administrador quer associar diretamente um nome de host a um endereço IPv6. Qual tipo de registro corresponde à necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "MX.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "PTR.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "AAAA.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "SOA.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "NS.",
+          "correct": false
+        }
+      ],
+      "explanation": "O registro AAAA relaciona nome e endereço IPv6, enquanto A representa IPv4. MX trata de entrega de e-mail, PTR de resolução reversa, NS de servidores da zona e SOA de informações administrativas essenciais.",
+      "section": "Serviços essenciais: DNS, DHCP, tempo e conectividade",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa investiga autenticações intermitentes e logs com horários incompatíveis entre servidores. Qual serviço deve ser verificado prioritariamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o tempo de validade das concessões DHCP, já que isso obriga automaticamente todos os relógios dos servidores a adotarem o mesmo horário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Redirecionamento de portas pelo NAT.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Publicação de registros CNAME.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sincronização dos relógios por NTP ou solução de tempo equivalente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Compactação de arquivos de backup.",
+          "correct": false
+        }
+      ],
+      "explanation": "Relógios divergentes comprometem correlação de logs e autenticação sensível ao tempo. Sincronização temporal é a hipótese diretamente ligada aos sintomas; os demais serviços não corrigem o relógio dos participantes.",
+      "section": "Serviços essenciais: DNS, DHCP, tempo e conectividade",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rede IPv4, DHCP pode entregar configuração de gateway e DNS aos clientes, mas não substitui o roteamento nem assegura, sozinho, acesso efetivo à Internet.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A concessão DHCP informa parâmetros, enquanto o acesso depende de rotas, filtros, disponibilidade do destino e, conforme a arquitetura, NAT. Obter um endereço válido é condição útil, porém não prova a operação de toda a cadeia.",
+      "section": "Serviços essenciais: DNS, DHCP, tempo e conectividade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um técnico precisa diferenciar a função de LDAP e SSH em uma infraestrutura. Qual associação está tecnicamente correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar LDAP como protocolo de transporte criptografado para terminal remoto e reservar SSH exclusivamente para a atualização de registros de diretório.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "LDAP traduz endereços privados; SSH atribui endereços por concessão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "LDAP implementa impressão IPP; SSH atualiza a zona raiz do DNS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "LDAP substitui o TCP; SSH é exclusivamente protocolo de sincronização horária.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "LDAP é usado para acessar serviços de diretório; SSH oferece sessão remota criptografada.",
+          "correct": true
+        }
+      ],
+      "explanation": "LDAP e SSH operam em camadas de aplicação, mas resolvem problemas distintos: consulta a diretórios e acesso remoto protegido. Eles não exercem funções de NAT, DNS, IPP, DHCP ou NTP, o que torna as demais associações indevidas.",
+      "section": "Serviços essenciais: DNS, DHCP, tempo e conectividade",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PAT, múltiplas conexões de equipamentos internos podem compartilhar um endereço IPv4 externo mediante tradução de portas e controle dos respectivos mapeamentos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A tradução de endereços e portas preserva informações suficientes para diferenciar os fluxos e devolver respostas. Sem o acompanhamento dos mapeamentos, o roteador não distinguiria corretamente os vários clientes que utilizam o mesmo IP externo.",
+      "section": "NAT, endereçamento, publicação de serviços e segurança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual dos blocos IPv4 apresentados pertence integralmente ao espaço privado previsto na RFC 1918?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "172.0.0.0/8.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "172.16.0.0/12.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "169.254.0.0/16.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "203.0.113.0/24.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "100.0.0.0/8.",
+          "correct": false
+        }
+      ],
+      "explanation": "O intervalo privado intermediário vai de 172.16.0.0 a 172.31.255.255, representado por /12. Não se deve generalizar para todo 172/8; os demais blocos possuem outras finalidades ou não correspondem ao intervalo citado.",
+      "section": "NAT, endereçamento, publicação de serviços e segurança",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa precisa publicar, mediante um endereço de borda, o serviço HTTPS de um host em rede privada. Qual operação de tradução é mais diretamente aplicável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Modificar apenas o endereço IP de origem dos pacotes enviados pelo usuário externo, sem alterar o destino ou garantir que o servidor interno receba a conexão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Bloquear todos os pacotes de retorno ao cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar o destino da conexão recebida para o endereço e a porta internos apropriados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Trocar a porta da impressora por IPP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar toda política de firewall do perímetro.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na publicação de serviços, DNAT ou redirecionamento de portas modifica o destino de uma conexão recebida. Ainda são necessários regras de acesso, serviço ativo e caminho de retorno; DNS sozinho não faz a tradução.",
+      "section": "NAT, endereçamento, publicação de serviços e segurança",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A adoção de NAT equivale à aplicação de criptografia de ponta a ponta e dispensa regras de filtragem e controle de acesso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "NAT modifica endereços e, em determinadas modalidades, portas; não criptografa os dados do fluxo. A proteção exige controles independentes, como firewall, autenticação, segmentação e protocolos seguros, mesmo quando há tradução.",
+      "section": "NAT, endereçamento, publicação de serviços e segurança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas estações internas acessam o mesmo servidor externo usando um único IPv4 de saída. Como o gateway PAT normalmente distingue seus retornos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Utilizar o endereço externo compartilhado como identificador único e permanente de cada máquina, ignorando a tradução de portas e a concorrência de sessões.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pela cor física do cabo utilizado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pelo TTL fixo do registro MX do domínio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Por associações de tradução que incluem protocolo e portas dos fluxos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Pelo tipo de driver da impressora instalada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O dispositivo traduz e acompanha combinações de endereços e portas de transporte para associar respostas a clientes distintos. Dados de interface gráfica, cabeamento, DNS de e-mail ou impressão não identificam o estado de cada sessão.",
+      "section": "NAT, endereçamento, publicação de serviços e segurança",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor interno funciona localmente, mas não pode ser alcançado por redirecionamento de porta, e a WAN do roteador recebe endereço compartilhado de operadora. Qual hipótese deve ser examinada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar exclusivamente um novo registro DNS do tipo PTR no domínio do assinante, pois a resolução reversa remove qualquer tradução adicional feita pela operadora.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas ausência de registro PTR do servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Necessidade de aumentar a memória da impressora.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativação automática de SMB ao habilitar HTTPS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Existência de CGNAT no provedor, impedindo o alcance direto da borda do assinante.",
+          "correct": true
+        }
+      ],
+      "explanation": "Em CGNAT, a borda do cliente pode não possuir endereço IPv4 público dedicado capaz de receber conexões externas diretamente. Publicação exige estratégia específica junto ao provedor ou outro mecanismo; PTR não resolve isso.",
+      "section": "NAT, endereçamento, publicação de serviços e segurança",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra DNAT configurada corretamente é suficiente, por si só, para garantir a disponibilidade do serviço, ainda que o processo de aplicação esteja parado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A tradução apenas altera o destino dos pacotes. A aplicação precisa aceitar conexões, e firewall, rotas, estado do serviço e retorno devem estar corretos. A existência da regra não comprova uma resposta válida do sistema publicado.",
+      "section": "NAT, endereçamento, publicação de serviços e segurança",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para rastrear uma conexão específica em ambiente com endereço IPv4 público compartilhado por diversos usuários, qual conjunto de dados é mais útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "IP e porta traduzidos, protocolo, destino e horário correlacionável.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente o IP público, sem horário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas o nome comercial do provedor de acesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A lista de papéis na fila de impressão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O último nome de domínio visitado por qualquer usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em compartilhamento de endereços, o IP público isolado é insuficiente para identificar um fluxo. Portas, protocolo, destino e tempo permitem correlacionar traduções e logs; relógios consistentes são cruciais nessa análise.",
+      "section": "NAT, endereçamento, publicação de serviços e segurança",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O acesso a um compartilhamento SMB deve respeitar controles do próprio compartilhamento e permissões efetivas do sistema de arquivos subjacente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "As verificações de autorização podem ocorrer em diferentes camadas. Liberar escrita na configuração do compartilhamento não permite ignorar restrições do sistema de arquivos. O diagnóstico de acesso negado deve considerar ambas.",
+      "section": "Servidores de arquivos, impressão e bancos de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer recuperar arquivos após exclusão acidental ou ransomware. Qual medida atende mais diretamente à necessidade, sem confundir continuidade com recuperação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Implantar exclusivamente replicação em tempo real para outro disco, já que esse processo impede a propagação de exclusões acidentais e de dados alterados por malware.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas espelhamento síncrono de todos os arquivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Backups separados e testados periodicamente quanto à restauração.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Aumento de MTU em todos os computadores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativação dos registros de auditoria.",
+          "correct": false
+        }
+      ],
+      "explanation": "Backups recuperáveis protegem contra perda lógica quando preservados de forma adequada e sua restauração é verificada. RAID e replicação ajudam em outros objetivos, mas podem manter exclusões e corrupções; MTU e auditoria não substituem cópias.",
+      "section": "Servidores de arquivos, impressão e bancos de dados",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um serviço de impressão gerenciado por CUPS, qual recurso mantém e acompanha trabalhos enviados até que sejam processados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registros DNS do tipo AAAA.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tabela de tradução de portas do roteador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Plano de execução do banco relacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fila de impressão com estados dos trabalhos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Cache exclusivo de consulta recursiva DNS.",
+          "correct": false
+        }
+      ],
+      "explanation": "O servidor de impressão gerencia jobs em filas e permite observar seu estado. O spool pode guardar dados temporários, mas registros DNS, NAT e planos SQL pertencem a funções diferentes e não organizam os trabalhos.",
+      "section": "Servidores de arquivos, impressão e bancos de dados",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A replicação de um banco de dados substitui integralmente o backup, pois qualquer operação errada no primário será necessariamente bloqueada na réplica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Replicação pode propagar alterações indevidas e não garante recuperação a um instante anterior. Backup com retenção e teste de restauração fornece proteção distinta; a arquitetura deve considerar RPO, RTO e modos de falha.",
+      "section": "Servidores de arquivos, impressão e bancos de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador PostgreSQL pretende obter o plano com medições reais da execução de uma consulta, sabendo que a instrução será efetivamente executada. Qual comando é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "EXPLAIN, que sempre executa e cronometra a consulta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SELECT apenas do catálogo de usuários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "REVOKE aplicado a todos os esquemas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DROP INDEX sem avaliar dependências.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "EXPLAIN ANALYZE.",
+          "correct": true
+        }
+      ],
+      "explanation": "EXPLAIN ANALYZE executa a instrução e acrescenta medidas observadas ao plano. EXPLAIN simples oferece estimativas sem executar a instrução analisada. Em comandos modificadores, a execução exige cautela para não afetar dados.",
+      "section": "Servidores de arquivos, impressão e bancos de dados",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor de arquivos atende pequenos arquivos com lentidão, embora a taxa de transmissão sequencial esteja alta. Qual hipótese merece investigação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Latência de armazenamento, quantidade de operações de I/O e bloqueios concorrentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Concluir que a largura de banda sequencial elimina qualquer limitação de I/O, pois operações de arquivos pequenos não dependem de filas nem da latência do disco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que o DNS obrigatoriamente está inativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que a fila da impressora define o limite de IOPS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Que a presença de RAID garante ausência de esperas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pequenos arquivos podem gerar muitas operações e acessos aleatórios, sensíveis a latência e concorrência. Taxa sequencial não descreve sozinha o comportamento; bloqueios, antivírus e armazenamento podem limitar a experiência.",
+      "section": "Servidores de arquivos, impressão e bancos de dados",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um banco relacional, adicionar índices pode acelerar algumas consultas, mas também consumir espaço e impor custos sobre operações de atualização dos dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Índices facilitam determinados acessos e filtragens, porém precisam ser mantidos durante alterações e ocupam recursos. Não há vantagem universal em indexar indiscriminadamente todos os campos; o padrão real de consultas orienta a escolha.",
+      "section": "Servidores de arquivos, impressão e bancos de dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação sofre espera por conexões e um administrador propõe aumentar sem limite o pool de conexões do banco. Qual avaliação é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Elevar sem limite a quantidade de conexões abertas por todos os usuários, já que pools grandes sempre eliminam contenção de memória e consultas simultâneas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Avaliar saturação, limite do SGBD e uso de conexões antes de redimensionar o pool.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Conexões simultâneas não ocupam recursos no banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A única causa possível é o DNS recursivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter o servidor de impressão em gateway NAT.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pools reutilizam conexões, mas crescimento excessivo pode elevar consumo e contenção no banco. A decisão deve partir das métricas de espera, número de conexões e capacidade dos recursos, sem atribuir automaticamente o problema a DNS.",
+      "section": "Servidores de arquivos, impressão e bancos de dados",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um proxy reverso recebe requisições dirigidas ao serviço publicado e pode encaminhá-las a diferentes servidores de aplicação, inclusive com balanceamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O proxy reverso atua diante dos servidores de origem e pode selecionar destinos, finalizar TLS e registrar requisições. Isso difere de proxy direto, que atende clientes rumo a serviços externos, e de simples tradução de endereços.",
+      "section": "Servidores de aplicação, web, proxies e balanceamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um proxy HTTP retorna 504 ao cliente. O que esse código indica de maneira mais específica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Considerar que todo código HTTP 504 é uma prova definitiva de interrupção física do link de Internet do cliente, dispensando verificar a aplicação a montante.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O recurso teve seu endereço IP trocado pelo DHCP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O servidor recusou o método por não existir DNS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O intermediário não recebeu resposta a tempo do servidor a montante necessário à requisição.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A impressora remota está necessariamente sem papel.",
+          "correct": false
+        }
+      ],
+      "explanation": "O 504 expressa timeout de gateway/proxy ao aguardar upstream; o motivo raiz pode envolver aplicação, rede ou banco de dados. Não demonstra sucesso, falha de DHCP ou problema de impressora, nem identifica sozinho a causa.",
+      "section": "Servidores de aplicação, web, proxies e balanceamento",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização distribui solicitações web sequencialmente entre três instâncias saudáveis, sem considerar inicialmente o número de conexões. Qual política descreve a seleção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Least connections.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tradução de destino DNAT.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Resolução DNS reversa PTR.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Replicação síncrona de blocos de disco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Round-robin.",
+          "correct": true
+        }
+      ],
+      "explanation": "Round-robin alterna a escolha entre membros do grupo segundo a configuração. Least connections considera conexões ativas, enquanto DNAT, PTR e replicação não são algoritmos de balanceamento HTTP entre instâncias.",
+      "section": "Servidores de aplicação, web, proxies e balanceamento",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Distribuir requisições entre diversos servidores de aplicação elimina automaticamente o risco de ponto único de falha em banco de dados e no próprio balanceador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A redundância de uma camada não torna as dependências redundantes. Banco compartilhado, armazenamento, rede ou balanceador único podem permanecer como pontos críticos; alta disponibilidade precisa contemplar a cadeia completa.",
+      "section": "Servidores de aplicação, web, proxies e balanceamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um portal mantém sessões apenas na memória local de cada instância e percebe falhas quando o balanceamento envia o cliente a outro nó. Qual solução arquitetural é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Externalizar o estado de sessão ou adotar gestão de sessão compartilhada compatível.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ativar exclusivamente afinidade rígida de sessão em uma única instância, porque isso garante continuidade de acesso mesmo depois que essa instância falhar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar autenticação de todos os usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Obrigar cada cliente a usar uma impressora exclusiva.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter respostas HTTP 200 em HTTP 504.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sessão restrita à memória de um nó dificulta mobilidade entre instâncias. Estado compartilhado ou aplicação sem dependência de sessão local resolve a causa estrutural; afinidade pode mitigar, mas traz limitações.",
+      "section": "Servidores de aplicação, web, proxies e balanceamento",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço HTTPS atende corretamente, mas seu banco executa consultas longas e o proxy começa a devolver 504. Qual raciocínio é o mais consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atribuir o erro obrigatoriamente à negociação TLS entre navegador e proxy, desconsiderando a possibilidade de espera em consultas ou conexões do banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O tempo de resposta da dependência de dados pode estar esgotando o limite do intermediário.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O HTTP foi convertido em protocolo de impressão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A presença do proxy prova que a conexão com o banco não existe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A solução obrigatória é eliminar o registro SOA do domínio.",
+          "correct": false
+        }
+      ],
+      "explanation": "O proxy pode expirar a espera pelo aplicativo porque este está bloqueado no banco. A observação combina sintoma no intermediário e latência no serviço dependente; o código sozinho não atribui culpa a TLS, DNS ou impressão.",
+      "section": "Servidores de aplicação, web, proxies e balanceamento",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "HTTPS utiliza proteção de transporte, mas não garante, por si só, que o código da aplicação esteja livre de falhas de autorização ou vulnerabilidades.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "TLS protege a comunicação contra determinadas ameaças no trânsito, mas não verifica a lógica de negócios nem substitui controles de autorização e validação de entradas. Segurança é composição de mecanismos em camadas distintas.",
+      "section": "Servidores de aplicação, web, proxies e balanceamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No planejamento de escala de aplicações, qual medida caracteriza escalabilidade horizontal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar apenas a memória RAM de um único nó.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar cache de todas as requisições.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Acrescentar instâncias de serviço capazes de atender em paralelo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Renovar o registro de domínio sem modificar a aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar exclusivamente a velocidade da impressora.",
+          "correct": false
+        }
+      ],
+      "explanation": "Escala horizontal amplia a quantidade de nós; escala vertical reforça um nó já existente. Adicionar instâncias exige também cuidar de sessões e dependências compartilhadas, pois capacidade de uma camada não elimina todos os gargalos.",
+      "section": "Servidores de aplicação, web, proxies e balanceamento",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conexão de rede pode ter alta capacidade nominal de transmissão e, ainda assim, apresentar latência alta ou perdas que degradem a aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Banda representa capacidade potencial, enquanto atraso e perdas são propriedades distintas do caminho. Aplicações interativas podem sofrer mesmo com throughput elevado; diagnosticar somente a velocidade nominal é insuficiente.",
+      "section": "Desempenho de rede, métricas, monitoração e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação apresenta média de latência satisfatória, mas uma parcela dos usuários espera vários segundos. Qual métrica explicita melhor esses casos extremos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas o número de máquinas na rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Exclusivamente a versão dos drivers de impressão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente o tamanho do último arquivo de log.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A média de armazenamento de endereços DNS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Percentis elevados da distribuição, como p95 ou p99.",
+          "correct": true
+        }
+      ],
+      "explanation": "Percentis altos descrevem a cauda de latência e ajudam a detectar impacto oculto pela média. Contagem de estações, drivers e tamanho de logs não traduzem diretamente a distribuição dos tempos percebidos.",
+      "section": "Desempenho de rede, métricas, monitoração e diagnóstico",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um enlace apresenta 80 Mbit/s de tráfego total, mas a aplicação recebe menos dados úteis por segundo. Qual conceito explica a diferença?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Goodput, que desconta sobrecargas e transmissões não úteis à aplicação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Interpretar a taxa total transportada no enlace como quantidade integral de dados úteis recebidos pelo programa, incluindo retransmissões e cabeçalhos de protocolos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RPO, que mede apenas a latência de um roteador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "NS, que é a quantidade de conexões TCP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Spool, que define a capacidade elétrica da porta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Goodput observa a taxa de dados efetivamente úteis para a aplicação, inferior à vazão bruta quando existem cabeçalhos, retransmissões e outros custos. TTL, RPO, registros DNS e spool dizem respeito a outras dimensões.",
+      "section": "Desempenho de rede, métricas, monitoração e diagnóstico",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ausência de respostas ao comando ping comprova, em qualquer contexto, que o computador consultado está desligado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Dispositivos e firewalls podem bloquear ou limitar ICMP, e caminhos podem filtrar mensagens sem derrubar outros serviços. O teste negativo é evidência limitada; verificação de TCP, rota e política de acesso complementa o diagnóstico.",
+      "section": "Desempenho de rede, métricas, monitoração e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema de monitoração precisa registrar a quantidade acumulada de requisições HTTP atendidas e calcular a taxa por intervalo. Qual tipo de métrica é mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gauge dedicado exclusivamente a valores que nunca mudam.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Counter, considerando também reinicializações do processo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Registro PTR do domínio consultado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Arquivo de spool do serviço de impressão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Entrada de configuração do relay DHCP.",
+          "correct": false
+        }
+      ],
+      "explanation": "Contadores representam totais cumulativos e podem ser usados para obter taxas, com tratamento dos reinícios. Gauges são adequados a medidas variáveis, como conexões simultâneas; os outros itens não são tipos de métricas de requisições.",
+      "section": "Desempenho de rede, métricas, monitoração e diagnóstico",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rede corporativa, um gestor deseja coletar periodicamente valores de interfaces e equipamentos expostos por objetos de gerenciamento. Qual tecnologia corresponde melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "HTTP 504 como mecanismo de coleta de interfaces.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "FTP como substituto integral de monitoração de roteadores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SNMP com objetos identificados por OIDs e descritos em MIBs.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "CNAME como protocolo de leitura de CPU.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CGNAT como banco de objetos gerenciáveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "SNMP fornece operações para obter informações de objetos gerenciados, organizados por OIDs e definidos em MIBs. Sua aplicação difere de códigos de erro HTTP, transferência de arquivos, registros DNS e tradução de endereços.",
+      "section": "Desempenho de rede, métricas, monitoração e diagnóstico",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o monitoramento mostrar CPU média baixa, fica demonstrado que não há gargalo em disco, rede, banco de dados ou contenção por locks.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Utilização média de CPU observa apenas um recurso e pode esconder picos ou esperas por I/O, conexão, fila ou lock. Diagnóstico de desempenho precisa de indicadores por camada e de métricas relacionadas ao sintoma real.",
+      "section": "Desempenho de rede, métricas, monitoração e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao investigar uma lentidão intermitente após implantação, qual sequência de trabalho é metodologicamente mais sólida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alterar simultaneamente firewall, parâmetros do banco e resolução DNS, sem conservar medições de referência, porque isso permite identificar a causa exata de imediato.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tomar o pico de CPU como causa única sem testar a aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar logs antes de localizar o horário do problema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Caracterizar o sintoma, correlacionar métricas e mudanças, isolar a hipótese e validar a correção.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Declarar resolução logo após um ping bem-sucedido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Investigação confiável delimita impacto, compara linha de base e alterações, testa causas controladas e confirma o comportamento após a intervenção. Mudanças simultâneas ou descarte de evidências prejudicam a atribuição causal.",
+      "section": "Desempenho de rede, métricas, monitoração e diagnóstico",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Registro.br é um departamento do NIC.br responsável por atividades de registro e manutenção dos nomes de domínio sob o domínio de topo .br.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "No arranjo brasileiro, o CGI.br estabelece diretrizes, o NIC.br executa funções e o Registro.br cuida da operação de registro de domínios .br. Essa função não deve ser confundida com hospedagem de sites ou recursão DNS.",
+      "section": "Domínios: entidades de registro, governança e operação DNS",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gestor pergunta quem mantém as informações de delegação dos domínios de topo na zona raiz do DNS. Qual entidade/função está mais diretamente ligada a essa atividade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Funções IANA de gestão da zona raiz.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Fila de impressão administrada por CUPS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pool de conexões de um banco PostgreSQL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Agente DHCP relay da rede local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Proxy de acesso HTTP do escritório.",
+          "correct": false
+        }
+      ],
+      "explanation": "As funções IANA incluem registrar informações técnicas das delegações de TLDs na raiz do DNS. Impressão, bancos, relay e proxy não administram essas delegações, embora possam depender de resolução de nomes.",
+      "section": "Domínios: entidades de registro, governança e operação DNS",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No ecossistema de registro de muitos domínios genéricos, quem normalmente recebe a solicitação do titular e a encaminha ao operador do registro do TLD?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Resolvedor recursivo utilizado pelo navegador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Registrador de domínios (registrar).",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Impressora de rede com suporte a IPP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Servidor de arquivos da intranet.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Balanceador de carga do portal.",
+          "correct": false
+        }
+      ],
+      "explanation": "O registrador oferece o serviço de registro ao titular e interage com o registry conforme regras aplicáveis. O resolvedor procura registros DNS e não registra nomes; impressora, fileserver e balanceador têm outras funções.",
+      "section": "Domínios: entidades de registro, governança e operação DNS",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Registrar um nome de domínio no Registro.br assegura, de forma automática, hospedagem web, caixas de e-mail e certificado TLS válido para o site.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Registro, hospedagem, e-mail e emissão/instalação de certificados são serviços distintos. Eles podem ser contratados em conjunto, mas a titularidade de um nome não demonstra que aplicações e recursos associados estejam disponíveis.",
+      "section": "Domínios: entidades de registro, governança e operação DNS",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe altera o registro A de um portal, mas parte dos clientes segue usando a resposta antiga por algum tempo. Qual elemento do DNS ajuda a explicar a diferença?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituição compulsória de todo roteador por DHCP relay.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Falha necessária em todos os bancos de dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Respostas armazenadas em cache enquanto o respectivo TTL ainda é válido.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Criação automática de novo TLD pela IANA.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ausência obrigatória de equipamento de impressão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Resolvedores podem continuar fornecendo uma resposta em cache dentro do período previsto pelo TTL. A nova zona autoritativa não força a atualização imediata de todas as caches; as demais ações não explicam a divergência.",
+      "section": "Domínios: entidades de registro, governança e operação DNS",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um órgão tem um domínio registrado e deseja mudar a empresa de hospedagem. Qual afirmação diferencia corretamente os serviços?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Transferir a titularidade para o provedor de hospedagem sempre que um endereço IP mudar, pois o registro de domínio é inseparável dos servidores que exibem o site.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É obrigatório substituir o registrador por um servidor de impressão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O servidor DNS recursivo se torna automaticamente o titular do nome.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A titularidade do domínio pode permanecer, com ajustes de DNS e hospedagem conforme o novo provedor.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A migração elimina a necessidade de configuração de registros.",
+          "correct": false
+        }
+      ],
+      "explanation": "O registro do domínio e a hospedagem são componentes independentes. A migração pode exigir alterações de A/AAAA, CNAME, MX ou delegação, conforme o desenho; não implica necessariamente troca de titular ou criação de novo TLD.",
+      "section": "Domínios: entidades de registro, governança e operação DNS",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um resolvedor DNS recursivo e o operador do registro de um TLD desempenham necessariamente a mesma função administrativa, pois ambos respondem a consultas DNS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Resolvedor executa consultas para clientes e mantém cache; operador de registro gerencia dados administrativos e infraestrutura relacionada ao TLD. Até quando utilizam DNS, seus papéis institucionais e técnicos permanecem diferentes.",
+      "section": "Domínios: entidades de registro, governança e operação DNS",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização planeja reduzir o risco de perder controle administrativo de seu domínio durante troca de equipe. Qual conjunto de medidas é mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ajustar apenas o TTL de todos os registros para um valor mínimo, dispensando atualização de contatos, renovação administrativa e autenticação forte da conta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar os nomes dos servidores autoritativos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar a senha em documento público na Internet.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir todo inventário por resultados de ping.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter titularidade correta, acesso protegido, contatos atualizados e rotina de renovação.",
+          "correct": true
+        }
+      ],
+      "explanation": "A governança de domínios depende de credenciais, cadastro e manutenção do registro. TTL trata de cache DNS, não de proteção da conta; interromper autoridades, expor senhas ou usar ping como inventário ampliaria os riscos.",
+      "section": "Domínios: entidades de registro, governança e operação DNS",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Domain names: Concepts and facilities (RFC 1034)",
+      "publisher": "RFC Editor / IETF",
+      "reference": "RFC 1034",
+      "url": "https://www.rfc-editor.org/info/rfc1034/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Dynamic Host Configuration Protocol (RFC 2131)",
+      "publisher": "RFC Editor / IETF",
+      "reference": "RFC 2131",
+      "url": "https://www.rfc-editor.org/info/rfc2131/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Address Allocation for Private Internets (RFC 1918)",
+      "publisher": "RFC Editor / IETF",
+      "reference": "RFC 1918",
+      "url": "https://www.rfc-editor.org/info/rfc1918/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Traditional IP Network Address Translator (RFC 3022)",
+      "publisher": "RFC Editor / IETF",
+      "reference": "RFC 3022",
+      "url": "https://www.rfc-editor.org/info/rfc3022/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Samba smb.conf — documentação oficial",
+      "publisher": "Samba Team",
+      "reference": "Manual do servidor Samba e compartilhamentos",
+      "url": "https://www.samba.org/samba/docs/current/man-html/smb.conf.5.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Overview of CUPS",
+      "publisher": "OpenPrinting / CUPS",
+      "reference": "Fila de impressão e trabalhos",
+      "url": "https://www.cups.org/doc/overview.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL EXPLAIN",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "SQL EXPLAIN e EXPLAIN ANALYZE",
+      "url": "https://www.postgresql.org/docs/current/sql-explain.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "HTTP Semantics (RFC 9110)",
+      "publisher": "RFC Editor / IETF",
+      "reference": "RFC 9110, códigos de resposta HTTP",
+      "url": "https://www.rfc-editor.org/rfc/rfc9110.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Histograms and summaries",
+      "publisher": "Prometheus Authors",
+      "reference": "Métricas de distribuição e latência",
+      "url": "https://prometheus.io/docs/practices/histograms/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Root Zone Management",
+      "publisher": "IANA",
+      "reference": "Gestão da raiz e delegações de TLD",
+      "url": "https://www.iana.org/domains/root",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Domain Name Registration Process",
+      "publisher": "ICANN",
+      "reference": "Papéis de registries, registrars e registrants",
+      "url": "https://www.icann.org/resources/pages/domain-name-registration-process-2023-11-02-en.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NIC.br — Perfil",
+      "publisher": "NIC.br",
+      "reference": "Papel do NIC.br e do Registro.br",
+      "url": "https://nic.br/perfil/",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

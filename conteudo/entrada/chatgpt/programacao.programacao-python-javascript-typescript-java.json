@@ -1,0 +1,1891 @@
+{
+  "id": "programacao.programacao-python-javascript-typescript-java",
+  "subject": "Programação e Desenvolvimento de Software",
+  "title": "Python, JavaScript, TypeScript, Java, Angular e C#",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Linguagens Python, JavaScript, TypeScript e Java",
+    "Linguagens Python, JavaScript, TypeScript e Java"
+  ],
+  "scope": {
+    "covers": "Sintaxe, semântica, modelo de tipos, funções e estruturas; geradores, iteradores e decoradores Python; escopo, closures, event loop e Promises JavaScript; tipos avançados TypeScript; coleções, interfaces funcionais, lambdas e streams Java; componentes, DI, Signals, Observables, formulários e roteamento Angular; delegates, LINQ e async/await C#; análise comparativa para concursos.",
+    "excludes": "Implementação aprofundada de infraestrutura cloud, desenho de compiladores, algoritmos criptográficos, arquitetura de banco de dados, versões experimentais de frameworks e detalhes não essenciais de bibliotecas externas."
+  },
+  "theoryTitle": "Teoria completa e comparada: Python, JavaScript, TypeScript, Java, Angular e C#",
+  "chapters": [
+    {
+      "title": "Python: modelo de objetos, iteradores, geradores e decoradores",
+      "markdown": "## Fundamentos e semântica\nPython é uma linguagem de tipagem dinâmica e forte: o objeto possui tipo em tempo de execução, enquanto uma variável é um nome que referencia esse objeto. A instrução `a = b` faz o nome `a` referenciar o mesmo objeto de `b`; não produz uma cópia. A comparação `==` procura igualdade segundo a implementação do objeto; `is` verifica identidade. Assim, `x is None` é teste idiomático, mas `is` não deve substituir `==` para comparar conteúdos. Listas, dicionários e conjuntos são mutáveis; tuplas e strings são imutáveis, embora uma tupla possa conter referência a objeto mutável. Em `a = [[1]]; b = a.copy()`, `b` é lista externa distinta, mas `b[0]` e `a[0]` referenciam a mesma lista interna. Para estruturas aninhadas independentes, considerar `copy.deepcopy`.\n\nArgumentos são passados por atribuição de referências a objetos: a função recebe nomes locais associados aos objetos fornecidos. Mutar um objeto mutável pode ser observado fora da função; reatribuir o parâmetro não reatribui o nome do chamador. Em `def incluir(x, itens=[]): ...`, a lista padrão é criada quando a instrução `def` é executada, não a cada chamada. O padrão seguro para coleção nova por chamada é `itens=None`, seguido da criação condicional de uma lista. Argumentos posicionais e nomeados, `*args`, `**kwargs`, parâmetros apenas posicionais (`/`) e somente nomeados (`*`) fazem parte da assinatura; `*args` é tupla de argumentos posicionais extras e `**kwargs` é dicionário dos nomeados extras.\n\n## Escopos, closures e funções de ordem superior\nA busca de nomes normalmente segue escopos local, funções envolventes, global e builtins (LEGB). Uma função interna pode referenciar nomes do ambiente externo: isso sustenta closures. `nonlocal` permite vincular uma atribuição a nome existente em função envolvente; `global` trata de nome no módulo. Uma função é objeto de primeira classe e pode ser argumento, retorno ou valor armazenado. Expressão `lambda` cria função anônima de **uma expressão**; não equivale à restrição de somente uma instrução nos corpos de funções definidos com `def`, que podem conter diversas instruções.\n\nO protocolo de iteração distingue iterável e iterador. `iter(obj)` obtém iterador; `next(it)` solicita um elemento; ao terminar, o iterador sinaliza `StopIteration`. Uma implementação típica de iterador faz `__iter__()` retornar `self` e define `__next__()`. Uma lista é iterável, mas não é, por si, o iterador produzido por `iter(lista)`. Uma compreensão de lista `[f(x) for x in dados]` constrói lista imediatamente; expressão geradora `(f(x) for x in dados)` cria objeto que produz elementos por demanda.\n\n## Geradores, delegação e fluxo\nA presença de `yield` no corpo define uma **função geradora**. Ao chamá-la, obtém-se o objeto gerador, sem executar imediatamente o corpo até o primeiro `next()` ou avanço por `for`. Ao chegar a `yield`, a função suspende sua execução preservando variáveis locais e posição. Nova retomada executa o restante a partir desse ponto; esgotado o gerador, novas chamadas a `next` geram `StopIteration`. Exemplo:\n\n```python\ndef pares(limite):\n    for n in range(limite):\n        if n % 2 == 0:\n            yield n\n\ng = pares(5)\nassert next(g) == 0\nassert list(g) == [2, 4]\n```\n\n`yield from outro_iterável` delega ao subiterador, repassando valores e integrando a comunicação entre geradores. Em gerador comum, `return valor` encerra a execução e o valor pode ser disponibilizado por `StopIteration.value` para a lógica que o captura; não significa que `list(gerador)` incluirá o valor de retorno. O método `send(valor)` retoma um gerador com valor enviado à expressão `yield`; um gerador recém-criado precisa primeiro ser iniciado (ou receber `None`). Geradores são especialmente úteis no processamento incremental de arquivos e grandes sequências, mas não asseguram economia de memória se todos os resultados forem imediatamente materializados numa lista. `async def` com `yield` define gerador assíncrono, consumido com `async for`, diferente do gerador comum.\n\n## Decoradores, funções e boas práticas\nDecorador transforma ou substitui objeto declarado, geralmente uma função. Escrever `@decorar` antes de `def tarefa(): ...` corresponde, conceitualmente, a `tarefa = decorar(tarefa)`. Com dois decoradores, `@externo` sobre `@interno`, a composição é `externo(interno(funcao))`: a aplicação ocorre de baixo para cima, embora a execução dos wrappers dependa da implementação. Decoradores parametrizados usam uma fábrica que recebe configurações e retorna o decorador. Para preservar `__name__`, `__doc__` e a referência `__wrapped__` em wrappers, costuma-se usar `functools.wraps`.\n\n```python\nfrom functools import wraps\n\ndef registrar(func):\n    @wraps(func)\n    def wrapper(*args, **kwargs):\n        print(\"Início\")\n        return func(*args, **kwargs)\n    return wrapper\n\n@registrar\ndef somar(a, b):\n    return a + b\n```\n\nO decorador `@property` expõe leitura por sintaxe de atributo, sem que isso torne automaticamente todo objeto imutável; `@classmethod` recebe a classe como primeiro argumento convencional, enquanto `@staticmethod` não recebe classe ou instância implicitamente. Context managers (`with`) controlam aquisição e liberação de recursos pelo protocolo `__enter__`/`__exit__`; exceções são gerenciadas por `try`, `except`, `else` e `finally`. Em concursos, separar **criação do gerador**, **execução sob demanda**, **iterável versus iterador** e **decoração no momento da definição** evita as trocas conceituais mais recorrentes."
+    },
+    {
+      "title": "JavaScript: escopo léxico, closures e assincronia",
+      "markdown": "## Objetos, escopos e coerção\nJavaScript é uma linguagem de tipagem dinâmica, baseada em protótipos e com funções de primeira classe. Valores primitivos incluem `string`, `number`, `boolean`, `bigint`, `symbol`, `undefined` e `null`; objetos e funções são valores de referência. `typeof null` retorna `\"object\"` por característica histórica, não porque `null` represente um objeto utilizável. Objetos comuns são comparados por identidade em `===`, de modo que `{x:1} === {x:1}` é falso. `===` não realiza coerção de tipos; `==` pode realizá-la, sendo geralmente menos previsível. O operador `??` escolhe o lado direito apenas quando o esquerdo é `null` ou `undefined`; `||` o escolhe para todo valor falsy, incluindo `0` e string vazia.\n\n`let` e `const` têm escopo de bloco, enquanto `var` tem escopo de função ou global conforme o contexto. `const` impede reatribuir a vinculação, mas não impede modificar propriedades de um objeto referenciado, salvo proteções adicionais. Declarações com `let` e `const` passam por zona morta temporal antes da inicialização; acessá-las nesse período ocasiona erro. Uma declaração `var` é içada e, antes da atribuição, costuma produzir `undefined` dentro do escopo relevante. Essa diferença é cobrada especialmente em laços e callbacks.\n\n## Closures, `this` e protótipos\nClosure é a associação de uma função a seu ambiente léxico de criação, permitindo que a função continue a acessar variáveis externas após o término da chamada envolvente. **Capturam-se vínculos, não fotografias congeladas dos valores**. Por isso, um contador encapsulado pode modificar a mesma variável privada ao longo de várias chamadas.\n\n```javascript\nfunction contador() {\n  let total = 0;\n  return () => ++total;\n}\nconst proximo = contador();\nconsole.log(proximo()); // 1\nconsole.log(proximo()); // 2\n```\n\nEm `for (var i = 0; i < 3; i++)` com callbacks adiados, todas as funções podem observar a mesma vinculação `i` já atualizada; `let i` cria uma vinculação apropriada a cada iteração do laço. Funções regulares têm `this` determinado pela forma da invocação (com nuances de modo estrito e contexto); arrow functions **não criam seu próprio `this`**, usando o contexto léxico externo. Em métodos e event handlers, distinguir `this` de variáveis capturadas é crucial. Classes de JavaScript oferecem sintaxe construída sobre o mecanismo de protótipos; `Object.create` configura protótipo, e uma propriedade pode ser encontrada pela cadeia de protótipos.\n\n## Promises, tarefas e microtarefas\nUma `Promise` modela resultado eventual de operação, com estados pendente, cumprida ou rejeitada. `then`, `catch` e `finally` compõem tratamento sem bloquear a pilha síncrona. Um `async function` retorna Promise e `await` suspende a continuação da função assíncrona até resolução ou rejeição do valor aguardado; **não congela todo o processo nem cria automaticamente uma thread**. Tratamento de rejeição normalmente utiliza `try/catch` com `await` ou `.catch(...)` na cadeia.\n\nNo ambiente web, handlers de Promise e `queueMicrotask` são executados na fila de microtarefas após a pilha atual ficar vazia e antes do processamento da próxima tarefa. Exemplo típico: `console.log('A'); Promise.resolve().then(() => console.log('B')); console.log('C')` imprime `A`, `C`, `B`. Funções como `setTimeout` agendam tarefas conforme o ambiente; tempo zero não implica execução imediata. `Promise.all` rejeita quando algum dos elementos rejeita, enquanto `Promise.allSettled` permite examinar o resultado de cada operação; a rejeição de `all` não cancela automaticamente os demais trabalhos.\n\n## Coleções e módulos\n`map` transforma cada elemento em novo array; `filter` seleciona elementos; `reduce` acumula valores, conforme o redutor fornecido. `map` com callback assíncrono produz um array de Promises, não automaticamente um array de valores resolvidos: `await Promise.all(array.map(async ...))` é padrão frequente. `forEach` não aguarda Promises retornadas pelo callback; para processamento sequencial assíncrono, utilizar `for...of` com `await` pode ser mais apropriado. `slice` não altera o array original; `splice` o altera. O spread `...` copia superficialmente propriedades/elementos, sem clonagem recursiva.\n\nOs módulos ECMAScript oferecem `export` e `import`, com vínculos exportados vivos; a resolução e o carregamento dependem do ambiente. O DOM é uma API do navegador, não parte de toda execução de JavaScript: Node.js, por exemplo, fornece APIs de servidor e não garante `document` como global. A segurança depende também do contexto: interpolar entrada não confiável diretamente em HTML ou comandos é risco; preferir APIs de texto, escape e sanitização apropriados. Provas misturam frequentemente o conceito de linguagem JavaScript, o ambiente de execução e os frameworks, que não são sinônimos."
+    },
+    {
+      "title": "TypeScript: tipagem estrutural e tipos avançados",
+      "markdown": "## Relação entre TypeScript e JavaScript\nTypeScript acrescenta verificação estática e uma camada de sintaxe à linguagem JavaScript. O código é convertido em JavaScript para execução nos ambientes pertinentes; **anotações de tipo não constituem validação automática de dados em tempo de execução**. Por exemplo, declarar `type Usuario = {id: number}` não impede uma API externa de retornar uma string; dados desconhecidos exigem validação efetiva em runtime. A inferência de tipos evita anotações redundantes, sem transformar o sistema em tipagem dinâmica. A compatibilidade é predominantemente **estrutural**: objetos com membros exigidos compatíveis podem satisfazer um contrato mesmo sem declarar explicitamente `implements`.\n\n`any` reduz garantias do verificador e admite operações arbitrárias; `unknown` exige estreitamento de tipo antes de operações específicas. `never` representa valores que não podem ocorrer em determinado fluxo e é útil na checagem de exaustividade de uniões discriminadas. `void` expressa ausência de retorno útil, especialmente em assinaturas de funções; `null` e `undefined` requerem atenção às opções de compilação, especialmente `strictNullChecks`. Uniões (`A | B`) permitem valores de um ou outro tipo; interseções (`A & B`) exigem simultaneamente as propriedades combinadas. Em `type Res = {ok:true; data:string} | {ok:false; erro:string}`, testar `res.ok` permite restringir o tipo e acessar o campo correspondente.\n\n## Generics, `keyof` e acesso indexado\nUm genérico preserva relações entre tipos sem substituí-los por `any`: `function primeiro<T>(valores: T[]): T | undefined` indica que o resultado depende do elemento do array. Restrições `T extends Contrato` limitam tipos aceitos e permitem acesso seguro aos campos contratados; `extends` em restrição de genérico não significa necessariamente herança entre classes em tempo de execução.\n\n```typescript\nfunction pegar<T, K extends keyof T>(obj: T, chave: K): T[K] {\n  return obj[chave];\n}\ntype Produto = { id: number; nome: string };\ntype Chaves = keyof Produto;      // \"id\" | \"nome\"\ntype Id = Produto[\"id\"];          // number\n```\n\n`keyof T` obtém união dos tipos das chaves; `T[K]` usa tipo de acesso indexado; `typeof` em posição de tipo extrai o tipo de um valor existente, não deve ser confundido com o operador JavaScript em tempo de execução. Tipos utilitários como `Partial<T>` (propriedades opcionais), `Required<T>` (obrigatórias), `Readonly<T>` (somente leitura no sistema de tipos), `Pick<T,K>` (seleção de campos), `Omit<T,K>` (exclusão) e `Record<K,V>` (mapeamento de chaves a valores) são cobrados com pequenas variações de assinatura.\n\n## Tipos mapeados, condicionais e inferência\nTipo mapeado percorre chaves e cria uma transformação: `type Opcional<T> = { [K in keyof T]?: T[K] }`. Modificadores `readonly`, `?`, `-readonly` e `-?` podem introduzir ou remover características. Também há remapeamento de chave por `as`, por exemplo `[K in keyof T as \\`get${Capitalize<string & K>}\\`]: () => T[K]`. Isso atua sobre o sistema de tipos, não cria novos métodos nos objetos reais.\n\nTipo condicional tem forma `T extends U ? X : Y`. Quando `T` é parâmetro genérico isolado e recebe uma união, a condição pode ser **distributiva** sobre seus membros. `type Caixa<T> = T extends string ? \"texto\" : \"outro\"` aplicado a `string | number` produz `\"texto\" | \"outro\"`. Encapsular os tipos em tuplas, como `[T] extends [U]`, impede essa distribuição. `infer` extrai componentes de um tipo dentro de condição: `type Elemento<T> = T extends (infer U)[] ? U : never`. Tipos literais e template literal types permitem modelar contratos refinados; abusar da complexidade de tipos, porém, pode dificultar manutenção.\n\n## Narrowing e armadilhas operacionais\n`typeof`, `instanceof`, `in`, testes de propriedades discriminantes e type guards com predicados `valor is Tipo` ajudam a estreitar tipos em ramos de execução. Asserção `as Tipo` orienta o verificador, mas não converte nem valida o valor. `as const` preserva inferência literal e restrições somente leitura no sistema de tipos; não realiza congelamento profundo de objetos em runtime. O operador `satisfies` verifica compatibilidade com contrato enquanto preserva inferência mais específica da expressão, em vez de simplesmente substituir seu tipo por uma anotação ampla.\n\nSob `strict` e `noImplicitAny`, muitas fragilidades são detectadas mais cedo, sem que isso elimine a necessidade de tratamento de erros. Em interfaces de API, separar `DTO` tipado de validação de JSON é fundamental. TypeScript é largamente empregado em Angular, mas também serve a aplicações Node.js e projetos web sem framework. Em questões, diferencie **efeito do compilador** de **efeito do JavaScript gerado**, e **segurança no editor** de **verificação real de entrada não confiável**."
+    },
+    {
+      "title": "Java: orientação a objetos, lambdas, streams e genéricos",
+      "markdown": "## Fundamentos de Java, compilação e coleções\nJava utiliza tipagem estática, orientação a objetos e execução de bytecode em uma máquina virtual compatível, sem que isso implique ausência de compilação. Tipos primitivos (`int`, `boolean`, `double` etc.) distinguem-se de referências a objetos. `String` é imutável; `StringBuilder` é útil para acumular alterações. Para objetos, `==` compara referências, enquanto `equals` expressa igualdade lógica de acordo com o contrato implementado pela classe. Sobrescrever `equals` exige coerência com `hashCode` para coleções baseadas em hash. Exceções verificadas, com regras de declaração ou tratamento, diferem das não verificadas derivadas de `RuntimeException`.\n\n`List` preserva sequência de elementos e admite duplicatas; `Set` modela unicidade; `Map` associa chaves a valores. Implementações particulares, como `ArrayList`, `HashSet` e `HashMap`, possuem propriedades próprias de acesso, ordem e desempenho; não generalizar ordem de iteração de um `HashMap`. Tipos genéricos são verificados primordialmente em compilação e usam apagamento de tipos em diversas representações de runtime. Atribuições entre `List<Integer>` e `List<Number>` não são automaticamente válidas: genéricos são invariantes nessa forma. Um produtor `List<? extends Number>` permite ler `Number`, mas em geral não permite adicionar um novo `Integer`; um consumidor `List<? super Integer>` permite adicionar `Integer`, embora recuperar elementos como `Integer` sem verificação não seja garantido. Regra mnemônica: **PECS — Producer Extends, Consumer Super**.\n\n## Interfaces funcionais, lambdas e referências a métodos\nInterface funcional tem um único método abstrato relevante, podendo conter métodos `default` ou `static`. A anotação `@FunctionalInterface` ajuda a verificar esse contrato, mas não é indispensável para que a interface seja funcional. `Predicate<T>` recebe `T` e produz `boolean`; `Function<T,R>` transforma; `Consumer<T>` consome sem retorno; `Supplier<T>` fornece valores; `UnaryOperator<T>` mantém tipo de entrada e saída. Uma expressão lambda implementa o método abstrato de uma interface funcional de destino. Exemplo:\n\n```java\nPredicate<String> longo = s -> s.length() > 5;\nFunction<String, Integer> tamanho = String::length;\nConsumer<String> imprimir = System.out::println;\n```\n\nVariáveis locais capturadas pela lambda precisam ser finais ou **efetivamente finais**: podem não estar marcadas com `final`, mas não podem ser reatribuídas após a inicialização relevante. Isso difere da captura de estados mutáveis por closures JavaScript e por funções internas Python, embora lambdas Java possam interagir com objetos mutáveis. Referências `Classe::metodo`, `objeto::metodo` e `Classe::new` fornecem sintaxe concisa quando compatível com a assinatura funcional. Lambdas não são atalhos para executar qualquer bloco fora de uma interface funcional.\n\n## Stream API: pipeline, laziness e operações\nUm `Stream<T>` é uma sequência de elementos para operações agregadas, não um recipiente que necessariamente armazena todos os valores. Pipeline típico tem origem, operações intermediárias e operação terminal. `filter`, `map`, `flatMap`, `distinct`, `sorted`, `limit` e `peek` são intermediárias; `count`, `forEach`, `reduce`, `collect`, `min`, `max`, `anyMatch`, `findFirst` são exemplos de terminais. A execução é geralmente preguiçosa: intermediárias montam o pipeline e o processamento ocorre quando uma terminal exige resultado. Otimizações de execução podem dispensar certas etapas quando observacionalmente apropriado; por isso, não confiar em efeitos colaterais dentro de `peek`.\n\n```java\nList<String> nomes = List.of(\"ana\", \"bia\", \"amanda\");\nList<String> filtrados = nomes.stream()\n    .filter(n -> n.startsWith(\"a\"))\n    .map(String::toUpperCase)\n    .toList();                    // [ANA, AMANDA]\n```\n\n`map` transforma cada elemento em um resultado; `flatMap` pode transformar cada elemento em um fluxo e concatená-los, útil para achatar coleções aninhadas. `reduce` combina elementos mediante operação acumuladora; `collect` e coletores como `Collectors.groupingBy` constroem resultados agregados e agrupados. Uma stream normalmente não deve ser reutilizada após operação terminal; é preciso criar nova stream. `Stream` não modifica a origem por simplesmente aplicar `filter` ou `map`, embora a origem possa ser mutável e efeitos colaterais explícitos possam ocorrer.\n\n## Paralelismo, estado e Optional\nParâmetros comportamentais de streams devem evitar interferir na fonte e, em geral, ser sem estado. Modificar durante processamento uma `ArrayList` usada como fonte pode comprometer o resultado. `parallelStream()` não é sinônimo de ganho de desempenho: custos de particionamento, sincronização e características do pipeline influenciam. `findAny` pode escolher elemento não determinístico; `findFirst` procura preservar a ordem de encontro quando esta existe. Operações como `sorted` têm características stateful. Para fontes associadas a recursos externos, a exemplo de `Files.lines`, deve-se usar fechamento adequado, frequentemente com `try-with-resources`.\n\n`Optional<T>` explicita a possibilidade de ausência de resultado e oferece métodos como `map`, `filter`, `orElse` e `orElseGet`. A expressão passada a `orElse` é avaliada antes da chamada, mesmo quando o `Optional` possui valor, ao passo que o `Supplier` de `orElseGet` só é invocado se necessário. Isso é relevante quando a obtenção do valor alternativo é custosa ou tem efeitos colaterais. O coletor `toList()` de Stream em Java moderno retorna lista não modificável, mas as propriedades exatas de coletores e métodos variam; não presumir que todo `collect(toList())` imponha a mesma característica. A chave para a prova é separar **coleção/stream**, **intermediária/terminal**, **sequencial/paralela** e **expressão lambda/interface funcional**."
+    },
+    {
+      "title": "Angular: componentes, injeção de dependências e reatividade",
+      "markdown": "## Angular e relação com TypeScript\nAngular é um framework para construção de aplicações, especialmente interfaces web, com componentes, templates, roteamento, formulários, injeção de dependências e mecanismos de reatividade. Usa TypeScript de modo predominante, mas **não é uma linguagem de programação** nem sinônimo de AngularJS, seu antecessor arquiteturalmente distinto. No ecossistema moderno, componentes podem ser standalone e declarar diretamente dependências de template; aplicações legadas podem utilizar `NgModule`. O conhecimento do padrão deve preceder o apego a detalhes de versões específicas.\n\nUm componente é definido por metadados de `@Component`, classe com estado e comportamento e um template. `selector` identifica o elemento utilizado para inserir o componente; `template`/`templateUrl` define a apresentação. Interpolação `{{expressao}}` apresenta dados como texto; property binding `[disabled]=\"bloqueado\"` transmite valor para propriedade; event binding `(click)=\"salvar()\"` reage a eventos. Em certas APIs, `[(...)]` representa sincronização bidirecional; com `[(ngModel)]` é necessário que as dependências de formulários pertinentes estejam disponibilizadas. **Atributo HTML, propriedade DOM e entrada de componente não são necessariamente a mesma coisa**, embora a sintaxe possa assemelhar-se em situações específicas.\n\n## Serviços e injeção de dependências\nServiço separa lógica reutilizável, comunicação de dados e acesso a recursos dos detalhes de apresentação. `@Injectable({providedIn: 'root'})` registra serviço geralmente compartilhado no injetor raiz da aplicação; `providers` em determinado componente pode gerar escopo de instância distinto e visível conforme hierarquia de injetores. O consumidor solicita dependência pela injeção no construtor ou pela função `inject()` em contexto válido. Isso favorece testabilidade e substituição de implementações, não significando que qualquer serviço seja universalmente singleton independentemente de onde foi provido.\n\n```typescript\n@Injectable({ providedIn: 'root' })\nexport class ContadorService {\n  valor = signal(0);\n  aumentar() { this.valor.update(n => n + 1); }\n}\n```\n\nO serviço pode manter estado compartilhado entre componentes que utilizam a mesma instância provida. Prover explicitamente uma instância adicional em componente muda a visibilidade e a vida útil conforme a árvore. A injeção de dependência resolve contratos e instâncias de objetos; não substitui a autorização de usuário nem garante segurança de endpoints.\n\n## Signals, computados e efeitos\nSignals representam valores reativos cujo acesso é rastreado. `signal(0)` cria valor gravável; lê-se com `contador()`, altera-se com `contador.set(5)` ou atualiza-se a partir do anterior com `contador.update(v => v + 1)`. `computed(() => contador() * 2)` descreve valor derivado, calculado de modo reativo e geralmente sem efeitos colaterais. `effect` observa dependências rastreadas e executa efeitos quando elas mudam, sendo útil para integração com recursos externos, não como substituto automático de `computed` para propagar estado derivado. Dependências podem ser dinâmicas conforme quais signals foram lidas na última execução relevante.\n\n```typescript\nconst quantidade = signal(2);\nconst preco = signal(10);\nconst total = computed(() => quantidade() * preco());\nquantidade.set(3);       // total() passa a 30\n```\n\n`Observable` da biblioteca RxJS modela sequências assíncronas de notificações e operadores como `map`, `filter`, `switchMap`, `mergeMap`. Signals e Observables são abstrações distintas; há mecanismos de interoperabilidade. O `HttpClient` do Angular, em uso típico, retorna Observable cujo trabalho de requisição é iniciado quando há assinatura; múltiplas assinaturas podem produzir múltiplas solicitações na ausência de compartilhamento. `async` pipe facilita assinatura e limpeza no template. `switchMap` costuma ser útil em buscas nas quais uma nova entrada substitui a requisição anterior no fluxo relevante, sem equivaler à proteção contra alterações do servidor já realizadas.\n\n## Formulários, navegação e segurança\nNos formulários reativos, `FormControl`, `FormGroup` e validadores permitem gerenciar estado, valor e erros de campos. Formulários orientados a template usam abordagem diferente; ambas exigem validação no servidor para decisões críticas. `Router` associa rotas a componentes; guards orientam a navegação cliente, mas não substituem controle de acesso no backend, porque código cliente não é fronteira de segurança.\n\nAngular trata interpolation textual e contextos de segurança do template para reduzir riscos de inserção de conteúdo não confiável; o desenvolvedor não deve contornar sanitização por métodos de confiança sem examinar cuidadosamente a origem. O uso de APIs nativas de DOM, `innerHTML` e dados remotos requer avaliação de contexto de XSS. Em arquitetura, distinguir estado local de componente, estado compartilhado por serviço, efeitos assíncronos de rede e proteções efetivas do servidor é fundamental. Em questões objetivas, o erro recorrente é afirmar que TypeScript compila garantindo segurança em tempo de execução ou que um route guard impede, sozinho, acesso a APIs restritas."
+    },
+    {
+      "title": "C# e interoperabilidade conceitual entre linguagens",
+      "markdown": "## C# e plataforma .NET\nC# é linguagem de tipagem estática usada amplamente na plataforma .NET. O compilador normalmente produz código intermediário gerenciado, executado pelo runtime conforme o ambiente; gerenciamento automático de memória não equivale a liberação imediata de todos os recursos externos. Existem tipos valor, como `struct` e tipos numéricos, e tipos referência, como classes e arrays. Em atribuições, instâncias de tipos valor comuns são copiadas como valores; instâncias de classes são acessadas mediante referências. `string` é imutável. `var` solicita inferência do tipo **em compilação**, não transforma a variável em dinamicamente tipada; `dynamic` transfere determinados vínculos de operações para tempo de execução.\n\nGenéricos, interfaces, herança, encapsulamento, propriedades e tipos anuláveis compõem o modelo de tipos. `int?` representa um inteiro anulável; operador `?.` efetua acesso condicional; `??` fornece substituto quando nulo. `record` é conveniente para modelos orientados a dados e igualdade baseada em valores, mas não se deve concluir que todo objeto referenciado internamente está profundamente imutável. O tratamento de exceções utiliza `try`, `catch`, `finally`; `using` está associado ao descarte determinístico de recursos que implementam `IDisposable`, distinto do momento de coleta pelo GC.\n\n## Delegates, expressões lambda e LINQ\nDelegate é um tipo que representa referência compatível a um método ou função. Tipos comuns `Func<T,R>` e `Action<T>` padronizam assinaturas, respectivamente com e sem resultado. Expressões lambda, como `x => x * 2`, podem ser convertidas para delegates compatíveis e, conforme o contexto, para árvores de expressão. Eventos oferecem mecanismo de inscrição em notificações; sua semântica de acesso não é idêntica à simples variável que guarda um delegate.\n\nLINQ (*Language Integrated Query*) fornece operadores para consultar e transformar sequências, como `Where`, `Select`, `SelectMany`, `OrderBy`, `GroupBy` e `Aggregate`. Em LINQ to Objects, diversas operações retornam `IEnumerable<T>` e são executadas de forma adiada quando enumeradas. Assim, modificar a coleção original antes da enumeração pode afetar o resultado, sujeito à implementação e ao operador. `ToList()` materializa resultados naquele momento; consultar `Count()` e `Any()` pode acionar a execução conforme o provedor.\n\n```csharp\nvar numeros = new List<int> { 1, 2, 3, 4 };\nvar consulta = numeros.Where(x => x % 2 == 0);\nnumeros.Add(6);\nvar resultado = consulta.ToList(); // [2, 4, 6]\n```\n\nEm `IQueryable<T>`, um provedor pode traduzir expressões para outro mecanismo, como SQL; isso não implica que **todo** método C# tenha tradução automática. `First` falha quando não há elemento correspondente; `FirstOrDefault` retorna o valor padrão, e `Single` exige exatamente um resultado. `Select` projeta; `SelectMany` achata sequências, parecido conceitualmente com `flatMap` em Java. Uma sintaxe de consulta `from ... where ... select ...` pode ser traduzida em métodos correspondentes do provedor.\n\n## async/await, tarefas e controle de recursos\nUm método `async` frequentemente retorna `Task` ou `Task<T>` e usa `await` para aguardar uma operação assíncrona sem bloquear a thread enquanto a operação pendente é esperada; não implica criar nova thread a cada `await`. `Task.WhenAll` permite aguardar várias tarefas, mas falhas e cancelamentos precisam ser tratados apropriadamente. `CancellationToken` serve para propagar solicitação de cancelamento cooperativo; não é encerramento forçado e imediato de qualquer código. `async void` é reservado principalmente a certos manipuladores de eventos, porque dificulta composição e observação de resultados fora desse contexto.\n\nOperações de I/O assíncronas diferem de paralelismo computacional: aguardar rede ou disco não significa executar processamento pesado em outra CPU automaticamente. `lock` e primitivas de sincronização tratam concorrência em memória compartilhada; programação assíncrona exige atenção à captura de contexto e à propagação de erros. `await using` auxilia o descarte de recursos que implementam `IAsyncDisposable` quando necessário.\n\n## Quadro mental comparativo e decisões técnicas\nPython usa tipagem dinâmica, funções de ordem superior, geradores e decoradores com efeito em runtime. JavaScript possui closures léxicas, protótipos e ecossistema de Promises; TypeScript acrescenta **análise de tipos** ao JavaScript, mas não altera a natureza de entradas externas. Java combina classes, interfaces funcionais, lambdas e Stream API com execução predominantemente na JVM; C# utiliza delegates, LINQ, Tasks e runtime .NET. Angular é framework de interface predominantemente TypeScript, não linguagem concorrente às demais.\n\nHá similaridades conceituais, não identidade sintática: generator Python produz dados incrementalmente; Stream Java processa pipeline; `IEnumerable<T>` com LINQ pode diferir a avaliação; Promise JavaScript e Task C# representam assincronia com modelos de runtime distintos. Uma questão que equipara `map` JavaScript a `map` de Java Stream ignora que o primeiro produz array imediatamente e o segundo frequentemente compõe operação intermediária preguiçosa. Na preparação, identifique primeiro **quando o processamento ocorre**, depois **quem verifica os tipos**, por último **como o resultado ou o recurso é consumido**. Esse método resolve pegadinhas interlinguagens e evita transferir indevidamente regras de um ecossistema para outro."
+    }
+  ],
+  "summary": "## Síntese de alto rendimento\n\nAs quatro linguagens principais têm modelos de execução e de tipos diferentes. **Python** tem tipagem dinâmica forte, atribuição por referências a objetos, funções de primeira classe, geradores com `yield` e decoradores aplicados durante a definição. Geradores são avaliados por demanda e preservam posição; padrões mutáveis podem persistir entre chamadas. **JavaScript** utiliza closures léxicas, `let` e `const` com escopo de bloco, arrays e objetos de referência, Promises, async/await e filas de microtarefas; `const` não congela o objeto, arrow functions herdam `this` lexical, e `map(async ...)` entrega um array de Promises.\n\n**TypeScript** oferece tipos estruturais, genéricos (`T`, `K extends keyof T`), tipos de acesso indexado (`T[K]`), mapeados (`[K in keyof T]`), condicionais (`T extends U ? X : Y`), uniões discriminadas, `unknown`, `never`, tipos utilitários e `satisfies`. Esses instrumentos dão segurança estática, **não validação automática do JSON em runtime**.\n\n**Java** combina JVM, orientação a objetos, interfaces funcionais, lambdas com captura de variáveis efetivamente finais, coleções genéricas invariantes e Stream API. `filter` e `map` geralmente compõem pipeline preguiçosa; `collect` e `count` são terminais, e streams consumidas não devem ser reutilizadas. **Angular** é framework TypeScript orientado a componentes: usa DI hierárquica, signals para estado, `computed` para derivação, Observables para fluxos assíncronos e formulários e rotas para interação; guards não substituem segurança de backend. **C#** integra .NET, delegates, LINQ, Tasks e async/await; `var` preserva tipagem estática e consultas LINQ podem ser diferidas. Compare sempre **materialização versus avaliação diferida**, **garantia estática versus validação em runtime** e **navegação no cliente versus autorização no servidor** antes de julgar qualquer assertiva.",
+  "flashcards": [
+    {
+      "front": "Python: `==` e `is` comparam o quê?",
+      "back": "`==` verifica igualdade lógica conforme o objeto; `is` compara identidade. Para ausência, use `x is None`."
+    },
+    {
+      "front": "Por que parâmetros padrão mutáveis de Python exigem cuidado?",
+      "back": "O valor padrão é avaliado durante a definição da função e pode ser reutilizado. Prefira `None` seguido de criação da coleção no corpo quando precisar de estado novo."
+    },
+    {
+      "front": "Quando o corpo de uma função geradora Python é executado?",
+      "back": "A chamada cria o objeto gerador; o corpo é executado sob demanda, com `next()` ou iteração, e é suspenso a cada `yield`."
+    },
+    {
+      "front": "Qual é a ordem de composição de `@a` acima de `@b` em Python?",
+      "back": "A aplicação equivale a `f = a(b(f))`. `functools.wraps` preserva metadados úteis dos wrappers."
+    },
+    {
+      "front": "O que é closure em JavaScript?",
+      "back": "Função associada ao ambiente léxico de criação, com acesso a vinculações externas mesmo após o retorno da função envolvente."
+    },
+    {
+      "front": "Como `const` difere de `Object.freeze`?",
+      "back": "`const` impede reatribuir o nome; não impede modificar propriedades do objeto. `Object.freeze` restringe alterações do próprio objeto e é superficial por padrão."
+    },
+    {
+      "front": "Qual é a diferença essencial entre `??` e `||` em JavaScript?",
+      "back": "`??` usa fallback apenas para `null`/`undefined`; `||` usa fallback para valores falsy, como `0`, `false` e string vazia."
+    },
+    {
+      "front": "Promises executam callbacks `then` antes do código síncrono seguinte?",
+      "back": "Não. Handlers de Promise vão para a fila de microtarefas e rodam após o encerramento da pilha síncrona atual."
+    },
+    {
+      "front": "Como diferenciar `any` e `unknown` em TypeScript?",
+      "back": "`any` permite operações sem checagem efetiva; `unknown` exige narrowing antes de acesso específico, favorecendo segurança estática."
+    },
+    {
+      "front": "Qual a função de `keyof T` e `T[K]` no TypeScript?",
+      "back": "`keyof T` extrai união dos tipos de chaves; `T[K]` acessa o tipo das propriedades indexadas por chave compatível."
+    },
+    {
+      "front": "O que caracteriza um tipo condicional distributivo?",
+      "back": "Se o parâmetro genérico aparece isolado no teste `T extends U`, uma união como argumento pode ser processada membro a membro."
+    },
+    {
+      "front": "`Readonly<T>` ou `as Tipo` validam JSON em runtime?",
+      "back": "Não. Restrição de leitura e asserção são construções do sistema estático; dados não confiáveis devem ser efetivamente validados."
+    },
+    {
+      "front": "O que é interface funcional em Java?",
+      "back": "Interface com um método abstrato pertinente ao contrato funcional; pode também declarar métodos `default` e `static`."
+    },
+    {
+      "front": "Quais são operações intermediárias e terminais em Stream Java?",
+      "back": "Intermediárias: `filter`, `map`, `flatMap`. Terminais: `count`, `collect`, `reduce`, `forEach`, `findFirst`."
+    },
+    {
+      "front": "Uma `Stream` Java pode ser reutilizada após operação terminal?",
+      "back": "Não. É preciso obter nova stream para outro processamento da fonte."
+    },
+    {
+      "front": "Por que `Optional.orElseGet` pode ser preferível a `orElse`?",
+      "back": "`orElseGet` calcula o fallback mediante Supplier só quando necessário; argumento de `orElse` já é avaliado antes da chamada."
+    },
+    {
+      "front": "Angular é linguagem?",
+      "back": "Não. Angular é um framework de aplicações web que utiliza amplamente TypeScript e arquitetura orientada a componentes."
+    },
+    {
+      "front": "Como diferenciar `[propriedade]` de `(evento)` em template Angular?",
+      "back": "`[propriedade]` faz property binding do componente para o alvo; `(evento)` vincula um handler que reage ao evento."
+    },
+    {
+      "front": "Qual a diferença entre `signal` e `computed` no Angular?",
+      "back": "`signal` gravável mantém estado atualizável por `set`/`update`; `computed` deriva valor reativo de dependências."
+    },
+    {
+      "front": "Um route guard Angular substitui autorização do backend?",
+      "back": "Não. Ele atua na navegação cliente; a API deve autenticar e autorizar solicitações independentemente do front-end."
+    },
+    {
+      "front": "C#: `var` equivale a `dynamic`?",
+      "back": "Não. `var` faz inferência de tipo estático; `dynamic` adia determinadas resoluções de membros para execução."
+    },
+    {
+      "front": "Quando uma consulta LINQ com `Where` costuma executar?",
+      "back": "No LINQ to Objects, normalmente na enumeração. `ToList()` materializa resultado; a fonte pode mudar antes da enumeração."
+    },
+    {
+      "front": "Para que servem `Func<T,R>` e `Action<T>` em C#?",
+      "back": "São delegates: `Func<T,R>` recebe T e devolve R; `Action<T>` recebe T e não possui retorno de resultado."
+    },
+    {
+      "front": "`await` em C# cria obrigatoriamente uma nova thread?",
+      "back": "Não. Ele aguarda assincronamente uma tarefa e pode suspender a continuação sem iniciar outra thread."
+    }
+  ],
+  "tips": [
+    "Em exemplos de Python, marque o momento da definição da função, da chamada e da primeira iteração; isso distingue padrões mutáveis, closures e geradores.",
+    "Para JavaScript, simule primeiro a pilha síncrona; depois processe microtarefas e somente então as tarefas futuras do ambiente.",
+    "Em TypeScript, pergunte se o recurso age no compilador ou no JavaScript executado: `as`, `Readonly` e interfaces não validam JSON externo.",
+    "Na Stream API Java, classifique cada método como intermediário ou terminal antes de inferir consumo, efeitos e reutilização da fonte.",
+    "Em Angular, localize o escopo do provider e diferencie estado com signal, derivação com computed, efeitos e Observable de requisição.",
+    "Em C#, observe a natureza da consulta LINQ (`IEnumerable` ou `IQueryable`) e o ponto de materialização; não confunda `var` com `dynamic`."
+  ],
+  "traps": [
+    "Python: `b = a` não produz cópia; lista padrão em parâmetro não é recriada a cada chamada; `yield` não executa todo o corpo na chamada.",
+    "JavaScript: closure captura vínculo, não necessariamente valor congelado; `const` não congela objetos; arrow function não define `this` próprio.",
+    "JavaScript: `map(async...)` devolve array de Promises; `await` não bloqueia todo o navegador; `??` não é sinônimo de `||`.",
+    "TypeScript: `as`, `Readonly` e `satisfies` não criam validação de rede nem novos membros em runtime; tipo mapeado não transforma objeto real.",
+    "Java: `List<Integer>` não é `List<Number>`; operações intermediárias de streams são preguiçosas; stream consumida não equivale a coleção reutilizável.",
+    "Angular/C#: guard de rota não substitui autorização no servidor; `var` C# não é tipagem dinâmica; LINQ deferred pode observar estado novo da fonte."
+  ],
+  "activeRecall": [
+    {
+      "question": "Por que `def f(itens=[])` pode gerar vazamento de estado entre chamadas e como corrigi-lo?",
+      "answer": "A lista padrão é avaliada na definição e reutilizada. Empregar `itens=None` e criar nova lista quando o argumento não for fornecido."
+    },
+    {
+      "question": "Qual a diferença entre iterável, iterador e gerador em Python?",
+      "answer": "Iterável produz iterador por `iter`; iterador entrega valores por `next` e sinaliza término; gerador é um tipo de iterador criado por função ou expressão geradora."
+    },
+    {
+      "question": "Na ordem `@A` acima de `@B`, como uma função Python é decorada?",
+      "answer": "A composição é `A(B(funcao))`: o decorador inferior é aplicado primeiro."
+    },
+    {
+      "question": "Por que callbacks criados em um laço `var` podem enxergar o mesmo índice em JavaScript?",
+      "answer": "Compartilham a vinculação de escopo de função; com `let` no cabeçalho do laço há vinculação por iteração."
+    },
+    {
+      "question": "Explique o efeito de `Promise.resolve().then(...)` sobre a ordem da saída síncrona.",
+      "answer": "O handler entra na fila de microtarefas e executa depois de esvaziada a pilha síncrona atual."
+    },
+    {
+      "question": "Como usar `keyof`, generics e indexed access para tipar busca de propriedade?",
+      "answer": "Escreva `function get<T,K extends keyof T>(o:T,k:K):T[K] { return o[k]; }`, preservando a associação entre chave e tipo retornado."
+    },
+    {
+      "question": "Quando um tipo condicional TypeScript se distribui sobre união e como impedir a distribuição?",
+      "answer": "Em geral, quando o parâmetro genérico isolado está à esquerda de `extends`; para impedir, compare `[T] extends [U]`."
+    },
+    {
+      "question": "Diferencie `filter`, `map`, `flatMap`, `collect` e `reduce` na API Stream Java.",
+      "answer": "`filter` seleciona, `map` transforma, `flatMap` transforma e achata (intermediárias); `collect` agrega e `reduce` combina valores (terminais)."
+    },
+    {
+      "question": "Em Angular, por que `providedIn:'root'` e `providers` de componente podem entregar instâncias distintas?",
+      "answer": "A injeção é hierárquica. Registro na raiz tende a compartilhar serviço; registro de componente pode criar instância própria no escopo de seu injetor."
+    },
+    {
+      "question": "Que diferenças existem entre `var`, `dynamic`, `IEnumerable<T>` e `IQueryable<T>` no C#?",
+      "answer": "`var` preserva tipo inferido estaticamente; `dynamic` adia certas ligações; `IEnumerable` fornece enumeração, e `IQueryable` expõe expressão processável por um provedor."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Python: cópia, mutabilidade e execução do gerador",
+      "summary": "Confundir nomes e objetos, argumentos padrão e execução diferida leva a errar identidade, efeitos observáveis e consumo de iteradores. Observe onde o objeto é criado e quando o gerador avança."
+    },
+    {
+      "key": "e2",
+      "title": "JavaScript: captura de escopo, `this` e fila de microtarefas",
+      "summary": "Closures retêm vinculações léxicas; arrow functions usam `this` léxico e handlers de Promise não interrompem código síncrono. Distinga bloco/função, execução imediata/assíncrona e `??`/`||`."
+    },
+    {
+      "key": "e3",
+      "title": "TypeScript: tipos estáticos não validam entradas em runtime",
+      "summary": "Asserções, mapped types, conditional types e utilitários orientam o compilador. Eles não convertem valores recebidos nem congelam automaticamente objetos JavaScript."
+    },
+    {
+      "key": "e4",
+      "title": "Java: invariância e pipeline de streams",
+      "summary": "`List<Integer>` e `List<Number>` não são intercambiáveis; lambdas capturam variáveis locais efetivamente finais; streams têm processamento geralmente preguiçoso, terminal e consumo único."
+    },
+    {
+      "key": "e5",
+      "title": "Angular: escopo de injeção, estado reativo e segurança",
+      "summary": "O provider controla o compartilhamento de instâncias; computed não é efeito; Observable não é signal. Guards do cliente e verificações de template não substituem controles de autorização do servidor."
+    },
+    {
+      "key": "e6",
+      "title": "C#: tipo inferido, LINQ diferido e tarefas assíncronas",
+      "summary": "`var` não é `dynamic`; consultas LINQ podem ser avaliadas somente na enumeração e `await` não cria necessariamente thread. `using` controla descarte de recursos e não apenas coleta de memória."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em Python, a atribuição `b = a` faz uma cópia profunda do objeto referenciado por `a`, de modo que alterações em listas internas de `a` jamais serão observadas a partir de `b`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A atribuição associa outro nome ao mesmo objeto; não realiza cópia, muito menos cópia profunda. Se o objeto for mutável, alterações serão observadas por ambas as referências. Uma cópia profunda requer operação específica.",
+      "section": "Python: modelo de objetos, iteradores, geradores e decoradores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função Python precisa criar uma nova lista acumuladora a cada chamada. Qual implementação evita compartilhamento acidental entre chamadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir o parâmetro como `None` e criar uma lista dentro da função quando ele for `None`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar `itens=[]` como argumento padrão e limpar a lista no final.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Declarar `global itens` antes de adicionar elementos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `itens={}` como argumento padrão, pois dicionários são imutáveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter a lista padrão em tupla apenas depois da primeira chamada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Argumentos padrão são avaliados quando a definição da função é executada. Um objeto mutável como lista pode persistir entre chamadas; usar `None` como sentinela e instanciar a lista no corpo evita esse compartilhamento.",
+      "section": "Python: modelo de objetos, iteradores, geradores e decoradores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função que contém `yield` produz um objeto gerador quando chamada; normalmente seu corpo só começa a executar quando ocorre a primeira retomada por iteração ou `next()`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O uso de `yield` transforma a função em função geradora. A chamada cria o gerador, e as instruções do corpo são executadas conforme as retomadas, o que permite processamento sob demanda e preservação do estado local.",
+      "section": "Python: modelo de objetos, iteradores, geradores e decoradores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Considere `def g(): yield 1; yield 2`. Após `it = g()` e `next(it)`, qual expressão e resultado são corretos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`list(it)` produz `[1, 2]`, pois cada conversão reinicia o gerador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`list(it)` produz `[2]`, pois o primeiro elemento já foi consumido.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`g()` executa ambas as expressões `yield` antes de devolver o iterador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`next(it)` devolve todos os valores restantes como uma lista.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`list(it)` produz `[]`, porque todo gerador é consumido na criação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Geradores preservam a posição entre retomadas. O primeiro `next` consome o valor 1; a conversão posterior em lista percorre apenas os valores restantes. Um objeto gerador esgotado não reinicia automaticamente.",
+      "section": "Python: modelo de objetos, iteradores, geradores e decoradores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, `nonlocal` permite atribuir a um nome vinculado em escopo de função envolvente, enquanto `global` se refere ao vínculo no módulo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A palavra-chave `nonlocal` indica que a atribuição deve atingir um nome já vinculado em escopo não local de função envolvente. Já `global` remete ao escopo de módulo, não a qualquer escopo exterior indiscriminadamente.",
+      "section": "Python: modelo de objetos, iteradores, geradores e decoradores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função foi definida com os decoradores `@auditar` e, logo abaixo, `@medir`, nesta ordem. Qual é a composição produzida ao definir a função?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`medir(auditar(funcao))`, pois a aplicação segue de cima para baixo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`auditar(funcao); medir(funcao)`, sem composição de wrappers.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`auditar(medir(funcao))`.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`funcao(auditar(medir))`, pois o decorado passa a chamar os decoradores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`medir(funcao)` apenas, já que um decorador elimina o outro.",
+          "correct": false
+        }
+      ],
+      "explanation": "O decorador mais próximo da definição é aplicado primeiro. Depois o decorador superior recebe o resultado da aplicação inferior. A ordem efetiva de execução dos wrappers depende de como cada decorador foi implementado.",
+      "section": "Python: modelo de objetos, iteradores, geradores e decoradores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, usar `@functools.wraps(funcao_original)` em um wrapper faz com que as chamadas ao wrapper se tornem automaticamente assíncronas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "`functools.wraps` preserva metadados úteis, incluindo o nome, a documentação e a referência à função encapsulada. Ele não transforma uma função síncrona em coroutine nem altera, por si, o regime de execução.",
+      "section": "Python: modelo de objetos, iteradores, geradores e decoradores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação distingue corretamente uma compreensão de lista de uma expressão geradora em Python?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambas executam exatamente da mesma forma e retornam o mesmo tipo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A expressão geradora exige `async for`, mesmo em geradores síncronos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A compreensão de lista pode ser consumida apenas uma vez por definição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A compreensão de lista constrói a lista durante sua avaliação; a expressão geradora produz valores sob demanda.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A expressão geradora devolve sempre uma tupla já totalmente preenchida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Compreensões de lista materializam uma lista; expressões geradoras criam objetos iteradores com avaliação diferida dos elementos. Confundir sintaxe parecida com igual estratégia de memória e execução leva ao erro.",
+      "section": "Python: modelo de objetos, iteradores, geradores e decoradores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em JavaScript, uma closure preserva acesso às vinculações do ambiente léxico de criação, podendo observar mudanças posteriores no valor de uma variável capturada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A closure combina função e ambiente léxico. Ela não conserva necessariamente uma fotografia imutável do valor original: a função pode ler ou atualizar o vínculo capturado em chamadas posteriores, como em contadores.",
+      "section": "JavaScript: escopo léxico, closures e assincronia",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O código `const x = {n: 1}; x.n = 2;` é executado em JavaScript. Qual é o resultado relativo à declaração `const`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atribuir `x.n` provoca erro obrigatoriamente, pois `const` congela objetos recursivamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A palavra-chave `const` garante que `x` e todos os objetos internos sejam imutáveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A propriedade `n` pode mudar apenas depois de converter `x` para `var`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A reatribuição `x = {n: 3}` é permitida se o objeto anterior foi alterado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A alteração da propriedade é permitida; a vinculação `x` não pode ser reatribuída.",
+          "correct": true
+        }
+      ],
+      "explanation": "`const` impede reatribuir o identificador, e não congela o objeto apontado. Propriedades podem ser alteradas, salvo restrições específicas. Congelamento com `Object.freeze` é operação diferente e, por padrão, superficial.",
+      "section": "JavaScript: escopo léxico, closures e assincronia",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um laço `for` com `var i` e callbacks executados posteriormente, cada callback necessariamente recebe uma vinculação distinta de `i`, exatamente como ocorreria com `let i`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "`var` possui escopo de função, de modo que callbacks adiados podem compartilhar a mesma variável e enxergar seu valor final. `let` no cabeçalho do laço permite vinculações por iteração, evitando essa armadilha comum.",
+      "section": "JavaScript: escopo léxico, closures e assincronia",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Considere `console.log('A'); Promise.resolve().then(() => console.log('B')); console.log('C');` no mesmo fluxo síncrono. Qual é a sequência de saída?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`A`, depois `C`, depois `B`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`B`, depois `A`, depois `C`, porque Promise resolvida tem prioridade absoluta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`A`, depois `B`, depois `C`, pela execução imediata de `then`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`C`, depois `B`, depois `A`, pelo empilhamento LIFO de callbacks.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A sequência é indeterminada, mesmo sem outras tarefas concorrentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "As chamadas síncronas imprimem primeiro A e C. O handler de `then` é enfileirado como microtarefa e só executa quando a pilha atual termina. Resolver uma Promise não significa executar seu callback sincronicamente.",
+      "section": "JavaScript: escopo léxico, closures e assincronia",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma arrow function definida em JavaScript possui um `this` próprio que é religado automaticamente ao objeto usado como receptor na chamada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Arrow functions não estabelecem seu próprio vínculo de `this`: elas o capturam lexicalmente do contexto em que foram criadas. A regra de `this` determinada pela invocação aplica-se às funções regulares, com nuances do contexto.",
+      "section": "JavaScript: escopo léxico, closures e assincronia",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao fazer `const resultados = dados.map(async x => consultar(x))`, qual descrição do valor imediato de `resultados` está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um array de respostas já resolvidas, pois `map` espera callbacks assíncronos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um array de Promises, cujos resultados podem ser aguardados com `Promise.all`.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um objeto `Promise` único, criado implicitamente pelo método `map`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um iterador síncrono que só chama `consultar` durante `next`.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um array vazio até que todas as requisições terminem.",
+          "correct": false
+        }
+      ],
+      "explanation": "`Array.prototype.map` é síncrono e coleta os retornos dos callbacks. Como funções `async` retornam Promises, o resultado imediato é um array dessas Promises; `Promise.all` pode reuni-las em um resultado aguardável.",
+      "section": "JavaScript: escopo léxico, closures e assincronia",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em JavaScript, `0 ?? 10` resulta em zero, enquanto `0 || 10` resulta em dez, pois os operadores usam critérios diferentes para escolher o lado direito.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O operador de coalescência nula usa a alternativa apenas para `null` ou `undefined`. O OR lógico usa a alternativa para qualquer valor falsy, incluindo zero. A diferença é relevante ao preservar entradas numéricas válidas.",
+      "section": "JavaScript: escopo léxico, closures e assincronia",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em aplicação de navegador, qual afirmação é adequada sobre `await` dentro de uma função `async`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cria obrigatoriamente uma thread nova para cada expressão aguardada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Torna síncrona e bloqueante toda a execução do navegador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Suspende a continuação daquela função assíncrona até o resultado aguardado, sem bloquear necessariamente toda a aplicação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Só pode receber valores que não sejam Promises.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Elimina a possibilidade de exceções ou rejeições na operação.",
+          "correct": false
+        }
+      ],
+      "explanation": "`await` permite suspender a continuação de uma função assíncrona, que retorna Promise, enquanto o ambiente pode continuar outras atividades. Rejeições ainda podem ocorrer e exigem tratamento por `try/catch` ou mecanismo equivalente.",
+      "section": "JavaScript: escopo léxico, closures e assincronia",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A declaração `type Pessoa = {idade: number}` em TypeScript valida automaticamente que qualquer JSON externo contenha um número no campo `idade` durante a execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Tipos de TypeScript orientam a verificação estática e são removidos na conversão para JavaScript. Entradas externas exigem validação em tempo de execução; anotar um objeto não transforma nem verifica automaticamente dados recebidos.",
+      "section": "TypeScript: tipagem estrutural e tipos avançados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um valor externo foi declarado com tipo `unknown`. Qual abordagem é segura antes de acessar uma propriedade específica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acessar qualquer propriedade diretamente, pois `unknown` é equivalente a `any`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter para `never`, o que garante validação em tempo de execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `as` e supor que os dados passam por validação automática.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Realizar um estreitamento de tipo, por exemplo conferindo que o valor é objeto não nulo e contém a propriedade esperada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar todos os verificadores para converter o valor em objeto confiável.",
+          "correct": false
+        }
+      ],
+      "explanation": "`unknown` impede uso específico até que o código reúna evidências de tipo. Guards e validações são adequados; asserções `as` apenas instruem o compilador e não constituem checagem real de entrada externa.",
+      "section": "TypeScript: tipagem estrutural e tipos avançados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em TypeScript, `keyof T` pode produzir a união dos tipos das chaves de `T`, e `T[K]` pode representar o tipo associado a uma chave `K` compatível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O operador `keyof` descreve os nomes das propriedades de um tipo e o acesso indexado `T[K]` descreve tipos de valores associados. Usados com genéricos restritos, eles mantêm a relação entre o argumento da chave e o resultado.",
+      "section": "TypeScript: tipagem estrutural e tipos avançados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Considere `type R<T> = T extends string ? 1 : 0`. Qual é o tipo obtido para `R<string | number>`, no caso distributivo usual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`1`, pois um dos membros da união satisfaz `string`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`0`, pois a união completa não é exclusivamente `string`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`never`, porque condicionais não aceitam uniões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`boolean`, pois toda condição produz verdadeiro ou falso em runtime.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`1 | 0`, porque a condição é aplicada a cada membro da união.",
+          "correct": true
+        }
+      ],
+      "explanation": "Quando o parâmetro genérico aparece isolado no lado esquerdo de `extends`, tipos condicionais distribuem-se sobre membros da união. A condição avalia `string` e `number` separadamente e une os resultados.",
+      "section": "TypeScript: tipagem estrutural e tipos avançados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O tipo utilitário `Readonly<T>` impede, por si só, que um objeto JavaScript recebido da rede tenha suas propriedades alteradas durante a execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "`Readonly<T>` descreve restrições de escrita para a análise estática, não instala congelamento em runtime. Código JavaScript, referências mutáveis ou entradas externas ainda exigem controles concretos de integridade.",
+      "section": "TypeScript: tipagem estrutural e tipos avançados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual declaração representa corretamente um tipo mapeado que torna opcionais todas as propriedades de `T`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`type Opc<T> = { [K in keyof T]?: T[K] };`",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`type Opc<T> = keyof T?: T;`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`type Opc<T> = { [K in T]: T[K] };` para qualquer tipo `T`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`type Opc<T> = T extends undefined ? T : never;`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`type Opc<T> = { readonly T?: K };`",
+          "correct": false
+        }
+      ],
+      "explanation": "O mapped type percorre `keyof T` e reproduz o tipo de cada propriedade por `T[K]`; o marcador `?` torna cada propriedade opcional. A sintaxe alternativa mistura operadores ou não preserva o contrato original.",
+      "section": "TypeScript: tipagem estrutural e tipos avançados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A asserção `valor as Tipo` no TypeScript efetua conversão e validação em runtime, podendo ser usada isoladamente para rejeitar um payload malformado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A asserção orienta a análise do compilador, sem executar validação ou coerção de dados no JavaScript gerado. Para rejeitar payloads malformados, são necessários testes de tipo e validação da estrutura recebida.",
+      "section": "TypeScript: tipagem estrutural e tipos avançados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma união discriminada TypeScript, como `{ok:true; dados:string} | {ok:false; erro:string}`, qual técnica permite acesso seguro a `dados`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acessar sempre `resultado.dados`, independentemente do campo `ok`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Verificar `resultado.ok === true` antes de ler `resultado.dados`.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aplicar `Object.freeze` em qualquer valor sem testar o discriminante.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Declarar `resultado` como `any` e considerar o contrato validado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar o operador `!` ao objeto para criar a propriedade ausente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O teste do discriminante estreita a união para a variante que contém `dados`. As demais abordagens não comprovam que esse campo exista: algumas apenas silenciam o verificador ou afetam mutabilidade.",
+      "section": "TypeScript: tipagem estrutural e tipos avançados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, `List<Integer>` pode ser atribuída diretamente a uma variável do tipo `List<Number>`, pois `Integer` é subtipo de `Number`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Generics como `List<T>` são invariantes nessa relação: admitir a atribuição permitiria adicionar a lista valores de outros subtipos de `Number`. Wildcards expressam adequadamente leitura ou escrita quando necessárias.",
+      "section": "Java: orientação a objetos, lambdas, streams e genéricos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma lambda Java precisa ler uma variável local criada no método envolvente. Qual requisito geral se aplica à variável capturada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela precisa obrigatoriamente ser campo estático público.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela deve ser alterada dentro da lambda antes de cada leitura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela deve ser final ou efetivamente final, sem reatribuição posterior incompatível com a captura.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ela precisa ser `volatile`, mesmo sem concorrência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela deve ser declarada exclusivamente como `Object`.",
+          "correct": false
+        }
+      ],
+      "explanation": "Lambdas Java podem capturar variáveis locais finais ou efetivamente finais. Não é indispensável escrever a palavra-chave `final`, mas a variável não pode sofrer reatribuições que violem esse requisito de captura.",
+      "section": "Java: orientação a objetos, lambdas, streams e genéricos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma pipeline de Stream Java, operações intermediárias como `filter` e `map` são, em geral, preguiçosas; uma operação terminal costuma disparar o processamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Streams organizam origem, operações intermediárias e operação terminal. Intermediárias tipicamente compõem uma pipeline sem percorrer imediatamente os elementos; a terminal solicita o resultado, sujeita a otimizações de execução.",
+      "section": "Java: orientação a objetos, lambdas, streams e genéricos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto contém somente operações intermediárias usuais de `Stream<T>` em Java?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`collect`, `count` e `findFirst`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`reduce`, `min` e `forEach`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`toList`, `anyMatch` e `max`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`filter`, `map` e `flatMap`.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`count`, `distinct` e `collect`.",
+          "correct": false
+        }
+      ],
+      "explanation": "`filter`, `map` e `flatMap` retornam streams para continuação do pipeline. `count`, `collect`, `reduce`, `forEach` e operações de busca ou agregação finalizam a operação, não pertencendo ao mesmo grupo.",
+      "section": "Java: orientação a objetos, lambdas, streams e genéricos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mesma instância de `Stream` Java, depois de uma operação terminal, pode ser percorrida novamente quantas vezes forem necessárias, da mesma maneira que uma `List`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Stream não é coleção reutilizável: após o consumo por operação terminal, a instância não deve ser operada novamente. Para outro processamento, obtenha nova stream da origem ou recrie a fonte correspondente.",
+      "section": "Java: orientação a objetos, lambdas, streams e genéricos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, um `Optional<String>` já contém valor. Qual alternativa evita calcular uma solução substituta custosa sem necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `orElse(calcularSubstituto())`, pois a expressão é sempre lazy.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar `get()` após apagar o Optional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `map` com um objeto `null` como função.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `Optional.empty()` para conservar o valor original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `orElseGet(() -> calcularSubstituto())`.",
+          "correct": true
+        }
+      ],
+      "explanation": "`orElse` recebe um argumento já avaliado, inclusive quando o Optional tem valor. `orElseGet` recebe um Supplier chamado apenas se houver ausência, evitando trabalho desnecessário e possíveis efeitos colaterais.",
+      "section": "Java: orientação a objetos, lambdas, streams e genéricos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma interface Java pode continuar sendo funcional mesmo quando declara métodos `default` e `static`, desde que tenha um único método abstrato pertinente ao contrato funcional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O critério central de interface funcional é possuir um único método abstrato relevante. Métodos `default` e `static` têm implementação própria e não invalidam esse caráter; a anotação `@FunctionalInterface` serve para verificação.",
+      "section": "Java: orientação a objetos, lambdas, streams e genéricos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma `Stream` Java lê uma coleção compartilhada. Qual prática se alinha ao contrato recomendado da API de streams?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Evitar que as operações comportamentais interfiram na fonte e, em regra, evitar estado mutável compartilhado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Modificar a coleção de origem dentro de `filter` para acelerar a avaliação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Presumir que `parallelStream()` melhora toda operação de qualquer tamanho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `peek` como mecanismo obrigatório de atualização persistente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reutilizar a stream original depois de cada redução terminal.",
+          "correct": false
+        }
+      ],
+      "explanation": "A API recomenda funções não interferentes e geralmente sem estado para preservar a semântica de execução, inclusive paralela. Mutar fonte, depender de `peek` ou assumir ganho universal de paralelismo cria bugs e resultados frágeis.",
+      "section": "Java: orientação a objetos, lambdas, streams e genéricos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Angular e TypeScript são a mesma linguagem: ambos fornecem a sintaxe de tipos estáticos que será executada diretamente pelo navegador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "TypeScript é linguagem que adiciona verificação estática ao JavaScript; Angular é um framework de aplicações que costuma usar TypeScript. Anotações estáticas não são executadas diretamente pelo navegador como um mecanismo de segurança.",
+      "section": "Angular: componentes, injeção de dependências e reatividade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja compartilhar uma instância de serviço entre componentes Angular que usam o mesmo injetor raiz. Qual configuração costuma atender a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Recriar o serviço manualmente com `new` em cada componente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Declarar o serviço com `@Injectable({providedIn: 'root'})` e injetá-lo nos consumidores.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Registrar o serviço em `providers` de cada componente para forçar instância única global.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir toda lógica compartilhada por variáveis locais de template.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir o serviço exclusivamente em arquivo CSS global.",
+          "correct": false
+        }
+      ],
+      "explanation": "Prover o serviço no injetor raiz costuma disponibilizar instância compartilhada dentro desse escopo. Providers em componentes podem criar instâncias próprias; criar com `new` contorna o mecanismo de injeção e seu ciclo de vida.",
+      "section": "Angular: componentes, injeção de dependências e reatividade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Angular Signals, um valor `computed` serve à derivação reativa e, como regra de projeto, não deve ser substituído indiscriminadamente por `effect` para copiar valores entre estados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "`computed` expressa transformação derivada de dependências rastreadas, facilitando consistência do estado. `effect` destina-se sobretudo a efeitos externos; utilizá-lo para propagação manual pode introduzir dependências e atualizações desnecessárias.",
+      "section": "Angular: componentes, injeção de dependências e reatividade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Angular, `const n = signal(1); const d = computed(() => n() * 2); n.set(4);`. Qual leitura é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`d` é o número 2 fixado no momento da declaração e nunca muda.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`n()` deixa de funcionar, pois a variável é `const`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`d()` fornece 8 após a atualização ser observada pelo mecanismo reativo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`computed` modifica automaticamente `n` para o valor 8.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`signal` exige `await` para toda leitura numérica.",
+          "correct": false
+        }
+      ],
+      "explanation": "Signal gravável usa `set` para alterar seu valor; `computed` deriva resultado da leitura de dependências. Quando `n` passa a 4, a expressão de derivação fornece 8, sem substituir o sinal original.",
+      "section": "Angular: componentes, injeção de dependências e reatividade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um route guard no Angular constitui, sozinho, barreira suficiente para proteger dados sigilosos de uma API, mesmo que o backend não execute autorização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Guards atuam no lado cliente e orientam navegação. Um usuário pode realizar requisições diretamente ao backend; a autorização efetiva deve ser imposta no servidor, independentemente das verificações de interface.",
+      "section": "Angular: componentes, injeção de dependências e reatividade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em formulários reativos Angular, qual par de abstrações é normalmente usado para representar controles e agrupá-los?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`Thread` e `Runnable`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`Promise` e `setTimeout` exclusivamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`Stream` e `Collector`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`FormControl` e `FormGroup`.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`Record` e `Delegate`.",
+          "correct": false
+        }
+      ],
+      "explanation": "`FormControl` representa valores e estado de um controle, enquanto `FormGroup` reúne controles e suas validações. As outras combinações pertencem a mecanismos de outras linguagens ou não formam a API de formulários reativos Angular.",
+      "section": "Angular: componentes, injeção de dependências e reatividade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Angular, os Observables geralmente usados com `HttpClient` podem iniciar a requisição quando assinados, e assinaturas independentes podem causar múltiplas requisições.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Os Observables usuais do HttpClient são frios: a requisição começa com assinatura. Duas assinaturas independentes podem causar dois acessos, salvo compartilhamento ou outra estratégia de multicasting aplicada intencionalmente.",
+      "section": "Angular: componentes, injeção de dependências e reatividade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre template Angular e segurança é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Interpolação `{{ }}` permite HTML arbitrário sem qualquer risco de injeção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Chamar `bypassSecurityTrustHtml` em conteúdo remoto é seguro em qualquer contexto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O uso de `[(ngModel)]` substitui a validação de dados pelo servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A presença de TypeScript torna impossível inserir dados maliciosos nas respostas da API.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Interpolação textual recebe tratamento apropriado pelo framework, mas validação de acesso e decisões de autorização devem ocorrer no backend.",
+          "correct": true
+        }
+      ],
+      "explanation": "Angular possui mecanismos de escape e sanitização contextual, mas não tornam confiável qualquer conteúdo remoto ou uso de bypass. Autorização e validação de regras críticas permanecem responsabilidades do backend.",
+      "section": "Angular: componentes, injeção de dependências e reatividade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em C#, a palavra-chave `var` faz a variável perder seu tipo estático, de modo que métodos inexistentes só poderão ser detectados quando a aplicação executar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "`var` pede ao compilador que infira o tipo estático da expressão inicial. A variável continua sujeita à checagem de tipos. O uso de `dynamic`, e não de `var`, pode adiar determinadas verificações para runtime.",
+      "section": "C# e interoperabilidade conceitual entre linguagens",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No LINQ to Objects, uma consulta `Where` é construída sobre uma lista e armazenada sem enumeração. Em seguida, um novo item é adicionado à lista. Ao executar `ToList()` na consulta, o que pode ocorrer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O novo item pode entrar no resultado, caso satisfaça o predicado, em virtude da execução diferida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O resultado sempre é congelado no exato momento da chamada a `Where`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Toda consulta LINQ cria uma cópia profunda da coleção de origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`ToList()` não executa nenhuma operação, apenas devolve o mesmo objeto `IEnumerable`.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A consulta gera automaticamente erro por ter sido definida antes do acréscimo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Diversas operações LINQ sobre `IEnumerable<T>` têm execução diferida. A enumeração posterior observa a fonte naquele momento, ressalvadas particularidades do operador; `ToList()` materializa os resultados em uma nova lista.",
+      "section": "C# e interoperabilidade conceitual entre linguagens",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em C#, aguardar uma operação com `await` não significa necessariamente criar uma nova thread, e o cancelamento via `CancellationToken` costuma ser cooperativo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "`await` pode suspender a continuação enquanto a operação assíncrona está pendente, sem alocar obrigatoriamente outra thread. O token sinaliza intenção de cancelamento, que precisa ser atendida pela operação envolvida.",
+      "section": "C# e interoperabilidade conceitual entre linguagens",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual assinatura representa um delegate genérico C# que recebe `int` e devolve `string`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`Action<string, int>`, que exige sempre retorno `string`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`Func<int, string>`.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`IEnumerable<int>`, pois um enumerável é delegate.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`Task<int>`, porque tarefa substitui qualquer delegate.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`Predicate<string>`, porque representa qualquer retorno textual.",
+          "correct": false
+        }
+      ],
+      "explanation": "`Func<T,R>` modela uma função com entrada `T` e retorno `R`. `Action` não devolve resultado, `Predicate<T>` retorna `bool`, e `Task` ou `IEnumerable` representam conceitos diferentes de delegate.",
+      "section": "C# e interoperabilidade conceitual entre linguagens",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em C#, `using` e `await using` estão relacionados a descarte de recursos apropriados, enquanto o coletor de lixo, por si só, não garante liberação imediata de recursos externos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "`using` usa o padrão de descarte associado a `IDisposable` e `await using` a `IAsyncDisposable`. O GC administra memória gerenciada, mas o encerramento de arquivos e conexões exige controle de vida útil adequado.",
+      "section": "C# e interoperabilidade conceitual entre linguagens",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação C# usa `IQueryable<T>` de um provedor de dados. Qual conclusão é correta sobre expressões LINQ?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Toda chamada de método arbitrário C# vira uma função SQL equivalente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`IQueryable<T>` obriga avaliação imediata de toda consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O provedor pode traduzir expressões para sua fonte de dados, mas nem toda operação .NET é necessariamente traduzível.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`IQueryable<T>` sempre mantém todos os dados materializados na memória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "LINQ permite apenas consultas sobre arrays, nunca sobre provedores externos.",
+          "correct": false
+        }
+      ],
+      "explanation": "`IQueryable<T>` fornece árvore de expressão para processamento por um provedor, que pode traduzi-la, por exemplo, em consultas ao banco. Suporte a operadores depende do provedor, não havendo tradução automática universal.",
+      "section": "C# e interoperabilidade conceitual entre linguagens",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os operadores `map` de um array JavaScript e `map` de uma `Stream` Java possuem obrigatoriamente o mesmo comportamento imediato de materialização de resultados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "`Array.prototype.map` produz imediatamente um novo array, enquanto `Stream.map` normalmente cria uma etapa intermediária preguiçosa. A aparência semelhante da API não autoriza transferir a mesma semântica de avaliação.",
+      "section": "C# e interoperabilidade conceitual entre linguagens",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar conceitos, qual associação é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O `yield` de Python é sinônimo de `Promise.all` em JavaScript.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Java Stream equivale a uma `List` sempre materializada no momento de `map`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "C# LINQ é recurso exclusivo de bancos SQL, sem suporte a coleções.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Python oferece `yield` para geradores; Java oferece Stream API; C# oferece LINQ; JavaScript usa Promises para compor resultados assíncronos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "TypeScript elimina todos os erros de payload malformado durante a execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os mecanismos atendem a finalidades relacionadas, mas distintas: produção sob demanda, pipelines, consultas e assincronia. Confundi-los gera afirmações incorretas sobre materialização, contexto de execução e verificação de tipos.",
+      "section": "C# e interoperabilidade conceitual entre linguagens",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Python — Functional Programming HOWTO",
+      "publisher": "Python Software Foundation",
+      "reference": "Geradores, iteradores e programação funcional",
+      "url": "https://docs.python.org/3/howto/functional.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Python — functools",
+      "publisher": "Python Software Foundation",
+      "reference": "wraps, decoradores e funções de ordem superior",
+      "url": "https://docs.python.org/3/library/functools.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Closures — JavaScript Guide",
+      "publisher": "MDN Web Docs / Mozilla",
+      "reference": "Escopo léxico e closures em JavaScript",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Closures",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Using microtasks in JavaScript",
+      "publisher": "MDN Web Docs / Mozilla",
+      "reference": "Fila de microtarefas e event loop",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/HTML_DOM_API/Microtask_guide",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "TypeScript Handbook — Creating Types from Types",
+      "publisher": "TypeScript / Microsoft",
+      "reference": "keyof, acesso indexado, condicionais e mapped types",
+      "url": "https://www.typescriptlang.org/docs/handbook/2/types-from-types.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "TypeScript Handbook — Mapped Types",
+      "publisher": "TypeScript / Microsoft",
+      "reference": "Propriedades opcionais e remapeamento de chaves",
+      "url": "https://www.typescriptlang.org/docs/handbook/2/mapped-types.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Java Stream — Java SE API",
+      "publisher": "Oracle",
+      "reference": "Operações intermediárias, terminais, non-interference e laziness",
+      "url": "https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/stream/Stream.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Lambda Expressions — Dev.java",
+      "publisher": "Oracle",
+      "reference": "Expressões lambda e interfaces funcionais",
+      "url": "https://dev.java/learn/lambdas/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Angular — Anatomy of components",
+      "publisher": "Angular / Google",
+      "reference": "Componentes, templates e arquitetura",
+      "url": "https://angular.dev/guide/components",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Angular — Signals",
+      "publisher": "Angular / Google",
+      "reference": "signal, computed e rastreamento de dependências",
+      "url": "https://angular.dev/guide/signals",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Angular — Dependency injection",
+      "publisher": "Angular / Google",
+      "reference": "Providers e injetores",
+      "url": "https://angular.dev/guide/di",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "C# — LINQ queries",
+      "publisher": "Microsoft Learn",
+      "reference": "Expressões lambda, consultas LINQ e execução diferida",
+      "url": "https://learn.microsoft.com/en-us/dotnet/csharp/fundamentals/statements/linq",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

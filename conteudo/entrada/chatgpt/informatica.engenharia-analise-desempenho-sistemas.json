@@ -1,0 +1,2033 @@
+{
+  "id": "informatica.engenharia-analise-desempenho-sistemas",
+  "subject": "Informática",
+  "title": "Engenharia e análise de desempenho de sistemas",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Engenharia e análise de desempenho de sistemas",
+    "Engenharia e análise de desempenho de sistemas"
+  ],
+  "scope": {
+    "covers": "Conceitos de latência, throughput, concorrência, lei de Little, modelagem de filas, percentis; testes de carga/estresse/pico/resistência; método USE e RED; métricas CPU, memória, disco, rede, SLI/SLO/SLA; observabilidade, profiling e tracing; tuning de código, SQL/PostgreSQL, JVM/GC, caches e pools; dimensionamento, headroom, HPA, escalabilidade e elasticidade.",
+    "excludes": "Dimensionamento prescritivo de fornecedores ou versões específicas sem teste; parâmetros universais de heap, pool ou CPU; benchmarks comerciais e regras de negócio não relacionadas à engenharia de desempenho."
+  },
+  "theoryTitle": "Engenharia e análise de desempenho de sistemas: da medição ao tuning e à escalabilidade",
+  "chapters": [
+    {
+      "title": "Fundamentos de desempenho, filas e experimentação",
+      "markdown": "# O que significa desempenho de sistemas\n\nEngenharia de desempenho é o trabalho contínuo de especificar objetivos mensuráveis, medir comportamentos sob condições conhecidas, explicar gargalos e melhorar o sistema sem transferir o problema para outro componente. **Latência** é o tempo observado para concluir uma operação, incluindo eventuais filas, rede e processamento; **tempo de resposta** costuma ser a latência percebida pelo cliente; **throughput** (vazão) é a quantidade de operações concluídas por unidade de tempo. Uma API pode manter vazão estável e, ao mesmo tempo, apresentar piora de latência porque as filas aumentam. Capacidade significa o volume de trabalho sustentável respeitando requisitos de qualidade, não apenas a taxa máxima obtida antes de uma queda total.\n\n**Concorrência** indica operações em andamento; **paralelismo** é execução efetivamente simultânea em unidades de processamento distintas. O aumento de usuários concorrentes não implica aumento linear da vazão: há contenção de locks, filas, limites de conexões e recursos compartilhados. Para requisições estáveis, a lei de Little relaciona número médio de operações em um sistema (L), taxa média de chegada ou saída (λ) e tempo médio no sistema (W): **L = λ × W**. Se um serviço processa 80 solicitações por segundo, com duração média de 0,25 s e regime estável, estima-se L = 20 operações no sistema. A lei não promete que o sistema continuará estável após uma mudança de carga, nem determina percentis a partir de médias.\n\n## Distribuições importam mais do que uma média isolada\n\nTempos de resposta costumam ter cauda longa. A mediana (p50) deixa metade das observações em cada lado; o p95 indica valor abaixo do qual estão aproximadamente 95% das observações da amostra, conforme definição e método de cálculo. Ele não indica que cada usuário receberá precisamente tal tempo. Uma média de 150 ms pode esconder muitas respostas de segundos; convém registrar p50, p95, p99, erros e vazão por endpoint e classe de operação. Identifique separadamente falhas, cancelamentos e timeouts, para que excluir requisições malsucedidas não produza uma aparência artificial de melhoria. Não some percentis de múltiplos serviços para calcular o percentil fim a fim: percentis não são aditivos.\n\n**Utilização** e **saturação** são conceitos diferentes: um processador pode estar ocupado quase todo o tempo sem grande fila em determinado regime; saturação se evidencia por esperas, demandas acumuladas, throttling ou perda de serviço. O elo com maior demanda relativa à capacidade determina com frequência o limite global. A ideia de gargalo, todavia, deve ser demonstrada com sinais de espera, não por uma única porcentagem de CPU. A lei de Amdahl explica limites de otimização: se 30% do tempo é inevitavelmente serial, paralelizar perfeitamente os 70% restantes não reduz o tempo total abaixo dos 30% originais; o speedup teórico máximo tende a 1/0,30. Essa modelagem supõe fração serial fixa e abstrai custos de coordenação.\n\n## Metodologia de testes\n\nComece por uma **hipótese testável**: 'sob 300 requisições/s, a fila de conexões SQL eleva o p95 acima de 600 ms'. Declare perfil de carga, mistura de operações, tamanho dos dados, duração, aquecimento, versão do sistema, ambiente, limites de recursos e condições de rede. Construa linha de base antes de alterar código, configuração ou infraestrutura. Execute testes repetíveis e isole uma mudança por vez, com comparação de latência, throughput, erros e consumo de recursos. Um benchmark em base vazia ou em ambiente sem dependências externas dificilmente espelha produção.\n\n**Teste de carga** verifica o funcionamento em volume normal ou esperado; **estresse** busca o comportamento ao ultrapassar limites; **pico/spike** injeta variação súbita; **resistência/soak** observa comportamento sustentado e vazamentos; **escalabilidade** mede efeitos de adicionar recursos. Modelos **abertos** controlam chegadas por segundo; modelos **fechados** controlam usuários virtuais que aguardam uma resposta antes de produzir outra. Em modelos fechados, o emissor de carga pode reduzir a taxa de chegadas quando o sistema fica lento, ocultando saturação. O risco de *coordinated omission* exige atenção ao método de geração e registro dos tempos. Monitore também a própria ferramenta de carga, pois ela pode ser o gargalo.\n\n## Resultado defensável\n\nBoa conclusão contém antes e depois, carga, período, dispersão, variação de recursos, erros e custos. Melhorar apenas p50 enquanto o p99 piora pode prejudicar os usuários mais afetados. Otimização é negociação entre tempo de resposta, vazão, previsibilidade, custo, energia e confiabilidade. Se a aplicação melhora por trocar consultas SQL por cache, confirme o efeito sobre consistência, invalidação e memória. Uma métrica global é ponto de partida, não explicação causal: estratifique por rota, região, cliente, versão, tipo de requisição e dependência, sem criar dimensões de cardinalidade explosiva."
+    },
+    {
+      "title": "Métricas concretas de CPU, memória, disco e rede; métodos USE e RED",
+      "markdown": "# Instrumentação orientada a recursos e serviços\n\nO método **USE** (Utilization, Saturation, Errors), formulado por Brendan Gregg, parte de cada recurso físico ou lógico: medir **utilização**, **saturação** e **erros**. CPU, memória, disco, interface de rede, limites de descritores, pools e filas podem ser examinados separadamente. O método **RED** (Rate, Errors, Duration), associado a Tom Wilkie, parte de cada serviço orientado a requisições: quantas operações recebe ou conclui por segundo, quantas falham e quanto demoram. USE localiza os recursos em dificuldade; RED retrata a experiência das chamadas. Não são concorrentes: um p99 de API alto pode ser explicado por fila de disco, espera de lock, indisponibilidade de dependência ou esgotamento de pool. O Google SRE também propõe os quatro sinais de ouro: latência, tráfego, erros e saturação.\n\n## CPU\n\nRegistre tempo ocupado por usuário/sistema, ocioso, iowait quando disponível, uso por núcleo, consumo por contêiner, run queue e tarefas executáveis aguardando CPU. Uma fila de execução alta, sustentada e contextualizada pelo número de CPUs lógicas sugere saturação; uso médio de 50% pode mascarar um núcleo a 100% devido a afinidade ou serialização. Em ambientes com cotas de CPU, monitore **throttling** do contêiner e limites configurados: é possível observar latência elevada por limitação de quota mesmo quando o host exibe ociosidade. *Load average* em Linux não equivale diretamente a porcentagem de uso de CPU: inclui estados de execução e certos tipos de espera. Registre frequência de CPU e efeitos de virtualização quando necessários.\n\n## Memória\n\nDiferencie memória total, disponível, livre, cache de páginas, *resident set size* (RSS), heap, memória nativa, memória compartilhada, swap e uso por contêiner. Um alto valor de memória 'usada' pode refletir cache recuperável do sistema operacional e não provar pressão. Sinais mais fortes de saturação são **major page faults**, paginação/swap sustentada, retomadas custosas de páginas, **OOM kills** e falta de memória disponível sob carga. Em máquinas Linux que disponibilizam PSI, `/proc/pressure/{cpu,memory,io}` mostra tempo de tarefas paradas por contenção; os campos `some` e `full`, onde definidos, oferecem distinção entre pressão parcial e ampla. Uma falha de alocação ou processo encerrado por OOM não é a mesma coisa que heap Java cheio.\n\n## Disco e armazenamento\n\nMeça IOPS (operações/s), throughput de leitura/escrita (bytes/s), latência por operação, tempo de espera, profundidade de fila, espaço em disco, latência do dispositivo e erros de I/O. **%util** precisa de interpretação cuidadosa: depende da implementação, paralelismo e dispositivo; não é percentual de capacidade total de IOPS em SSD moderno. Poucos MB/s com p99 alto podem indicar I/O aleatório, fsync, contenção, gargalo remoto ou limites provisionados. Diferencie *page cache hits* de leitura física, e monitore capacidade restante em bytes e tendência de crescimento: espaço cheio é limite de capacidade mesmo quando IOPS é baixo.\n\n## Rede\n\nMeça bits/s por interface e direção, pacotes/s, taxa de descarte, erros, retransmissões TCP, RTT, jitter e conexões em estados relevantes. **Largura de banda** é capacidade nominal; **throughput efetivo** é o volume útil atingido. Uma conexão pode sofrer RTT e perdas altos com banda disponível, e aumentar instâncias da aplicação não corrige perda no caminho de rede. CPU de criptografia TLS, resolução DNS e handshake podem elevar latência percebida. Erros na interface e retransmissões precisam ser cruzados com dados da aplicação antes de afirmar causalidade.\n\n## Dashboards, SLI e alertas\n\nNa camada de serviço, registre RED por rota lógica e código de resultado: `http_requests_total`, contagem de falhas e distribuição de `http_request_duration_seconds` são padrões ilustrativos de instrumentação. Em Prometheus, histogramas permitem agregar buckets e calcular quantis aproximados com `histogram_quantile`; *summaries* calculam quantis no processo e não permitem a mesma agregação direta entre instâncias. Taxa de erro depende de definir explicitamente o que conta como solicitação válida e falha. Evite rótulos com IDs de usuário ou requisição, pois cardinalidade excessiva eleva memória e custo da telemetria. Relacione **SLI** (medida de qualidade), **SLO** (meta interna mensurável) e **SLA** (acordo de prestação do serviço); alerta útil acompanha sintomas reais, queima de orçamento de erro e necessidade de ação, em vez de qualquer flutuação de CPU."
+    },
+    {
+      "title": "Observabilidade, profiling, diagnóstico e interpretação de testes",
+      "markdown": "# Da anomalia ao diagnóstico causal\n\nUm bom processo de investigação começa pelo recorte temporal do incidente, pela carga naquele período e pelo sintoma percebido: indisponibilidade, erros, regressão de p95/p99 ou queda de vazão. Compare serviços saudáveis e afetados, regiões, versões, tamanhos de payload e fluxos críticos. **Métricas** resumem séries temporais, **logs** fornecem eventos detalhados e **traces distribuídos** conectam spans de uma requisição entre serviços, desde que exista propagação de contexto de rastreamento. Nenhum sinal, isoladamente, prova causa. Uma correlação entre GC e latência, por exemplo, pede inspeção de pausas, alocação, CPU e eventos concorrentes.\n\n## Medição e visualizações\n\nUse counters para grandezas cumulativas (requisições totais, bytes enviados, falhas), gauges para estados que aumentam e diminuem (conexões ativas, tamanho de fila) e histogramas para distribuições (latência, tamanho de resposta). Transforme counters em taxas de janela quando necessário, considerando reinícios. Histograma oferece informação de faixas e aproximações de quantis; olhar exclusivamente média e máximo pode confundir episódios raros com comportamento típico. Um trace com um span de 700 ms indica onde o tempo foi observado, mas um span que envolve chamada remota pode incluir fila, rede e processamento do serviço seguinte. Ajuste amostragem e retenção: amostrar indiscriminadamente 100% de alto tráfego custa caro; amostragem reduz visibilidade de eventos raros, devendo ser planejada.\n\n**Profiling de CPU** mede onde tempo de execução é gasto; *wall-clock profiling* captura tempos de espera mais amplos; profiling de memória permite observar alocações, retenção e padrões que apontam para vazamento. Perfis por amostragem costumam ser menos intrusivos que instrumentação detalhada, mas ambos têm overhead. *Flame graphs* agregam pilhas: a largura mostra a frequência ou peso medido em determinado perfil, e não necessariamente duração cronológica contínua. Diagnosticar contenção exige às vezes perfis de bloqueio, espera de locks, thread dumps e distribuição das durações de espera.\n\n## Testes e comparabilidade\n\nAo comparar revisões, verifique equivalência de datasets, caches frios/quentes, número de conexões, aquecimento do JIT, parâmetros de JVM, versão de banco e dependências. Um ganho de 20% numa execução isolada pode ser ruído. Faça várias amostras, informe intervalo, mediana e dispersão; repita cargas representativas e considere sazonalidade e percentis. Estimule carga até perceber o ponto de inflexão: onde a latência cresce mais rápido que a vazão, filas aumentam ou erros aparecem. Não confunda uma falha em ambiente artificial com limite definitivo do sistema de produção; valide hipóteses sem prejudicar serviços reais.\n\n## Interpretando sintomas\n\nSe a taxa de requisições sobe, o p99 cresce e a fila de conexões SQL aumenta enquanto CPU permanece folgada, investigue o pool, transações longas, bloqueios e tempos de banco antes de adicionar CPU. Se uso de CPU está alto, mas processos esperam pouco e p95 cumpre meta, ampliar infraestrutura pode ser desperdício; avalie reserva para picos e riscos. Se há timeout em cascata e retry automático, os retries podem amplificar a demanda e prolongar a falha. Use tempos limite coerentes com orçamento de latência, backoff exponencial com jitter e limites de concorrência. **Circuit breaker**, **bulkhead** e *load shedding* ajudam a conter falhas, mas reduzem ou rejeitam algum trabalho em situações críticas: são mecanismos de proteção, não garantias de sucesso.\n\n## Disciplina de diagnóstico\n\nFluxo recomendado: (1) confirmar definição da métrica e impacto, (2) diferenciar fila de execução de tempo de serviço, (3) examinar cada dependência e recurso com USE, (4) reproduzir cenário, (5) formular hipótese falsificável, (6) alterar somente o fator relevante, (7) comparar antes/depois e fazer rollback se o resultado piorar. Atenção a *observer effect*: coleta excessiva de logs, profiling contínuo agressivo e métricas de alta cardinalidade podem alterar o desempenho observado. Relatórios que não documentam carga, escala temporal e erro de medição são evidência insuficiente para conclusões robustas."
+    },
+    {
+      "title": "Tuning de aplicação, banco de dados, JVM/GC, cache e pools",
+      "markdown": "# Tuning significa intervir no gargalo comprovado\n\nOtimizar sem medir pode piorar a situação. Primeiro identifique o caminho crítico e meça tempo de CPU, alocação, bloqueios, dependências externas e espera em filas. Na **aplicação**, reduza algoritmos desnecessariamente caros, trabalho duplicado, serialização de grandes objetos, I/O síncrona em caminhos quentes e N+1 chamadas remotas. Ajuste tamanho de lotes sem criar payloads gigantes ou elevar latência de itens individuais. Paralelizar tarefa *CPU-bound* sem núcleos disponíveis aumenta contenção; para trabalho *I/O-bound*, concorrência assíncrona pode elevar uso dos recursos enquanto chamadas aguardam. Cancelamento e timeouts devem liberar recursos, evitando requisições órfãs.\n\n## Banco de dados\n\nUse consultas reais e examine planos com **EXPLAIN**, estimativas, cardinalidade, ordem de joins e seletividade. **EXPLAIN ANALYZE** no PostgreSQL executa a consulta para obter tempos efetivos e contagens; comandos que modificam dados podem produzir efeitos, portanto exigem ambiente seguro ou transação adequadamente revertida. A opção **BUFFERS** ajuda a observar acessos ao cache de blocos e leituras. Índices úteis podem reduzir leituras, mas têm custo de escrita, espaço, manutenção e não garantem rapidez quando seletividade é baixa ou estatísticas estão defasadas. Atualizar estatísticas, evitar `SELECT *` no caminho crítico, paginar adequadamente, utilizar consultas parametrizadas, eliminar N+1 e reduzir duração de transações são medidas frequentes. Índices compostos dependem da ordem das colunas e dos padrões de filtros/ordenação; não existe índice universal.\n\nAs esperas por locks e transações longas precisam de investigação. Ampliação indiscriminada do número de conexões pode agravar concorrência no banco e consumir memória; monitore conexões ativas, fila de aquisição, tempo de ocupação e throughput do servidor SQL. Particionamento, réplicas para leitura e materialização de agregados podem ajudar em cenários adequados, mas aumentam complexidade, custo e questões de consistência. Um plano estimado de menor custo não é necessariamente a menor latência real para todas as entradas.\n\n## JVM, heap e garbage collection\n\nNa JVM, diferencie **heap** (objetos gerenciados pelo coletor), **metaspace**, pilhas de threads, buffers diretos e outras alocações nativas. O consumo de memória do processo pode ultrapassar `-Xmx`, que limita essencialmente o heap. Acompanhe frequência e duração de pausas, percentual de tempo em GC, taxa de alocação, pressão na geração antiga, *promotion*, ocupação após coleta e `OutOfMemoryError`. Registre logs com logging unificado, por exemplo `-Xlog:gc*`, observando a versão do Java. **G1** busca equilibrar throughput e pausas e dispõe de meta de pausa; a meta não é uma garantia de limite rígido. Ajuste `-Xmx` e eventualmente `-Xms` a partir da carga e do limite total do contêiner, conservando margem para memória nativa. Heap excessivo pode elevar pressão e custo de coleta; heap pequeno demais pode induzir coletas frequentes. Um vazamento por referências retidas não se resolve apenas aumentando `-Xmx`. Compare collectors conforme versão, pausas, vazão e consumo de CPU, não por promessa universal de superioridade.\n\n## Cache e consistência\n\nCache **local** reduz latência de acesso mas cria divergência entre instâncias; cache **distribuído** amplia compartilhamento mas adiciona rede e dependência. Meça taxa de acertos, misses, latência, memória ocupada, taxa de expulsão e eficiência de invalidação. TTL define expiração temporal, não assegura atualização imediata; *cache-aside* consulta a fonte e povoa o cache após miss; *write-through* grava pelo caminho do cache para a fonte conforme desenho; *write-behind* adia persistência e eleva riscos se mal protegido. Proteja contra *cache stampede* com coalescência de carregamentos, TTL com variação, refresh antecipado ou mecanismos equivalentes. Alta taxa de acertos global pode esconder misses frequentes em itens mais caros. Atualizações exigem estratégia de invalidação compatível com consistência funcional.\n\n## Pools e limites de concorrência\n\nPool de conexões SQL, threads, chamadas HTTP e executores controla reutilização e concorrência. Dimensione pelo número de operações simultâneas úteis e pelo limite da dependência: um pool maior não cria capacidade no banco ou no serviço remoto. Métricas essenciais: ocupação, tamanho, espera de aquisição, timeout, duração de uso, itens na fila e rejeições. Pools insuficientes podem introduzir filas; grandes demais podem causar colapso por saturação, excesso de memória, trocas de contexto e sobrecarga na dependência. Uma fila ilimitada mascara incapacidade durante algum tempo e gera explosão de latência. Combine limites, *backpressure*, política de rejeição e timeout, validando com ensaios controlados."
+    },
+    {
+      "title": "Planejamento de capacidade, escalabilidade e decisões arquiteturais",
+      "markdown": "# Planejamento de capacidade: carga, margem e horizonte\n\nCapacidade não se determina apenas multiplicando usuários por máquinas. Comece com **perfil de demanda**: requisições por segundo, picos diários, sazonalidade, mistura de endpoints, tamanho de payload, consumo por operação, distribuição por região e crescimento esperado. Meça capacidade observada com metas de p95/p99, taxa de erro e limites de recursos. Estime a taxa de crescimento e mantenha **headroom** para tráfego irregular, tempo de provisionamento e falha de instância. Se cada instância sustenta 100 requisições/s sob o SLO em um ensaio reproduzível, quatro instâncias não garantem 400 requisições/s caso disputem o mesmo banco ou cache. Estimativas são hipóteses que exigem validação por teste integrado.\n\nExemplo didático: demanda de pico de 600 req/s e capacidade verificada de 150 req/s por instância sob o SLO; o mínimo aritmético seria quatro instâncias, **sem** redundância e **sem** margem. Com uma instância indisponível e sem sobras, o sistema passa a contar apenas 450 req/s. Para tolerar falha e crescimento, é necessário ampliar ou redefinir arquitetura e política de capacidade. Planejamento precisa documentar premissas: carga média e pico, capacidade sustentável por réplica, tempo para subir nova réplica, reserva de banco e taxa de erro admissível.\n\n## Escalabilidade vertical e horizontal\n\n**Scale-up** aumenta recursos em uma unidade: mais memória, vCPUs ou IOPS. É simples em alguns cenários, mas há limites físicos, custos e eventuais interrupções. **Scale-out** aumenta o número de réplicas, geralmente atrás de balanceamento, e facilita distribuição de carga e isolamento de falhas; porém depende de componentes compartilhados e particionamento correto de estado. Aplicações stateless são mais fáceis de replicar; sessões em memória local e transações distribuídas podem impedir escalabilidade sem ajustes. **Elasticidade** é adequar recursos ao longo do tempo à demanda, inclusive reduzir recursos em períodos tranquilos. Elasticidade pressupõe sinais confiáveis, automação e capacidade de entrar e sair de serviço sem dano.\n\nNo Kubernetes, o **Horizontal Pod Autoscaler (HPA)** ajusta réplicas de workloads a partir de métricas configuradas, como utilização de CPU, memória e métricas personalizadas; não transforma automaticamente um banco monolítico em sistema escalável. Para utilização de CPU, a referência envolve o uso observado em relação às solicitações de CPU relevantes (*requests*), não simplesmente o limite máximo do host. Políticas mal calibradas podem oscilar, gerar cold starts e aumentar a pressão em pools. Defina mínimo e máximo de réplicas, critérios de readiness, janela de estabilização e controle de escala. Faça *warm-up* se inicialização da JVM, carga de caches ou conexões exigirem tempo. A leitura de memória como único sinal pode dificultar scale-in de workloads cujo consumo não recua rapidamente.\n\n## Dimensionamento com filas e limites\n\nUma fila desacopla produtores e consumidores, mas não cria capacidade. Se chegam em média 120 tarefas/s e os consumidores processam apenas 100 tarefas/s, o backlog cresce aproximadamente 20 tarefas por segundo enquanto a diferença persistir, desconsiderando perdas e mudanças de regime. Meça idade da mensagem mais antiga, profundidade de fila, throughput e tempo de processamento. Autoscaling por profundidade da fila precisa considerar duração por tarefa e tempo para novos consumidores entrarem em operação. Aumentar consumidores pode apenas deslocar o gargalo para banco, rede ou limites de API. Limites de concorrência e *backpressure* são partes legítimas do desenho de capacidade.\n\n## Resiliência e custos\n\nReplicação ajuda a tolerar falhas, mas o comportamento do sistema depende de dependências comuns, políticas de retry, balanceamento e consistência. Lembre a diferença entre **escalabilidade** (comportamento ao aumentar recursos) e **disponibilidade** (capacidade de atender, inclusive diante de falhas). A distribuição geográfica reduz certos riscos e pode melhorar proximidade dos usuários, mas introduz custo de sincronização, latência entre regiões e complexidade operacional. Compare custos por mil requisições atendidas dentro do SLO, não só custo de CPU. Critério de conclusão: capacidade sustentável demonstrada em teste de carga e estresse, comportamento sob falha, volume de reserva, orçamento de erro, custo e plano de observação contínua. Testes após mudanças significativas evitam tratar um limite antigo como verdade permanente."
+    }
+  ],
+  "summary": "## Síntese estratégica\n\nEngenharia de desempenho busca **atender requisitos mensuráveis sob carga representativa**, equilibrando latência (inclusive p95 e p99), vazão, taxa de erros, consumo e custo. A lei de Little, em regime estável, relaciona concorrência média, taxa e tempo médio: L = λ × W. Testes de carga, estresse, pico e resistência respondem a perguntas diferentes e exigem linha de base, geração de carga confiável e múltiplas amostras. Use **RED** (taxa, erros, duração) para enxergar a experiência das requisições e **USE** (utilização, saturação, erros) para investigar CPU, memória, disco, rede e pools. Métricas, logs, traces e profiling se complementam na identificação causal. Faça tuning apenas após localizar o gargalo: consultas e índices com EXPLAIN ANALYZE, tamanho e espera de pools, heap e pausas do G1, invalidação de caches e consumo de CPU por operação. Planeje capacidade considerando picos, falhas, headroom, dependências compartilhadas, filas e tempo de autoscaling. **Armadilhas:** somar percentis, confundir -Xmx com memória total, supor escalabilidade linear, considerar a utilização de memória como prova suficiente de pressão e ampliar conexões de banco já saturado. A melhoria só se confirma quando o SLO permanece atendido em condições reproduzíveis e sem efeitos negativos em consistência, confiabilidade ou custo.",
+  "flashcards": [
+    {
+      "front": "Defina latência e throughput.",
+      "back": "Latência é o tempo para concluir uma operação; throughput é o número de operações concluídas por unidade de tempo, por exemplo requisições/s."
+    },
+    {
+      "front": "Para que serve o p99?",
+      "back": "Indica aproximadamente o limiar abaixo do qual caem 99% das observações; evidencia a cauda que a média pode ocultar."
+    },
+    {
+      "front": "Enuncie a lei de Little.",
+      "back": "Em regime estável, L = λ × W: número médio de itens no sistema = taxa média × tempo médio de permanência."
+    },
+    {
+      "front": "Diferencie concorrência e paralelismo.",
+      "back": "Concorrência significa operações em andamento; paralelismo significa execução simultânea efetiva."
+    },
+    {
+      "front": "Como diferenciar teste de carga e estresse?",
+      "back": "Carga verifica funcionamento no volume esperado; estresse explora limites e degradação além do regime planejado."
+    },
+    {
+      "front": "O que é coordinated omission?",
+      "back": "Viés de medição em que a geração ou registro de operações omite atrasos durante saturação, subestimando a latência que ocorreria sob chegadas planejadas."
+    },
+    {
+      "front": "Quais são os componentes do USE?",
+      "back": "Utilização, saturação e erros, para cada recurso físico ou lógico investigado."
+    },
+    {
+      "front": "Quais são os componentes do RED?",
+      "back": "Rate (taxa de requisições), Errors (falhas) e Duration (distribuição da duração das requisições)."
+    },
+    {
+      "front": "Quais são os quatro sinais de ouro do Google SRE?",
+      "back": "Latência, tráfego, erros e saturação."
+    },
+    {
+      "front": "Quais sinais indicam pressão real de memória?",
+      "back": "Redução de memória disponível, paginação e swap sustentadas, page faults custosos, PSI elevado e possíveis OOM kills."
+    },
+    {
+      "front": "Qual o significado de throttling de CPU em contêiner?",
+      "back": "A quota de CPU limita o tempo de processador disponível ao contêiner, independentemente de alguma ociosidade do host."
+    },
+    {
+      "front": "Que indicadores acompanhar para disco?",
+      "back": "IOPS, bytes/s, latência de leitura/escrita, filas, erros e espaço livre; porcentagem de ocupação deve ser contextualizada."
+    },
+    {
+      "front": "Que indicadores acompanhar para rede?",
+      "back": "Bits/s, pacotes/s, RTT, jitter, perdas, descartes, retransmissões TCP e erros na interface."
+    },
+    {
+      "front": "Diferencie counter e gauge.",
+      "back": "Counter acumula ocorrências e tende a crescer até um reset; gauge representa valor que pode subir e descer, como conexões ativas."
+    },
+    {
+      "front": "Por que evitar IDs de requisição como rótulos de métricas?",
+      "back": "Cada ID pode gerar uma série nova, criando cardinalidade alta, custo de armazenamento e pressão sobre a instrumentação."
+    },
+    {
+      "front": "Para que serve o trace distribuído?",
+      "back": "Associar etapas e tempos observados de uma mesma requisição entre serviços, por meio de spans e contexto propagado."
+    },
+    {
+      "front": "O que mede a largura em flame graph de CPU?",
+      "back": "O peso agregado de amostras de perfis atribuídas a uma pilha, não a duração contínua de uma chamada específica."
+    },
+    {
+      "front": "Qual é a diferença entre EXPLAIN e EXPLAIN ANALYZE no PostgreSQL?",
+      "back": "EXPLAIN mostra o plano estimado; EXPLAIN ANALYZE executa e registra dados de execução, exigindo cautela com comandos de escrita."
+    },
+    {
+      "front": "Por que -Xmx não é limite da memória total da JVM?",
+      "back": "-Xmx limita principalmente o heap; metaspace, stacks, buffers diretos e outras regiões nativas consomem memória adicional."
+    },
+    {
+      "front": "Qual a característica de uma meta de pausa do G1?",
+      "back": "É um objetivo de ajuste do coletor, não uma garantia rígida de duração máxima de todas as pausas."
+    },
+    {
+      "front": "O que é cache stampede?",
+      "back": "Muitas requisições regeneram simultaneamente um mesmo item expirado ou ausente, sobrecarregando a fonte de dados."
+    },
+    {
+      "front": "Quais métricas ajudam no tuning de pools?",
+      "back": "Ocupação, tamanho, fila e duração de espera, timeout de aquisição, tempo de uso e rejeições."
+    },
+    {
+      "front": "Diferencie escalabilidade vertical e horizontal.",
+      "back": "Vertical eleva recursos de uma instância; horizontal adiciona instâncias ou réplicas."
+    },
+    {
+      "front": "Por que escala horizontal não garante vazão linear?",
+      "back": "Componentes compartilhados como banco, cache, rede e locks podem se tornar gargalos, além do custo de coordenação."
+    },
+    {
+      "front": "O que é headroom de capacidade?",
+      "back": "Reserva acima da demanda medida para absorver picos, atraso de escalonamento, falhas e incerteza nas previsões."
+    },
+    {
+      "front": "Qual o papel do HPA do Kubernetes?",
+      "back": "Ajustar número de réplicas de workloads conforme métricas configuradas, respeitando políticas e limites."
+    },
+    {
+      "front": "Qual a relação entre backlog e demanda excedente?",
+      "back": "Com entradas sustentadamente maiores que saídas, o backlog aumenta à taxa aproximada da diferença."
+    },
+    {
+      "front": "Diferencie SLI, SLO e SLA.",
+      "back": "SLI é uma medida da qualidade, SLO a meta para essa medida e SLA um acordo com obrigações de serviço."
+    }
+  ],
+  "tips": [
+    "Em diagnóstico, formule a hipótese e escolha métricas capazes de refutá-la; não comece aumentando CPU ou conexões sem evidência.",
+    "Em questões com lei de Little, confira unidade da taxa (por segundo) e tempo médio (em segundos), além da hipótese de estabilidade.",
+    "Compare p95/p99, taxa de erro, vazão e tamanho de fila no mesmo intervalo; a média sozinha costuma ser insuficiente.",
+    "Lembre: USE é por recurso; RED é por serviço; os sinais de ouro unem experiência e saturação.",
+    "Ao analisar memória, separe heap, RSS, cache recuperável, memória nativa, swap e limites do contêiner.",
+    "Antes de usar EXPLAIN ANALYZE em SQL de escrita, planeje a segurança da execução e eventuais efeitos nos dados.",
+    "Para capacidade, considere falha de réplica e dependências compartilhadas; o mínimo aritmético não é uma arquitetura resiliente."
+  ],
+  "traps": [
+    "Confundir throughput constante com ausência de fila ou estabilidade da latência.",
+    "Tentar calcular o p99 de uma cadeia somando os p99 individuais.",
+    "Tratar memória livre baixa como prova inequívoca de falta de RAM, sem verificar cache e pressão.",
+    "Interpretar %util de armazenamento como porcentagem universal da capacidade de IOPS.",
+    "Entender -Xmx como teto absoluto de consumo de memória do processo Java.",
+    "Acreditar que cache com TTL garante consistência instantânea após qualquer atualização.",
+    "Supor que mais conexões SQL ou mais pods eliminam automaticamente gargalos compartilhados."
+  ],
+  "activeRecall": [
+    {
+      "question": "Sob 200 req/s, duração média de 0,15 s em regime estável: qual a concorrência média?",
+      "answer": "30 operações, pela lei de Little: 200 × 0,15."
+    },
+    {
+      "question": "Se o p99 cresce e o throughput estaciona, qual hipótese investigar?",
+      "answer": "Saturação com formação de filas; verifique backlog, dependências e métricas USE."
+    },
+    {
+      "question": "Quais métricas identificam saturação de CPU por limite de contêiner?",
+      "answer": "CPU efetivamente usada, quota e throttling; compare com fila e latência do serviço."
+    },
+    {
+      "question": "Como verificar que uma taxa de memória usada alta é problemática?",
+      "answer": "Observe memória disponível, PSI, swap/paginação, page faults, OOM e impactos de latência."
+    },
+    {
+      "question": "Como analisar uma rota lenta com vários serviços?",
+      "answer": "Trace distribuído e RED para localizar demora; USE, logs e perfis para testar a hipótese causal."
+    },
+    {
+      "question": "Qual o risco de ampliar pool SQL com banco saturado?",
+      "answer": "Mais concorrência pode elevar contenção, filas e uso de memória sem ganho de vazão."
+    },
+    {
+      "question": "Como prevenir cache stampede após expiração?",
+      "answer": "Coalescer carregamentos, aplicar refresh antecipado, jitter em TTL ou estratégias equivalentes."
+    },
+    {
+      "question": "Se uma fila recebe 250/s e entrega 220/s continuamente, o que ocorre?",
+      "answer": "Backlog aumenta cerca de 30 tarefas/s, salvo perdas ou mudanças nas taxas."
+    },
+    {
+      "question": "Como demonstrar capacidade sustentável?",
+      "answer": "Carga representativa, SLO de latência e erros, recursos, margem, teste de falha, réplicas e limites das dependências."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Fila versus vazão",
+      "summary": "Filas e latência podem crescer mesmo quando o throughput deixa de aumentar; examine carga, backlog, percentis e erros."
+    },
+    {
+      "key": "e2",
+      "title": "Percentis e agregação",
+      "summary": "Percentis não são aditivos; a distribuição fim a fim precisa ser observada por requisição ou reconstruída com método adequado."
+    },
+    {
+      "key": "e3",
+      "title": "USE versus RED",
+      "summary": "USE examina recursos por utilização, saturação e erros; RED mede taxa, erros e duração das requisições."
+    },
+    {
+      "key": "e4",
+      "title": "Heap versus memória do processo",
+      "summary": "O heap é apenas parte da memória de um processo Java; metaspace, pilhas e buffers nativos também consomem RAM."
+    },
+    {
+      "key": "e5",
+      "title": "Cache e invalidação",
+      "summary": "A expiração temporal pode permitir leitura defasada; escolha a estratégia de invalidação conforme requisito funcional."
+    },
+    {
+      "key": "e6",
+      "title": "Escala sem dependências",
+      "summary": "Escala horizontal não garante ganho proporcional quando banco, filas, locks e redes são recursos compartilhados."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma API pode manter a mesma taxa de requisições concluídas por segundo enquanto sua latência p99 aumenta em virtude do crescimento de filas de espera.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A vazão pode se estabilizar no limite do gargalo e a fila continuar crescendo quando novas solicitações chegam mais rapidamente do que são processadas. Por isso, throughput constante não prova desempenho estável; examine backlog, percentis e erros.",
+      "section": "Fundamentos de desempenho, filas e experimentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe observa 100 requisições/s estáveis, mas p99 crescente e fila de 2.000 solicitações. Qual diagnóstico inicial é mais consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A demanda está excedendo a capacidade sustentável de alguma etapa, produzindo espera acumulada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O servidor tem necessariamente memória insuficiente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O throughput está aumentando linearmente com a demanda.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A fila prova que a latência de serviço caiu.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O p99 não tem relação com a experiência do usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "O crescimento da fila com vazão estabilizada aponta excesso de chegadas sobre a capacidade de atendimento. As demais conclusões atribuem causa não medida ou interpretam de forma errada throughput, percentis e filas.",
+      "section": "Fundamentos de desempenho, filas e experimentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O percentil 95 de uma operação pode ser calculado, sem perda de precisão, pela soma dos percentis 95 de todas as dependências chamadas sequencialmente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Percentis não são aditivos, pois a composição das distribuições e a correlação entre tempos de cada etapa importam. Para conhecer o p95 fim a fim, é necessário medi-lo ou estimá-lo com um modelo estatístico adequado, não somar percentis isolados.",
+      "section": "Fundamentos de desempenho, filas e experimentação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço recebe em média 60 requisições/s e o tempo médio no sistema é 0,2 s, em regime estável. Qual a concorrência média estimada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "3 requisições simultaneamente no sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "12 requisições simultaneamente no sistema.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "60 requisições simultaneamente no sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "120 requisições simultaneamente no sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "300 requisições simultaneamente no sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "A lei de Little aplica L = λ × W: 60 × 0,2 = 12. As outras quantidades resultam de combinar as unidades incorretamente ou de ignorar o tempo médio de permanência informado.",
+      "section": "Fundamentos de desempenho, filas e experimentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em regime estável, se um sistema conclui em média 40 operações por segundo e cada operação permanece em média 0,5 segundo no sistema, a concorrência média estimada pela lei de Little é 20.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Pela relação L = λ × W, a concorrência média é 40 × 0,5 = 20 operações no sistema, considerando definições compatíveis e regime estável. A equação relaciona médias; não fornece p99 nem comprova que o mesmo regime suportará mais tráfego.",
+      "section": "Fundamentos de desempenho, filas e experimentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em relação à diferença entre teste de carga e teste de estresse, qual afirmação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O teste de estresse dispensa instrumentação de erros e tempos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O teste de carga mede apenas consumo de espaço em disco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O teste de estresse explora comportamento além dos limites previstos e mecanismos de degradação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O teste de estresse só é válido quando executado em produção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O teste de carga exige que não haja usuários concorrentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Estresse investiga limites e falhas ao pressionar o sistema além do esperado. Os demais enunciados restringem indevidamente tipos de teste ou eliminam observabilidade, controle e concorrência.",
+      "section": "Fundamentos de desempenho, filas e experimentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste fechado com usuários virtuais necessariamente preserva a taxa de chegada de novas operações quando o servidor fica lento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "No modelo fechado, usuários virtuais costumam esperar a conclusão da operação antes de iniciar a próxima. O aumento do tempo de resposta pode diminuir a taxa de chegada e ocultar parte da saturação, exigindo atenção ao desenho do teste.",
+      "section": "Fundamentos de desempenho, filas e experimentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o risco específico de um teste de carga fechado baseado em usuários que só enviam nova requisição após a resposta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A ferramenta transforma automaticamente toda solicitação em erro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O teste deixa de registrar qualquer tempo de resposta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A carga gerada sempre cresce exponencialmente durante a lentidão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A taxa real de chegada pode cair quando a latência cresce, mascarando parte da sobrecarga.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O teste impede qualquer forma de autenticação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Usuários virtuais fechados aguardam a conclusão antes de criar novo trabalho; com respostas lentas, enviam menos operações por segundo. As outras proposições não decorrem do modelo e ignoram a dinâmica de realimentação.",
+      "section": "Fundamentos de desempenho, filas e experimentação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual dado é indispensável para comparar de maneira útil uma otimização entre duas versões?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o tempo mais rápido obtido em uma execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas a quantidade de linhas adicionadas ao código.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Unicamente a média de CPU durante um minuto ocioso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente a opinião de usuários sem definição de cenário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Perfil de carga e condições equivalentes, com medição de latência, vazão, erros e recursos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Comparabilidade exige a mesma carga e dados, aquecimento adequado e múltiplas métricas; um pico isolado ou dado sem contexto não demonstra melhoria. As demais opções desconsideram variabilidade e efeitos colaterais.",
+      "section": "Fundamentos de desempenho, filas e experimentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma otimização reduz de 10 s para 3 s o trecho que correspondia a 70% do tempo original e não altera o restante. Qual o novo tempo total aproximado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "6 segundos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "3 segundos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "4 segundos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "7 segundos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "10 segundos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O trecho otimizado representava 7 s e caiu para 3 s; o trecho não otimizado permanece com 3 s, totalizando 6 s. As outras respostas desprezam a parcela serial ou confundem redução local com ganho global.",
+      "section": "Fundamentos de desempenho, filas e experimentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O método USE recomenda examinar, para cada recurso, utilização, saturação e eventos de erro, enquanto o RED prioriza taxa, erros e duração das requisições de um serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "USE observa recursos como CPU, memória, discos e redes; RED descreve o serviço visto por quem o chama. As perspectivas são complementares e evitam tratar uma única métrica de hardware como representação suficiente da qualidade da aplicação.",
+      "section": "Métricas concretas de CPU, memória, disco e rede; métodos USE e RED",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto expressa corretamente o método RED para um endpoint de API?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Utilização de memória, espaço em disco e número de núcleos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Requisições por segundo, falhas por segundo ou proporção de falhas, e distribuição da duração.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Capacidade nominal da rede, CPU e latência do dispositivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente tempo médio de execução e memória livre.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Percentual de cache utilizado, arquivos abertos e swap.",
+          "correct": false
+        }
+      ],
+      "explanation": "RED organiza a telemetria do serviço em taxa de requisições, erros e duração. Os demais conjuntos misturam indicadores de infraestrutura ou omitem dimensões fundamentais da experiência dos consumidores.",
+      "section": "Métricas concretas de CPU, memória, disco e rede; métodos USE e RED",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A simples existência de alto percentual de memória utilizada em Linux comprova, isoladamente, saturação grave de RAM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Parte da RAM reportada como usada pode corresponder a cache de páginas recuperável. Para investigar pressão real, examine memória disponível, paginação, falhas maiores, swap, PSI e encerramentos por falta de memória, sempre considerando a carga.",
+      "section": "Métricas concretas de CPU, memória, disco e rede; métodos USE e RED",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um host possui pouca memória livre, mas muita memória em cache recuperável e não apresenta swap nem paginação problemática. Qual conclusão é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Toda memória em cache é vazamento de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O sistema está necessariamente encerrando processos por OOM.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não é possível diagnosticar pressão grave de memória apenas pelo campo de memória livre.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "É obrigatório zerar o cache de páginas imediatamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A falta de memória livre prova falha no controlador de disco.",
+          "correct": false
+        }
+      ],
+      "explanation": "Memória livre baixa pode ser normal quando o sistema usa RAM para cache; a avaliação inclui memória disponível, pressão de paginação, PSI e OOM. As outras hipóteses confundem política de cache e sintomas reais.",
+      "section": "Métricas concretas de CPU, memória, disco e rede; métodos USE e RED",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No monitoramento de CPU, throttling por quota de contêiner pode provocar lentidão mesmo quando o host físico dispõe de capacidade ociosa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Um limite de CPU aplicado ao contêiner pode impedir que suas tarefas recebam tempo de processador adicional, ainda que a máquina possua núcleos ociosos. Observe métricas de throttling, quota e fila de execução antes de concluir que falta CPU física.",
+      "section": "Métricas concretas de CPU, memória, disco e rede; métodos USE e RED",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação em contêiner exibe alta latência, CPU do host ociosa e eventos de throttling de CPU em crescimento. Qual hipótese deve ser testada primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A largura de banda da interface é necessariamente zero.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O banco de dados está obrigatoriamente sem índices.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A memória cache do sistema operacional está corrompida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A quota de CPU do contêiner está restringindo o tempo de execução das tarefas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A fila de mensagens não pode ter contribuído para a lentidão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Throttling indica restrição imposta por limites de CPU, que pode existir mesmo com host ocioso. As outras alternativas saltam para causas não sustentadas ou excluem sem evidência outras fontes de latência.",
+      "section": "Métricas concretas de CPU, memória, disco e rede; métodos USE e RED",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O indicador de utilização do dispositivo de armazenamento expressa, em qualquer SSD moderno, a fração exata de sua capacidade máxima de IOPS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A interpretação de percentual de ocupação de I/O depende de dispositivo, paralelismo e implementação da medição; SSDs trabalham com várias solicitações concorrentes. Avalie IOPS, vazão, latência e fila, e não um indicador isolado.",
+      "section": "Métricas concretas de CPU, memória, disco e rede; métodos USE e RED",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um SSD apresenta IOPS relativamente baixos e p99 de leitura muito alto. Qual próxima medida é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Assumir que a porcentagem de utilização mede toda a capacidade de IOPS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar indiscriminadamente o número de threads de escrita.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Descartar a hipótese de gargalo porque o volume em MB/s é baixo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter todas as leituras em escritas síncronas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Inspecionar latência, filas, tipo de acesso e limites provisionados de I/O.",
+          "correct": true
+        }
+      ],
+      "explanation": "Operações pequenas, aleatórias ou limitadas podem sofrer alta latência com pouca vazão em bytes. Examinar filas, limites e perfis é mais útil que interpretar só uma porcentagem ou criar concorrência sem teste.",
+      "section": "Métricas concretas de CPU, memória, disco e rede; métodos USE e RED",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que caracteriza um histograma de duração útil para um SLO de latência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Contagens por faixas de duração, permitindo analisar a distribuição e estimar quantis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma única média sem informação sobre a cauda.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma lista de identificadores únicos de cada usuário como rótulo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente o número de CPUs do servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma taxa de bytes armazenados no volume de logs.",
+          "correct": false
+        }
+      ],
+      "explanation": "Histogramas permitem estudar proporções dentro de limites e estimar quantis agregados conforme os buckets disponíveis. Média isolada esconde cauda; rótulos de usuários agravam cardinalidade e as demais métricas não medem duração.",
+      "section": "Métricas concretas de CPU, memória, disco e rede; métodos USE e RED",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual indicador de rede pode evidenciar degradação de transporte mesmo quando a capacidade nominal do enlace não foi atingida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas a quantidade de cores de CPU do servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Retransmissões TCP combinadas com RTT e descarte de pacotes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Somente o espaço livre da partição de logs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número de tabelas existentes no banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A frequência de coleta de lixo da JVM isoladamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Retransmissões, perdas e RTT afetam a entrega efetiva e a latência, mesmo com banda nominal disponível. Os outros indicadores se referem a componentes distintos e não diagnosticam, por si, o transporte.",
+      "section": "Métricas concretas de CPU, memória, disco e rede; métodos USE e RED",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um trace distribuído pode revelar que grande parte do tempo de uma requisição está associada à chamada de um serviço externo, mas isso não identifica automaticamente a causa final da demora.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O span permite localizar onde o tempo é observado, podendo incluir fila, rede e execução remota. Para descobrir o gargalo, correlacione o trace com métricas dos recursos, logs, limites de concorrência e dados do serviço dependente.",
+      "section": "Observabilidade, profiling, diagnóstico e interpretação de testes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao investigar uma operação lenta que passa por três microsserviços, que instrumento melhor conecta temporalmente as etapas de uma mesma requisição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gráfico isolado de CPU média do primeiro servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Lista diária de espaço de disco de uma instância.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trace distribuído com propagação de contexto entre os serviços.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Contagem agregada de usuários cadastrados no mês.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Plano de execução SQL de uma consulta não relacionada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tracing distribuído correlaciona spans do mesmo fluxo entre serviços e revela onde se observa a demora. As demais fontes, isoladas ou fora do caminho crítico, não reconstituem a execução de uma requisição.",
+      "section": "Observabilidade, profiling, diagnóstico e interpretação de testes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em séries de observabilidade, gauges são apropriados para representar estados como conexões simultâneas, que podem subir ou descer.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Gauge descreve um valor instantâneo que pode crescer e diminuir, como ocupação de pool. Já contadores representam totais acumulados e exigem cuidado com reinícios ao calcular taxas; histogramas são úteis para distribuições de latência.",
+      "section": "Observabilidade, profiling, diagnóstico e interpretação de testes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual instrumento de métrica representa melhor a quantidade de conexões atualmente ocupadas em um pool?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Counter cumulativo que jamais diminui e é interpretado como ocupação atual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Histograma exclusivamente de bytes trafegados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quantil p99 do tamanho do arquivo de logs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gauge que registra o estado corrente de conexões em uso.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Total histórico de chamadas desde a implantação, sem taxa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ocupação ativa aumenta e diminui conforme conexões são adquiridas e devolvidas, correspondendo a gauge. Counter acumulado serve para eventos; histogramas e totais históricos não representam esse estado instantâneo.",
+      "section": "Observabilidade, profiling, diagnóstico e interpretação de testes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A largura de um bloco em flame graph representa necessariamente o tempo cronológico contínuo de uma única chamada daquele método.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Em flame graphs convencionais, largura representa peso agregado de amostras ou outra unidade do perfil, não uma linha do tempo de uma execução individual. É preciso conhecer o tipo de profiling para interpretar corretamente CPU, espera ou alocação.",
+      "section": "Observabilidade, profiling, diagnóstico e interpretação de testes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar um endpoint entre duas versões, qual procedimento reduz risco de falso ganho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolher o menor tempo observado em qualquer teste e anunciá-lo como típico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Excluir todas as respostas lentas do cálculo de percentis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mudar simultaneamente cinco parâmetros e atribuir ganho a um deles.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir produção por banco vazio sem declarar a diferença.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Repetir ensaios com dataset, carga e aquecimento comparáveis, observando dispersão.",
+          "correct": true
+        }
+      ],
+      "explanation": "Ensaios repetíveis e comparáveis permitem avaliar se a diferença é sustentada. Escolha seletiva de amostras, manipulação de percentis, alterações simultâneas e dados irreais introduzem vieses.",
+      "section": "Observabilidade, profiling, diagnóstico e interpretação de testes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao investigar regressão de desempenho, realizar coletas detalhadas pode alterar a carga do sistema, motivo pelo qual o overhead da instrumentação deve ser considerado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Instrumentação, logs excessivos e profiling detalhado podem consumir CPU, memória e I/O, interferindo no fenômeno observado. Compare medições sob condições controladas e mantenha coleta proporcional à investigação.",
+      "section": "Observabilidade, profiling, diagnóstico e interpretação de testes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gráfico de chama produzido por amostragem de CPU apresenta um bloco muito largo para determinada rotina. Qual leitura é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A rotina ou sua pilha reúne parcela expressiva das amostras de CPU no perfil.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O método executou uma única chamada contínua com aquela largura temporal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A rotina é necessariamente responsável por toda a latência de rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O bloco prova vazamento de memória nativa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Quanto mais largo o bloco, menor foi o uso de CPU.",
+          "correct": false
+        }
+      ],
+      "explanation": "A largura de um flame graph de CPU agrega amostras atribuídas a pilhas de execução; não é uma escala cronológica de uma única chamada. Outros tipos de perfil precisam ser identificados antes de conclusões.",
+      "section": "Observabilidade, profiling, diagnóstico e interpretação de testes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando retries simultâneos ampliam uma sobrecarga em dependência remota, qual medida é mais defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Eliminar todos os limites de concorrência dos clientes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar orçamento de timeout, limite de tentativas e backoff com jitter.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Criar retries imediatos e infinitos para cada falha.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tornar obrigatória fila ilimitada em todos os serviços.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar completamente monitoramento de erros.",
+          "correct": false
+        }
+      ],
+      "explanation": "Repetições sem controle podem multiplicar demanda e prolongar a indisponibilidade. Limitar tentativas, distribuir novas tentativas no tempo e respeitar timeout reduz amplificação, ao contrário de filas e retries ilimitados.",
+      "section": "Observabilidade, profiling, diagnóstico e interpretação de testes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um dashboard de APIs, qual prática tende a causar explosão de cardinalidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Agrupar observações por método HTTP e rota normalizada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Registrar um contador de falhas por classe de status.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar identificador individual de requisição como atributo de cada série métrica.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Medir latência em histogramas com limites planejados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Agregar por nome estável de serviço e ambiente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada identificador de requisição tende a criar uma combinação única de rótulos, multiplicando séries e custos de armazenamento. Dimensões estáveis e controladas preservam análise sem crescimento indiscriminado.",
+      "section": "Observabilidade, profiling, diagnóstico e interpretação de testes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O parâmetro -Xmx limita toda a memória residente do processo Java, incluindo stacks de threads e buffers nativos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "-Xmx controla essencialmente o tamanho máximo do heap Java; o processo também usa metaspace, pilhas, buffers diretos e outras regiões nativas. Por isso, RSS ou memória do contêiner podem superar o limite configurado para o heap.",
+      "section": "Tuning de aplicação, banco de dados, JVM/GC, cache e pools",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso do PostgreSQL ajuda a comparar estimativa do otimizador e execução efetiva de uma consulta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "VACUUM sem observar a consulta ou o plano.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ALTER ROLE como substituto da análise de execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DROP INDEX aplicado cegamente a todas as tabelas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "EXPLAIN ANALYZE, com atenção aos efeitos da execução e ao overhead de medição.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "SELECT sem qualquer medição de duração ou plano.",
+          "correct": false
+        }
+      ],
+      "explanation": "EXPLAIN ANALYZE executa e instrumenta a consulta, permitindo comparar estimativas e resultados observados. As demais ações não fornecem essa comparação e algumas podem alterar o ambiente perigosamente.",
+      "section": "Tuning de aplicação, banco de dados, JVM/GC, cache e pools",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "EXPLAIN ANALYZE em PostgreSQL pode executar efetivamente instruções que alteram dados, exigindo cuidado ao utilizá-lo em operações de escrita.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Diferentemente de um plano apenas estimado, EXPLAIN ANALYZE executa a instrução para recolher estatísticas observadas. Com comandos de alteração, use ambiente controlado ou transação apropriada e reversão, quando cabível.",
+      "section": "Tuning de aplicação, banco de dados, JVM/GC, cache e pools",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de elevar -Xmx, o processo Java continua atingindo o limite total de memória do contêiner. Qual análise é mais consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concluir que -Xmx define e bloqueia todo consumo residente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desconsiderar o limite de memória imposto ao contêiner.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o heap sem examinar retenção de objetos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Assumir que coletar lixo sempre devolve toda memória ao sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Investigar heap e consumo nativo, como metaspace, stacks e buffers diretos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Heap não corresponde a toda a memória residente da JVM; memória nativa e políticas do contêiner precisam ser medidas. As outras condutas confundem limites e presumem soluções sem identificar o componente responsável.",
+      "section": "Tuning de aplicação, banco de dados, JVM/GC, cache e pools",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A elevação irrestrita do tamanho de um pool de conexões com banco de dados aumenta necessariamente a capacidade total da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O pool controla quantas operações disputam a dependência, mas não amplia automaticamente CPU, I/O ou capacidade de execução do banco. Excesso de conexões pode elevar contenção, uso de memória e latência, exigindo medição de filas e throughput.",
+      "section": "Tuning de aplicação, banco de dados, JVM/GC, cache e pools",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma API com muitas consultas pequenas por item carregado, qual intervenção costuma abordar o padrão N+1?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Agrupar leituras ou modificar o acesso a dados para evitar uma consulta adicional por objeto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Abrir uma conexão nova para cada campo da resposta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover todos os índices sem inspecionar planos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar artificialmente o tamanho dos payloads.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar as mesmas consultas duas vezes em paralelo.",
+          "correct": false
+        }
+      ],
+      "explanation": "N+1 aumenta idas ao banco conforme o número de objetos, podendo ser mitigado com leitura em lote, join ou estratégia de carregamento adequada. As demais práticas acrescentam custo ou ignoram a causa.",
+      "section": "Tuning de aplicação, banco de dados, JVM/GC, cache e pools",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cache com TTL pode devolver informação desatualizada durante a janela de validade, dependendo do mecanismo de invalidação adotado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "TTL estabelece um limite temporal para expiração, mas não garante invalidação imediata quando a origem muda. Sistemas com exigência de atualização rápida precisam associar expiração a invalidação, versionamento ou outros mecanismos de consistência.",
+      "section": "Tuning de aplicação, banco de dados, JVM/GC, cache e pools",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A taxa global de acertos de cache é alta, mas o p99 continua ruim em algumas rotas. Qual investigação é melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concluir que todo acesso é instantâneo porque a média de hits é alta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Segmentar misses, custo de carregamento e latência por chave ou classe de operação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aumentar TTL indefinidamente sem avaliar consistência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eliminar mecanismos de invalidação para elevar hits.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desconsiderar o comportamento de itens caros.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um percentual global alto pode esconder misses concentrados em consultas custosas ou em rotas críticas. Segmentar a telemetria identifica custo de preenchimento e efeitos de invalidação sem comprometer a consistência.",
+      "section": "Tuning de aplicação, banco de dados, JVM/GC, cache e pools",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pool de conexões apresenta espera crescente e o banco já opera no limite de CPU. Qual ação é mais prudente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Duplicar indefinidamente o pool para remover toda espera.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar uma fila infinita e ignorar prazos das requisições.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Investigar consultas e contenção antes de ampliar o pool, que pode elevar a pressão no banco.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Eliminar o tempo máximo de aquisição de conexões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar a quantidade de requisições simultâneas sem medir o banco.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fila de pool pode ser consequência de dependência saturada. Mais conexões podem agravar a contenção, enquanto revisão de SQL, limites e duração de transações atua na causa; as demais opções ocultam ou ampliam o problema.",
+      "section": "Tuning de aplicação, banco de dados, JVM/GC, cache e pools",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre o coletor G1 é correta no ajuste de latência da JVM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O G1 elimina toda pausa de GC independentemente de carga.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O G1 impede retenção de referências que causam vazamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O G1 torna irrelevante o limite de memória nativa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sua meta de pausa orienta o coletor, mas não representa garantia rígida para cada pausa.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O G1 sempre maximiza throughput sem qualquer trade-off.",
+          "correct": false
+        }
+      ],
+      "explanation": "O G1 tenta equilibrar objetivos de pausas e throughput, sem promessa absoluta de tempo máximo em toda situação. Coletas, pressão de heap e memória fora do heap ainda exigem diagnóstico e ajuste por medição.",
+      "section": "Tuning de aplicação, banco de dados, JVM/GC, cache e pools",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema com quatro réplicas de 100 requisições por segundo cada sempre suporta 400 requisições por segundo dentro do mesmo SLO, mesmo quando todas acessam um banco compartilhado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Capacidade das réplicas não se soma necessariamente de modo linear: banco, cache, rede e locks compartilhados podem saturar antes. O teto real deve ser validado por teste integrado, com p95, erros, margem e falhas de componentes.",
+      "section": "Planejamento de capacidade, escalabilidade e decisões arquiteturais",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cálculo ilustra corretamente o mínimo teórico de réplicas para pico de 500 req/s com capacidade medida de 125 req/s por réplica sob o SLO, sem margem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Duas réplicas garantem o SLO sem qualquer teste.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Três réplicas sempre oferecem redundância integral.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cinco réplicas são matematicamente obrigatórias como mínimo sem margem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma réplica basta porque o autoscaler redistribui demanda.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Quatro réplicas, antes de considerar falhas, overhead e gargalos compartilhados.",
+          "correct": true
+        }
+      ],
+      "explanation": "Dividindo 500 por 125 obtém-se quatro réplicas como limite aritmético inicial. Isso não constitui plano resiliente, pois falha de uma unidade ou gargalo comum pode reduzir a capacidade sustentável.",
+      "section": "Planejamento de capacidade, escalabilidade e decisões arquiteturais",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O autoscaling horizontal pode ser insuficiente para aumentar a vazão de ponta a ponta se o principal limite estiver em uma dependência compartilhada não escalada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Novas réplicas aumentam concorrência no front-end, mas não eliminam um limite de conexões, IOPS ou transações de um banco único. Antes de escalar, avalie métricas por componente e o comportamento sob cargas progressivas.",
+      "section": "Planejamento de capacidade, escalabilidade e decisões arquiteturais",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que característica favorece a escala horizontal de uma camada web?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Processamento sem estado local obrigatório e compartilhamento adequado de sessões e dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Sessões críticas mantidas apenas na memória de uma instância específica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Bloqueio global único necessário a toda requisição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ausência de balanceamento e de readiness checks.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dependência de arquivo local exclusivo por servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Componentes stateless tornam requisições redistribuíveis e reduzem acoplamento entre réplicas. As outras características dificultam realocação, introduzem estado preso a instância ou criam gargalos compartilhados.",
+      "section": "Planejamento de capacidade, escalabilidade e decisões arquiteturais",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se ingressam 120 tarefas por segundo em uma fila e os consumidores finalizam apenas 100 tarefas por segundo de forma sustentada, a fila tende a crescer aproximadamente 20 tarefas por segundo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A diferença persistente entre chegadas e conclusões é de 20 tarefas por segundo, desconsiderando perdas, mudanças de taxa e outras saídas. A fila absorve flutuações, mas não cria capacidade de processamento, e a espera aumentará.",
+      "section": "Planejamento de capacidade, escalabilidade e decisões arquiteturais",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um HPA de Kubernetes orientado à utilização de CPU, qual interpretação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A utilização é sempre calculada como percentual fixo da CPU total do data center.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A utilização considerada compara uso observado com solicitações de CPU relevantes dos contêineres.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O HPA automaticamente cria índices no banco de dados ao escalar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O HPA elimina a necessidade de métricas e limites de réplicas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O número de pods cresce apenas porque há espaço livre em disco.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na métrica de utilização de CPU, os requests de CPU são referência para o controle da carga, observados os detalhes da configuração. As demais alternativas atribuem ao HPA funções de banco ou cálculos que não o definem.",
+      "section": "Planejamento de capacidade, escalabilidade e decisões arquiteturais",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Escalabilidade vertical e elasticidade são conceitos idênticos, ambos definidos exclusivamente pela adição automática de novas máquinas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Escala vertical eleva recursos de uma instância; elasticidade é a adaptação dinâmica da capacidade à demanda, por aumento ou redução de recursos. Essa adaptação pode envolver diferentes mecanismos e depende de métricas e automação adequadas.",
+      "section": "Planejamento de capacidade, escalabilidade e decisões arquiteturais",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao dimensionar consumidores de uma fila persistente, que par de indicadores oferece visão mais útil do atraso efetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quantidade de monitores de vídeo e número de sessões SSH.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas uso médio de RAM do front-end.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Idade da mensagem mais antiga e taxa de processamento frente à taxa de chegada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Tamanho da equipe de desenvolvimento e idade do código.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somente total histórico de mensagens desde o início do projeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Idade da mensagem e diferença entre entrada e saída mostram se o backlog e a espera estão crescendo. Os demais números não relacionam diretamente demanda, capacidade de serviço e atraso dos consumidores.",
+      "section": "Planejamento de capacidade, escalabilidade e decisões arquiteturais",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual política favorece elasticidade estável em uma aplicação de inicialização demorada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escalar apenas após 100% de saturação sustentada por horas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desconsiderar tempo de boot e aquecimento do cache.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eliminar número mínimo de instâncias em qualquer situação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar sinais antecipatórios, headroom e janelas de estabilização, validando o tempo de readiness.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Escalar para cima e para baixo a cada oscilação de segundos sem amortecimento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Novas instâncias demoram para ficar aptas, de modo que reserva, sinais confiáveis e amortecimento evitam queda de serviço e oscilações. As demais estratégias ignoram atraso de provisionamento e podem gerar thrashing.",
+      "section": "Planejamento de capacidade, escalabilidade e decisões arquiteturais",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao avaliar duas arquiteturas para aumento de demanda, qual critério combina capacidade e eficiência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas número total de máquinas compradas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Maior porcentagem de CPU a qualquer custo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente latência p50 medida sem tráfego.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Menor preço por GB de armazenamento, ignorando a API.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Custo por volume de solicitações atendidas dentro do SLO, considerando picos e falhas.",
+          "correct": true
+        }
+      ],
+      "explanation": "O critério relevante considera qualidade entregue, capacidade sustentável, resiliência e custo da operação em carga representativa. Preço isolado ou utilização máxima não asseguram o SLO e podem ocultar latência na cauda.",
+      "section": "Planejamento de capacidade, escalabilidade e decisões arquiteturais",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Monitoring Distributed Systems (Site Reliability Engineering)",
+      "publisher": "Google SRE",
+      "reference": "Quatro sinais de ouro e boas práticas de monitoramento",
+      "url": "https://sre.google/sre-book/monitoring-distributed-systems/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The USE Method",
+      "publisher": "Brendan Gregg",
+      "reference": "Método USE original: utilização, saturação e erros",
+      "url": "https://www.brendangregg.com/usemethod.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "USE Method: Linux Performance Checklist",
+      "publisher": "Brendan Gregg",
+      "reference": "Checklist de CPU, memória, disco e rede",
+      "url": "https://www.brendangregg.com/USEmethod/use-linux.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The RED Method: How to Instrument Your Services",
+      "publisher": "Grafana Labs",
+      "reference": "Apresentação do método RED atribuído a Tom Wilkie",
+      "url": "https://grafana.com/blog/the-red-method-how-to-instrument-your-services/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PSI - Pressure Stall Information",
+      "publisher": "Linux Kernel Documentation",
+      "reference": "Medição de pressão de CPU, memória e I/O",
+      "url": "https://docs.kernel.org/accounting/psi.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Metrics",
+      "publisher": "OpenTelemetry",
+      "reference": "Conceitos de métricas, instrumentos e cardinalidade",
+      "url": "https://opentelemetry.io/docs/concepts/signals/metrics/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Histograms and summaries",
+      "publisher": "Prometheus",
+      "reference": "Distribuições de latência, quantis e agregação",
+      "url": "https://prometheus.io/docs/practices/histograms/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Using EXPLAIN",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Planos, EXPLAIN ANALYZE e interpretação de execução",
+      "url": "https://www.postgresql.org/docs/current/using-explain.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Garbage-First Garbage Collector Tuning",
+      "publisher": "Oracle Java Documentation",
+      "reference": "G1, pausas e ajuste de heap da JVM",
+      "url": "https://docs.oracle.com/en/java/javase/21/gctuning/garbage-first-garbage-collector-tuning.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Horizontal Pod Autoscaling",
+      "publisher": "Kubernetes",
+      "reference": "HPA e métrica de utilização de CPU",
+      "url": "https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Design your workload to adapt to changes in demand",
+      "publisher": "AWS Well-Architected",
+      "reference": "Elasticidade, headroom e validação por testes de carga",
+      "url": "https://docs.aws.amazon.com/wellarchitected/latest/framework/rel07.html",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

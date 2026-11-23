@@ -1,0 +1,1806 @@
+{
+  "id": "tecnologia.integracao-plataformas-alta-baixa",
+  "subject": "Tecnologia da Informação",
+  "title": "Integração de plataformas alta e baixa",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Integração de plataformas alta e baixa",
+    "Integração de plataforma alta com plataforma baixa"
+  ],
+  "scope": {
+    "covers": "Interoperabilidade mainframe/z/OS e sistemas distribuídos; CICS, JES, JCL, datasets, batch; FTP no z/OS e Connect:Direct; EBCDIC/ASCII/UTF-8, CCSID, copybooks e registros; NetBIOS; SOA, microsserviços, REST, z/OS Connect, mensageria, segurança, governança, testes e recuperação.",
+    "excludes": "Administração detalhada de produtos específicos, sintaxes completas de JCL ou Connect:Direct, parametrização avançada de redes e sistemas operacionais não relacionada à integração."
+  },
+  "theoryTitle": "Integração de plataforma alta com plataforma baixa: dados, protocolos e arquiteturas",
+  "chapters": [
+    {
+      "title": "Fundamentos e padrões de interoperabilidade entre plataformas",
+      "markdown": "## 1.1 O que se integra e por quê\nEm concursos de tecnologia, **plataforma alta** costuma designar o ambiente de processamento corporativo de grande porte, especialmente mainframes IBM Z com **z/OS** e recursos tradicionalmente associados a cargas transacionais e batch. **Plataforma baixa** costuma designar sistemas distribuídos executados em servidores Linux ou Windows, máquinas virtuais, contêineres e aplicações web. Os rótulos são históricos e relativos à arquitetura, não uma escala universal de potência, confiabilidade ou qualidade: há servidores distribuídos muito potentes, e um mainframe pode executar Linux. A questão de integração é tornar interoperáveis aplicações e dados de ambientes com modelos operacionais distintos, preservando contratos de negócio.\n\nO mainframe combina capacidades voltadas ao processamento em escala com serviços que aparecem frequentemente em questões: **CICS** é um monitor/servidor de processamento de transações; **IMS** abrange tecnologias de transação e gestão de dados; **Db2 for z/OS** é um banco de dados relacional; **JES** participa da entrada e da gestão dos trabalhos em lote; **JCL** descreve trabalhos e etapas; **VSAM** designa métodos de acesso e conjuntos de dados. Esses elementos não são sinônimos: um programa COBOL pode executar em ambiente transacional ou em batch, conforme a configuração. No lado distribuído, o consumo pode ocorrer por aplicações Java, .NET, Python, serviços HTTP, bancos SQL, filas e ferramentas de ETL.\n\n## 1.2 Estilos de integração e suas consequências\nA integração pode ser **por arquivo**, **por mensagem**, **por serviço síncrono**, **por evento** ou **por consulta/acesso autorizado a dados**. No intercâmbio por arquivo, um sistema exporta um conjunto, outro o transfere e o consome, muitas vezes por lote. É eficiente para grandes volumes e janelas previstas, mas a informação pode permanecer defasada até a próxima execução. Integração por mensagens permite comunicação desacoplada no tempo, com filas e processamento posterior. Na chamada síncrona, um consumidor aguarda a resposta de um serviço; é apropriada quando o negócio exige resultado imediato, mas introduz dependência da disponibilidade e latência de cada participante.\n\nInteroperabilidade não significa apenas conectividade TCP/IP. Há pelo menos quatro camadas a resolver: **transporte** (como bytes chegam), **representação** (codificação e estrutura física), **semântica** (o significado dos campos) e **operação/segurança** (autenticação, autorização, auditoria, repetição e tratamento de falhas). Dois sistemas podem trocar bytes sem erro e ainda interpretar incorretamente uma data, um valor monetário ou uma chave de cliente. Defina esquema, formatos, cardinalidade, versão de contrato, significado dos campos e regras de validação independentemente do protocolo escolhido.\n\n## 1.3 Padrões de arquitetura e adaptação\nUm **adaptador** faz a ponte entre interface legada e contrato moderno, traduzindo formatos e chamadas sem exigir a reescrita imediata do sistema principal. Um **gateway de API** aplica políticas transversais, como roteamento, autenticação, limites e observabilidade, mas não substitui a implementação do serviço de negócio. **ETL** extrai, transforma e carrega dados, sendo comum em alimentação analítica e migração; **CDC** captura alterações de dados conforme mecanismos e garantias específicos da solução. Em ambos os casos, a integridade depende de ordenação, checkpoints, consistência e reconciliação, não apenas da tecnologia de transporte.\n\nAo modernizar sistemas centrais, a estratégia de encapsulamento preserva regras testadas e expõe capacidades por interfaces controladas. Recomenda-se separar **modelo legado** e **modelo consumidor**: o chamado *anti-corruption layer* impede que detalhes como nomes físicos de arquivos, codificações e convenções internas se propaguem indiscriminadamente ao novo domínio. Um identificador cadastral pode ter zeros à esquerda significativos; convertê-lo para número no lado distribuído perde informação, ainda que o transporte tenha sido bem-sucedido.\n\n## 1.4 Disponibilidade, consistência e governança\nProjetos sólidos definem sistema de registro (*system of record*), direção e frequência dos fluxos, donos dos dados e responsabilidade pelo tratamento de erros. Um arquivo completo pode ser publicado com nome temporário e renomeado após validação, quando esse mecanismo é suportado, para evitar consumo parcial. Integradores precisam definir **idempotência**: repetir uma operação não deve criar cobranças ou registros duplicados indevidamente. Identificador único de operação, controle de versão e tabelas de processamento ajudam na reconciliação.\n\nA comunicação segura pressupõe criptografia em trânsito conforme o protocolo, identidade por serviço, menor privilégio e gestão adequada de segredos. Métricas como quantidade de registros, bytes, atraso de processamento, falhas por etapa, divergências de totais e rastreabilidade entre origem e destino são tão essenciais quanto throughput. Questões de prova costumam errar ao tratar integração como mera conversão de protocolo, ao confundir alta plataforma com supercomputador ou ao pressupor que expor uma API torna o processamento originalmente batch automaticamente síncrono."
+    },
+    {
+      "title": "Arquivos, batch, FTP no z/OS e Connect:Direct",
+      "markdown": "## 2.1 Conjuntos de dados e semântica de registro\nNo z/OS, a organização dos dados é relevante na integração com Linux ou Windows. Um **data set** MVS não é necessariamente igual a um arquivo de fluxo de bytes de um sistema distribuído. Dados podem estar em conjuntos **sequenciais**, **particionados** (como PDS/PDSE) ou estruturas de acesso como VSAM. Os registros de um conjunto sequencial possuem atributos de organização: **RECFM** é o formato do registro; **LRECL**, seu comprimento lógico; **BLKSIZE**, uma característica de blocagem. Por exemplo, RECFM=FB indica registros de comprimento fixo blocados, enquanto RECFM=VB indica registros variáveis blocados. Não se deve tomar tamanho em bytes de um arquivo recebido como prova de que seus limites lógicos de registro foram preservados.\n\nUma exportação de registros de largura fixa requer contrato que defina offsets, tamanho de campos, preenchimento e terminadores de linha ou ausência deles. Em um arquivo de largura fixa com registros de 80 bytes, o receptor precisa saber onde cada registro começa, se a operação acrescentou delimitadores e como campos textuais foram convertidos. Para arquivo delimitado, aspas, separador decimal, caracteres especiais, quebras de linha, colunas opcionais e codificação precisam ser explicitados. O layout de um programa COBOL (*copybook*) pode esclarecer campos, mas não equivale automaticamente a um contrato interoperável: tipos numéricos internos, sinal e alinhamento exigem mapeamento.\n\n## 2.2 Processamento em lote e JCL\n**Batch** é a execução de trabalho em lote, geralmente disparada por agendamento, evento de fechamento ou dependência de outros trabalhos. No z/OS, JCL descreve a execução de jobs e etapas e JES administra aspectos de sua submissão e saída. Um fluxo típico envolve: gerar arquivo no mainframe, sinalizar conclusão, transferir, verificar integridade, transformar, carregar no sistema consumidor, emitir confirmação e registrar resultados. O simples sucesso da transferência não implica sucesso do processamento do destino. Janelas operacionais, ordem de execução, disponibilidade de dados e cumprimento de SLA devem ser monitorados.\n\nOs retornos de execução são essenciais: **código de retorno de job**, **resultado da etapa de cópia**, **validações de layout** e **resultado da carga** são indicadores diferentes. Para reprocessamento, combine checkpoints, controle de lote, versão do arquivo e política de rejeição. Uma operação reexecutada deve ser capaz de identificar o que já foi aplicado. Se o conteúdo for sensível, logs devem registrar identificadores e contagens sem expor dados desnecessários.\n\n## 2.3 FTP em z/OS\nO **FTP** (File Transfer Protocol, especificado na RFC 959) é um protocolo de transferência de arquivos que separa conexão de controle e transferência de dados. Sua concepção original não fornece criptografia nativa. No z/OS, a implementação de FTP pode transferir tanto arquivos do z/OS UNIX System Services quanto conjuntos de dados do ambiente MVS, sujeitos a regras e opções próprias. **TYPE ASCII** é adequado quando se deseja tradução de texto configurada entre ambientes; **TYPE IMAGE/BINARY** transfere bytes sem conversão de caracteres do tipo ASCII, sendo indicado para conteúdo binário e quando se quer preservar os bytes originais. Isso NÃO significa que a aplicação receptora entenderá automaticamente dados EBCDIC recebidos em modo binário.\n\nNo FTP do z/OS, comandos e configurações de alocação influenciam RECFM, LRECL e BLKSIZE dos conjuntos de dados criados. Comandos **SITE** e **LOCSITE** ajustam atributos conforme o lado em que a configuração atua; é necessário verificar a sintaxe e o comportamento da implementação. A função **FILETYPE=JES**, quando configurada e autorizada, permite integração com a interface do JES, inclusive submissão de jobs. Isso não torna o FTP um escalonador corporativo nem dispensa controle de autorização.\n\n**FTPS** adiciona proteção TLS ao FTP conforme configuração; **SFTP** é um protocolo diferente, executado sobre SSH, e não deve ser confundido com FTPS. No z/OS, há configurações de FTP/TLS e AT-TLS documentadas pela IBM. Em ambiente real, a seleção de protocolo deve combinar exigências de segurança, política institucional, conectividade e compatibilidade dos pontos envolvidos.\n\n## 2.4 IBM Sterling Connect:Direct\n**IBM Sterling Connect:Direct** é uma solução de transferência gerenciada de arquivos, usada em cenários de intercâmbio entre sistemas, inclusive z/OS e plataformas distribuídas. A transferência é descrita e executada por **Processes**; uma instrução **COPY** identifica origem e destino e pode trabalhar com parâmetros de operação. Há um nó iniciador e um nó parceiro, com características específicas da configuração. Não se trata de uma simples variante do protocolo FTP: há arquitetura, linguagem de processo, controles operacionais e procedimentos próprios.\n\nRecursos documentados incluem *checkpoint/restart* para operações de cópia elegíveis, permitindo retomar de um ponto registrado após uma interrupção, de acordo com a plataforma, a configuração e as restrições da transferência. **Retentativa** e **reinício por checkpoint** não são sinônimos: uma retentativa pode restabelecer sessão; a retomada precisa preservar posição de transferência válida. O projeto também deve decidir quando marcar um lote como completo, como tratar versões conflitantes e se a carga poderá ser repetida. A possibilidade de integração segura depende de parametrização e recursos efetivamente habilitados; não presuma criptografia universal para qualquer instalação apenas por ser transferência gerenciada.\n\n## 2.5 Comparação prática\nEscolha **arquivo/batch** para volumetria e periodicidade definidas, quando pequeno atraso é tolerável; **API** para consultas e comandos próximos do tempo real; **fila** para eventos e desacoplamento temporal. FTP pode atender a operações autorizadas e corretamente protegidas, mas exige desenho explícito de recuperação, monitoração e conversão. Connect:Direct oferece mecanismos dedicados a fluxos gerenciados e sua adequação deve ser avaliada diante de integrações, licenças, SLAs e operação. Na prova, identifique o objeto primário: transportar arquivo, processar job, responder a transação ou propagar evento."
+    },
+    {
+      "title": "EBCDIC, ASCII, Unicode e mapeamento de layouts",
+      "markdown": "## 3.1 Codificações não são formatos de arquivo\n**EBCDIC** (*Extended Binary Coded Decimal Interchange Code*) é uma família de codificações historicamente usada em ambientes mainframe IBM. **ASCII** é uma codificação tradicional para caracteres de texto, comum em sistemas distribuídos; **Unicode** representa um repertório mais amplo de caracteres e **UTF-8** é uma das formas de codificá-los em bytes. Dizer que um sistema usa EBCDIC, ASCII ou UTF-8 refere-se à **representação de caracteres**, não determina se a estrutura do registro é fixa, variável, CSV, XML, JSON ou binária. Tampouco substitui a descrição de campos do layout.\n\nNão existe uma única tabela EBCDIC universal para todos os idiomas e ambientes: é preciso identificar a **página de códigos/CCSID** de origem e a codificação de destino. Isso importa em letras acentuadas, símbolos monetários e caracteres especiais. Uma conversão incorreta pode preservar quase todas as letras simples e ainda corromper dados reais, sobretudo nomes, endereços e observações. Números armazenados como caracteres também sofrem efeitos de codificação; números binários e decimais compactados exigem outra camada de transformação.\n\n## 3.2 Conversão na transferência e depois dela\nEm integrações via FTP com z/OS, **TYPE ASCII** pode realizar conversão de texto entre representações compatíveis conforme as tabelas e a configuração do cliente/servidor. De modo simplificado, ao entregar texto de ambiente EBCDIC a um receptor ASCII, o serviço pode converter a representação; no sentido inverso, realizar a transformação correspondente. Já **TYPE IMAGE/BINARY** não é a escolha para converter texto automaticamente: preserva os bytes no contexto do modo de transferência. Se o receptor Linux abrir bytes EBCDIC como UTF-8, provavelmente aparecerão símbolos inválidos ou texto ilegível, não um erro de TCP/IP.\n\nA decisão por modo ASCII ou binário é **semântica**, não estética. Executáveis, imagens, arquivos compactados e registros contendo campos binários normalmente precisam preservar bytes. Um arquivo contendo campos textuais EBCDIC junto de inteiros binários ou valores **COMP-3** não deve ser submetido a uma conversão indiscriminada de todos os bytes como se fosse texto puro. O correto é usar layout/copybook, separar campos e converter cada tipo segundo sua representação. A conversão para formato de intercâmbio, por exemplo um CSV com texto UTF-8 e decimais explícitos, deve ser validada campo a campo.\n\n## 3.3 Formatos numéricos e copybooks COBOL\nEm aplicações COBOL, há distinção entre **campos DISPLAY**, representados para exibição de acordo com convenções do ambiente; **campos binários**; e **decimais compactados**, frequentemente associados a `COMP-3`. Os bytes de uma quantia em decimal compactado não são uma sequência de dígitos ASCII e tampouco são texto EBCDIC simples. Para transcodificar corretamente, leia a definição do campo, a escala decimal, o sinal e o comprimento físico; depois produza a forma acordada pelo destino. Um valor `00123` pode ser identificador e exigir zeros à esquerda, enquanto um campo financeiro precisa manter precisão e escala.\n\nUm copybook com `PIC X` descreve campo textual de certo tamanho, mas o destino precisa saber qual CCSID, quais símbolos de preenchimento e que tratamento receberão caracteres não representáveis. Um campo de data `AAAAMMDD` pode estar codificado como oito caracteres, sem ser um tipo data nativo. O contrato de integração deve registrar essas escolhas, e testes de ida e volta devem comprovar que os dados permanecem semanticamente equivalentes. Converter texto duas vezes ou usar tabelas erradas produz corrupção de caracteres (*mojibake*).\n\n## 3.4 Delimitadores, quebras de linha e registros\nNo universo distribuído, arquivos texto frequentemente usam delimitadores de linha, cuja convenção varia entre ambientes. No MVS, o limite de registro pode ser parte da organização do data set, sem depender de um delimitador textual idêntico ao de arquivos em Linux/Windows. Transferir e depois dividir o conteúdo por `\\n` pressupõe que quebras de linha foram inseridas ou preservadas segundo o contrato. Para RECFM=FB, campos preenchidos à direita podem ser importantes; remover indiscriminadamente espaços ou zeros pode alterar informação. Em RECFM=VB, o mecanismo de armazenamento de registros variáveis precisa ser compreendido antes de tratar a sequência como linhas de texto.\n\nFatores de teste: registro vazio, campo só com espaços, caractere acentuado, número negativo, separador decimal, comprimento máximo, dados de comprimento inválido e lote que termina sem quebra de linha. Compare número de registros, totais de controle e registros rejeitados. É comum que **checksum** valide igualdade de bytes transportados, mas não a correção semântica de conteúdo convertido intencionalmente; nesse caso, os controles devem incidir sobre o estágio correto, antes e/ou depois da transformação.\n\n## 3.5 Exemplo de falha e correção\nUm arquivo de clientes com registros FB é enviado por FTP em modo binário a um servidor Linux. A transferência termina e o tamanho é compatível, mas um leitor UTF-8 exibe caracteres incorretos. **Diagnóstico**: bytes de texto EBCDIC foram preservados, enquanto o leitor aplicou a codificação errada. **Correção**: identificar CCSID e layout, converter apenas campos textuais e tratar campos numéricos conforme seus formatos; validar acentuação, comprimento, sinais e quantidades. Mudar aleatoriamente para modo ASCII não é solução universal se o arquivo for misto. Na prova, jamais equipare transcodificação de caracteres a conversão de todos os tipos físicos do registro."
+    },
+    {
+      "title": "FTP, NetBIOS e comunicação entre ambientes heterogêneos",
+      "markdown": "## 4.1 FTP e o modelo de duas conexões\nO **FTP**, definido na RFC 959, distingue uma conexão de **controle**, pela qual comandos e respostas são trocados, e uma conexão de **dados**, usada para transferência de conteúdo. Essa separação traz implicações para firewalls e configurações de modo ativo ou passivo. Não se confunde **comando de controle** com payload do arquivo. Comandos clássicos incluem `USER`, `PASS`, `LIST`, `RETR` (obter), `STOR` (armazenar) e `TYPE` (tipo de representação). Para operação segura, devem ser avaliados exposição de credenciais, proteção de canais, autenticação, regras de rede e registros de auditoria.\n\nA distinção central para provas é entre **FTP comum** (sem cifragem de transporte intrínseca), **FTPS** (FTP protegido por TLS em configuração apropriada) e **SFTP** (protocolo de transferência associado a SSH). A sigla SFTP não designa a versão segura da RFC 959 por simples ativação de TLS. Em z/OS, o FTP pode ser utilizado interativamente ou em job batch e interagir com datasets MVS, USS e, quando habilitado, com JES. Escolher corretamente TYPE ASCII/IMAGE faz parte da interoperabilidade, mas dados e estrutura ainda demandam contrato.\n\n## 4.2 NetBIOS e serviços\n**NetBIOS** (*Network Basic Input/Output System*) é uma interface de serviços historicamente usada para comunicação em redes locais. Em **NetBIOS over TCP/IP**, padronizado pelas RFCs **1001** e **1002**, aparecem três serviços conceituais: **serviço de nomes**, **serviço de datagramas** e **serviço de sessões**. O serviço de nomes apoia o registro e a resolução de nomes; datagramas correspondem à comunicação sem sessão estabelecida; o serviço de sessões oferece uma comunicação orientada a sessão. Serviços nomeados não equivalem, por definição, a um sistema de arquivos ou a uma transferência robusta de lotes.\n\nAs RFCs associam convencionalmente o serviço de nomes à **porta 137**, datagramas à **138** e sessões à **139**, com os transportes detalhados na especificação. Saber esses números pode ser útil, mas o essencial é distinguir os papéis. NetBIOS historicamente se relaciona a ambientes de compartilhamento de recursos, sobretudo Windows legados, e **não é o protocolo típico de intercâmbio de arquivos em lote entre z/OS e Linux**. NetBIOS não é sinônimo de TCP/IP; é um conjunto de serviços que pode ser implementado sobre sua pilha, como nas RFCs citadas.\n\n## 4.3 Nomes de rede, compartilhamento e camadas\nEm redes locais, confusões comuns são tratar NetBIOS como um serviço de diretórios moderno, confundir a resolução de nomes NetBIOS com o **DNS**, ou equipará-lo ao **FTP**. DNS e NetBIOS podem atuar em questões de nomes, mas são tecnologias e modelos distintos. O compartilhamento de arquivos ligado ao universo SMB/CIFS e serviços de nomes históricos não transforma NetBIOS em padrão geral de integração SOA. FTP possui comandos e sessões específicos de transferência; APIs HTTP operam com recursos, métodos e representações; filas de mensagens suportam integração temporalmente desacoplada.\n\nArquitetura de rede também não resolve automaticamente a transformação de registros. Um arquivo proveniente de z/OS via qualquer transporte ainda pode conter EBCDIC ou tipos binários COBOL. Do mesmo modo, ativar resolução de nomes não substitui rota, regras de firewall, autorização, autenticação ou certificado digital. Separe: **identificação de destino**, **conexão de rede**, **serviço de aplicação**, **representação de dados** e **políticas de segurança**. Cada camada pode falhar independentemente.\n\n## 4.4 Conectividade, proteção e diagnóstico\nAo investigar falha no FTP, verifique conexão de controle, autenticação, autorização no sistema de arquivos/dataset, estabelecimento do canal de dados, políticas de firewall e modo de transferência. Se a sessão autentica e lista diretórios, mas uma cópia falha, a causa pode estar no canal de dados, em permissões ou em alocação, não necessariamente em usuário e senha. Se a cópia termina e o conteúdo está ilegível, investigue codificação e layout. Se o arquivo chega correto, mas o job de consumo falha, investigue regra de negócio, versão de contrato e preparação do destino.\n\nEm integrações institucionais, tráfego legado exposto sem proteção deve ser evitado. Considere TLS ou SSH conforme o protocolo, canais privados quando adequados, controles de identidade, segmentação de rede e auditabilidade. Não confunda **disponibilidade da porta** com autorização efetiva para processar um lote, nem confunda **sucesso TCP** com completude do processo empresarial. Um teste de ponta a ponta deve demonstrar recebimento, interpretação, aplicação e reconciliação dos dados."
+    },
+    {
+      "title": "SOA, microsserviços, APIs, filas e governança operacional",
+      "markdown": "## 5.1 SOA como organização de capacidades\n**SOA** (*Service-Oriented Architecture*, arquitetura orientada a serviços) organiza funcionalidades de negócio como serviços acessíveis por interfaces e contratos. Objetivos centrais incluem interoperabilidade, reutilização e acoplamento reduzido entre consumidor e implementação. Em alguns desenhos SOA, um **ESB** (*Enterprise Service Bus*) intermedia transformações e roteamento; isso é uma opção arquitetural recorrente, e não prova de que toda SOA exija obrigatoriamente um único barramento físico ou um protocolo específico. Um serviço SOA pode encapsular uma transação CICS ou outro ativo do z/OS sem expor detalhes de sua implementação ao cliente.\n\n**Contrato** não se resume à URL de um endpoint: ele descreve entrada, saída, significado dos dados, erros, compatibilidade, requisitos de segurança e nível de serviço. SOAP e REST são estilos/tecnologias comuns em integrações por serviços, mas SOA não é sinônimo obrigatório de SOAP, tampouco REST é exclusivo de microsserviços. Um fluxo existente por arquivo pode coexistir com serviços e filas na mesma organização, atendendo demandas diferentes.\n\n## 5.2 Microsserviços: limites e autonomia\n**Microsserviços** decompõem uma aplicação em serviços menores, organizados em torno de capacidades de negócio, com implantação e evolução em grande medida independentes. Isso ajuda a isolar responsabilidades e escalar componentes, mas aumenta desafios de rede, consistência distribuída, observabilidade e governança de contratos. A diferença mais útil frente à SOA é o **escopo e grau de autonomia**: SOA enfatiza integração e reutilização de serviços em um ambiente empresarial mais amplo; microsserviços enfatizam a decomposição de uma aplicação ou domínio em serviços autônomos. Há sobreposição e não existe regra universal que proíba o uso de filas, SOAP ou um gateway em sistemas de microsserviços.\n\nConstruir um microsserviço como fachada de um único programa legado não converte automaticamente o núcleo em aplicação distribuída autônoma. É necessário examinar dependências transacionais, dados compartilhados, domínio de responsabilidade, escalabilidade e processo de entrega. A origem pode continuar como sistema de registro e o serviço novo fazer mediação controlada. Evite chamadas síncronas em cascata desnecessárias; use timeouts, limites, circuit breakers quando apropriado e correlação de requisições.\n\n## 5.3 APIs para o mainframe\nO **IBM z/OS Connect** fornece capacidades para expor ativos de subsistemas como CICS, IMS e Db2 em **APIs REST**, inclusive em padrões de representação como JSON. Uma API pode consultar saldos, solicitar uma operação de negócio ou iniciar processamento, respeitadas políticas e capacidades do back-end. O gateway não garante, por si só, que uma operação originalmente noturna ou batch passe a ter conclusão imediata. Para cargas demoradas, pode-se usar uma API que recebe solicitação, retorna identificador e permite consulta posterior ao estado, ou eventos de conclusão.\n\nUm adaptador deve traduzir estruturas específicas do z/OS para um esquema que clientes distribuídos compreendam. Erros precisam ser mapeados sem perder rastreabilidade, evitando mensagens opacas ou vazamento de detalhes internos. JSON normalmente trafega como texto Unicode (frequentemente UTF-8), mas dados residentes em EBCDIC e campos COBOL devem ser convertidos corretamente pelas camadas apropriadas. Esse mapeamento é distinto da autenticação de rede e do controle de acesso aos ativos originais.\n\n## 5.4 Mensageria e consistência\nCom **IBM MQ** e outras tecnologias de filas, produtor e consumidor não precisam estar disponíveis exatamente ao mesmo tempo, desde que exista infraestrutura e configuração apropriadas à persistência e à entrega esperada. Processamento assíncrono não significa ordem global garantida nem ausência de duplicidade por padrão. Defina política de retentativas, tratamento de mensagens inválidas, ordenação por chave de negócio e filas de tratamento de erro. Em operações financeiras, correlacione comando, evento, resultado e reconciliação; não equipare confirmação de recebimento da mensagem à confirmação de baixa contábil.\n\nO padrão **request-reply** pode ser usado sobre mensageria, mas introduz correlação e tempo limite. O padrão **publish-subscribe** divulga eventos a interessados, com garantias condicionadas ao broker e às configurações. Para integrar batch a uma arquitetura por eventos, a saída do job pode publicar evento somente depois de verificar conclusão e consistência. A ação deve considerar repetição e falha parcial, para que o consumidor não consolide resultados duas vezes.\n\n## 5.5 Projeto e critérios de escolha\nPara selecionar tecnologia, confronte **volume**, **latência aceitável**, **criticalidade**, **estrutura do dado**, **janela batch**, **SLA**, **segurança**, **custos**, **observabilidade** e **recuperação**. Uma integração noturna com milhões de registros pode ser apropriada a transferência gerenciada e posterior carga. Uma consulta individual por aplicativo pode favorecer API controlada. A entrega de eventos a muitos consumidores pode favorecer mensagens. Padrões podem coexistir: API aciona processo, batch produz arquivo, transferência gerenciada movimenta dados e mensageria sinaliza conclusão.\n\nEstabeleça controles de governança: catálogo e versionamento de APIs, documentação de copybooks e esquemas, mapeamento CCSID, gestão de identidades, homologação com dados representativos, testes de falha e reprocessamento, trilhas de auditoria e medidas de desempenho. **Modernização não equivale necessariamente a substituição do mainframe**; pode significar melhorar a acessibilidade e a autonomia de consumidores enquanto o processamento central permanece confiável. Em prova, rejeite afirmações absolutas que associem uma arquitetura a protocolo único, eliminem toda dependência ou prometam consistência distribuída automática."
+    }
+  ],
+  "summary": "A integração entre plataformas alta (especialmente z/OS e subsistemas corporativos) e baixa (Linux, Windows e aplicações distribuídas) exige compatibilidade de transporte, representação, semântica e governança. Em fluxos por arquivo e batch, examine JCL/JES, a organização dos datasets e os atributos RECFM, LRECL e BLKSIZE; para transferência gerenciada, diferencie FTP, FTPS, SFTP e IBM Sterling Connect:Direct, inclusive Process/COPY e checkpoint/restart condicionado à configuração. EBCDIC e ASCII/UTF-8 são codificações: texto pode requerer conversão conforme CCSID, mas campos binários e COMP-3 não podem ser transcodificados como caracteres comuns. NetBIOS oferece serviços históricos de nomes, datagramas e sessões; não se confunde com FTP. SOA e microsserviços orientam a exposição e a decomposição de serviços, podendo integrar APIs REST via z/OS Connect e filas como IBM MQ. Em qualquer desenho, avalie idempotência, consistência, segurança, autorização, rastreabilidade, reconciliação, SLAs e testes ponta a ponta.",
+  "flashcards": [
+    {
+      "front": "Plataforma alta significa hardware necessariamente superior ao distribuído?",
+      "back": "Não. É classificação histórica de ambiente, frequentemente mainframe e z/OS; não estabelece hierarquia absoluta de potência."
+    },
+    {
+      "front": "Qual a função do JES em um fluxo z/OS?",
+      "back": "Participa da submissão, execução e gerenciamento de trabalhos batch e de suas saídas, em conjunto com outras funções do sistema."
+    },
+    {
+      "front": "Para que serve JCL?",
+      "back": "Descrever jobs, etapas, programas e recursos necessários à execução de processamento em lote no z/OS."
+    },
+    {
+      "front": "O que representa RECFM=FB?",
+      "back": "Registros de comprimento fixo, agrupados em blocos, cuja estrutura física exige cuidado na exportação para arquivos distribuídos."
+    },
+    {
+      "front": "O que representam LRECL e BLKSIZE?",
+      "back": "LRECL é comprimento lógico do registro; BLKSIZE diz respeito à dimensão de blocos de dados."
+    },
+    {
+      "front": "O que diferencia FTP controle e dados?",
+      "back": "Comandos/respostas trafegam pela conexão de controle, enquanto o conteúdo transferido utiliza conexão de dados."
+    },
+    {
+      "front": "O que faz TYPE ASCII no FTP do z/OS?",
+      "back": "Configura transferência de texto com tradução conforme ambiente e tabelas; não é conversor genérico de layouts binários."
+    },
+    {
+      "front": "Quando preferir TYPE IMAGE/BINARY?",
+      "back": "Quando for necessário preservar bytes de executáveis, compactados ou estruturas binárias e evitar tradução de caracteres."
+    },
+    {
+      "front": "Qual é a diferença entre FTPS e SFTP?",
+      "back": "FTPS é FTP protegido por TLS; SFTP é protocolo de transferência distinto operando sobre SSH."
+    },
+    {
+      "front": "O que é um Process no Connect:Direct?",
+      "back": "Uma descrição de operações controladas pela solução, incluindo etapas de cópia entre nós."
+    },
+    {
+      "front": "O que significa checkpoint/restart?",
+      "back": "Registro de posição que permite retomar certas operações de cópia interrompidas, sob condições documentadas."
+    },
+    {
+      "front": "EBCDIC é um único alfabeto ou página de códigos?",
+      "back": "É uma família de codificações; a página de códigos/CCSID precisa ser conhecida para conversão correta."
+    },
+    {
+      "front": "Como tratar um campo COMP-3 na integração?",
+      "back": "Interpretar o decimal compactado conforme o layout, sinal e escala; não tratar bytes como texto ASCII ou EBCDIC."
+    },
+    {
+      "front": "Qual diferença entre arquivo transferido e lote processado?",
+      "back": "Entrega do arquivo demonstra etapa de transporte; aplicação do lote exige validação, carga, retorno e reconciliação."
+    },
+    {
+      "front": "Quais são os três serviços NetBIOS sobre TCP/IP?",
+      "back": "Nomes, datagramas e sessões, conforme RFCs 1001 e 1002."
+    },
+    {
+      "front": "NetBIOS e DNS são sinônimos?",
+      "back": "Não. Podem lidar com nomes, mas têm modelos, semântica e protocolos distintos."
+    },
+    {
+      "front": "O que caracteriza SOA?",
+      "back": "Organizar capacidades em serviços com interfaces e contratos, promovendo interoperabilidade e reutilização."
+    },
+    {
+      "front": "O que caracteriza microsserviços?",
+      "back": "Decompor aplicações em serviços pequenos orientados a capacidades, com autonomia de implantação e evolução."
+    },
+    {
+      "front": "Qual objetivo do z/OS Connect?",
+      "back": "Expor ou acessar capacidades de subsistemas z/OS por APIs REST, com mecanismos de mapeamento e integração."
+    },
+    {
+      "front": "Por que usar mensageria na integração?",
+      "back": "Para desacoplar temporalmente produtores e consumidores, com garantias dependentes do broker e da configuração."
+    },
+    {
+      "front": "O que é idempotência operacional?",
+      "back": "Capacidade de reaplicar solicitação sem produzir efeitos duplicados indevidos no estado de negócio."
+    },
+    {
+      "front": "O que deve integrar a reconciliação de lote?",
+      "back": "Contagens, totais, identidades, rejeições, versões, status de execução e confirmação de carga no destino."
+    }
+  ],
+  "tips": [
+    "Organize uma matriz: FTP/FTPS/SFTP/Connect:Direct (transporte), JCL/JES (execução), EBCDIC/ASCII (codificação), SOA/microsserviços (arquitetura).",
+    "Em cenários com arquivo ilegível após transferência bem-sucedida, teste codificação e copybook antes de culpar a rede.",
+    "Distingua entrega de mensagem, entrega de arquivo, processamento de job e confirmação de negócio: são checkpoints diferentes.",
+    "Em questões sobre z/OS, observe RECFM, LRECL, BLKSIZE, datasets MVS e z/OS UNIX; não imponha modelo de arquivo Unix a todos.",
+    "Para SOA e microsserviços, priorize contratos, desacoplamento e escopo, evitando estereótipos de protocolo obrigatório.",
+    "Na comparação FTP e Connect:Direct, procure palavras como Process, COPY, checkpoint e gerenciamento operacional."
+  ],
+  "traps": [
+    "FTP em modo binário preserva bytes, mas não transforma automaticamente EBCDIC em texto legível UTF-8.",
+    "FTPS não é SFTP: TLS aplicado ao FTP difere de transferência implementada sobre SSH.",
+    "NetBIOS não é substituto de FTP, nem sinônimo de TCP/IP ou DNS.",
+    "Copybook pode definir layout, mas não resolve por si só conversão de COMP-3, CCSID e semântica de campos.",
+    "Um serviço REST sobre z/OS não torna automaticamente síncrona a conclusão de trabalho batch.",
+    "Checkpoint/restart no Connect:Direct depende de operação, opções e restrições; não é promessa irrestrita."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique por que integração entre alta e baixa vai além de TCP/IP.",
+      "answer": "Porque transportar bytes não resolve esquema, codificação, campos, semântica, autenticação, autorização, idempotência e reconciliação."
+    },
+    {
+      "question": "Descreva um fluxo batch confiável de exportação no z/OS até carga distribuída.",
+      "answer": "Produzir dados, indicar fechamento, transferir com controles, validar layout/contagens, transformar, carregar idempotentemente, auditar e reconciliar."
+    },
+    {
+      "question": "Quando TYPE ASCII pode falhar mesmo que o arquivo contenha letras?",
+      "answer": "Se houver campos binários ou decimal compactado no mesmo registro, ou se a página de códigos e o layout estiverem incorretos."
+    },
+    {
+      "question": "Como diferenciar FTP, FTPS e SFTP em uma frase?",
+      "answer": "FTP é o protocolo clássico; FTPS adiciona TLS ao FTP; SFTP é outro protocolo sobre SSH."
+    },
+    {
+      "question": "Quais serviços são previstos no NetBIOS sobre TCP/IP?",
+      "answer": "Serviço de nomes, datagramas e sessões."
+    },
+    {
+      "question": "O que distingue SOA de microsserviços na visão de prova?",
+      "answer": "SOA prioriza interoperabilidade e reutilização empresarial; microsserviços priorizam decomposição e autonomia de unidades de aplicação."
+    },
+    {
+      "question": "Como distinguir retentativa e retomada por checkpoint?",
+      "answer": "Retentativa restabelece/tenta de novo a operação; checkpoint permite continuar a partir de posição registrada em cópias compatíveis."
+    },
+    {
+      "question": "O que precisa ser confirmado antes de declarar uma integração concluída?",
+      "answer": "Transferência, legibilidade e validade do conteúdo, aplicação no destino, contagens/totais, estado de negócio e auditoria."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre plataforma e forma de integração",
+      "summary": "Plataforma alta/baixa identifica ambientes; arquivo, serviço e mensagens são estilos de integração, cada qual com latência e garantias próprias."
+    },
+    {
+      "key": "e2",
+      "title": "Equívocos de FTP e transferência gerenciada",
+      "summary": "FTP, FTPS, SFTP e Connect:Direct têm arquiteturas distintas; transporte bem-sucedido não comprova processamento de negócio."
+    },
+    {
+      "key": "e3",
+      "title": "Conversão inadequada de codificações e layouts",
+      "summary": "EBCDIC e ASCII tratam representação de caracteres; campos binários, copybook e formato de registro exigem mapeamento específico."
+    },
+    {
+      "key": "e4",
+      "title": "NetBIOS confundido com protocolos de integração",
+      "summary": "NetBIOS sobre TCP/IP define serviços de nomes, datagramas e sessões e não equivale a FTP, DNS ou transporte empresarial batch."
+    },
+    {
+      "key": "e5",
+      "title": "Generalizações de SOA, microsserviços e mensageria",
+      "summary": "Serviços não impõem um único protocolo; APIs, filas, contratos, segurança e autonomia variam com o desenho de arquitetura."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "A classificação de mainframe como plataforma alta implica que qualquer servidor Linux possui menor capacidade computacional em toda carga de trabalho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A designação alta/baixa é histórica e arquitetural, não uma ordenação universal de desempenho. Equipamentos distribuídos podem superar determinadas cargas e mainframes podem executar Linux; o contexto é decisivo.",
+      "section": "Fundamentos e padrões de interoperabilidade entre plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em integração entre z/OS e aplicações distribuídas, a tradução de bytes não assegura, isoladamente, que os campos possuam o mesmo significado nos dois sistemas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O transporte e a conversão de codificação são apenas etapas. É necessário validar contrato, significado de identificadores, regras de negócio, escala numérica e políticas de processamento para obter interoperabilidade efetiva.",
+      "section": "Fundamentos e padrões de interoperabilidade entre plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "CICS, JES e JCL designam exatamente o mesmo mecanismo de execução transacional do z/OS, razão pela qual podem ser empregados como sinônimos em projetos de integração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "CICS está ligado a processamento transacional; JES participa do gerenciamento dos jobs; JCL descreve a execução de trabalhos em lote. Confundir essas funções compromete o desenho da integração e a identificação de falhas.",
+      "section": "Fundamentos e padrões de interoperabilidade entre plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A idempotência é relevante em fluxos entre plataformas quando a recuperação após falha pode provocar nova entrega da mesma operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Reenvio de arquivos, mensagens e comandos pode ocorrer em rotinas de recuperação. Identificadores de operação, marcação de processamento e políticas de deduplicação ajudam a evitar inclusão ou cobrança repetida.",
+      "section": "Fundamentos e padrões de interoperabilidade entre plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema bancário pretende oferecer consultas frequentes a saldo mantido no mainframe, com resposta imediata ao aplicativo. Qual solução é mais aderente ao requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Expor serviço autenticado que consulte o ativo central e devolva resposta por contrato definido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Exportar todos os saldos somente no fechamento noturno e aguardar o próximo lote.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar o nome NetBIOS como substituto de uma interface de negócio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Copiar os executáveis do mainframe por FTP para o celular do cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Suprimir a validação de dados, pois a rede TCP/IP garante a semântica.",
+          "correct": false
+        }
+      ],
+      "explanation": "A necessidade de consulta imediata é atendida por interface síncrona controlada, como API que consulta o sistema de registro. Lote noturno fornece fotografia defasada; protocolos de nomes ou cópias de programas não resolvem a consulta.",
+      "section": "Fundamentos e padrões de interoperabilidade entre plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No desenho de um contrato de exportação de clientes, um identificador contém zeros à esquerda relevantes. Qual medida evita perda semântica na plataforma receptora?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter o identificador em número inteiro antes de validar a carga.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Preservar o identificador como cadeia de caracteres com tamanho e regras documentados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Retirar os zeros à esquerda para reduzir o arquivo e reconstruí-los por sorteio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Confiar exclusivamente no checksum da transferência para preservar o significado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar o protocolo TCP por UDP, mantendo a conversão numérica.",
+          "correct": false
+        }
+      ],
+      "explanation": "Zeros à esquerda podem distinguir a representação contratual de uma chave. Convertê-la em inteiro pode destruir informação mesmo com transporte íntegro; documentação de tipo, tamanho e normalização é indispensável.",
+      "section": "Fundamentos e padrões de interoperabilidade entre plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instituição precisa replicar grande volume de movimentos apenas após o encerramento diário, tolerando latência de horas. Qual padrão se ajusta melhor ao cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Consulta síncrona para cada linha, sem política de timeout ou limitação de chamadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uso obrigatório de NetBIOS para registrar todos os movimentos em tempo real.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Exportação controlada em batch, transferência e carga com reconciliação de lote.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Eliminação de validações porque os dados serão movidos em janela noturna.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Acesso livre dos consumidores às estruturas internas do sistema central.",
+          "correct": false
+        }
+      ],
+      "explanation": "Grandes volumes com janela definida e tolerância a atraso favorecem processamento em lote. Controle de execução, transporte, validação, carga e totais de conferência atendem à consistência operacional do fluxo.",
+      "section": "Fundamentos e padrões de interoperabilidade entre plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API moderna apresenta os nomes físicos de datasets e convenções de copybook como campos públicos permanentes. Que medida arquitetural reduz esse acoplamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Obrigar todo consumidor a conhecer os endereços físicos do ambiente de origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Impedir o versionamento de qualquer contrato para manter a aparência estável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar a codificação para ASCII sem alterar a interface publicada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Introduzir uma camada adaptadora com modelo e contrato independentes do layout legado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar sempre transferência binária, mesmo em operações que não trocam arquivos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma camada adaptadora desacopla o contrato público das estruturas internas e reduz o impacto das mudanças no legado. Alterar apenas transporte ou codificação não protege consumidores contra mudanças de layout ou semântica.",
+      "section": "Fundamentos e padrões de interoperabilidade entre plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após transferência bem-sucedida, o destino recebeu todos os bytes, mas registrou valores monetários incorretos. Que camada exige investigação prioritária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Resolução DNS, porque sem ela bytes jamais seriam recebidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cabeamento, porque o recebimento completo elimina qualquer problema lógico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Exclusivamente a velocidade da conexão de rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Nome da porta do serviço NetBIOS, ainda que não seja usado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Representação dos campos e interpretação semântica dos valores financeiros.",
+          "correct": true
+        }
+      ],
+      "explanation": "O êxito do transporte não comprova interpretação correta. Escala decimal, sinal, codificação e layout físico precisam ser conferidos com os contratos. Problemas de rede não explicam, por si só, valores já recebidos e decodificados erradamente.",
+      "section": "Fundamentos e padrões de interoperabilidade entre plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "RECFM=FB informa um conjunto de dados com registros fixos blocados, mas não especifica, sozinho, o significado dos campos de cada registro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "RECFM descreve uma característica de organização dos registros, enquanto o layout dos campos precisa ser definido separadamente. Comprimentos, posições e tipos de dados continuam essenciais para a leitura correta no destino.",
+      "section": "Arquivos, batch, FTP no z/OS e Connect:Direct",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No FTP do z/OS, escolher TYPE IMAGE/BINARY assegura que um dataset originalmente EBCDIC seja convertido automaticamente em caracteres UTF-8 no servidor Linux.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "No modo binário, o objetivo é preservar os bytes transportados, não efetuar conversão textual automática. Um leitor UTF-8 pode interpretar incorretamente EBCDIC; o CCSID e a estrutura devem ser tratados explicitamente.",
+      "section": "Arquivos, batch, FTP no z/OS e Connect:Direct",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A solução Connect:Direct utiliza Processes e operações de COPY, podendo oferecer recuperação por checkpoint em cópias elegíveis, conforme a configuração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Connect:Direct apresenta linguagem e controles próprios para transferência gerenciada. A retomada por checkpoint é documentada para etapas de cópia e depende de parâmetros, condições do dataset e limitações de cada operação.",
+      "section": "Arquivos, batch, FTP no z/OS e Connect:Direct",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma cópia via FTP termina sem erro, pode-se considerar que todos os registros foram automaticamente validados e aplicados pelo programa consumidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A transferência é apenas uma etapa do fluxo. O destino ainda pode rejeitar layout, encontrar duplicidades ou falhar na carga. Confirmações de processamento, totais de controle e reconciliação verificam a conclusão de negócio.",
+      "section": "Arquivos, batch, FTP no z/OS e Connect:Direct",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe pretende criar no z/OS um dataset para receber arquivo via FTP e necessita definir formato de registro e comprimento lógico. Que atributos devem ser verificados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "RECFM e LRECL, além dos parâmetros de blocagem e alocação aplicáveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apenas o hostname do servidor de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Somente a posição dos serviços NetBIOS na rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exclusivamente o cabeçalho HTTP do sistema consumidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O idioma configurado na interface gráfica do cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A leitura adequada de datasets MVS depende de atributos físicos como RECFM, LRECL e, quando pertinente, BLKSIZE. Nome de host e configuração de rede viabilizam comunicação, mas não determinam a estrutura de registros.",
+      "section": "Arquivos, batch, FTP no z/OS e Connect:Direct",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processamento noturno exporta movimentos do z/OS; a cópia foi concluída, porém a rotina de carga não executou. Qual indicador aponta corretamente a etapa pendente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quantidade de bytes registrada pelo transportador, tomada como prova de carga.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Confirmação e código de retorno do processo de carga no sistema destinatário.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Existência de uma conexão FTP aberta no começo da madrugada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Endereço de IP que aparece no log do servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Data de criação do copybook, sem análise da execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "É necessário separar o status da transferência do status do processamento consumidor. A carga exige resultado próprio e reconciliável; contagem de bytes e logs de sessão não demonstram aplicação de registros no banco final.",
+      "section": "Arquivos, batch, FTP no z/OS e Connect:Direct",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Connect:Direct, uma transmissão COPY é interrompida e deverá ser retomada sem recomecar obrigatoriamente do primeiro byte. Qual mecanismo pode atender, observadas as restrições?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mudança automática do serviço de nomes NetBIOS para DNS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conversão EBCDIC para ASCII, independentemente de conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Checkpoint/restart habilitado para a operação de cópia compatível.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Criação de uma API REST sem recuperar a transferência anterior.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remoção dos controles de erro do processo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Checkpoint/restart registra posição de transferência para retomada de uma cópia compatível. Nem toda instrução e condição permitem esse comportamento; troca de resolução de nomes ou codificação não recupera posição de arquivo.",
+      "section": "Arquivos, batch, FTP no z/OS e Connect:Direct",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sobre FTP, FTPS e SFTP em uma solução com requisitos de confidencialidade, qual afirmação é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "FTP clássico já cifra sempre credenciais e dados sem configuração adicional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SFTP é o próprio FTP com TLS, sem diferenças de protocolo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "NetBIOS deve substituir todos os mecanismos de proteção criptográfica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "FTPS é FTP protegido com TLS; SFTP é protocolo distinto associado ao SSH.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A transferência em modo ASCII assegura confidencialidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "O FTP original não inclui criptografia de transporte nativa. FTPS utiliza TLS no contexto de FTP, enquanto SFTP é outro protocolo sobre SSH. Tipo de representação de dados não cria proteção criptográfica.",
+      "section": "Arquivos, batch, FTP no z/OS e Connect:Direct",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização deseja submeter um job ao JES por meio da interface FTP do z/OS. Qual condição é necessária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Supor que qualquer operação de LIST submete jobs sem configuração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Empregar NetBIOS datagramas como substituto da interface do JES.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter todos os registros para Unicode antes de autenticar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar controles de acesso porque o job é batch.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar a funcionalidade apropriada de interface com JES, configurada e autorizada.",
+          "correct": true
+        }
+      ],
+      "explanation": "O FTP do z/OS possui recursos de interface com JES, associados a FILETYPE=JES e configurações/autorização pertinentes. A submissão não é consequência automática de qualquer comando FTP nem prescinde de segurança.",
+      "section": "Arquivos, batch, FTP no z/OS e Connect:Direct",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A identificação do CCSID de origem é importante porque diferentes páginas de código EBCDIC podem representar de modo distinto símbolos e caracteres especiais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "EBCDIC reúne várias páginas de código, e o mapeamento correto depende da codificação empregada. Sem identificar a origem e o destino, caracteres acentuados e sinais podem ser alterados embora parte do texto pareça legível.",
+      "section": "EBCDIC, ASCII, Unicode e mapeamento de layouts",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Campos COBOL de decimal compactado, como COMP-3, podem sempre ser convertidos corretamente substituindo-se cada byte EBCDIC por seu caractere ASCII equivalente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Decimais compactados contêm representação numérica e sinal própria, não uma sequência comum de caracteres EBCDIC. É necessário interpretar tipo, escala e sinal pelo layout e só então serializar o valor em formato acordado.",
+      "section": "EBCDIC, ASCII, Unicode e mapeamento de layouts",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um checksum pode atestar integridade de bytes comparados no mesmo estágio, mas não comprova sozinho a equivalência semântica após uma conversão planejada de caracteres.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Integridade binária e validade de negócio são propriedades diferentes. Se a transformação alterar bytes intencionalmente, controle de contagens, valores, esquema e caracteres deve complementar verificações de integridade adequadas a cada etapa.",
+      "section": "EBCDIC, ASCII, Unicode e mapeamento de layouts",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A definição RECFM=VB elimina a necessidade de conhecer o modo como registros variáveis são representados ao exportar dados para um leitor de linhas Linux.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O formato VB caracteriza registros variáveis blocados no contexto do dataset; isso não assegura que o destino receberá delimitadores de linha compatíveis com seu parser. A forma de exportação precisa estar contratada.",
+      "section": "EBCDIC, ASCII, Unicode e mapeamento de layouts",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo de clientes em EBCDIC foi enviado sem tradução a Linux e aberto como UTF-8, produzindo texto ilegível. Qual medida é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Identificar o CCSID de origem e converter os campos textuais conforme layout e codificação de destino.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Mudar o DNS, pois ele interpreta caracteres internos do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reenviar infinitas vezes em modo binário, sem alterar o tratamento do conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Descartar o copybook e converter todos os bytes numéricos como letras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar exclusivamente a permissão de leitura do arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O modo de transferência pode ter preservado corretamente os bytes EBCDIC. O problema está na decodificação do conteúdo pelo receptor; é preciso conhecer a página de códigos e evitar converter campos que não sejam texto.",
+      "section": "EBCDIC, ASCII, Unicode e mapeamento de layouts",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um registro mistura nome em texto EBCDIC e saldo armazenado como decimal compactado. Que estratégia atende à integridade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Transcodificar integralmente todos os bytes por uma tabela de caracteres.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Interpretar cada campo segundo o copybook e converter texto e valor numérico com regras próprias.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Reinterpretar o decimal compactado como cadeia UTF-8 sem validação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar a escala decimal e armazenar qualquer sequência numérica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Excluir campos monetários para eliminar o risco de conversão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Layouts mistos requerem processamento por campo. O nome demanda CCSID apropriado; o saldo compactado demanda interpretação de dígitos, sinal e escala. Uma conversão textual global pode corromper o valor financeiro.",
+      "section": "EBCDIC, ASCII, Unicode e mapeamento de layouts",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um lote de registros fixos, qual situação demonstra que transmitir o mesmo número de bytes não é prova suficiente de leitura correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O receptor recebe o arquivo no diretório previsto e valida todos os campos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A origem e o destino concordam com os offsets e validam contagens.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O parser receptor usa um comprimento de registro diferente do LRECL acordado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O esquema documenta corretamente tipos, posições e preenchimentos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cada arquivo é reconciliado com soma dos valores de controle.",
+          "correct": false
+        }
+      ],
+      "explanation": "A estrutura física pode ser lida com offsets incorretos mesmo que nenhum byte se perca. O tamanho total do arquivo apenas sugere volume; LRECL, quantidade de registros, estrutura dos campos e validação evitam segmentação errada.",
+      "section": "EBCDIC, ASCII, Unicode e mapeamento de layouts",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa distingue adequadamente codificação de caracteres e layout de registros?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "UTF-8 estabelece automaticamente offsets COBOL e escala decimal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RECFM é o nome de uma página de códigos EBCDIC universal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ASCII designa o comprimento de bloco de armazenamento MVS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "UTF-8 determina representação textual; RECFM e LRECL dizem respeito à organização de registros em datasets.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "BLKSIZE define diretamente o significado de cada campo de negócio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Codificação informa como caracteres são representados em bytes; atributos de dataset descrevem registros e blocagem. Nem um CCSID determina comprimentos dos campos nem RECFM determina semântica do conteúdo.",
+      "section": "EBCDIC, ASCII, Unicode e mapeamento de layouts",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um campo de identificador textual “000057” foi convertido para inteiro 57 durante a carga. Qual propriedade foi comprometida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conectividade IP entre origem e destino.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Confidencialidade do canal TLS já estabelecido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Serviço de nomes NetBIOS da estação de trabalho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alocação de espaço físico do dataset de origem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Preservação da representação contratual da chave, inclusive zeros à esquerda.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma chave com zeros significativos deve manter sua forma textual. Converter para inteiro altera sua representação e pode quebrar correspondências com outros sistemas mesmo que a transcodificação e o transporte estejam corretos.",
+      "section": "EBCDIC, ASCII, Unicode e mapeamento de layouts",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As RFCs 1001 e 1002 abordam serviços NetBIOS sobre TCP/IP, incluindo nomes, datagramas e sessões.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "NetBIOS over TCP/IP define serviços distintos de nomes, datagramas e sessões. Eles não são a mesma coisa que um protocolo FTP e têm funções próprias na comunicação de aplicações e na identificação de recursos.",
+      "section": "FTP, NetBIOS e comunicação entre ambientes heterogêneos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "NetBIOS e DNS são denominações intercambiáveis para o mesmo protocolo de transferência de arquivos por lotes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "DNS e NetBIOS são mecanismos distintos associados, entre outras finalidades, ao tratamento de nomes; nenhum deles é sinônimo de FTP nem de solução gerenciada de transferência batch. A afirmação mistura camadas e finalidades.",
+      "section": "FTP, NetBIOS e comunicação entre ambientes heterogêneos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No FTP clássico, comandos de controle e conteúdo do arquivo utilizam conexões logicamente distintas, circunstância relevante para configuração de firewalls.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O FTP usa canal de controle e canal de dados separados. Por isso, autenticação bem-sucedida ou abertura de sessão não garantem que a conexão usada para transferir arquivos seja permitida pela rede.",
+      "section": "FTP, NetBIOS e comunicação entre ambientes heterogêneos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O serviço NetBIOS de datagramas é obrigatoriamente equivalente a uma sessão confiável orientada à conexão e, portanto, dispensa mecanismos de confirmação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A especificação diferencia serviço de datagramas e serviço de sessões. Datagramas não devem ser tratados como a mesma abstração de sessão orientada à conexão; garantias de entrega e tratamento de falhas precisam ser verificadas.",
+      "section": "FTP, NetBIOS e comunicação entre ambientes heterogêneos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação legada depende de registro e resolução de nomes NetBIOS. Qual serviço descrito nas RFCs corresponde mais diretamente à função?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Serviço de nomes NetBIOS.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Serviço de arquivos FTP em modo binário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mecanismo de checkpoint do Connect:Direct.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escalonamento de job JCL pelo JES.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conversão de decimal compactado para JSON.",
+          "correct": false
+        }
+      ],
+      "explanation": "O serviço de nomes NetBIOS trata nomes de recursos e seu gerenciamento/resolução. FTP transfere arquivos, Connect:Direct gerencia cópias, e JES/JCL executam jobs; são responsabilidades distintas.",
+      "section": "FTP, NetBIOS e comunicação entre ambientes heterogêneos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente FTP autentica e recebe respostas, mas não consegue listar ou transferir arquivos por restrições de rede. Qual hipótese é mais coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O sucesso da autenticação comprova que todos os canais estão necessariamente liberados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A conexão de controle funciona, mas a conexão de dados pode estar bloqueada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O CCSID EBCDIC elimina qualquer possibilidade de bloqueio de rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ausência de serviço de nomes NetBIOS torna impossível usar TCP/IP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A operação depende obrigatoriamente de um barramento SOA para abrir portas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O FTP utiliza conexões distintas para comandos e dados. A autenticação informa que o controle está ativo, porém firewalls ou parâmetros ativo/passivo podem impedir abertura do canal que carrega o conteúdo.",
+      "section": "FTP, NetBIOS e comunicação entre ambientes heterogêneos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação estabelece a relação correta entre NetBIOS sobre TCP/IP e FTP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambos são nomes diferentes da mesma interface de submissão de jobs JES.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "FTP é exclusivo de mainframes e NetBIOS é obrigatório para APIs REST.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "NetBIOS define serviços de nomes, datagramas e sessões; FTP define operações de transferência de arquivos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "NetBIOS substitui o tratamento de RECFM e LRECL dos datasets.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "FTP define o CCSID de todos os registros transmitidos sem configuração.",
+          "correct": false
+        }
+      ],
+      "explanation": "A comparação exige separar finalidade de protocolos. NetBIOS over TCP/IP descreve serviços próprios de comunicação; FTP padroniza comandos e representações para transferência. Nenhum substitui layout e semântica de dados.",
+      "section": "FTP, NetBIOS e comunicação entre ambientes heterogêneos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transferência FTP termina, mas o arquivo é ilegível no sistema receptor. Que verificação deve preceder a substituição de equipamentos de rede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar todos os switches, pois dados ilegíveis sempre decorrem de hardware.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Impedir acesso ao servidor DNS sem testar o arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar logs e checagens para acelerar o processamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Examinar TYPE escolhido, CCSID, codificação esperada e layout dos campos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Recriar as sessões NetBIOS sem consultar o protocolo utilizado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Receber bytes íntegros com texto ilegível aponta frequentemente para representação ou parsing inadequado. É necessário validar tipo de transferência, páginas de código, quebras de registro e campos antes de atribuir a falha à rede.",
+      "section": "FTP, NetBIOS e comunicação entre ambientes heterogêneos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sobre proteção de credenciais e arquivos em redes, qual medida é compatível com o modelo de segurança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confiar em TYPE ASCII como substituto de criptografia.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Presumir que FTP clássico cifra automaticamente as senhas transmitidas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Considerar que reconhecer nome NetBIOS autentica qualquer usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Dispensar auditabilidade quando a transmissão utiliza TCP/IP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adotar mecanismo criptográfico de transporte apropriado, como FTP com TLS configurado, e reforçar autorização.",
+          "correct": true
+        }
+      ],
+      "explanation": "A proteção requer mecanismos efetivos de criptografia e identidade; FTP original não os oferece automaticamente. Conversão de caracteres e resolução de nomes não substituem autenticação, autorização, segregação e rastreabilidade.",
+      "section": "FTP, NetBIOS e comunicação entre ambientes heterogêneos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma SOA pode expor funcionalidades do mainframe por interfaces de serviço sem exigir a substituição imediata dos programas centrais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A orientação a serviços permite encapsular capacidades existentes em contratos acessíveis a consumidores. O adaptador preserva a lógica central quando apropriado, enquanto impõe políticas de acesso e mapeia representações.",
+      "section": "SOA, microsserviços, APIs, filas e governança operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Microsserviços determinam obrigatoriamente que toda integração ocorra por REST, sendo vedado usar mensagens ou processamento assíncrono.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Microsserviços designam um estilo de decomposição e autonomia, não uma obrigação universal de protocolo. REST, filas e eventos podem coexistir; a escolha depende das necessidades de consistência, latência e acoplamento.",
+      "section": "SOA, microsserviços, APIs, filas e governança operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila pode desacoplar temporalmente produtor e consumidor, mas as garantias de entrega e ordenação dependem da infraestrutura e da configuração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Mensageria favorece processamento assíncrono, porém não elimina automaticamente falhas, repetição e desordem. O projeto deve especificar persistência, correlação, idempotência e tratamento de mensagens problemáticas.",
+      "section": "SOA, microsserviços, APIs, filas e governança operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Basta publicar uma API REST diante de um job que leva horas para que o resultado de negócio passe a estar concluído no instante da resposta HTTP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A interface REST não altera por si a duração ou as dependências de processamento batch. Uma API pode apenas registrar a solicitação e retornar identificador de acompanhamento, distinguindo aceitação de conclusão.",
+      "section": "SOA, microsserviços, APIs, filas e governança operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa deseja expor consulta a dados do CICS para aplicações web com contrato REST, preservando o sistema de registro. Qual alternativa é compatível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Utilizar camada de APIs e mapeamento, por exemplo recursos do z/OS Connect conforme o caso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Publicar diretamente bytes COMP-3 como se fossem JSON textual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Exigir que cada navegador execute JCL para conhecer o saldo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Abandonar autenticação porque a API fica no ambiente interno.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir o contrato por um nome NetBIOS não documentado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O z/OS Connect oferece mecanismos para disponibilizar recursos de subsistemas z/OS por APIs REST e mapear estruturas. Os consumidores acessam interface controlada, sem exigir conhecimento de campos físicos ou acesso irrestrito.",
+      "section": "SOA, microsserviços, APIs, filas e governança operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário expressa melhor a diferença de ênfase entre SOA e microsserviços?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SOA somente funciona com FTP e microsserviços somente com NetBIOS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SOA articula reutilização de serviços empresariais; microsserviços privilegiam serviços de aplicação com autonomia de evolução.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Microsserviços eliminam a necessidade de contratos e observabilidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SOA exige que todo programa seja reescrito em linguagem idêntica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Qualquer serviço HTTP isolado caracteriza obrigatoriamente microsserviços.",
+          "correct": false
+        }
+      ],
+      "explanation": "A distinção é arquitetural e de escopo, não uma tabela rígida de protocolos. SOA prioriza integração e reutilização de capacidades; microsserviços enfatizam autonomia e limites de responsabilidade, com custos operacionais próprios.",
+      "section": "SOA, microsserviços, APIs, filas e governança operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após um job noturno gerar dados corretos, vários consumidores precisam saber que há novo lote disponível sem consultas repetidas ao mainframe. Qual padrão auxilia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enviar o mesmo lote repetidamente a cada consumidor sem controle de duplicidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Modificar o CSS do aplicativo para simular mudança de estado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Publicar evento de conclusão validada para consumidores inscritos ou interessados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar o nome do servidor como confirmação automática de carga.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter o lote incompleto disponível até o próximo dia sem notificação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Evento emitido depois da validação do fechamento permite notificação desacoplada. Os consumidores ainda necessitam correlação, idempotência e tratamento de falhas; publicação do evento não substitui os controles da carga.",
+      "section": "SOA, microsserviços, APIs, filas e governança operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em integração por filas com risco de reentrega, que desenho protege uma operação financeira contra aplicação duplicada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Presumir que nenhuma mensagem pode ser entregue mais de uma vez em qualquer broker.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar mensagem por FTP sem tratar duplicidade do lote.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eliminar registros de auditoria para melhorar vazão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Identificar unicamente a operação e verificar seu processamento antes de efetivar o efeito de negócio.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aumentar apenas o tamanho do payload, sem controle transacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Identificação de operação e idempotência permitem reconhecer reapresentações e evitar efeitos repetidos. Garantias de entrega variam por tecnologia e configuração; a camada de negócio também precisa implementar controles.",
+      "section": "SOA, microsserviços, APIs, filas e governança operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API recebe pedido de processamento batch que pode demorar horas. Qual contrato é mais coerente com a natureza assíncrona do trabalho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Afirmar conclusão contábil antes de executar o job.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Bloquear indefinidamente toda conexão até a próxima janela mensal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dispensar autenticação porque o processamento será posterior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Considerar a gravação de um arquivo temporário como resultado final.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Responder com identificador de solicitação e mecanismo de acompanhamento de estado.",
+          "correct": true
+        }
+      ],
+      "explanation": "O recebimento da solicitação e a conclusão efetiva são eventos distintos. Uma interface assíncrona pode fornecer identificador e status consultável, preservando rastreabilidade, timeouts e reconciliação quando o job terminar.",
+      "section": "SOA, microsserviços, APIs, filas e governança operacional",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "IBM z/OS Basic Skills: The FTP server",
+      "publisher": "IBM",
+      "reference": "Comportamento de tradução ASCII/EBCDIC do servidor FTP em z/OS",
+      "url": "https://www.ibm.com/docs/en/zos-basic-skills?topic=zos-ftp-server",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "IBM z/OS: TYPE subcommand—Set the data transfer type",
+      "publisher": "IBM",
+      "reference": "Tipos de representação ASCII e binária no FTP do z/OS",
+      "url": "https://www.ibm.com/docs/en/zos/3.1.0?topic=subcommands-type-subcommandset-data-transfer-type",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "IBM z/OS: Data set record formats",
+      "publisher": "IBM",
+      "reference": "RECFM e LRECL em datasets MVS",
+      "url": "https://www.ibm.com/docs/en/zos-basic-skills?topic=set-data-record-formats",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "IBM Sterling Connect:Direct: Checkpoint/Restart",
+      "publisher": "IBM",
+      "reference": "Condições de checkpoint/restart nas cópias",
+      "url": "https://www.ibm.com/docs/en/connect-direct/6.4.0?topic=connectdirect-checkpointrestart",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "IBM Sterling Connect:Direct: Creating a Process That Copies a File",
+      "publisher": "IBM",
+      "reference": "Process e COPY entre nós z/OS",
+      "url": "https://www.ibm.com/docs/en/connect-direct/6.4.0?topic=editor-creating-process-that-copies-file",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "IBM z/OS: Steps for submitting a job",
+      "publisher": "IBM",
+      "reference": "Interface FTP com JES e submissão de jobs",
+      "url": "https://www.ibm.com/docs/en/zos/3.1.0?topic=jes-steps-submitting-job",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 959: File Transfer Protocol",
+      "publisher": "RFC Editor / IETF",
+      "reference": "Protocolo FTP, conexões e tipos de representação",
+      "url": "https://www.rfc-editor.org/rfc/rfc959.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 1001: NetBIOS over TCP/IP, Concepts and Methods",
+      "publisher": "RFC Editor / IETF",
+      "reference": "Serviços de nomes, datagramas e sessões NetBIOS",
+      "url": "https://www.rfc-editor.org/rfc/rfc1001.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 1002: NetBIOS over TCP/IP, Detailed Specifications",
+      "publisher": "RFC Editor / IETF",
+      "reference": "Descrição técnica dos serviços NetBIOS sobre TCP/IP",
+      "url": "https://www.rfc-editor.org/rfc/rfc1002.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "IBM: SOA vs. Microservices",
+      "publisher": "IBM",
+      "reference": "Comparação de arquitetura orientada a serviços e microsserviços",
+      "url": "https://www.ibm.com/think/topics/soa-vs-microservices",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "IBM z/OS Connect: What are z/OS API providers",
+      "publisher": "IBM",
+      "reference": "Exposição de CICS, IMS e Db2 por APIs REST",
+      "url": "https://www.ibm.com/docs/en/zos-connect/3.0.0?topic=connect-what-are-zos-api-providers",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "IBM z/OS: TLSMECHANISM (FTP client and server)",
+      "publisher": "IBM",
+      "reference": "Proteção TLS e AT-TLS no FTP do z/OS",
+      "url": "https://www.ibm.com/docs/en/zos/3.1.0?topic=protocol-tlsmechanism-ftp-client-server-statement",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

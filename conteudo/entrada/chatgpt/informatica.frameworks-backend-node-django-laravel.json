@@ -1,0 +1,1902 @@
+{
+  "id": "informatica.frameworks-backend-node-django-laravel",
+  "subject": "Informática / Desenvolvimento de Sistemas",
+  "title": "Backend com Node.js, Django REST e Laravel",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Backend com Node.js, Django REST e Laravel",
+    "Frameworks backend: Node.js, Django REST Framework e Laravel"
+  ],
+  "scope": {
+    "covers": "Arquitetura backend e HTTP; Node.js, event loop, Express, middlewares e Promise; Django clássico com padrão MTV, templates, ORM, migrations e admin; DRF com serializers, ViewSets, routers e permissões; Laravel com MVC, Blade, Artisan, Eloquent e migrations; validação, segurança, testes e desempenho.",
+    "excludes": "Frontend avançado, frameworks de interface, implantação específica em nuvem, linguagens além de JavaScript/Python/PHP e APIs de bibliotecas não abordadas."
+  },
+  "theoryTitle": "Frameworks backend: fundamentos, Node.js/Express, Django, DRF e Laravel",
+  "chapters": [
+    {
+      "title": "Fundamentos de backend, HTTP e arquitetura de APIs",
+      "markdown": "## 1. O que o backend realmente faz\nBackend é a camada que recebe requisições, aplica regras de negócio, verifica identidade e permissões, consulta ou modifica persistência e devolve uma resposta. A interface pode ser HTML renderizado no servidor, JSON consumido por aplicativo, arquivo ou redirecionamento. **Node.js não é framework**: é ambiente de execução de JavaScript fora do navegador, frequentemente usado com Express. **Django** é framework web de Python com recursos integrados; **Django REST Framework (DRF)** é um conjunto de ferramentas sobre Django para APIs; **Laravel** é framework web de PHP. A classificação importa em provas: linguagem, runtime, framework e biblioteca não são sinônimos. O navegador ou cliente HTTP não deve receber senhas do banco, chaves privadas nem decisões críticas deixadas exclusivamente no JavaScript do frontend.\n\n## 2. Ciclo HTTP e semântica REST\nO cliente envia método, URL, cabeçalhos e, quando aplicável, corpo. Uma API de livros pode expor `GET /livros`, `GET /livros/42`, `POST /livros`, `PATCH /livros/42` e `DELETE /livros/42`. GET é método seguro: destina-se à leitura sem solicitar alteração de estado; PUT é tipicamente substituição completa da representação e idempotente por contrato HTTP; PATCH representa modificação parcial, **não necessariamente idempotente**; DELETE tem semântica idempotente embora repetir a operação possa retornar resultados HTTP diferentes. POST não tem garantia geral de idempotência. Idempotência significa que repetir uma requisição tem o mesmo efeito pretendido no estado do servidor, não que a mensagem de resposta seja idêntica. Códigos como 200 (sucesso), 201 (criado), 204 (sem conteúdo), 400 (requisição inválida), 401 (autenticação necessária/inválida), 403 (acesso proibido), 404 (não encontrado), 409 (conflito) e 500 (erro interno) exigem adequação ao caso. O uso de 401 costuma acompanhar um desafio de autenticação, enquanto 403 comunica recusa mesmo quando a identidade é conhecida; nunca equipare os dois automaticamente.\n\n## 3. Camadas e contratos\nArquiteturas usuais separam rotas, controladores/views, serviços de negócio, repositórios ou acesso a dados, modelos e camada de apresentação. Esta separação é uma escolha de projeto, não uma divisão obrigatória com nomes idênticos nos três ecossistemas. Um endpoint deve validar formato e tipo, aplicar regra de negócio, checar autorização e produzir dados minimizados. O esquema JSON especifica campos e tipos, mas JSON por si só não autentica nem criptografa. Documentar contrato com OpenAPI facilita integração, testes e manutenção; versionamento de APIs é estratégia de compatibilidade, não requisito universal do REST. A paginação reduz volume de registros; filtros precisam ser aplicados no servidor para não expor registros indevidos. Consultas com ORM continuam demandando atenção a índices, limites e relações para evitar excesso de consultas.\n\n## 4. Validação, autenticação e autorização\n**Validação** responde se os dados fornecidos atendem às restrições. **Autenticação** determina quem é o solicitante; **autorização** determina o que ele pode fazer, inclusive em relação a cada objeto. A pessoa estar logada não significa poder acessar o pedido de outra pessoa. Autorizações devem ocorrer no backend, com política de menor privilégio, inclusive ao filtrar listas e ao atualizar campos sensíveis. Erros não devem vazar rastros de pilha e segredos em produção. Para operação confiável, combine configuração externa segura, logs sem informações sensíveis, testes automatizados, monitoramento, tratamento de falhas e migrações controladas. Quando um cliente acessa a API de outra origem, CORS regula a exposição de respostas para scripts do navegador; CORS não é autenticação e não protege APIs contra clientes fora do navegador. HTTPS protege o transporte; não substitui controles de acesso."
+    },
+    {
+      "title": "Node.js, event loop, Express e middleware",
+      "markdown": "## 1. Node.js: runtime, I/O e concorrência\nNode.js executa JavaScript do lado do servidor e oferece APIs de sistema de arquivos, rede, processos e módulos. O mecanismo de eventos permite atender numerosas operações de entrada e saída sem dedicar uma thread JavaScript bloqueada à espera de cada resposta. Isso não quer dizer que toda operação execute em paralelo ou que só exista uma thread no processo: há mecanismos internos e pool de trabalhadores, além de `worker_threads` quando utilizados. O **event loop** organiza callbacks e tarefas assíncronas em fases; operações CPU-intensivas síncronas podem impedir o atendimento de outras requisições. Por isso, compressão ou cálculo pesado pode exigir trabalhadores, serviços separados ou estratégias não bloqueantes. `async/await` torna o código assíncrono mais legível, mas não converte computação síncrona demorada em tarefa paralela.\n\n## 2. Promises e módulo de servidor\nUma `Promise` representa resultado futuro, resolvido ou rejeitado. Um `await` espera a resolução no contexto de função assíncrona sem bloquear toda a thread como faria espera síncrona de I/O. Erros previstos devem ser tratados, e rejeições não podem ficar deliberadamente sem supervisão. Sistemas podem usar módulos CommonJS (`require`) ou ECMAScript modules (`import`), conforme configuração do projeto. O gerenciador `npm` instala dependências e scripts; `package.json` descreve metadados, scripts e dependências, e o arquivo de lock ajuda a reproduzir versões. O runtime não oferece, por si só, as abstrações de rotas e middlewares do Express. Há outros frameworks Node, mas a prova frequentemente associa Express às rotas HTTP.\n\n## 3. Express e fluxo de requisição\nExpress é framework minimalista de roteamento e middleware. `app.get('/produtos', handler)` registra tratamento de GET no caminho; `app.post` trata POST; `express.Router()` monta conjuntos de rotas sob prefixo. Os parâmetros de caminho são acessados com `req.params`, os de consulta com `req.query` e os dados processados do corpo com `req.body`, desde que exista tratamento apropriado. `express.json()` é middleware para interpretar corpos JSON compatíveis; não é validação de regras de negócio. Um handler pode retornar `res.status(201).json(recurso)`; não deve tentar responder uma segunda vez. A sequência dos middlewares importa, porque as funções são chamadas em ordem e podem encerrar a resposta, transferir controle com `next()` ou encaminhar erros. Um middleware de autenticação montado **depois** de uma rota que já respondeu não a protege retroativamente.\n\n```js\nimport express from 'express';\nconst app = express();\napp.use(express.json());\napp.get('/saude', (req, res) => res.json({ status: 'ok' }));\napp.post('/itens', (req, res) => {\n  if (typeof req.body?.nome !== 'string') {\n    return res.status(400).json({ erro: 'nome obrigatório' });\n  }\n  return res.status(201).json({ nome: req.body.nome });\n});\n```\n\n## 4. Erros, persistência e segurança\nUm middleware de erro Express recebe a assinatura `(err, req, res, next)`; na versão majoritária recente Express 5, handlers e middlewares que retornam uma Promise rejeitada encaminham o erro para `next`, mas o comportamento de bibliotecas ou versões distintas exige consulta à documentação. Evite expor `err.stack` em produção. Não confie em validação de interface: saneie e valide a entrada no servidor e prefira consultas parametrizadas no banco. Middleware para CORS, autenticação, limitação de taxa e logging tem responsabilidades diferentes. Credenciais devem vir de configuração protegida, nunca de texto fixo no repositório. Teste rotas, casos de falha, sessão/autorização por objeto e efeitos de concorrência. A principal pegadinha é confundir **assincronia de I/O** com execução paralela de qualquer algoritmo e confundir Express com o próprio Node.js."
+    },
+    {
+      "title": "Django clássico: MTV, models, templates e admin",
+      "markdown": "## 1. Django e o padrão MTV\nDjango é um framework web Python de alto nível com recursos integrados de URL routing, ORM, autenticação, formulários, templates, migrações e administração. O arranjo frequentemente é descrito como **MTV (Model–Template–View)**. Model descreve dados e acesso por ORM; Template organiza a apresentação; View é uma função ou classe Python que recebe a requisição e produz uma resposta, coordenando busca de dados e renderização. Na comparação didática com MVC, a nomenclatura difere: não é correto ensinar que a View do Django corresponde simplesmente à tela HTML. O mecanismo de URLconf decide a view acionada, e o template renderiza a parte visual. Django clássico pode responder páginas HTML completas sem DRF. Projeto agrega configurações e aplicativos; aplicativos (`apps`) agrupam funcionalidades reutilizáveis. `django-admin startproject` inicia a estrutura; `python manage.py startapp` cria um aplicativo.\n\n## 2. Model e migrações\nUm modelo herda de `models.Model` e define campos e relacionamentos. Exemplo:\n\n```python\nfrom django.db import models\nclass Livro(models.Model):\n    titulo = models.CharField(max_length=160)\n    publicado = models.BooleanField(default=False)\n```\n\nO ORM expressa operações como `Livro.objects.filter(publicado=True)` sem escrever SQL manual para cada consulta; isso **não elimina** SQL no banco, que segue sendo utilizado internamente. `python manage.py makemigrations` gera arquivos de migração de acordo com mudanças detectadas nos models; `python manage.py migrate` aplica migrações pendentes à base configurada. Alterar a classe do modelo, isoladamente, não implica atualizar imediatamente todas as tabelas de produção. Migrações devem ser revisadas, versionadas e testadas antes da aplicação. Relações `ForeignKey`, `ManyToManyField` e `OneToOneField` exigem atenção a integridade e desempenho. `select_related()` costuma servir a relações de valor único via join, enquanto `prefetch_related()` faz busca relacionada adequada inclusive a coleções, mitigando consultas N+1.\n\n## 3. Views, URLs e templates\nUma view pode chamar `render(request, 'livros/lista.html', {'livros': lista})`; a URL é definida com `path()` em `urls.py`. A sintaxe usual dos templates inclui `{{ livro.titulo }}`, `{% for livro in livros %}` e `{% extends 'base.html' %}`. Templates combinam dados e marcação, podem herdar layouts e usar filtros. **Autoescape** de HTML é aplicado por padrão em contextos normais do mecanismo de templates, ajudando contra XSS; marcar conteúdo não confiável como seguro ou desabilitar escape indevidamente remove essa camada de defesa. Em formulários de alteração de estado com sessão no navegador, deve-se observar a proteção CSRF, incluindo o token na renderização quando aplicável. Template não substitui validação de formulário e nem decisão de autorização. A pasta de arquivos estáticos é distinta da mídia enviada pelos usuários, que requer controles e configuração próprios.\n\n## 4. Administração e segurança padrão\nO **Django admin** é interface administrativa gerada a partir dos modelos registrados e voltada a usuários autorizados. `admin.site.register(Livro)` registra modelo e `createsuperuser` cria conta privilegiada; não se deve expor a administração a qualquer pessoa apenas por a página existir. O admin é ferramenta poderosa de operação interna, não substituto necessário para todas as telas públicas. Os mecanismos de autenticação, permissões e grupos precisam ser configurados conforme o caso de uso. Django oferece proteções como escape de templates, mecanismos CSRF e suporte a consultas parametrizadas pelo ORM, mas aplicações ainda podem ter falhas por escolhas de desenvolvimento. Testes `TestCase` permitem verificar views, models e respostas; em produção são relevantes `DEBUG=False`, `ALLOWED_HOSTS`, segredo protegido, HTTPS e servidor de aplicação apropriado. **Django e DRF são complementares, não concorrentes**: DRF adiciona abstrações voltadas a APIs ao projeto Django existente."
+    },
+    {
+      "title": "Django REST Framework: serializers, views e permissões",
+      "markdown": "## 1. Finalidade e componentes\nDjango REST Framework (DRF) é biblioteca/framework para construir APIs web sobre Django. Usa modelos e configurações do Django, porém acrescenta classes como `APIView`, `Response`, serializers, autenticação, permissões, classes genéricas, ViewSets e roteadores. Pode produzir JSON e uma interface navegável de API, dependendo de renderizadores e configurações. Uma API DRF continua usando o projeto Django e seu gerenciamento de URLs; não exige reescrever todos os models. `request.data` centraliza os dados parseados da requisição conforme parsers disponíveis; não se restringe a JSON em todos os casos. `Response` representa dados a serem renderizados conforme negociação de conteúdo, diferindo de devolver manualmente texto JSON. Responder com objeto serializável não transfere automaticamente ao cliente todos os campos do banco.\n\n## 2. Serializers: validação e representação\n`Serializer` define campos e regras; `ModelSerializer` reduz código ao derivar campos de um model, respeitada sua configuração. Na entrada, `serializer = LivroSerializer(data=request.data)` e `serializer.is_valid(raise_exception=True)` validam; `serializer.validated_data` contém os valores aceitos. `serializer.save()` pode criar ou atualizar objetos, de acordo com a instância fornecida e implementação. Na saída, `LivroSerializer(livro).data` produz representação em tipos adequados para renderização. Um serializer não é sinônimo de autenticação, autorização ou consulta ao banco. É aconselhável **declarar explicitamente campos expostos**, em vez de publicar tudo indiscriminadamente, em especial senhas, dados privados, flags administrativas e relações sensíveis. Algumas regras podem ser implementadas em `validate_<campo>` ou `validate`, e validação de formato não suprime validação de domínio.\n\n```python\nfrom rest_framework import serializers\nfrom .models import Livro\nclass LivroSerializer(serializers.ModelSerializer):\n    class Meta:\n        model = Livro\n        fields = ['id', 'titulo', 'publicado']\n        read_only_fields = ['id']\n```\n\n## 3. APIView, genéricas, ViewSet e router\n`APIView` permite tratar métodos (`get`, `post`) em classe com recursos de DRF. Classes genéricas como `ListCreateAPIView` combinam padrões comuns de listagem e criação, com queryset e serializer. `ModelViewSet` oferece ações usuais de criar, listar, recuperar, atualizar e excluir quando adequadamente configurado; um `ViewSet` básico, porém, **não fornece automaticamente todas essas ações**. `DefaultRouter` ou `SimpleRouter` associam rotas às ações do ViewSet e diminuem declarações repetidas. Filtragem e paginação restringem volume e selecionam dados, mas não devem ser confundidas com autorização. Sob demanda, `get_queryset()` pode limitar registros pelo usuário autenticado, e `get_object()` costuma recuperar a instância de detalhe aplicando checagens pertinentes.\n\n## 4. Autenticação, autorização e riscos reais\nAutenticação identifica o cliente via sessão, token ou outro esquema configurado; permissões determinam acesso. `IsAuthenticated` requer autenticação, mas **não garante propriedade do objeto**. A proteção por objeto depende de políticas adequadas e de verificações executadas no fluxo; métodos de lista exigem filtragem cuidadosa, pois verificações individuais de objeto não ocorrem automaticamente para cada item de uma lista comum. Uma permission customizada pode implementar `has_permission` para operações gerais e `has_object_permission` para instâncias. Ao sobrescrever métodos ou recuperar objetos manualmente, convém invocar as verificações cabíveis; não assuma proteção implícita incondicional. A falha BOLA (broken object level authorization) ocorre quando alterar o identificador de objeto permite acesso indevido a outro registro. Testes devem incluir usuário anônimo, usuário legítimo, usuário de outra conta e papel administrativo; devem verificar métodos seguros, atualização parcial, status HTTP e dados efetivamente expostos. O serializer representa dados; a política decide quem pode acessá-los."
+    },
+    {
+      "title": "Laravel: MVC, Blade, Artisan, Eloquent e migrations",
+      "markdown": "## 1. Estrutura do Laravel e MVC\nLaravel é framework web da linguagem PHP e organiza aplicações com roteamento, controllers, middleware, serviços, container de dependências, ORM Eloquent, validação, autenticação, templates Blade e comandos Artisan. Em leitura didática MVC, Model encapsula dados e relações; View renderiza apresentação; Controller atende requisições e orquestra operações. O arquivo de rotas web costuma ficar em `routes/web.php`, mas o funcionamento e a disponibilidade de arquivos adicionais dependem da estrutura/instalação da versão do projeto. `Route::get('/livros', [LivroController::class, 'index'])` associa método e URL a uma ação. Rotas e middlewares podem proteger grupos, e o container permite injetar dependências, facilitando testes e substituição de componentes. Laravel pode gerar páginas HTML no servidor ou servir APIs JSON; usar Blade não é requisito para qualquer aplicação Laravel.\n\n## 2. Blade: templates e proteção da saída\n**Blade** é mecanismo de templates do Laravel. Arquivos normalmente terminam em `.blade.php` e ficam em `resources/views`. A diretiva `@extends` indica layout; `@section` e `@yield` organizam seções; `@foreach` executa iteração; componentes ajudam a reutilizar interfaces. `{{ $nome }}` produz saída com escape HTML, favorecendo proteção contra XSS, enquanto `{!! $html !!}` não aplica esse escape e exige extrema cautela para dados não confiáveis. O token `@csrf` gera campo oculto apropriado para formulários que exigem a verificação CSRF; ele não substitui autorização para alterar recursos. Em formulários HTML, `@method('PUT')` pode permitir simulação de método, pois formulários nativos suportam principalmente GET e POST. View prepara apresentação e não deve ser o lugar exclusivo de regras críticas de negócio. O frontend não se torna confiável por ter sido renderizado no servidor.\n\n## 3. Artisan e ciclo de desenvolvimento\n**Artisan** é interface de linha de comando do Laravel. Exemplos: `php artisan list` lista comandos; `php artisan make:controller LivroController` gera um controlador; `php artisan make:model Livro` cria modelo; `php artisan make:migration create_livros_table` cria arquivo de migração; `php artisan migrate` aplica alterações pendentes ao esquema; `php artisan migrate:rollback` reverte o lote mais recente de migrações quando reversíveis; `php artisan test` executa testes pela integração apropriada. Os comandos `make:*` geram estruturas, não executam todo o trabalho de negócio automaticamente. `composer` gerencia dependências PHP, ao passo que npm é frequentemente empregado para ativos JavaScript/CSS em projetos Laravel. Rodar `php artisan serve` é útil localmente, não substitui plano de implantação segura para produção.\n\n## 4. Migrações, Schema e Eloquent\n**Migration** é arquivo versionado que descreve mudança de esquema; os métodos `up()` e `down()` descrevem, em migrações típicas, aplicação e reversão. `Schema::create('livros', function (Blueprint $table) { ... });` define estrutura de tabela. A ordem costuma ser determinada por timestamp no nome do arquivo. Migrations não são a mesma coisa que seeders: seeds inserem dados, enquanto migrations alteram o esquema. **Eloquent** é ORM orientado a modelos; `Livro::query()->where('publicado', true)->get()` consulta registros, `find()` busca por chave e relações como `hasMany` ou `belongsTo` expressam vínculos. O carregamento antecipado com `with()` reduz consultas N+1 em relacionamentos; ainda é necessário planejar índices e monitorar consultas. Regras de **mass assignment** limitam quais atributos podem ser preenchidos em massa, porém isso não substitui autorização nem validação de entrada. A existência de um model não cria, sem comando ou ferramenta apropriada, a tabela correspondente no banco. A integridade de migrações deve ser verificada em ambiente de teste e com estratégia de backup.\n\n## 5. Validação, API e segurança\nO Laravel fornece validação de requisições, inclusive Form Requests; acesso a políticas/gates e middleware pode controlar permissões. Autenticação de aplicações com sessão e autenticação de tokens de API exigem mecanismos apropriados ao cenário. Blade escapa conteúdo em saída convencional, mas não torna seguras consultas SQL montadas por concatenação nem ações sem autorização. Controllers podem retornar JSON e códigos HTTP sem usar Blade. Bons testes incluem requisições autenticadas e não autenticadas, tentativas de acesso a registros alheios, campos não permitidos e resultados de rollback. Em questões de concurso, diferencie **Blade (apresentação)**, **Artisan (terminal)**, **Eloquent (ORM)**, **migration (esquema)** e **middleware (pipeline HTTP)**; são componentes complementares, não equivalentes."
+    },
+    {
+      "title": "Comparação prática, testes, segurança e desempenho",
+      "markdown": "## 1. Equivalências funcionais sem falsos sinônimos\nUma mesma API de cadastro pode ser escrita em Node.js com Express (JavaScript), em Django com DRF (Python) ou Laravel (PHP). Embora as soluções compartilhem rotas, validação, persistência e resposta, seu vocabulário varia. No Express, middlewares recebem requisição, resposta e próximo estágio; no DRF, serializers validam/transformam dados e ViewSets agrupam ações; no Laravel, Form Requests validam entradas, controllers orquestram e Blade renderiza HTML. Django usa `manage.py` para tarefas administrativas; Laravel usa Artisan; npm/composer/pip administram dependências em seus respectivos ecossistemas, mas não são sinônimos das ferramentas de framework. Uma decisão de arquitetura pode optar por HTML no servidor (Django templates ou Blade) ou por API consumida por cliente separado; nenhum backend exige uma única interface.\n\n## 2. Testes por camadas e qualidade\n**Teste unitário** isola função ou regra; **teste de integração** verifica interação entre componentes, como camada HTTP e banco de testes; **teste funcional/de ponta a ponta** examina fluxos completos. Pirâmides de testes e estratégias de cobertura são orientações, não proporções universais. Não basta testar a chamada feliz: inclua falta de campos, tipo inválido, autenticação ausente, acesso a objeto de outro usuário, paginação, conflito de integridade e falha de dependência. Teste de autorização para um endpoint de detalhe não garante proteção de endpoint de listagem; nem a recíproca. Dados de teste devem ser isolados; testes não podem acidentalmente manipular base produtiva. Mock de serviço externo ajuda a reproduzir falhas sem depender de rede. Contratos de resposta e códigos HTTP devem ser consistentes com a operação; mensagens de erro não devem incluir credenciais nem dados confidenciais.\n\n## 3. Segurança de API aplicada\nSegundo a OWASP API Security Top 10, autorização quebrada ao nível do objeto é risco grave. Um ID numérico imprevisível ou UUID não substitui checagem de permissão: ele apenas dificulta adivinhação em alguns cenários. A aplicação precisa confirmar, em toda requisição pertinente, se o principal pode agir sobre o recurso. **Autenticação** não garante **autorização**; **validação de campos** não garante **segurança do objeto**; e **escape HTML** não impede SQL injection quando SQL é concatenado de forma insegura. Use controle de acesso por padrão, consultas parametrizadas, validação do lado servidor, HTTPS, limitações de taxa, observabilidade e gestão de segredos. Prevenção de CSRF é particularmente relevante para operações autenticadas por cookies em navegador; mecanismos de tokens em cabeçalhos e outras arquiteturas têm modelo de ameaça próprio. Política de CORS não limita ferramentas como curl nem impede invasor que já possui credenciais válidas de acessar uma API.\n\n## 4. Desempenho, filas e observabilidade\nNo Node.js, operações síncronas pesadas atrasam o event loop. No Django e Laravel, requisições podem ficar lentas por N+1, falta de índices, consultas amplas e chamadas externas. Cache pode reduzir leituras repetidas, mas introduz problemas de invalidação e consistência. Filas são úteis para tarefas demoradas, como envios de notificações ou geração de relatórios, sem obrigar cliente HTTP a aguardar o processamento completo; garantias de entrega e idempotência devem ser projetadas. Métricas de latência, taxa de erro, uso de recursos e rastreamento ajudam a detectar gargalos. Paginação reduz carga e exposição acidental, mas não substitui consulta autorizada. Não se deve prometer escalabilidade ilimitada apenas por usar async, ORM ou framework renomado.\n\n## 5. Escolha e armadilhas de prova\nA escolha do ecossistema depende de domínio da equipe, bibliotecas necessárias, requisitos operacionais, integração legada e perfil de carga. Node.js pode ser conveniente para aplicações de I/O elevado com JavaScript compartilhado; Django traz estrutura integrada e admin; DRF facilita construção de APIs com validação e permissões; Laravel tem ecossistema PHP integrado, Blade, Eloquent e Artisan. Essas são **características**, não garantia de superioridade de desempenho ou segurança. Memorize o mapeamento: **runtime Node.js → framework Express; Django/MTV → templates e admin; DRF → serializers, permissões e ViewSets; Laravel → Blade, Artisan, migrations e Eloquent**. Em provas situacionais, identifique a camada que precisa ser corrigida: DTO/serializer para formato e exposição; autorização para objeto e função; middleware para regra transversal; migration para esquema; ORM/consulta para carregamento e desempenho; template para HTML."
+    }
+  ],
+  "summary": "**Mapa geral:** backend processa requisições, impõe regras, controla acesso e entrega HTML ou dados. **Node.js** é runtime JavaScript; **Express** acrescenta rotas e middlewares. Event loop e I/O assíncrona não significam paralelismo automático de cálculo síncrono. **Django** é framework Python organizado didaticamente em MTV: Model (dados), Template (apresentação), View (tratamento HTTP). Admin administra models registrados, e os comandos `makemigrations` e `migrate` correspondem a gerar e aplicar alterações. **Django REST Framework** especializa APIs com serializers, APIView, generic views, ViewSets, routers, autenticação e permissões. `IsAuthenticated` não valida propriedade do objeto; é preciso checar autorização e filtrar querysets. **Laravel** é framework PHP: Blade renderiza HTML, Artisan fornece comandos, Eloquent é ORM e migrations evoluem o esquema; `make:migration` cria arquivo e `migrate` o aplica. **Segurança:** diferencie autenticação, autorização por objeto, validação, XSS, CSRF, SQL injection e CORS. **HTTP:** GET recupera, POST processa ou cria, PUT substitui, PATCH altera parcialmente e DELETE remove; idempotência diz respeito ao efeito no servidor, não à identidade das respostas. Em desempenho, reconheça o bloqueio do event loop, consultas N+1 e necessidade de testes de acesso cruzado.",
+  "flashcards": [
+    {
+      "front": "Node.js é linguagem ou framework?",
+      "back": "É runtime de JavaScript do lado do servidor; Express é um framework frequentemente usado com ele."
+    },
+    {
+      "front": "Qual o papel do event loop?",
+      "back": "Orquestrar execução de callbacks e progresso de I/O assíncrona; cálculo síncrono pesado pode bloqueá-lo."
+    },
+    {
+      "front": "Async/await paraleliza automaticamente cálculos?",
+      "back": "Não. Torna legível a espera assíncrona; computação CPU-intensiva síncrona continua bloqueante."
+    },
+    {
+      "front": "O que faz express.json()?",
+      "back": "Interpreta corpos de requisição JSON compatíveis e preenche req.body; não valida regras de negócio."
+    },
+    {
+      "front": "Quais são os argumentos do middleware de erro Express?",
+      "back": "(err, req, res, next)."
+    },
+    {
+      "front": "O que significa MTV no Django?",
+      "back": "Model (dados), Template (apresentação) e View (tratamento da requisição e resposta)."
+    },
+    {
+      "front": "Como mudar o banco após alterar um model Django?",
+      "back": "Gerar arquivos com makemigrations e aplicar alterações com migrate, após revisão."
+    },
+    {
+      "front": "Para que serve o Django admin?",
+      "back": "Interface administrativa para modelos registrados, acessível conforme permissões."
+    },
+    {
+      "front": "O que faz o autoescape dos templates Django?",
+      "back": "Escapa caracteres especiais para HTML por padrão nos contextos usuais; não substitui controles de acesso."
+    },
+    {
+      "front": "Serializer do DRF autentica usuários?",
+      "back": "Não. Representa e valida dados; autenticação e permissão são controles separados."
+    },
+    {
+      "front": "Qual a diferença entre Serializer e ModelSerializer?",
+      "back": "ModelSerializer deriva configuração de campos de model Django; Serializer declara campos sem essa derivação."
+    },
+    {
+      "front": "O que faz is_valid(raise_exception=True)?",
+      "back": "Executa validação e, se inválido, lança exceção de validação para o tratamento padrão da API."
+    },
+    {
+      "front": "ModelViewSet e ViewSet básico são iguais?",
+      "back": "Não. ModelViewSet inclui ações CRUD usuais; ViewSet básico requer definição de ações."
+    },
+    {
+      "front": "Router de DRF substitui autorização?",
+      "back": "Não. Monta padrões de URLs para ações de ViewSets; permissões precisam ser configuradas."
+    },
+    {
+      "front": "IsAuthenticated garante acesso só ao próprio objeto?",
+      "back": "Não. Requer autenticação; regras por objeto devem ser adicionadas."
+    },
+    {
+      "front": "O que é BOLA?",
+      "back": "Falha de autorização por objeto que permite acessar ou modificar recurso de outro usuário."
+    },
+    {
+      "front": "O que é Blade?",
+      "back": "Mecanismo de templates de Laravel para renderizar apresentação, geralmente em arquivos .blade.php."
+    },
+    {
+      "front": "Saída Blade {{ }} e {!! !!} diferem como?",
+      "back": "{{ }} aplica escape HTML convencional; {!! !!} produz saída sem esse escape."
+    },
+    {
+      "front": "O que é Artisan?",
+      "back": "Ferramenta CLI do Laravel usada para gerar classes, gerenciar migrations, executar testes e outros comandos."
+    },
+    {
+      "front": "Migrate e make:migration fazem a mesma coisa?",
+      "back": "Não. make:migration cria arquivo; migrate aplica migrations pendentes ao banco."
+    },
+    {
+      "front": "O que é Eloquent?",
+      "back": "ORM do Laravel para consultar e manipular modelos e relacionamentos."
+    },
+    {
+      "front": "Migration é o mesmo que seeder?",
+      "back": "Não. Migration define mudanças estruturais do banco; seeder insere dados."
+    },
+    {
+      "front": "Qual a diferença entre autenticação e autorização?",
+      "back": "Autenticação identifica o solicitante; autorização verifica o que ele pode fazer."
+    },
+    {
+      "front": "CORS substitui autenticação?",
+      "back": "Não. Rege acesso do JavaScript entre origens no navegador; não autentica requisições."
+    },
+    {
+      "front": "O que significa HTTP idempotente?",
+      "back": "Repetir uma operação tem o mesmo efeito pretendido no estado do servidor, embora respostas possam diferir."
+    },
+    {
+      "front": "Qual a solução para N+1 em ORM?",
+      "back": "Planejar carregamento prévio de relações e consultas; no Django select_related/prefetch_related, no Laravel with()."
+    }
+  ],
+  "tips": [
+    "Associe tecnologia e função antes de decorar comandos: Node.js é runtime; Express cuida de rotas/middleware; Django é framework; DRF especializa APIs; Laravel é framework PHP.",
+    "Em Django, diferencie makemigrations (gera arquivos) de migrate (aplica mudanças), e View (lógica HTTP) de Template (HTML).",
+    "Em DRF, separe serializer (validação/representação) de autenticação e permissões; IsAuthenticated não resolve autorização por objeto.",
+    "Em Laravel, use o mnemônico B-A-M-E: Blade apresenta, Artisan automatiza no terminal, Migration altera esquema e Eloquent acessa dados.",
+    "Leia sempre o método HTTP e o efeito: GET consulta; POST cria/processa; PUT substitui; PATCH altera parcialmente; DELETE remove.",
+    "Quando aparecer N+1, procure acesso repetido a relações e carregamento antecipado; quando aparecer BOLA, procure falha de autorização por objeto.",
+    "Para segurança, diferencie CORS, CSRF, XSS, SQL injection, autenticação e autorização: cada mecanismo enfrenta ameaça distinta."
+  ],
+  "traps": [
+    "Confundir Node.js com Express: o primeiro é ambiente de execução; o segundo é framework minimalista.",
+    "Afirmar que JavaScript assíncrono executa qualquer cálculo pesado em paralelo: operações CPU-intensivas síncronas podem bloquear o event loop.",
+    "Chamar o Template do Django de View Python: na terminologia MTV, o template representa apresentação e a view trata requisições.",
+    "Supor que makemigrations aplica mudanças no banco: essa etapa é normalmente realizada por migrate.",
+    "Afirmar que serializer ou IsAuthenticated fornecem autorização por objeto: são preocupações distintas.",
+    "Presumir que ViewSet básico inclui automaticamente todo CRUD: isso é característica de classes apropriadas, como ModelViewSet.",
+    "Confundir Blade, Artisan, Eloquent e migrations e supor que mudança em model PHP já altera o esquema da base.",
+    "Tratar escape de HTML, CORS ou uso de UUID como substitutos de autorização e validação do backend."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique o trajeto de um GET da rota à resposta em uma aplicação backend.",
+      "answer": "Roteador escolhe handler/view; middleware/políticas avaliam requisição; lógica consulta dados; resposta é serializada como HTML ou JSON com status adequado."
+    },
+    {
+      "question": "Por que uma operação de CPU pesada síncrona prejudica Node.js?",
+      "answer": "Porque ocupa a thread de execução JavaScript e atrasa o processamento de outros callbacks no event loop."
+    },
+    {
+      "question": "No Django, como Model, View e Template se articulam?",
+      "answer": "Model organiza dados; View processa requisição, usa modelos e devolve resposta; Template renderiza apresentação, quando usado."
+    },
+    {
+      "question": "Quais comandos são necessários para criar e aplicar uma migração Django?",
+      "answer": "Em geral, python manage.py makemigrations e depois python manage.py migrate."
+    },
+    {
+      "question": "Como um DRF ModelSerializer participa de uma requisição POST?",
+      "answer": "Recebe dados em data=..., valida por is_valid(), usa validated_data/save e fornece representação em .data; permissão deve ser checada separadamente."
+    },
+    {
+      "question": "Por que restringir queryset em listas DRF se existem object permissions?",
+      "answer": "Porque checagem por objeto não é aplicada automaticamente a cada item em listagem padrão; consultas devem limitar os registros visíveis."
+    },
+    {
+      "question": "Compare Blade, Artisan, Eloquent e migrations.",
+      "answer": "Blade renderiza templates; Artisan executa comandos; Eloquent é ORM; migrations controlam evolução do esquema."
+    },
+    {
+      "question": "Como proteger uma API contra acesso a dados de outra conta?",
+      "answer": "Autenticar, verificar autorização por objeto e função a cada operação e filtrar registros no backend; testar acessos cruzados."
+    },
+    {
+      "question": "Como distinguir vulnerabilidades XSS, SQL injection e BOLA?",
+      "answer": "XSS injeta script em saída interpretada pelo navegador; SQL injection altera comandos SQL; BOLA decorre de autorização inadequada sobre recursos."
+    },
+    {
+      "question": "Como investigar N+1 em Django e Laravel?",
+      "answer": "Medir consultas, identificar busca de relações em laços e adotar carregamento antecipado adequado, sem ignorar índices e volume dos dados."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Runtime, linguagem e framework",
+      "summary": "Node.js executa JavaScript; Express é framework de roteamento. Django e Laravel são frameworks completos em Python e PHP, respectivamente."
+    },
+    {
+      "key": "e2",
+      "title": "Semântica HTTP e pipeline",
+      "summary": "Métodos, status, middlewares e tratamento de erros têm papéis específicos; async não significa paralelismo automático."
+    },
+    {
+      "key": "e3",
+      "title": "Django MTV e ferramentas",
+      "summary": "A View do Django trata requisições e o Template renderiza apresentação; makemigrations gera arquivos e migrate os aplica."
+    },
+    {
+      "key": "e4",
+      "title": "DRF: serialização versus controle de acesso",
+      "summary": "Serializer representa e valida dados; autenticação, permissões por objeto e filtragem de queryset cuidam do acesso."
+    },
+    {
+      "key": "e5",
+      "title": "Laravel: Blade, Artisan, Eloquent e migrations",
+      "summary": "Blade renderiza HTML; Artisan executa tarefas; Eloquent é ORM e migrations descrevem mudanças de esquema."
+    },
+    {
+      "key": "e6",
+      "title": "Segurança e desempenho de APIs",
+      "summary": "CORS, CSRF, escape, validação e autorização não são intercambiáveis; N+1, event loop e filas exigem intervenções distintas."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Node.js é um framework de roteamento HTTP que executa JavaScript exclusivamente dentro do navegador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Node.js é um ambiente de execução de JavaScript fora do navegador, enquanto Express é um exemplo de framework que acrescenta roteamento HTTP. O item reúne incorretamente runtime, framework e ambiente do cliente.",
+      "section": "Fundamentos de backend, HTTP e arquitetura de APIs",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa implementar rotas HTTP e middlewares em uma aplicação JavaScript executada no servidor por Node.js. Qual ferramenta atende diretamente a essa finalidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Express",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Artisan",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Blade",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eloquent",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Django admin",
+          "correct": false
+        }
+      ],
+      "explanation": "Express fornece roteamento e pipeline de middleware para servidores Node.js. Blade e Eloquent pertencem ao Laravel; Artisan opera na linha de comando; Django admin é a interface administrativa do framework Python.",
+      "section": "Fundamentos de backend, HTTP e arquitetura de APIs",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma API, autenticar uma pessoa não comprova, por si só, que ela possa alterar qualquer recurso identificado por URL.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Autenticação identifica o solicitante; autorização determina suas ações e o acesso a cada objeto. Sem verificação por recurso, uma conta autenticada pode modificar indevidamente registros de terceiros.",
+      "section": "Fundamentos de backend, HTTP e arquitetura de APIs",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API precisa alterar somente o campo de disponibilidade de um produto já existente, sem substituir os demais campos. Qual método HTTP descreve diretamente essa alteração parcial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "OPTIONS",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "PATCH",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "TRACE",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "GET",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "HEAD",
+          "correct": false
+        }
+      ],
+      "explanation": "PATCH descreve uma alteração parcial do recurso. GET e HEAD são voltados à obtenção de representação ou metadados, enquanto OPTIONS consulta capacidades de comunicação e TRACE é método diagnóstico.",
+      "section": "Fundamentos de backend, HTTP e arquitetura de APIs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação HTTP idempotente necessariamente devolve o mesmo código de status e o mesmo corpo em todas as repetições.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Idempotência trata do efeito pretendido sobre o estado do servidor, não da igualdade das respostas. Um DELETE repetido pode manter o recurso removido, embora o status ou conteúdo retornado varie.",
+      "section": "Fundamentos de backend, HTTP e arquitetura de APIs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário autenticado solicita `/pedidos/800`, mas o pedido pertence a outra conta. Qual controle resolve diretamente o problema de segurança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alterar apenas a política de CORS do navegador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Exibir o identificador do pedido com máscara CSS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Verificar autorização para o pedido solicitado no servidor.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Confiar no campo oculto que informa o dono do pedido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aceitar o pedido porque a identidade já foi verificada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O backend deve verificar se o usuário tem permissão sobre aquele pedido. Identidade confirmada não concede acesso universal; CORS, CSS e campos ocultos não impedem manipulação de requisições por clientes.",
+      "section": "Fundamentos de backend, HTTP e arquitetura de APIs",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "CORS não constitui um mecanismo geral de autenticação de clientes HTTP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "CORS regula, principalmente, o acesso de scripts do navegador a respostas de outras origens. Clientes fora do navegador não dependem dessa política; identidade e permissões precisam ser verificadas pelo backend.",
+      "section": "Fundamentos de backend, HTTP e arquitetura de APIs",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao criar um novo recurso por POST, a aplicação concluiu a operação com êxito e deseja indicar explicitamente sua criação. Qual status HTTP é o mais característico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "401 Unauthorized",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "403 Forbidden",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "404 Not Found",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "201 Created",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "500 Internal Server Error",
+          "correct": false
+        }
+      ],
+      "explanation": "O status 201 indica criação de recurso com sucesso. Os demais expressam, respectivamente, exigência ou falha de autenticação, proibição, ausência de recurso e erro interno do servidor.",
+      "section": "Fundamentos de backend, HTTP e arquitetura de APIs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A utilização de async/await no Node.js garante que um cálculo matemático síncrono e CPU-intensivo ocorrerá fora da thread do event loop.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Async/await melhora a composição de operações assíncronas, mas não desloca automaticamente cálculo síncrono para outra thread. Uma rotina pesada pode bloquear callbacks e prejudicar a latência das requisições.",
+      "section": "Node.js, event loop, Express e middleware",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Express, após habilitar o middleware apropriado para corpos JSON, qual propriedade do objeto de requisição costuma conter os dados interpretados do corpo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "process.env",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "req.params",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "req.query",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "res.locals",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "req.body",
+          "correct": true
+        }
+      ],
+      "explanation": "req.body armazena dados do corpo processado por middleware como express.json(). req.params vem da rota, req.query da URL; res.locals pertence à resposta e process.env contém variáveis de ambiente.",
+      "section": "Node.js, event loop, Express e middleware",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ordem de registro de middlewares no Express pode determinar se uma rota será protegida por uma etapa de autenticação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Middlewares formam uma cadeia ordenada. Se um handler anterior encerrar a resposta, middleware registrado depois não o protegerá retroativamente; a proteção deve ser montada antes da rota pertinente.",
+      "section": "Node.js, event loop, Express e middleware",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor Express deve modularizar o tratamento de rotas de produtos para posterior montagem sob um prefixo. Qual recurso é específico para criar um conjunto de rotas reutilizável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "express.Router()",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "req.query",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "JSON.stringify()",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "express.json()",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "res.status()",
+          "correct": false
+        }
+      ],
+      "explanation": "express.Router() cria um roteador modular montável. express.json() interpreta corpos JSON, res.status() define status de resposta, req.query lê consulta e JSON.stringify() serializa dados sem registrar rotas.",
+      "section": "Node.js, event loop, Express e middleware",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O middleware express.json() é suficiente, sozinho, para impedir que o cliente informe preço negativo ou nome vazio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "express.json() interpreta corpos JSON; não valida regras de domínio. Restrições como faixa de preço, obrigatoriedade e formato devem ser verificadas explicitamente na lógica de entrada e de negócio.",
+      "section": "Node.js, event loop, Express e middleware",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um manipulador Express encontra erro durante o processamento e precisa encaminhá-lo ao fluxo de middleware de erro. Qual assinatura identifica esse middleware específico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "(res, req)",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "(err, req, res, next)",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "(req, next)",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "(err, res)",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "(req, res)",
+          "correct": false
+        }
+      ],
+      "explanation": "Middlewares de erro do Express têm quatro argumentos: erro, requisição, resposta e função de encaminhamento. As outras assinaturas omitem posições necessárias ou não identificam a estrutura convencional de tratamento.",
+      "section": "Node.js, event loop, Express e middleware",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O event loop do Node.js permite progresso de operações assíncronas de I/O, mas não implica que todo código de aplicação execute simultaneamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Node.js organiza callbacks e I/O assíncrona, porém grande parte do JavaScript de um processo é executada no event loop. Concorrência de I/O não equivale à paralelização automática de toda rotina de CPU.",
+      "section": "Node.js, event loop, Express e middleware",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rota recebe o identificador na URL `/clientes/:id` e um filtro opcional em `?ativo=true`. Onde o Express normalmente disponibiliza esses valores?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambos obrigatoriamente em req.body.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Identificador em process.env e filtro em res.locals.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Identificador em req.params e filtro em req.query.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Identificador em req.query e filtro em req.params.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ambos em req.headers, independentemente da URL.",
+          "correct": false
+        }
+      ],
+      "explanation": "Parâmetros definidos no padrão da rota aparecem em req.params; pares após o ponto de interrogação aparecem em req.query. Corpo, cabeçalhos, ambiente e variáveis da resposta têm outras finalidades.",
+      "section": "Node.js, event loop, Express e middleware",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No padrão MTV do Django, o Template corresponde à camada de apresentação, enquanto a View Python recebe a requisição e prepara uma resposta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Em Django, Model trata dados, Template representa apresentação e View executa lógica de atendimento HTTP. A nomenclatura não deve ser confundida automaticamente com o uso convencional da palavra view em MVC.",
+      "section": "Django clássico: MTV, models, templates e admin",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após alterar um campo de um model Django, um desenvolvedor precisa gerar a migração correspondente, mas ainda não deseja aplicá-la no banco. Qual comando atende a essa etapa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "python manage.py collectstatic",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "python manage.py migrate",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "python manage.py runserver",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "python manage.py makemigrations",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "python manage.py createsuperuser",
+          "correct": false
+        }
+      ],
+      "explanation": "makemigrations gera arquivos de migração a partir das alterações detectadas. migrate aplica migrações; runserver inicia servidor de desenvolvimento, createsuperuser cria usuário e collectstatic reúne arquivos estáticos.",
+      "section": "Django clássico: MTV, models, templates e admin",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Registrar um model no Django admin torna, automaticamente, o formulário administrativo disponível a qualquer visitante anônimo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O admin é área de administração com mecanismos de autenticação e permissões. Registrar um modelo habilita sua administração conforme a política aplicável, não autoriza acesso irrestrito a usuários anônimos.",
+      "section": "Django clássico: MTV, models, templates e admin",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um projeto Django clássico, deseja-se reutilizar uma página-base e renderizar uma lista de objetos em HTML. Qual recurso é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Eloquent para obter contexto de template.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "express.Router() para renderizar diretamente o HTML Django.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Serializers de DRF como motor obrigatório de HTML.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Artisan para compilar as views Python.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Templates Django com herança e tags de iteração.",
+          "correct": true
+        }
+      ],
+      "explanation": "O mecanismo de templates Django suporta herança de layout, tags de iteração e interpolação de variáveis. DRF não é necessário à renderização clássica; Artisan e Eloquent são do Laravel; Router é do Express.",
+      "section": "Django clássico: MTV, models, templates e admin",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração feita na definição de um model Django necessariamente modifica a estrutura da tabela produtiva sem execução de migração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A definição do model não altera por si só toda base de dados. É necessário preparar e aplicar migrações compatíveis, sob controle de implantação. Confundir código do modelo com mudança efetiva de esquema é erro frequente.",
+      "section": "Django clássico: MTV, models, templates e admin",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta Django percorre uma lista de livros e acessa `livro.autor` para cada item, gerando muitas consultas adicionais. Para uma ForeignKey comum, que recurso tende a ajudar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "select_related()",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "makemigrations",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "admin.site.register()",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "csrf_token",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "mark_safe()",
+          "correct": false
+        }
+      ],
+      "explanation": "select_related() pode buscar relações de valor único por join, evitando consultas repetidas a autores. As demais alternativas tratam de saída segura, migrações, registro no admin ou proteção de formulários.",
+      "section": "Django clássico: MTV, models, templates e admin",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O escape automático de HTML em templates Django elimina a necessidade de autorização para ações administrativas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O escape de HTML auxilia na mitigação de XSS na renderização, mas não determina se o solicitante pode executar uma ação. A autorização é controle distinto e indispensável em operações administrativas.",
+      "section": "Django clássico: MTV, models, templates e admin",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente a integração do Django clássico com o Django REST Framework?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O DRF converte Django de Python para PHP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O DRF acrescenta ferramentas de API a projetos Django, sem exigir o abandono de templates e admin.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O Django admin só pode funcionar após instalar DRF.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O DRF substitui obrigatoriamente todos os models Django.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A instalação de DRF impede o uso de views HTML.",
+          "correct": false
+        }
+      ],
+      "explanation": "DRF é construído sobre Django e acrescenta recursos para APIs, como serializers e permissões. Django clássico mantém models, templates e admin, e pode coexistir com endpoints de API no mesmo projeto.",
+      "section": "Django clássico: MTV, models, templates e admin",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em DRF, um serializer pode ser responsável por validar dados de entrada e construir representação para saída.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Serializers do DRF validam dados recebidos e transformam instâncias ou querysets em tipos preparados para renderização. Eles não substituem, porém, as verificações de autenticação e permissão.",
+      "section": "Django REST Framework: serializers, views e permissões",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint DRF precisa validar dados recebidos e sinalizar erro quando houver campo inválido. Qual chamada é apropriada após instanciar o serializer com `data=request.data`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "serializer.migrate()",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "serializer.data.delete()",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "serializer.is_valid(raise_exception=True)",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "serializer.authenticate()",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "serializer.router()",
+          "correct": false
+        }
+      ],
+      "explanation": "is_valid executa validação, e raise_exception=True permite produzir erro adequado em caso de entrada inválida. Os demais métodos indicados não são operações equivalentes do serializer para essa finalidade.",
+      "section": "Django REST Framework: serializers, views e permissões",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A permissão IsAuthenticated assegura, por definição, que um usuário autenticado só visualizará instâncias das quais seja proprietário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "IsAuthenticated apenas exige que a requisição esteja autenticada. Propriedade e acesso a instâncias dependem de verificações de autorização, filtragem de consultas e políticas específicas do domínio.",
+      "section": "Django REST Framework: serializers, views e permissões",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa fornecer rapidamente as operações usuais de listagem, criação, detalhamento, atualização e exclusão de um model via DRF. Qual classe concentra essas ações prontas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "APIView vazia, sem métodos definidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Serializer sem definição de views.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ViewSet básico, sem mixins nem ações declaradas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ModelViewSet",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "TemplateView do Django, isoladamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "ModelViewSet combina ações usuais de CRUD e trabalha com serializers e querysets configurados. Um ViewSet básico ou APIView sem ações não disponibiliza automaticamente esses endpoints; templates e serializers sozinhos não roteiam.",
+      "section": "Django REST Framework: serializers, views e permissões",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A simples configuração de uma permissão por objeto garante que todos os elementos de uma listagem DRF sejam examinados individualmente por essa permissão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Listagens comuns não passam automaticamente pela verificação de permissão por objeto em cada elemento. É preciso filtrar corretamente o queryset e aplicar políticas pertinentes para evitar exposição indevida de registros.",
+      "section": "Django REST Framework: serializers, views e permissões",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma API DRF, a pessoa altera o ID na URL e consegue consultar o cadastro de outra conta. A falha é mais diretamente classificada como:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ausência do mecanismo de herança de templates.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Erro na criação de migração de esquema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Problema exclusivamente causado pelo tipo JSON.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Falha de escape de HTML em template.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Autorização insuficiente ao nível do objeto (BOLA).",
+          "correct": true
+        }
+      ],
+      "explanation": "Acesso ao objeto de outra conta por troca de identificador caracteriza risco de autorização ao nível do objeto. Escape, herança de HTML, migrações e formato de resposta não substituem a política de acesso.",
+      "section": "Django REST Framework: serializers, views e permissões",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os routers do DRF facilitam mapear ações de ViewSets para URLs, sem decidir por si mesmos quem tem autorização para usar cada ação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Routers organizam associações entre rotas HTTP e ações de ViewSets. A decisão de acesso depende de autenticação, classes de permissão e verificações de objetos e querysets, não do roteamento em si.",
+      "section": "Django REST Framework: serializers, views e permissões",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto DRF deve devolver apenas `id`, `titulo` e `publicado` de um model, ocultando campos internos. Qual escolha reduz o risco de exposição indevida na representação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar explicitamente os campos permitidos no serializer.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Habilitar todos os campos automaticamente e confiar no frontend.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Devolver diretamente o dicionário completo de dados internos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar autenticação para simplificar a serialização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Delegar a seleção de campos a uma folha CSS.",
+          "correct": false
+        }
+      ],
+      "explanation": "A lista explícita de campos no serializer limita a superfície de dados expostos. Confiar no cliente, liberar todos os campos, remover autenticação ou usar CSS não impõe minimização confiável no backend.",
+      "section": "Django REST Framework: serializers, views e permissões",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Blade é o mecanismo de templates do Laravel e normalmente utiliza arquivos com extensão `.blade.php`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Blade organiza a apresentação no Laravel, usualmente em arquivos localizados em resources/views. Não se confunde com Eloquent, responsável por acesso a dados, nem com a ferramenta de linha de comando Artisan.",
+      "section": "Laravel: MVC, Blade, Artisan, Eloquent e migrations",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um mantenedor deseja gerar uma nova migração de banco no Laravel, sem aplicá-la imediatamente. Qual comando é destinado à geração do arquivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "php artisan route:list",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "php artisan make:migration create_pedidos_table",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "php artisan migrate",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "php artisan migrate:rollback",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "php artisan serve",
+          "correct": false
+        }
+      ],
+      "explanation": "make:migration gera o arquivo que descreve evolução do esquema. migrate aplica alterações; rollback reverte lote, serve inicia servidor de desenvolvimento e route:list inspeciona rotas registradas.",
+      "section": "Laravel: MVC, Blade, Artisan, Eloquent e migrations",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os comandos `php artisan make:migration` e `php artisan migrate` representam exatamente a mesma operação no Laravel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "make:migration cria o arquivo de definição da mudança; migrate executa migrações pendentes no banco configurado. Distinguem-se preparação versionada e aplicação efetiva do esquema.",
+      "section": "Laravel: MVC, Blade, Artisan, Eloquent e migrations",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma view Blade deve exibir texto fornecido por usuário dentro de HTML. Qual sintaxe aplica, normalmente, escape do conteúdo na saída?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "echo $comentario sem escape",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "@method($comentario)",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "{{ $comentario }}",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "{!! $comentario !!}",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "@php echo $comentario; @endphp",
+          "correct": false
+        }
+      ],
+      "explanation": "A interpolação Blade com chaves duplas aplica escape HTML convencional. A saída com chaves e exclamações não aplica esse escape; expressões PHP cruas não oferecem automaticamente a mesma proteção.",
+      "section": "Laravel: MVC, Blade, Artisan, Eloquent e migrations",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O ORM Eloquent fornece mecanismos para consultar models e relacionamentos, mas não torna desnecessária a autorização de acesso aos registros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Eloquent organiza operações com o banco, incluindo relações e consultas. Não decide sozinho se determinado usuário pode ler ou alterar uma instância; políticas e controles por objeto continuam necessários.",
+      "section": "Laravel: MVC, Blade, Artisan, Eloquent e migrations",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto Laravel apresenta o problema de consultas N+1 ao percorrer pedidos e consultar o cliente de cada pedido. Qual abordagem é adequada ao relacionamento Eloquent?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Geração de token com @csrf.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Execução de php artisan list em cada requisição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituição de SELECT por CSS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Carregamento antecipado com with().",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Renderização com @yield.",
+          "correct": false
+        }
+      ],
+      "explanation": "O carregamento antecipado de relacionamentos com with() pode reduzir buscas repetitivas do tipo N+1. As demais ações dizem respeito a templates, CSRF, inspeção de comandos ou apresentação, sem corrigir a consulta.",
+      "section": "Laravel: MVC, Blade, Artisan, Eloquent e migrations",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um seeder do Laravel e uma migration têm finalidades diferentes: o primeiro ajuda a popular dados e a segunda evolui o esquema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Seeders são voltados à inserção/preparação de dados; migrations descrevem mudanças estruturais no banco. Embora possam participar do mesmo processo de implantação, não são sinônimos nem substitutos gerais.",
+      "section": "Laravel: MVC, Blade, Artisan, Eloquent e migrations",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa criar telas HTML que reutilizem um layout comum, usando diretivas como `@extends` e `@section`. Qual componente do Laravel está envolvido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Eloquent",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Artisan",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Schema Builder",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Composer",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Blade",
+          "correct": true
+        }
+      ],
+      "explanation": "As diretivas de layouts e seções pertencem ao Blade. Eloquent manipula models, Artisan oferece CLI, Schema Builder define esquema e Composer gerencia dependências da aplicação PHP.",
+      "section": "Laravel: MVC, Blade, Artisan, Eloquent e migrations",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Utilizar identificadores UUID em recursos dispensa checagem de autorização por objeto quando a API exige login.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "UUIDs dificultam algumas formas de enumeração, mas não comprovam direito de acesso. O servidor deve decidir se o usuário autenticado pode operar no objeto, independentemente da previsibilidade de seu identificador.",
+      "section": "Comparação prática, testes, segurança e desempenho",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API retorna lista completa de registros e tenta ocultar no navegador aqueles que não pertencem ao usuário. Qual correção é a mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Restringir a consulta no backend aos registros autorizados antes de serializar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Delegar a decisão à validação JavaScript do cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter todos os dados no JSON e apenas esconder linhas com CSS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ofuscar as chaves do JSON sem alterar a consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar logs para tornar o acesso menos visível.",
+          "correct": false
+        }
+      ],
+      "explanation": "A filtragem de registros deve ocorrer no servidor antes de qualquer exposição ao cliente. CSS, ofuscação e validação do navegador não impedem que informações retornadas na resposta sejam lidas ou copiadas.",
+      "section": "Comparação prática, testes, segurança e desempenho",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Laravel, usar escape de HTML em Blade não dispensa consultas SQL parametrizadas nem verificação de permissões.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Escape mitiga determinados riscos de XSS na saída HTML. SQL injection decorre da construção insegura de consultas, e autorização trata de acesso; cada mecanismo protege uma superfície diferente do sistema.",
+      "section": "Comparação prática, testes, segurança e desempenho",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Node.js fica lenta quando o servidor calcula relatórios complexos por longo período dentro do handler síncrono. Qual medida ataca a causa mais diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar o método GET por POST sem alterar a rotina.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar o processamento intensivo fora da thread do event loop, em worker ou serviço adequado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ativar CORS para diminuir o trabalho do processador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Adicionar await antes de qualquer operação matemática síncrona.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mover o relatório para um template HTML sem mudar o cálculo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O gargalo é computação síncrona ocupando a execução principal de JavaScript. Workers ou processamento externo podem isolá-la; await, alteração de método, template ou CORS não paralelizam o cálculo.",
+      "section": "Comparação prática, testes, segurança e desempenho",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A autenticação do usuário e a validação do formato de uma requisição não substituem o controle de autorização sobre o recurso solicitado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Validar dados responde se a entrada é aceitável; autenticar identifica quem chama; autorizar confere direito sobre operação e objeto. Sem a última verificação, uma requisição formalmente válida pode violar isolamento.",
+      "section": "Comparação prática, testes, segurança e desempenho",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cadastro funciona para o dono do registro, mas não foi testado com usuário autenticado de outra conta. Que teste adiciona cobertura de segurança mais relevante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar somente teste de sintaxe de template.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Repetir a operação com o mesmo usuário administrador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tentar ler e modificar o mesmo registro com uma identidade sem autorização.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Verificar apenas a existência do comando de migration.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conferir somente se a cor do botão combina com o layout.",
+          "correct": false
+        }
+      ],
+      "explanation": "O teste cruzado com identidade sem permissão evidencia falhas BOLA e de autorização de função. Verificações visuais, de sintaxe, de administrador e de migração não cobrem adequadamente esse cenário.",
+      "section": "Comparação prática, testes, segurança e desempenho",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A paginação pode reduzir o volume de dados transferidos, mas não autoriza o servidor a ignorar a filtragem de registros por permissão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Paginar limita a quantidade por resposta, mas itens não autorizados ainda seriam vazados se incluídos nas páginas. Deve-se filtrar pelo direito de acesso e depois aplicar paginação consistente aos dados elegíveis.",
+      "section": "Comparação prática, testes, segurança e desempenho",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar ferramentas para backend, qual correspondência está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Django admin: event loop; DRF serializer: proteção CORS; Artisan: ORM.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Node.js: engine de templates Blade; Django admin: gerenciador npm; Eloquent: roteador Express.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DRF router: migrações PHP; Blade: banco de dados; Artisan: login OAuth.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Django admin: administração de modelos; DRF serializer: validação e representação; Laravel Artisan: comandos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Express: ORM Python; Django Template: worker Node.js; Laravel migration: serializer JSON.",
+          "correct": false
+        }
+      ],
+      "explanation": "Django admin facilita administração de modelos, serializers DRF validam e representam dados, e Artisan fornece comandos Laravel. As demais opções trocam componentes entre ecossistemas e atribuem funções incompatíveis.",
+      "section": "Comparação prática, testes, segurança e desempenho",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "The Node.js Event Loop",
+      "publisher": "Node.js Project",
+      "reference": "The Node.js Event Loop",
+      "url": "https://nodejs.org/en/learn/asynchronous-work/event-loop-timers-and-nexttick",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Routing",
+      "publisher": "Express.js",
+      "reference": "Routing",
+      "url": "https://expressjs.com/en/guide/routing/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Using middleware",
+      "publisher": "Express.js",
+      "reference": "Using middleware",
+      "url": "https://expressjs.com/en/guide/using-middleware/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Django at a glance",
+      "publisher": "Django Software Foundation",
+      "reference": "Django at a glance",
+      "url": "https://docs.djangoproject.com/en/5.2/intro/overview/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Security in Django",
+      "publisher": "Django Software Foundation",
+      "reference": "Security in Django",
+      "url": "https://docs.djangoproject.com/en/5.2/topics/security/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Serializers",
+      "publisher": "Django REST framework",
+      "reference": "Serializers",
+      "url": "https://www.django-rest-framework.org/api-guide/serializers/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Permissions",
+      "publisher": "Django REST framework",
+      "reference": "Permissions",
+      "url": "https://www.django-rest-framework.org/api-guide/permissions/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Viewsets",
+      "publisher": "Django REST framework",
+      "reference": "Viewsets",
+      "url": "https://www.django-rest-framework.org/api-guide/viewsets/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Blade Templates",
+      "publisher": "Laravel",
+      "reference": "Blade Templates",
+      "url": "https://laravel.com/framework/docs/13.x/blade",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Artisan Console",
+      "publisher": "Laravel",
+      "reference": "Artisan Console",
+      "url": "https://laravel.com/framework/docs/13.x/artisan",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Database: Migrations",
+      "publisher": "Laravel",
+      "reference": "Database: Migrations",
+      "url": "https://laravel.com/framework/docs/13.x/migrations",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "API1:2023 Broken Object Level Authorization",
+      "publisher": "OWASP",
+      "reference": "API1:2023 Broken Object Level Authorization",
+      "url": "https://api-security.owasp.org/editions/2023/en/0xa1-broken-object-level-authorization/",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

@@ -1,0 +1,548 @@
+{
+  "juntado": true,
+  "auditado": "amostra",
+  "secoes": [
+    {
+      "numero": 1,
+      "titulo": "2. Visões, índices e estruturas de acesso"
+    },
+    {
+      "numero": 2,
+      "titulo": "4. Transações, isolamento, bloqueios e anomalias de concorrência"
+    },
+    {
+      "numero": 3,
+      "titulo": "5. Tuning, planos de execução, estatísticas e diagnóstico sistêmico"
+    },
+    {
+      "numero": 4,
+      "titulo": "1. Dependências funcionais, formas normais e desnormalização"
+    },
+    {
+      "numero": 5,
+      "titulo": "3. Triggers, funções, procedimentos e linguagens procedurais"
+    }
+  ],
+  "questoes": [
+    {
+      "secao": 1,
+      "enunciado": "Em um portal de transparência, o painel de gastos históricos realiza uma agregação cara sobre milhões de lançamentos. A equipe considera substituir a visão comum por uma visão materializada no PostgreSQL. O requisito é reduzir a latência das consultas, admitindo atraso controlado nos indicadores. Nesse contexto, é correto afirmar que a visão materializada",
+      "alternativas": [
+        "armazena o resultado da consulta e demanda atualização explícita para incorporar alterações posteriores na origem.",
+        "reexecuta a consulta de origem a cada leitura, embora preserve em cache seus planos de execução, mesmo após a confirmação de novas despesas nas tabelas de origem.",
+        "atualiza automaticamente somente as linhas alteradas, independentemente do comando utilizado.",
+        "dispensa índices próprios porque herda, de forma integral, os índices das tabelas subjacentes.",
+        "não pode ser consultada por SELECT antes da remoção das tabelas que serviram de fonte."
+      ],
+      "gabarito": "A",
+      "explicacao": "A visão materializada persiste dados derivados e só reflete mudanças da origem após um REFRESH apropriado. Diferentemente da visão comum, a leitura não precisa recalcular toda a consulta; não há atualização incremental automática obrigatória nem herança de índices."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Um serviço mantém a tabela tarefa(id, equipe_id, prioridade, concluida). Consultas frequentes localizam tarefas ainda não concluídas de determinada equipe, ordenadas pela prioridade. O universo de tarefas concluídas é muito maior. Qual desenho tende a produzir um índice mais enxuto e pertinente à carga descrita?",
+      "alternativas": [
+        "Criar índice B-tree somente sobre concluida, sem considerar equipe ou prioridade, ainda que a consulta precise devolver resultados de uma só equipe em ordem de prioridade.",
+        "Criar índice parcial sobre (equipe_id, prioridade), restrito às linhas em que concluida = false.",
+        "Criar índice parcial sobre (equipe_id, prioridade), restrito às linhas em que concluida = true.",
+        "Criar índice único sobre prioridade, pois a ordenação exige unicidade dos valores.",
+        "Criar índice sobre todas as colunas da tabela, inclusive as não utilizadas na consulta."
+      ],
+      "gabarito": "B",
+      "explicacao": "O índice parcial mantém apenas as tarefas elegíveis e permite localizar equipe e ordem com menos entradas. Um índice filtrado pelas concluídas não atende ao predicado; indexar só o booleano ou exigir unicidade da prioridade não resolve o padrão de acesso."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Uma base multiempresa possui índice B-tree composto em (empresa_id, instante_evento). Na aplicação, prevalecem consultas com igualdade em empresa_id e intervalo em instante_evento. O analista deseja avaliar a utilidade da ordem dessas colunas no índice. Assinale a interpretação tecnicamente adequada.",
+      "alternativas": [
+        "A ordem das colunas é indiferente porque qualquer índice composto realiza busca binária independente em cada atributo, sem considerar a ordem física das colunas definidas na estrutura de acesso.",
+        "O intervalo da segunda coluna impede sempre a utilização do índice, mesmo com igualdade na primeira.",
+        "O predicado de igualdade sobre a primeira coluna delimita o intervalo do índice no qual o filtro temporal pode ser explorado eficientemente.",
+        "O índice só pode beneficiar consultas que selecionem as duas colunas na projeção do SELECT.",
+        "O planejador exige uma condição de igualdade nas duas colunas antes de considerar um índice B-tree composto."
+      ],
+      "gabarito": "C",
+      "explicacao": "Em um B-tree multicoluna, a igualdade na coluna inicial restringe a faixa de busca, e o intervalo na seguinte pode refinar esse acesso. A ordem não é indiferente; tampouco é obrigatório projetar as colunas ou comparar ambas por igualdade."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Para acelerar `SELECT codigo, valor FROM recebimento WHERE codigo = 900`, foi criado, no PostgreSQL, um índice B-tree em codigo com `INCLUDE (valor)`. Apesar disso, o EXPLAIN mostra acessos ao heap durante um Index Only Scan em páginas recentemente modificadas. A razão é que",
+      "alternativas": [
+        "a cláusula INCLUDE torna o índice incapaz de armazenar o valor da coluna adicional.",
+        "um Index Only Scan sempre precisa visitar a tabela para obter toda coluna que não integra a chave de busca.",
+        "o PostgreSQL proíbe varredura apenas de índice quando a consulta apresenta um predicado de igualdade.",
+        "a visibilidade MVCC dessas páginas ainda precisa ser conferida nas tuplas quando o mapa de visibilidade não as assinala como inteiramente visíveis.",
+        "a coluna incluída passa a ser uma chave de ordenação, exigindo validação de sua unicidade no heap."
+      ],
+      "gabarito": "D",
+      "explicacao": "INCLUDE disponibiliza a coluna para possível leitura apenas pelo índice, mas não armazena informações completas de visibilidade MVCC. Páginas sem a marca all-visible podem exigir visita ao heap; isso não nega o suporte do B-tree ao Index Only Scan."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Em um cadastro técnico há um índice de expressão `CREATE INDEX ix_medida ON amostra ((massa * volume));`. O sistema consulta predominantemente `WHERE massa * volume > 120`. A respeito do potencial de aproveitamento desse índice, é correto afirmar que",
+      "alternativas": [
+        "índices de expressão só servem a consultas de igualdade estrita e nunca a comparações de intervalo.",
+        "o índice é atualizado apenas ao executar ANALYZE, pois seu conteúdo é uma estatística derivada.",
+        "o produto será armazenado no índice sem necessidade de manutenção quando massa ou volume sofrerem UPDATE.",
+        "a mera existência do índice torna obrigatório seu uso, mesmo quando quase todas as linhas satisfazem o filtro, por expressa determinação do executor, independentemente das estatísticas disponíveis.",
+        "o planejador pode utilizar o índice para predicados compatíveis com a expressão indexada, desde que o custo estimado justifique a escolha."
+      ],
+      "gabarito": "E",
+      "explicacao": "Um índice de expressão pode dar suporte à comparação feita sobre a mesma expressão, inclusive a intervalos, mas sua adoção depende do plano de menor custo. O índice é mantido nas alterações de dados e não constitui apenas estatística do ANALYZE."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Uma plataforma registra eventos em tabela muito grande, gravados aproximadamente em ordem cronológica. As investigações filtram períodos de tempo extensos, e a equipe precisa reduzir substancialmente o espaço dedicado a estruturas de acesso, aceitando rechecagens de blocos. No PostgreSQL, a estrutura mais alinhada é",
+      "alternativas": [
+        "um índice BRIN no instante, que resume faixas de páginas e aproveita a correlação física entre posição e tempo.",
+        "um índice GIN no instante, que guarda diretamente cada faixa de páginas em uma árvore ordenada.",
+        "um índice hash no instante, que oferece buscas eficientes por intervalos cronológicos amplos.",
+        "um índice B-tree em cada campo da linha, necessário para dispensar a leitura de blocos físicos, independentemente da distribuição real dos instantes registrados e da seletividade.",
+        "um índice único no instante, pois a unicidade garante proporcionalmente menos entradas."
+      ],
+      "gabarito": "A",
+      "explicacao": "BRIN registra resumos por intervalos de páginas e é vantajoso quando os valores têm correlação com a ordem física, embora possa exigir rechecagens. Hash não atende a intervalos, e GIN tem outros casos de uso; unicidade não decorre do requisito temporal."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Uma aplicação armazena metadados em coluna `atributos jsonb` e executa muitas consultas do tipo `WHERE atributos @> '{\"tipo\": \"externo\"}'::jsonb`. O arquiteto quer uma estrutura voltada à busca por conteúdo de documentos JSON, sem criar coluna para cada chave. Qual alternativa é mais apropriada?",
+      "alternativas": [
+        "Um índice hash sobre o documento completo, que indexa automaticamente todos os caminhos internos.",
+        "Um índice GIN sobre a coluna jsonb, com classe de operadores compatível com @>.",
+        "Um índice B-tree sobre o documento completo, capaz de isolar qualquer par chave-valor como prefixo.",
+        "Um índice BRIN sobre o tamanho textual do JSON, suficiente para localizar propriedades internas.",
+        "Um índice único sobre o campo jsonb, que converte o predicado de contenção em igualdade."
+      ],
+      "gabarito": "B",
+      "explicacao": "GIN permite indexar elementos pesquisáveis de jsonb e pode acelerar operadores de contenção como @>. Um hash ou B-tree do documento inteiro não equivale a índice de pares internos; BRIN baseado em tamanho e unicidade tampouco resolvem o predicado."
+    },
+    {
+      "secao": 1,
+      "enunciado": "Uma visão automaticamente atualizável `v_abertas` expõe registros de `solicitacao` com `situacao = 'ABERTA'` e foi definida com `WITH CHECK OPTION`. Um operador tenta, por meio da própria visão, atualizar a situação de uma solicitação para `ENCERRADA`. Considerando a definição informada, o SGBD deverá",
+      "alternativas": [
+        "aceitar a operação, porque o filtro da visão só se aplica a SELECT, nunca a UPDATE.",
+        "apagar a linha da tabela de origem ao constatar que ela deixou de pertencer à visão.",
+        "rejeitar a atualização por violar a condição que as linhas resultantes precisam satisfazer na visão.",
+        "alterar a situação de todas as outras solicitações abertas para preservar a consistência da visão.",
+        "transformar automaticamente a visão em materializada para registrar a alteração solicitada."
+      ],
+      "gabarito": "C",
+      "explicacao": "WITH CHECK OPTION, em visão automaticamente atualizável, exige que o resultado de INSERT ou UPDATE satisfaça o filtro da visão. A operação incompatível é barrada; a linha não é excluída da tabela nem a visão se materializa automaticamente."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Em uma base PostgreSQL configurada com READ COMMITTED, uma transação T1 executa SELECT e encontra 12 registros pendentes. Antes do segundo SELECT de T1, T2 insere um novo registro pendente e confirma. T1 repete a consulta, sem fazer alterações próprias. Qual resultado é compatível com esse isolamento?",
+      "alternativas": [
+        "T1 necessariamente manterá 12 registros, porque todo isolamento conserva a mesma fotografia até o COMMIT, inclusive quando outra transação já confirmou novas inserções.",
+        "O INSERT de T2 ficará impedido até o fim de T1, uma vez que a primeira consulta bloqueou o predicado.",
+        "T1 poderá ler o novo registro ainda não confirmado, pois READ COMMITTED admite leituras sujas.",
+        "A segunda consulta de T1 poderá retornar 13 registros, pois cada comando obtém seu próprio instantâneo de dados confirmados.",
+        "A nova linha só poderá ser vista após T1 abrir uma transação com isolamento SERIALIZABLE."
+      ],
+      "gabarito": "D",
+      "explicacao": "No READ COMMITTED do PostgreSQL, cada comando parte de um instantâneo dos dados confirmados ao iniciar. Assim, uma nova linha já confirmada pode surgir na segunda consulta. Não há leitura suja nem bloqueio automático de toda a condição pesquisada."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Duas sessões PostgreSQL operam em REPEATABLE READ. T1 consulta a lista de reservas de uma sala; depois, T2 insere e confirma uma nova reserva que satisfaria o mesmo filtro. Sem alterar dados por conta própria, T1 repete o SELECT. Qual conclusão corresponde ao comportamento desse nível no PostgreSQL?",
+      "alternativas": [
+        "T1 deve visualizar a reserva recém-inserida porque o padrão SQL exige fantasmas em todo REPEATABLE READ, mesmo após alterações confirmadas por outras sessões durante a transação.",
+        "T2 não consegue efetivar o INSERT, visto que qualquer SELECT bloqueia inserções na faixa de chaves.",
+        "T1 lerá a reserva se T2 confirmar antes do segundo SELECT, ainda que o primeiro já tenha ocorrido.",
+        "O instantâneo estável prova que duas transações concorrentes não podem violar invariantes de negócio.",
+        "T1 não visualiza a nova reserva, porque mantém um instantâneo estável, embora ainda possam existir anomalias de serialização."
+      ],
+      "gabarito": "E",
+      "explicacao": "O REPEATABLE READ do PostgreSQL utiliza instantâneo estável e evita que T1 veja a inserção posterior de T2. Isso é mais forte que o mínimo exigido pelo padrão quanto a fantasmas, mas não afasta por si só toda anomalia de serialização."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Uma equipe observa deadlocks ocasionais entre rotinas: a primeira altera a conta X e depois Y, enquanto a segunda altera Y e depois X. Ambas precisam manter a operação atômica e preservar os dois registros. Qual medida preventiva melhor reduz esse tipo de ciclo de espera?",
+      "alternativas": [
+        "Estabelecer uma ordem global consistente para adquirir bloqueios, por exemplo, sempre pelo identificador crescente das contas.",
+        "Executar os dois UPDATE sem transação explícita, pois um deadlock só ocorre após BEGIN, ainda que os dois comandos façam parte de uma mesma operação lógica de negócio.",
+        "Ampliar indefinidamente o tempo de espera dos bloqueios, evitando que haja detecção do ciclo.",
+        "Remover as chaves primárias, já que elas são a origem necessária de todo deadlock.",
+        "Trocar o isolamento por READ UNCOMMITTED, garantindo que UPDATE não solicite bloqueios."
+      ],
+      "gabarito": "A",
+      "explicacao": "Deadlock decorre de dependências circulares entre bloqueios. Adquirir recursos sempre na mesma ordem reduz a possibilidade do ciclo. Aumentar a espera não desfaz o impasse, e alterações de isolamento ou de índices não eliminam a necessidade de bloqueios de escrita."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Um sistema de plantões exige que pelo menos um de dois responsáveis esteja de serviço. Em PostgreSQL REPEATABLE READ, T1 lê ambos e desescala o primeiro; T2 lê o mesmo estado e desescala o segundo. Cada transação altera uma linha distinta e ambas podem confirmar. Trata-se de",
+      "alternativas": [
+        "leitura suja, pois cada transação necessariamente consultou a alteração ainda não confirmada da outra, mesmo quando todas as leituras ocorreram antes de qualquer gravação concorrente.",
+        "write skew, pois decisões sobre o mesmo invariante baseadas em um instantâneo consistente produzem juntas um resultado inválido.",
+        "atualização perdida, pois as duas transações sobrescreveram a mesma versão da mesma linha.",
+        "fantasma, pois uma das transações precisou inserir uma nova linha para violar a regra.",
+        "inconsistência impossível em REPEATABLE READ, já que ele equivale sempre à execução serial."
+      ],
+      "gabarito": "B",
+      "explicacao": "O write skew surge quando transações leem uma condição comum e atualizam linhas diferentes, preservando-a isoladamente, mas violando-a em conjunto. Não houve leitura suja nem sobrescrita da mesma linha; isolamento por instantâneo não garante serialização."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Uma bilheteria precisa reservar um assento existente sem permitir que duas sessões alterem seu estado simultaneamente. A aplicação faz a verificação e a alteração dentro da mesma transação e deseja bloquear a linha selecionada até o desfecho da operação. No PostgreSQL, é apropriado utilizar",
+      "alternativas": [
+        "SELECT comum, porque sua execução estabelece bloqueio exclusivo de escrita até o encerramento da transação.",
+        "ORDER BY assento_id, porque a ordenação também impede transações concorrentes de atualizar a linha.",
+        "SELECT ... FOR UPDATE sobre a linha do assento, seguido da alteração na mesma transação.",
+        "ANALYZE na tabela antes do SELECT, pois estatísticas recentes implementam bloqueio lógico.",
+        "CREATE VIEW sobre os assentos livres, pois uma visão simples preserva automaticamente exclusividade."
+      ],
+      "gabarito": "C",
+      "explicacao": "SELECT FOR UPDATE bloqueia as linhas selecionadas para modificações conflitantes até o fim da transação, viabilizando a decisão seguida de UPDATE. Um SELECT ordinário em MVCC não possui essa garantia; ordenação, visão e estatísticas não a substituem."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Durante um processamento de pagamentos, a transação grava um lote válido, estabelece `SAVEPOINT validado`, tenta registrar um ajuste opcional e recebe um erro tratável. A aplicação deseja desfazer apenas a etapa opcional, mantendo o lote inicial sem confirmar ainda. Qual comando atende à intenção?",
+      "alternativas": [
+        "COMMIT, que reverte a etapa opcional e conserva somente as operações anteriores ao último SAVEPOINT.",
+        "ROLLBACK, que descarta apenas as instruções executadas depois do SAVEPOINT mais recente.",
+        "RELEASE SAVEPOINT validado, que desfaz as instruções posteriores e persiste imediatamente as anteriores.",
+        "ROLLBACK TO SAVEPOINT validado, prosseguindo na transação para uma decisão posterior de COMMIT ou ROLLBACK.",
+        "SET TRANSACTION READ ONLY, que converte em leituras todas as escritas realizadas após o marco."
+      ],
+      "gabarito": "D",
+      "explicacao": "ROLLBACK TO SAVEPOINT desfaz os efeitos posteriores ao ponto de salvamento sem anular os atos anteriores da transação. COMMIT confirma o conjunto, ROLLBACK simples desfaz tudo e RELEASE apenas libera o marco; READ ONLY não reverte escritas."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Uma carteira de créditos possui coluna saldo. A operação deve descontar 20 unidades apenas se houver saldo suficiente, mesmo diante de solicitações simultâneas. A equipe propõe emitir um único `UPDATE carteira SET saldo = saldo - 20 WHERE id = 7 AND saldo >= 20`, conferindo a contagem de linhas afetadas. Por que essa estratégia é adequada?",
+      "alternativas": [
+        "O comando garante que todos os SELECT concorrentes passarão a enxergar imediatamente o saldo ainda não confirmado.",
+        "A condição WHERE elimina a necessidade de o PostgreSQL manter bloqueios e verificar versões concorrentes.",
+        "A subtração é calculada uma única vez por aplicação, antes de o banco adquirir qualquer bloqueio.",
+        "A verificação seria equivalente a ler o saldo e depois enviar um UPDATE incondicional em outra transação.",
+        "O teste e o desconto integram um comando de escrita com controle de concorrência da linha, permitindo detectar ausência de crédito pela contagem afetada."
+      ],
+      "gabarito": "E",
+      "explicacao": "O UPDATE condicional avalia o saldo no contexto do controle concorrente da linha e aplica o desconto de forma atômica; zero linhas afetadas indica que a condição não foi satisfeita. Leitura e atualização separadas não oferecem a mesma proteção."
+    },
+    {
+      "secao": 2,
+      "enunciado": "Um serviço usa SERIALIZABLE no PostgreSQL e eventualmente recebe falha de serialização ao consolidar alterações de estoque. O programador pretende capturar a falha e reenviar apenas o último UPDATE, reutilizando decisões tomadas antes na transação fracassada. O procedimento correto é",
+      "alternativas": [
+        "refazer a transação inteira, recalculando suas leituras e decisões, com estratégia de repetição e cuidado com efeitos externos.",
+        "confirmar imediatamente a transação rejeitada, porque a falha afeta apenas o último comando.",
+        "ignorar o erro, já que o mecanismo SERIALIZABLE sempre aplica as alterações mesmo após relatar conflito.",
+        "substituir somente o SELECT inicial por um SELECT sem WHERE, preservando os demais resultados já lidos.",
+        "remover a chave primária do estoque, pois falhas de serialização são causadas exclusivamente por índices únicos, sem rever decisões de negócio tomadas antes do primeiro conflito encontrado."
+      ],
+      "gabarito": "A",
+      "explicacao": "Falha de serialização indica que o conjunto de operações não pôde ser validado como execução serial. É preciso reiniciar a transação e refazer as decisões a partir de novas leituras; repetir só o último comando pode perpetuar premissas inválidas."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Durante a investigação de um UPDATE lento em produção, um analista deseja obter tempos e contagens de linhas reais do plano, mas não quer preservar alterações de um teste. Qual procedimento é tecnicamente coerente no PostgreSQL?",
+      "alternativas": [
+        "Executar apenas EXPLAIN sem ANALYZE, pois ele mede tempo real sem executar a modificação.",
+        "Abrir uma transação, executar EXPLAIN (ANALYZE, BUFFERS) no UPDATE e depois emitir ROLLBACK.",
+        "Executar EXPLAIN ANALYZE sem transação, pois a opção desfaz implicitamente as alterações de dados.",
+        "Executar VACUUM FULL e inferir os tempos reais de cada operador pela redução física da tabela.",
+        "Criar uma VIEW do UPDATE, porque EXPLAIN só aceita SELECTs e não tem suporte a operações de escrita."
+      ],
+      "gabarito": "B",
+      "explicacao": "EXPLAIN ANALYZE executa de fato o comando e coleta métricas observadas; BUFFERS acrescenta uso de blocos. Encapsular o teste em transação e aplicar ROLLBACK evita persistir seus efeitos no banco. EXPLAIN simples mostra apenas estimativas."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Após uma importação que multiplicou o volume de uma tabela, o plano de uma consulta passou a estimar poucas linhas em um filtro que retorna centenas de milhares. Os índices permanecem íntegros e não há evidência de espera por bloqueios. A primeira providência técnica de diagnóstico é",
+      "alternativas": [
+        "recriar todas as chaves estrangeiras porque elas sempre determinam a estimativa de linhas do filtro.",
+        "aumentar a quantidade de conexões simultâneas para induzir o otimizador a usar índices.",
+        "atualizar estatísticas com ANALYZE e comparar cardinalidades estimadas e reais no plano.",
+        "remover ORDER BY da aplicação inteira, sem examinar o plano que produziu a discrepância.",
+        "substituir SELECT por SELECT DISTINCT, tornando corretas as estatísticas da tabela automaticamente."
+      ],
+      "gabarito": "C",
+      "explicacao": "O otimizador estima seletividade a partir de estatísticas que podem ficar defasadas após grandes cargas. ANALYZE e a comparação entre rows estimadas e reais investigam a hipótese. Mudanças indiscriminadas em chaves, conexões ou SQL não corrigem esse diagnóstico."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Uma consulta reúne uma pequena lista de clientes selecionados por chave e seus movimentos em tabela de centenas de milhões de linhas, indexada por cliente_id. O plano precisa localizar poucos movimentos por cliente, repetidamente, e minimizar leituras desnecessárias. Qual estratégia de junção é particularmente promissora?",
+      "alternativas": [
+        "Cross Join materializando o produto cartesiano completo, com filtro apenas após a combinação.",
+        "Hash Join sem considerar filtro algum, porque a tabela maior precisa necessariamente ser lida inteira.",
+        "Merge Join exigindo ordenar todas as linhas da tabela de movimentos em cada iteração da lista.",
+        "Nested Loop com a relação pequena no lado externo e busca indexada na tabela de movimentos no lado interno.",
+        "Eliminação da junção e substituição automática por UNION, independentemente das colunas selecionadas."
+      ],
+      "gabarito": "D",
+      "explicacao": "Com poucas linhas externas e um índice seletivo no lado interno, Nested Loop permite buscas direcionadas de baixo custo. Um produto cartesiano não ajuda; Hash e Merge podem ser melhores em outros volumes, mas não são obrigatoriamente superiores nesse cenário."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Uma tabela possui índice B-tree em `criado_em`, do tipo timestamp sem fuso. Para buscar eventos de um dia, um desenvolvedor escreve `WHERE CAST(criado_em AS date) = DATE '2026-10-10'`. Sem criar novo índice, qual reescrita tende a explorar melhor o índice existente?",
+      "alternativas": [
+        "WHERE CAST(criado_em AS text) LIKE '2026-10-10%', preservando qualquer comparação de intervalo.",
+        "WHERE DATE_PART('day', criado_em) = 10, sem testar mês e ano, porque a chave já contém a data.",
+        "WHERE criado_em IS NOT NULL, delegando ao ORDER BY a seleção de apenas um dia.",
+        "WHERE criado_em = TIMESTAMP '2026-10-10 00:00:00', pois uma igualdade cobre todo o dia civil.",
+        "WHERE criado_em >= TIMESTAMP '2026-10-10 00:00:00' AND criado_em < TIMESTAMP '2026-10-11 00:00:00'."
+      ],
+      "gabarito": "E",
+      "explicacao": "O intervalo semiaberto compara diretamente a coluna indexada com limites timestamp e cobre todas as horas da data. Aplicar funções ou conversões à coluna pode dificultar o uso do índice existente; testar só a meia-noite perde os demais eventos."
+    },
+    {
+      "secao": 3,
+      "enunciado": "O histórico de um serviço é exibido em páginas ordenadas por `(instante DESC, id DESC)`, combinação única. Para avançar além de um registro já mostrado, a aplicação pretende abandonar `OFFSET 100000 LIMIT 50`, preservando a ordenação e evitando percorrer muitas linhas anteriores. Qual filtro é compatível com paginação por chave?",
+      "alternativas": [
+        "WHERE (instante, id) < (:ultimo_instante, :ultimo_id), mantendo ORDER BY instante DESC, id DESC e LIMIT 50.",
+        "WHERE id <> :ultimo_id, sem ordenar, pois qualquer linha diferente pertence à próxima página.",
+        "WHERE instante <= :ultimo_instante, omitindo id e mantendo necessariamente todas as linhas da fronteira, mantendo valores de data repetidos sem qualquer critério adicional de desempate.",
+        "WHERE (instante, id) > (:ultimo_instante, :ultimo_id), com a mesma ordenação descendente.",
+        "WHERE numero_pagina = 100001, embora a tabela não contenha coluna de numeração das páginas."
+      ],
+      "gabarito": "A",
+      "explicacao": "Na ordem descendente, a próxima página contém pares lexicograficamente menores que o último par exibido. Usar instante e id resolve empates de data e permite percurso por chave. OFFSET grande exige descartar muitas linhas anteriores."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Um relatório leva 40 segundos, e o monitoramento revela pouco uso de disco, porém CPU elevada. O plano contém agregação, múltiplos cálculos e grande quantidade de linhas processadas. Para avançar no diagnóstico, o time deveria",
+      "alternativas": [
+        "atribuir a lentidão exclusivamente ao armazenamento físico, porque toda consulta lenta é limitada por I/O.",
+        "examinar tempos e linhas por nó no EXPLAIN ANALYZE e correlacioná-los com métricas de CPU e frequência da consulta.",
+        "desativar todas as restrições de integridade, pois elas são sempre a causa principal de CPU em SELECT.",
+        "assumir que a ausência de leituras em disco prova inexistência de trabalho relevante no servidor.",
+        "forçar um índice arbitrário antes de verificar quais operadores processam a maior quantidade de linhas."
+      ],
+      "gabarito": "B",
+      "explicacao": "A alta CPU com baixo I/O sugere investigar custo de cálculo, agregação, volume processado e frequência. Tempos reais do plano e métricas sistêmicas ajudam a localizar o gargalo. Não se deve presumir disco, índice ou restrições como causa sem evidência."
+    },
+    {
+      "secao": 3,
+      "enunciado": "Um sistema registra vendas em `venda(id, loja_id)` e itens em `item(venda_id, valor)`. Ao juntar as tabelas e depois somar receitas por loja, uma atualização incluiu outra tabela de detalhes com várias linhas por item e o total passou a ser multiplicado. Qual correção de SQL preserva a granularidade pretendida?",
+      "alternativas": [
+        "Aplicar COUNT(*) ao resultado final, porque contagens consertam automaticamente totais monetários.",
+        "Inserir DISTINCT apenas nos valores monetários, removendo todas as vendas com o mesmo valor nominal.",
+        "Calcular a receita em uma subconsulta independente dos detalhes multiplicadores, agregando os itens por venda e depois os subtotais por loja.",
+        "Trocar todos os INNER JOIN por CROSS JOIN, evitando que um item apareça mais de uma vez.",
+        "Ordenar por valor antes de realizar SUM, pois ORDER BY elimina multiplicidades nas junções."
+      ],
+      "gabarito": "C",
+      "explicacao": "A multiplicidade introduzida pela junção duplica contribuições ao SUM. Pré-agregar na granularidade da venda, ou reestruturar a consulta sem o relacionamento multiplicador, corrige o total. DISTINCT sobre valor pode eliminar montantes legítimos iguais."
+    },
+    {
+      "secao": 3,
+      "enunciado": "O planejador PostgreSQL estima seletividade muito baixa para `WHERE pais = 'BR' AND moeda = 'BRL'`, embora os atributos sejam fortemente correlacionados. Há estatísticas individuais recentes, e o filtro usa igualdades com constantes na mesma tabela. Qual recurso pode melhorar a estimativa combinada?",
+      "alternativas": [
+        "Criar apenas uma visão sem filtro, pois ela determina automaticamente a correlação entre colunas.",
+        "Aumentar o número de conexões, porque a correlação estatística se deriva do paralelismo.",
+        "Substituir o filtro por duas condições OR, sem verificar se o resultado continua equivalente.",
+        "Criar estatísticas estendidas de dependências sobre (pais, moeda) e executar ANALYZE.",
+        "Desativar o coletor de estatísticas para evitar que o planejador multiplique seletividades."
+      ],
+      "gabarito": "D",
+      "explicacao": "Estatísticas estendidas de dependências representam correlação entre atributos e podem aprimorar estimativas de filtros de igualdade na mesma relação. É necessário coletá-las com ANALYZE. Uma visão comum, mais conexões ou alterar AND para OR não resolve o modelo."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Uma relação R(A,B,C,D,E) está sujeita apenas às dependências funcionais D → A, A → B, B → C e CD → E, além das que delas decorrem logicamente. Na análise de projeto lógico, qual dos conjuntos a seguir é chave candidata de R?",
+      "alternativas": [
+        "{A}, pois determina B e C e, por transitividade, também D e E.",
+        "{B,C}, pois ter C no conjunto permite inferir D diretamente a partir de CD → E.",
+        "{C}, pois C é atributo comum ao lado esquerdo da dependência que produz E.",
+        "{E}, pois todo atributo produzido no lado direito determina os demais atributos por simetria.",
+        "{D}, pois seu fecho alcança todos os atributos e nenhum subconjunto próprio existe."
+      ],
+      "gabarito": "E",
+      "explicacao": "De D decorrem A, B e C; combinando C com D, obtém-se E. Logo, D determina todos os atributos e é minimal. As demais opções não permitem deduzir D pelas dependências dadas; dependência funcional não implica reversibilidade."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Uma tabela `LinhaCompra(compra_id, sku, nome_fornecedor, quantidade)` possui chave candidata composta `(compra_id, sku)`. A regra do negócio estabelece `compra_id → nome_fornecedor`, e o nome do fornecedor não integra qualquer chave candidata. Considerando a dependência apresentada, a tabela",
+      "alternativas": [
+        "viola a segunda forma normal, porque atributo não primo depende de parte própria da chave candidata composta.",
+        "está necessariamente na forma normal de Boyce-Codd, porque há apenas um identificador de compra.",
+        "viola apenas a primeira forma normal, pois toda chave composta representa valor multivalorado.",
+        "satisfaz a segunda forma normal, já que qualquer dependência da chave inteira também vale para cada parte, porque a chave composta absorve automaticamente toda dependência de uma de suas partes.",
+        "tem redundância eliminada ao adicionar uma restrição UNIQUE somente à coluna quantidade."
+      ],
+      "gabarito": "A",
+      "explicacao": "Se o fornecedor é determinado por compra_id, parte própria da chave composta, há dependência parcial de atributo não primo, incompatível com a segunda forma normal. Chave composta não viola a primeira forma normal por si e UNIQUE em quantidade não corrige o projeto."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Considere R(A,B,C), com as únicas dependências funcionais não triviais `AB → C` e `C → B`, mais suas consequências. As chaves candidatas são AB e AC. À luz das definições de terceira forma normal (3FN) e Boyce-Codd (FNBC), a relação",
+      "alternativas": [
+        "viola a 3FN, pois qualquer determinante que não seja superchave é proibido mesmo com dependente primo.",
+        "está na 3FN, mas não na FNBC, pois C não é superchave e B é atributo primo.",
+        "está na FNBC, pois B participa de uma chave candidata e, portanto, C também é superchave.",
+        "não possui chaves candidatas, uma vez que AB e AC contêm mais de um atributo.",
+        "somente satisfaz 1FN, porque toda dependência C → B impede a existência de 2FN."
+      ],
+      "gabarito": "B",
+      "explicacao": "A dependência C → B não atende à FNBC porque C não é superchave. Na 3FN, entretanto, é admitido dependente primo, como B, que pertence à chave AB. As demais dependências dadas não afastam essa conclusão."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Uma equipe de modelagem decompõe R(A,B,C), sabendo que `A → B` é uma dependência funcional válida, em R1(A,B) e R2(A,C). Para as decomposições binárias por projeção, a condição clássica de junção sem perdas é satisfeita porque",
+      "alternativas": [
+        "as duas relações possuem nomes de colunas diferentes, dispensando qualquer condição de junção.",
+        "R2 contém C, e todo atributo que só aparece em uma relação determina automaticamente os atributos comuns.",
+        "a interseção das relações é A e A determina funcionalmente todos os atributos de R1.",
+        "A decomposição é sem perdas apenas se B também determinar C e C determinar B.",
+        "qualquer decomposição em duas projeções é sem perdas desde que ambas tenham pelo menos duas colunas."
+      ],
+      "gabarito": "C",
+      "explicacao": "Na decomposição binária, a junção é sem perdas se a interseção determinar todos os atributos de pelo menos uma das projeções. Como R1∩R2 = {A} e A → B, A determina R1. A mera presença de colunas compartilhadas não garante essa propriedade."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Uma relação apresenta dependências cuja síntese em terceira forma normal preserva as restrições locais de modo conveniente. Um revisor propõe decompor todas as relações até a forma normal de Boyce-Codd, afirmando que isso sempre conserva cada dependência funcional verificável sem junções. A afirmação é",
+      "alternativas": [
+        "correta: a FNBC é definida precisamente pela preservação de todas as dependências originais.",
+        "correta apenas se nenhuma das relações resultantes contiver chave candidata.",
+        "incorreta porque a FNBC não admite decomposição sem perdas em nenhuma circunstância.",
+        "incorreta: decomposições em FNBC podem ser sem perdas e, ainda assim, deixar de preservar certas dependências funcionais.",
+        "correta porque qualquer dependência não preservada desaparece automaticamente das regras de negócio."
+      ],
+      "gabarito": "D",
+      "explicacao": "A normalização para FNBC pode eliminar anomalias ao exigir determinantes que sejam superchaves, mas não garante preservação de todas as dependências em projeções isoladas. Junção sem perdas e preservação de dependências são propriedades distintas."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Um cadastro armazena `Professor(prof_id, idioma, projeto)`. Cada professor pode dominar vários idiomas e participar de vários projetos; os dois conjuntos são independentes e todos os cruzamentos aparecem na relação. Admitindo valores atômicos, sem dependências adicionais relevantes, a correção de quarta forma normal consiste em",
+      "alternativas": [
+        "colocar todos os idiomas em uma coluna separada por vírgulas, preservando uma linha por professor.",
+        "acrescentar um índice único em projeto, obrigando que cada projeto pertença a apenas um professor.",
+        "excluir o identificador do professor e usar idioma e projeto como chave global.",
+        "manter a relação única porque dependências multivaloradas não influenciam a quarta forma normal.",
+        "separar as relações (prof_id, idioma) e (prof_id, projeto), evitando o produto cruzado de fatos independentes."
+      ],
+      "gabarito": "E",
+      "explicacao": "Quando idiomas e projetos variam independentemente por professor, a relação conjunta representa dependências multivaloradas e produz combinações redundantes. Decompor os dois vínculos remove a redundância; listas em células prejudicam a atomicidade."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Uma plataforma de relatórios repete em uma tabela analítica o nome do setor associado ao código setorial, embora esse nome exista em uma dimensão normalizada. A duplicação melhora consultas muito frequentes, mas exige disciplina operacional. Qual avaliação reflete corretamente a desnormalização deliberada?",
+      "alternativas": [
+        "Pode reduzir junções de leitura, desde que sejam controlados os riscos de divergência e o custo de sincronizar dados redundantes.",
+        "É sempre proibida por SQL, mesmo em modelos voltados exclusivamente à leitura.",
+        "Elimina a necessidade de qualquer atualização futura, porque cópias de dados se autocorrigem.",
+        "Torna impossível uma anomalia de atualização, pois todas as linhas passam a conter mais colunas.",
+        "Garante melhor desempenho para qualquer carga, inclusive escrita intensa, sem necessidade de medição, inclusive quando esse mesmo valor monetário aparece em vendas legítimas diferentes."
+      ],
+      "gabarito": "A",
+      "explicacao": "A desnormalização é troca consciente entre desempenho de leitura e complexidade de manutenção. Pode reduzir junções, mas repete fatos sujeitos a atualização inconsistente e maior custo de escrita. Seus ganhos precisam ser medidos, não presumidos universais."
+    },
+    {
+      "secao": 4,
+      "enunciado": "Um conjunto de dados de teste contém a relação `Registro(codigo, categoria)` e, em todas as linhas existentes, cada codigo aparece associado a uma única categoria. O projetista conclui que a dependência `codigo → categoria` é uma regra definitiva do domínio. Sobre essa inferência, assinale a opção correta.",
+      "alternativas": [
+        "A observação torna a dependência um axioma universal, válido para todas as cargas futuras.",
+        "A amostra é compatível com a dependência, mas a regra deve ser confirmada por requisitos e restrições do domínio, não apenas por coincidência dos dados atuais.",
+        "A dependência só pode ser verdadeira se categoria também determinar codigo.",
+        "A presença de códigos repetidos, mesmo com categorias iguais, sempre refuta a dependência.",
+        "Dependências funcionais não podem ser empregadas no projeto lógico de esquemas SQL."
+      ],
+      "gabarito": "B",
+      "explicacao": "Uma instância sem contraexemplos apenas não refuta a dependência; ela não demonstra que a regra vale para todas as instâncias admissíveis. O domínio e suas restrições devem fundamentá-la. A dependência não exige unicidade do determinante nem reciprocidade."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Em PostgreSQL, uma regra de negócio exige preencher `NEW.codigo_interno` com um código derivado antes de persistir cada linha inserida em `lancamento`. O time quer evitar um UPDATE adicional na própria tabela. O mecanismo adequado é",
+      "alternativas": [
+        "um trigger AFTER INSERT FOR EACH STATEMENT que altere NEW individualmente, sem emitir comando SQL.",
+        "uma função SQL IMMUTABLE executada automaticamente pelo servidor após qualquer SELECT na tabela.",
+        "um trigger BEFORE INSERT FOR EACH ROW cuja função ajuste NEW e retorne a linha modificada.",
+        "um índice B-tree na coluna codigo_interno, pois a estrutura atribui valores no momento da inserção.",
+        "um trigger INSTEAD OF INSERT aplicado diretamente à tabela comum, em lugar de uma visão."
+      ],
+      "gabarito": "C",
+      "explicacao": "No trigger BEFORE por linha, a função pode alterar os campos de NEW antes da escrita e retornar a nova tupla. AFTER já ocorre após a modificação; índices não calculam o valor por si, e INSTEAD OF é empregado em visões, não nessa tabela comum."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Uma operação PostgreSQL altera milhares de itens em uma única instrução UPDATE. A auditoria precisa gerar um resumo por departamento contendo os valores anteriores e posteriores das linhas afetadas, sem disparar uma rotina de agregação por item. O mecanismo mais aderente é",
+      "alternativas": [
+        "um trigger BEFORE UPDATE FOR EACH ROW com uma tabela de transição global automaticamente disponível.",
+        "uma função IMMUTABLE chamada por SELECT, que registra alterações realizadas por comandos anteriores.",
+        "um trigger ON SELECT, disparado ao consultar a tabela depois da modificação em lote.",
+        "um trigger AFTER UPDATE FOR EACH STATEMENT com tabelas de transição OLD TABLE e NEW TABLE.",
+        "um índice GIN nas colunas atualizadas, que preserva automaticamente imagens anteriores para auditoria."
+      ],
+      "gabarito": "D",
+      "explicacao": "Tabelas de transição fornecem o conjunto de linhas antes e depois da instrução a um trigger AFTER apropriado, permitindo agregação por comando. BEFORE por linha não oferece essa coleção; índices e SELECT não substituem gatilhos de auditoria."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Durante o INSERT de uma nota, uma função de trigger PostgreSQL verifica um limite contratual e lança uma exceção não tratada se o valor exceder o permitido. O INSERT integra uma transação ainda não confirmada. Qual comportamento decorre do erro?",
+      "alternativas": [
+        "A linha é gravada definitivamente e só a execução da função de trigger é revertida.",
+        "O erro é convertido automaticamente em aviso e o servidor executa COMMIT nas demais linhas.",
+        "O trigger sempre opera em transação autônoma separada, de modo que o INSERT não sofre efeito.",
+        "A exceção modifica apenas as estatísticas do planejador e não afeta a instrução de escrita.",
+        "A instrução falha e a transação fica abortada até que seja revertida ou tratada conforme o contexto transacional, sem confirmação parcial do INSERT."
+      ],
+      "gabarito": "E",
+      "explicacao": "Triggers comuns fazem parte da transação da instrução que os disparou. Exceção não tratada provoca falha e impede confirmação daquela escrita, exigindo resolução do estado transacional. Não existe confirmação autônoma automática nem conversão do erro em aviso."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Uma rotina de trigger atualiza `pedido` após cada modificação em `pedido`, sem limitar condições de disparo. Em testes, o UPDATE interno provoca novo disparo da mesma rotina, gerando sucessivas execuções. A correção de projeto mais apropriada é",
+      "alternativas": [
+        "eliminar a escrita recursiva desnecessária ou restringir o disparo às transições de estado que realmente exigem processamento.",
+        "aumentar o número de índices na tabela, pois cada índice reduz obrigatoriamente um nível de recursão, ainda que a tabela de origem mude entre duas chamadas sucessivas da função.",
+        "trocar UPDATE por SELECT dentro do trigger, mesmo que o requisito exija modificar a tabela.",
+        "habilitar READ COMMITTED, pois esse nível impede automaticamente triggers recursivos.",
+        "converter o trigger em AFTER STATEMENT sem alterar sua lógica, garantindo que nunca haja novo disparo."
+      ],
+      "gabarito": "A",
+      "explicacao": "Um trigger que escreve na própria tabela pode voltar a acionar-se, independentemente do isolamento. Evitar a atualização redundante, delimitar colunas ou usar uma condição adequada reduz o ciclo. Mudar apenas a frequência do gatilho não elimina a causa."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Em uma aplicação PostgreSQL, um desenvolvedor pretende declarar como IMMUTABLE uma função que consulta a tabela `cotacao_atual` para devolver a cotação de uma moeda. A tabela é atualizada ao longo do dia. Do ponto de vista das categorias de volatilidade de funções, essa declaração é",
+      "alternativas": [
+        "obrigatória, porque toda função que faz SELECT é imutável independentemente da tabela acessada.",
+        "inadequada, pois uma função dependente de dados mutáveis não garante resultado invariável para os mesmos argumentos.",
+        "correta se houver um índice na tabela, pois o índice congela os resultados da função.",
+        "correta apenas porque o uso de moeda como argumento assegura constância entre transações.",
+        "irrelevante, já que o otimizador ignora completamente o atributo de volatilidade na definição de planos."
+      ],
+      "gabarito": "B",
+      "explicacao": "IMMUTABLE promete que os mesmos argumentos geram sempre o mesmo resultado, o que não vale para uma leitura de tabela sujeita a mudanças. Rotular a função incorretamente pode induzir otimizações indevidas; o índice não transforma dados variáveis em constantes."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Uma rotina de manutenção PostgreSQL precisa confirmar cada lote de registros enquanto percorre vários lotes, sem que a aplicação abra uma transação explícita envolvendo toda a chamada. O desenvolvedor está avaliando funções e procedimentos PL/pgSQL. A escolha compatível com controle transacional interno, observadas as restrições de contexto, é",
+      "alternativas": [
+        "uma função comum chamada por SELECT, que pode executar COMMIT sempre que terminar um laço.",
+        "um trigger BEFORE ROW, pois cada linha acionada recebe automaticamente transação independente.",
+        "um procedimento chamado por CALL em contexto permitido, capaz de executar COMMIT entre lotes.",
+        "uma VIEW parametrizada, porque a materialização de cada linha equivale a um COMMIT.",
+        "uma função IMMUTABLE, já que essa qualificação habilita comandos COMMIT dentro de SELECT."
+      ],
+      "gabarito": "C",
+      "explicacao": "Procedimentos acionados por CALL podem controlar transações quando invocados em contexto permitido, diferentemente de funções comuns chamadas por SELECT. A chamada não deve estar dentro de bloco transacional explícito que impeça esse controle; triggers não são autônomos."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Uma equipe deseja implementar, no PostgreSQL, uma regra complexa de integridade verificada ao término da transação, após comandos intermediários que podem deixar o estado temporariamente inconsistente. A regra será codificada como gatilho de restrição deferível. Qual desenho respeita as características desse mecanismo?",
+      "alternativas": [
+        "Definir um CONSTRAINT TRIGGER BEFORE FOR EACH STATEMENT, pois somente esse formato admite deferimento.",
+        "Usar um trigger INSTEAD OF em tabela base, automaticamente adiado até o encerramento da sessão.",
+        "Executar um SELECT comum no final de cada comando, que o PostgreSQL considera restrição deferível nativa, porque o contexto do servidor transforma automaticamente cada SELECT em COMMIT.",
+        "Definir um CONSTRAINT TRIGGER AFTER FOR EACH ROW, com deferimento apropriado para a verificação posterior.",
+        "Declarar um índice hash DEFERRABLE com procedimento embutido para comparar múltiplas tabelas."
+      ],
+      "gabarito": "D",
+      "explicacao": "No PostgreSQL, constraint triggers são AFTER e por linha; podem ser DEFERRABLE para executar a verificação no ponto apropriado da transação. Triggers BEFORE por instrução e consultas avulsas não oferecem a mesma semântica de restrição deferível."
+    },
+    {
+      "secao": 5,
+      "enunciado": "Um formulário é construído sobre uma visão que combina dados de cadastro e de endereço. A visão não é automaticamente atualizável, mas o time quer aceitar INSERT e distribuir seus campos entre duas tabelas de base dentro da mesma operação lógica. Em PostgreSQL, a abordagem de gatilho apropriada é",
+      "alternativas": [
+        "criar um trigger BEFORE INSERT na visão que modifique diretamente duas linhas NEW distintas sem comandos SQL, e manter toda a escrita pendente até a próxima consulta feita à visão.",
+        "adicionar um índice parcial na visão comum, fazendo o sistema dividir automaticamente cada INSERT.",
+        "definir um trigger ON SELECT na visão, aguardando a primeira leitura para persistir os dados.",
+        "declarar a visão como IMMUTABLE para tornar todas as suas junções automaticamente atualizáveis.",
+        "criar um trigger INSTEAD OF INSERT na visão, com função que realize as gravações necessárias nas tabelas de base."
+      ],
+      "gabarito": "E",
+      "explicacao": "Triggers INSTEAD OF em visões permitem implementar manualmente a semântica de escrita quando a atualização automática não é suportada. A função pode distribuir as operações entre tabelas-base; índices ou volatilidade não tornam junções arbitrárias atualizáveis."
+    }
+  ]
+}

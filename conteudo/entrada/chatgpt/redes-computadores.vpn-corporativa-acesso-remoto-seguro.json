@@ -1,0 +1,1820 @@
+{
+  "id": "redes-computadores.vpn-corporativa-acesso-remoto-seguro",
+  "subject": "Redes de Computadores",
+  "title": "VPN corporativa e acesso remoto seguro",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "VPN corporativa e acesso remoto seguro",
+    "VPN corporativa e acesso remoto seguro"
+  ],
+  "scope": {
+    "covers": "Conceitos de VPN e tunelamento; acesso remoto e site-to-site; full/split tunnel; roteamento e DNS; IPsec, IKEv2, ESP e AH; VPN TLS; WebVPN clientless versus cliente completo; OpenVPN, TUN/TAP, tls-auth/tls-crypt; WireGuard, AllowedIPs e chaves; L2TP, PPTP e GRE históricos; MFA, Zero Trust, postura, segmentação, segurança e diagnóstico.",
+    "excludes": "Tutoriais de exploração ofensiva, configurações específicas de fabricantes, manuais de bypass de autenticação e versões de softwares sem confirmação de suporte."
+  },
+  "theoryTitle": "VPN corporativa e acesso remoto seguro — fundamentos, protocolos e operação",
+  "chapters": [
+    {
+      "title": "Fundamentos, modalidades e encaminhamento de tráfego",
+      "markdown": "## 1. Finalidade, modelos e limites de confiança\nUma **rede privada virtual (VPN)** cria um caminho lógico sobre uma infraestrutura compartilhada, normalmente a internet, para transportar tráfego entre pontos. Na VPN corporativa, o objetivo típico é proteger a comunicação de profissionais, filiais ou serviços com recursos institucionais. O túnel pode prover confidencialidade, integridade e autenticação, conforme o protocolo e sua configuração. **Tunelamento não é sinônimo de criptografia:** encapsular pacotes não assegura, isoladamente, sigilo ou identidade. Além disso, a VPN protege o percurso coberto pelo túnel; não corrige um equipamento infectado, uma aplicação vulnerável ou uma credencial roubada.\n\n**Acesso remoto (remote access)** conecta usuários ou dispositivos à organização. **Site-to-site** interliga redes, por exemplo, matriz e filial, com gateways capazes de transportar fluxos de múltiplas máquinas. Uma implantação híbrida pode combinar ambos. A VPN não precisa replicar toda a LAN: regras de roteamento, firewall e autorização devem delimitar quais sistemas e portas ficam acessíveis. É incorreto deduzir que ter um endereço IP interno concede direito de acessar todos os serviços internos.\n\n## 2. Encapsulamento, cliente, concentrador e planos de tráfego\nO dispositivo remoto executa um cliente, nativo ou instalado, que autentica o servidor VPN e estabelece o túnel com um **gateway/concentrador**. Uma interface lógica de rede pode receber endereços e rotas. O pacote IP original é encapsulado, protegido quando a tecnologia oferece cifragem, enviado pela rede intermediária e desencapsulado no destino. Na chegada ao perímetro institucional, políticas de segurança e rotas continuam necessárias. O pacote de retorno precisa encontrar o caminho até a interface ou a sub-rede do túnel.\n\nUma VPN sobre camada IP pode transportar redes roteadas sem estender domínios de broadcast. Soluções orientadas à camada de enlace podem transportar quadros e, quando cabível, broadcasts, mas aumentam complexidade e superfície operacional. **Roteamento** decide o próximo salto; **DNS** resolve nomes; **controle de acesso** decide permissões. Falhar em um desses elementos pode impedir o uso de um serviço mesmo com o túnel criptográfico ativo. Uma VPN pode funcionar perfeitamente para IPs internos e falhar para nomes se a configuração de DNS estiver errada.\n\n## 3. Full tunnel e split tunnel\nEm **full tunnel**, o tráfego coberto pela política, frequentemente inclusive o acesso geral à internet, é encaminhado para a infraestrutura corporativa. Isso centraliza determinados controles de inspeção e saída, mas eleva consumo de banda, latência potencial e carga no gateway. É preciso considerar IPv4, IPv6 e fluxos não previstos, pois “full” depende das rotas e políticas efetivamente aplicadas. Já o **split tunnel** direciona somente os prefixos ou recursos definidos à VPN, mantendo outros fluxos pela conexão local. A abordagem pode reduzir carga e melhorar desempenho, porém demanda análise de exposição do dispositivo e do caminho direto.\n\nO split tunnel não equivale, por definição, a ausência de criptografia: o tráfego selecionado ainda pode cruzar um túnel protegido. Tampouco elimina controles no endpoint ou na aplicação. Uma rota padrão (como 0.0.0.0/0 no IPv4) costuma direcionar grande parte do tráfego por uma interface, mas rotas mais específicas, regras de prioridade, sistemas com IPv6 e exceções podem alterar o resultado. Nunca conclua o caminho real apenas pelo rótulo comercial da solução.\n\n## 4. Segurança ponta a ponta e cenários\nDiferencie **VPN de acesso corporativo** de um serviço comercial voltado a ocultar o IP de saída: objetivos, responsabilidades, identidade e recursos acessados não são os mesmos. Uma conexão HTTPS com um sistema empresarial pode proporcionar segurança de aplicação sem instalar VPN de rede; ao mesmo tempo, o HTTPS do sistema é desejável mesmo quando há VPN. Exemplo: uma pessoa abre a intranet com um cliente VPN ativo. O gateway assegura o transporte pela internet, mas a aplicação ainda precisa de autenticação própria, permissões de usuário, atualizações e registros de auditoria.\n\nPara prova, associe acesso remoto a usuário/dispositivo, site-to-site a interconexão de redes e split/full tunnel a decisões de encaminhamento. Evite frases absolutas como “toda VPN usa SSL”, “qualquer encapsulamento cifra dados” ou “usuário autenticado à VPN está automaticamente autorizado a tudo”."
+    },
+    {
+      "title": "IPsec, IKEv2, TLS e modalidades de WebVPN",
+      "markdown": "## 1. Segurança na camada IP: IPsec\n**IPsec** é uma arquitetura de segurança para tráfego IP. Ela usa associações de segurança (**SAs**) e políticas para determinar proteção e processamento de pacotes. Em sua configuração usual de VPN, o **ESP (Encapsulating Security Payload)** proporciona confidencialidade e/ou proteção de integridade/autenticidade conforme os algoritmos e opções negociados. **AH (Authentication Header)** possui finalidade de autenticação/integridade, mas não oferece confidencialidade. Assim, AH e ESP não são sinônimos e IPsec não é simplesmente outro nome para TLS.\n\nNo **modo túnel**, um pacote IP é protegido e encapsulado com um cabeçalho IP externo, frequentemente para interconectar redes ou prover acesso remoto. No **modo transporte**, a proteção recai sobre a carga transportada pelo pacote IP, em vez de encapsular integralmente um pacote IP interno da mesma maneira do modo túnel. Não confunda “modo túnel” com “site-to-site obrigatório”: há aplicações de acesso remoto em modo túnel. Políticas de segurança definem seletores de tráfego e ações como proteger, descartar ou permitir determinados pacotes.\n\n## 2. IKEv2 e associações de segurança\nO **IKEv2** negocia e gerencia material criptográfico e SAs usadas com IPsec. No estabelecimento inicial, os pares negociam parâmetros e autenticam a associação IKE; SAs filhas protegem tráfego de dados. A distinção é central: **IKEv2 é mecanismo de negociação e gestão de chaves; ESP carrega o tráfego protegido**. IKEv2 normalmente usa UDP 500 e, quando há encapsulamento para atravessar NAT, UDP 4500. Isso não implica que todo dado IPsec utilize necessariamente UDP 500. Em caminhos sem NAT, o ESP pode usar o protocolo IP próprio; com NAT-T, o ESP pode ser encapsulado em UDP.\n\nA troca periódica de chaves, o ajuste de políticas e a autenticação do par devem ser administrados. Problemas típicos envolvem identidades incompatíveis, certificados inválidos, propostas criptográficas inconciliáveis, filtros de rede ou seletores de tráfego incorretos. Diagnosticar “porta aberta” isoladamente não comprova que as SAs se formaram ou que a rota do tráfego está correta. Mobilidade, reconexão e NAT são requisitos relevantes em redes de acesso instáveis, como Wi-Fi público e dados móveis.\n\n## 3. VPN baseada em TLS\nAs chamadas **SSL VPNs** utilizam, em implantações modernas, **TLS** — a designação “SSL” persiste historicamente, mas não recomenda uso dos antigos protocolos SSL. TLS autentica o servidor mediante certificados e protege o transporte conforme a aplicação. Sistemas podem solicitar também autenticação de usuários e fatores adicionais. Versões obsoletas do TLS não devem ser empregadas: TLS 1.0 e 1.1 foram formalmente depreciados. Em uma VPN do tipo TLS, é necessário separar o **canal de controle** da proteção efetiva do **canal de dados**, quando a implementação os distingue.\n\nNão assuma que a porta TCP 443 determina, sozinha, o tipo de VPN: produtos e configurações variam; transporte TCP ou UDP depende da tecnologia. Da mesma forma, “usa HTTPS” não significa “fornece automaticamente uma interface de rede virtual”. A solução precisa ser examinada pela sua arquitetura real: proxy de aplicação, encapsulamento de tráfego, cliente de túnel, autenticação e políticas.\n\n## 4. WebVPN clientless versus cliente completo\nNa **WebVPN clientless**, o usuário geralmente acessa um **portal via navegador** e alcança aplicações publicadas ou mediadas por um gateway, como páginas internas e certas sessões convertidas em HTML5. O portal pode operar como proxy de aplicação, sem instalar uma interface VPN de rede no sistema operacional. A compatibilidade depende das aplicações e do gateway. É incorreto afirmar que qualquer software legado ou protocolo arbitrário funcionará sem adaptações.\n\nNa modalidade **cliente completo (full client)**, há um agente ou cliente capaz de estabelecer um túnel e encaminhar tráfego IP de aplicações distintas, sujeito às rotas e às políticas. Algumas plataformas de SSL VPN empregam componentes intermediários, plug-ins ou agentes específicos, compondo um contínuo entre portal e túnel. A diferença prática de prova é o **escopo de conectividade**, não a suposição de que um navegador sempre seria inseguro. Clientless reduz certas exigências de instalação, mas demanda atenção a sessão, cache, downloads, navegador e autenticação."
+    },
+    {
+      "title": "OpenVPN e WireGuard: arquitetura e operação",
+      "markdown": "## 1. OpenVPN: organização do túnel\n**OpenVPN** é uma solução de VPN baseada em TLS que pode operar, conforme configuração, sobre **UDP ou TCP**. Em geral, UDP evita empilhar mecanismos de retransmissão de TCP sobre TCP, aspecto relevante para desempenho; contudo, redes restritivas e necessidades específicas podem motivar TCP. O OpenVPN distingue **canal de controle**, usado com TLS na autenticação e negociação de material para chaves, do **canal de dados**, pelo qual trafegam os pacotes protegidos. O fato de usar TLS no controle não significa que cada pacote de dados seja simplesmente uma requisição HTTPS.\n\nCom dispositivo virtual **TUN**, o OpenVPN transporta pacotes IP (camada 3), adequado à maioria das VPNs roteadas; com **TAP**, pode transportar quadros Ethernet (camada 2), conforme suporte de plataforma e implementação. Confundir TUN com o transporte de quadros de enlace é pegadinha clássica. A escolha tem implicações para roteamento, broadcasts, compatibilidade e desempenho.\n\n## 2. Identidade, criptografia e políticas no OpenVPN\nEm implantações corporativas, servidores e clientes podem usar certificados de uma **infraestrutura de chaves públicas (PKI)** e, se configurado, credenciais adicionais e MFA. O cliente deve verificar a identidade do servidor e a cadeia de confiança; aceitar qualquer certificado compromete a resistência à interceptação. A revogação de certificados, a renovação de credenciais e a resposta a perdas de dispositivos são medidas operacionais essenciais. Certificados provam identidades conforme a política de confiança; não substituem autorização sobre arquivos e sistemas.\n\nAs opções **tls-auth** e **tls-crypt** dão proteções adicionais ao canal de controle: tls-auth autentica pacotes de controle mediante chave compartilhada, ao passo que tls-crypt acrescenta também ofuscação/cifragem do controle protegido. São recursos complementares, não substitutos da validação de certificados nem garantias de acesso por função. Em configurações modernas, a seleção e a negociação de cifras devem seguir algoritmos suportados e seguros; a simples presença de uma cifra conhecida em um arquivo não demonstra que houve negociação bem-sucedida.\n\nO servidor pode distribuir rotas e parâmetros de DNS aos clientes. O administrador deve restringir acesso por grupos, sub-redes ou sistemas e observar a aplicação de firewall no gateway. Na auditoria, diferencie evento de login, estabelecimento do túnel, tráfego autorizado e acesso efetivo a um serviço; são acontecimentos distintos.\n\n## 3. WireGuard: modelo criptográfico e encaminhamento\n**WireGuard** é um túnel IP sobre **UDP**, com um conjunto enxuto e fixo de primitivas criptográficas. Sua especificação descreve handshake baseado em **Noise_IK**, troca de chaves com **Curve25519**, cifra autenticada **ChaCha20-Poly1305** e funções hash como **BLAKE2s**. A arquitetura parte de pares identificados por chaves públicas; não é um protocolo que exige TLS e certificados X.509 para estabelecer o túnel. A segurança depende também de resguardar as chaves privadas, distribuir identidades corretamente e manter sistemas atualizados.\n\nA configuração de cada par inclui uma chave pública e **AllowedIPs**, que relaciona prefixos às identidades. Na transmissão, os prefixos orientam a escolha do par para um destino; na recepção, limitam quais endereços internos podem ser aceitos como originados daquele par. Esse mecanismo é conhecido como **cryptokey routing**. AllowedIPs não substitui automaticamente firewall, controle de identidade humana, MFA ou verificação de postura: traduz o vínculo criptográfico/endereço em uma política básica de encaminhamento e recepção.\n\nA opção **Endpoint** indica endereço/porta remotos conhecidos; WireGuard pode atualizar a informação de endpoint ao receber tráfego autenticado. **PersistentKeepalive** pode ser útil em peers atrás de NAT para manter mapeamentos, mas não é sinônimo de heartbeat obrigatório em toda VPN. No ecossistema WireGuard, atribuição de IP, provisionamento, SSO/MFA, distribuição de chaves e governança corporativa costumam depender da ferramenta de implantação ou de sistemas externos. Protocolo simples não significa gestão organizacional automática.\n\n## 4. Comparação orientada a cenário\nOpenVPN possui ampla flexibilidade de transporte, opções TLS e perfis de autenticação. WireGuard privilegia configuração mínima, UDP e identidade por chave pública. Ambos podem proteger tráfego IP, ser operados com split ou full tunnel e exigir soluções de autenticação, revogação e controle de acesso ao redor do túnel. A escolha deve contemplar restrições de rede, gestão de chaves, suporte a clientes, capacidade de auditoria, interoperabilidade e operação, não o mito de que “o menor código sempre assegura maior segurança”."
+    },
+    {
+      "title": "PPTP, L2TP e evolução dos protocolos de tunelamento",
+      "markdown": "## 1. O que era PPTP\n**PPTP (Point-to-Point Tunneling Protocol)** foi desenvolvido para transportar sessões PPP por redes de pacotes. Seu funcionamento histórico envolve **canal de controle via TCP** e tráfego tunelado usando **GRE**. A presença de GRE é importante porque demonstra que PPTP não se resume a abrir uma única porta TCP: redes e NATs precisam tratar os fluxos correspondentes.\n\nPPTP pertence ao repertório de tecnologias legadas. Quando associado a mecanismos históricos de autenticação e cifragem, especialmente configurações baseadas em MS-CHAPv2/MPPE, apresenta fragilidades incompatíveis com a proteção esperada de acesso corporativo moderno. Em ambientes atuais, a recomendação é **não escolher PPTP para novas implantações** e planejar sua substituição quando remanescer em inventários. Não é correto tentar “modernizar” o protocolo apenas alterando o número da porta de controle.\n\n## 2. L2TP e PPP\n**L2TP (Layer Two Tunneling Protocol)** oferece tunelamento de quadros/sessões PPP. Na forma clássica sobre IP, usa UDP, convencionalmente a porta **1701** para o controle/tráfego L2TP. O protocolo organiza sessões de tunelamento, mas **L2TP sozinho não provê a criptografia de conteúdo típica de uma VPN moderna**. Por isso, a composição histórica **L2TP/IPsec** agrega a proteção do IPsec ao transporte PPP por L2TP.\n\nEm comparação, **PPTP e L2TP não são dois nomes para IPsec**. L2TP realiza encapsulamento/túnel de camada 2; IPsec fornece mecanismos de segurança na camada IP. É possível que um edital peça a associação “L2TP com IPsec” sem que isso transforme o L2TP em algoritmo de criptografia. Uma implantação real depende da qualidade dos parâmetros IPsec, da autenticação, da configuração e da manutenção do equipamento.\n\n## 3. NAT, interoperação e substituição\nA travessia de NAT pode trazer dificuldades a protocolos que carregam tráfego fora do TCP/UDP convencional ou embutem endereços e identificadores de sessão. O **NAT-T** do IPsec permite encapsular ESP em UDP em cenários apropriados. Isso é distinto de afirmar que L2TP, por si, cifra o tráfego ou que IKEv2 pode ser substituído por uma simples liberação de portas.\n\nNas VPNs contemporâneas, IKEv2/IPsec, soluções TLS como OpenVPN e WireGuard são alternativas comuns, sujeitas a suporte, regras corporativas e requisitos operacionais. A escolha não é determinada apenas pela idade da tecnologia: verifique algoritmos negociados, autenticação de pares, cliente suportado, gerenciamento de dispositivos, logs e autorização de recursos. Uma migração de protocolo precisa também revisar autenticação de usuários, endereçamento, rotas, DNS e acessos de terceiros.\n\n## 4. Quadro comparativo para concursos\n| Tecnologia | Função principal | Observação essencial |\n| --- | --- | --- |\n| PPTP | Tunelamento de PPP, com GRE para dados | Legado, inadequado para novas VPNs seguras |\n| L2TP | Tunelamento PPP, usualmente sobre UDP | Não cifra dados por si só |\n| L2TP/IPsec | L2TP somado à proteção IPsec | Segurança depende de IPsec e configuração |\n| IKEv2/IPsec | Gestão de SAs/chaves e proteção IP | Separar IKEv2 de ESP |\n| OpenVPN | Túnel com controle TLS e dados protegidos | Usa UDP ou TCP; TUN ou TAP conforme suporte |\n| WireGuard | Túnel IP criptográfico sobre UDP | Pares por chaves públicas e AllowedIPs |\n\n**Atenção à nomenclatura:** PPP é um protocolo de enlace ponto a ponto; GRE é encapsulamento genérico; ESP é um protocolo de proteção IPsec; TLS é um protocolo criptográfico de transporte. A existência de um túnel ou cabeçalho não implica que a solução tenha criptografia adequada. Nas questões, procure o elemento concreto que realiza autenticação e sigilo."
+    },
+    {
+      "title": "Controles corporativos, Zero Trust e diagnóstico de falhas",
+      "markdown": "## 1. Identidade, dispositivo e autorização\nUm desenho de VPN corporativa deve partir dos ativos expostos, das categorias de usuários e da sensibilidade das aplicações. **MFA** reduz riscos associados ao comprometimento isolado de senhas, mas não elimina phishing sofisticado, roubo de sessão ou falhas de configuração. Combine fatores de autenticação adequados, gestão de credenciais, contas individuais, expiração de acesso temporário e revisão periódica de direitos. A autenticação do **dispositivo** e a **postura de segurança** — atualização, proteção antimalware, criptografia de disco e integridade — complementam a autenticação do usuário.\n\n**Menor privilégio** significa liberar apenas recursos, portas e ações necessárias. Um colaborador autenticado à VPN não deve receber, por padrão, acesso irrestrito a servidores administrativos. A segmentação limita movimento lateral após uma eventual invasão. Terceirizados e fornecedores podem demandar políticas próprias e expiração programada; usuários de equipamentos pessoais (**BYOD**) precisam de análise de risco específica. Certificados roubados, perda de notebook e desligamento de funcionários exigem processos de revogação e bloqueio.\n\n## 2. Zero Trust, ZTNA e controles contínuos\nO modelo **Zero Trust** não concede confiança implícita apenas pela origem da conexão ou por o endereço estar em rede interna. Políticas procuram verificar sujeito, dispositivo, contexto e recurso antes de permitir acesso, com reavaliação conforme risco. **ZTNA** costuma oferecer acessos mais granulares e centrados em aplicações, mas não é sinônimo exato de VPN: algumas arquiteturas usam túnel, proxies ou combinações. O princípio de Zero Trust também pode ser aplicado a serviços acessados por VPN tradicional; não depende de abolir todo tunelamento.\n\nA VPN constitui **uma camada de defesa**, não solução completa. São pertinentes criptografia de aplicações, gestão de vulnerabilidades no concentrador, segregação de rede, proteção dos endpoints e monitoramento de logs. O gateway é alvo relevante porque concentra identidades e fluxos; correções, desligamento de serviços desnecessários e exposição mínima fazem parte do endurecimento. Avalie a necessidade e retenção de dados em logs segundo a política institucional e os requisitos aplicáveis de privacidade.\n\n## 3. Ameaças específicas e governança\nRiscos incluem **credential stuffing**, phishing, sessões indevidas, configurações inseguras, certificados expirados, pacotes maliciosos ao concentrador e exploração de vulnerabilidades sem correção. A defesa envolve inventário, atualização rápida após análise de risco, MFA, monitoramento de eventos de login, alertas de comportamento anômalo e bloqueio de credenciais comprometidas. Em protocolos de chave pública, trate perda da chave privada como evento de revogação e rotação de identidade, não como mero problema de roteamento.\n\nA política de **split tunnel** exige análise de tráfego direto para internet, DNS, proteção em redes públicas e risco de ponte entre ambientes; a política de full tunnel exige dimensionamento da infraestrutura e atenção a exceções e IPv6. Para ambos os modelos, registre o que deve acontecer quando o túnel cai: um **kill switch**, quando implementado corretamente, pode bloquear tráfego definido em vez de deixá-lo sair desprotegido. A decisão envolve continuidade do negócio e prevenção de vazamento, não apenas conveniência.\n\n## 4. Diagnóstico em camadas\nEm um chamado “VPN conectou, mas a aplicação não abre”, a ordem de investigação evita diagnósticos simplistas. **Primeiro**, verifique se o dispositivo alcança o gateway e se autenticação, políticas e negociação de chaves concluíram. **Depois**, examine endereço IP do túnel, rotas efetivas e retorno, regras de firewall e NAT. **Em seguida**, compare acesso por IP e por nome, resoluções DNS, certificados da aplicação e permissões de usuário. Um túnel pode estar estabelecido enquanto um serviço está indisponível ou bloqueado por política.\n\nPerdas ou lentidão podem decorrer de MTU/MSS inadequados, fragmentação, dupla encapsulação, redes móveis variáveis, congestionamento, CPU criptográfica ou uso de TCP sobre TCP. **Observabilidade** deve incluir status das sessões, erro de handshake, perda de pacotes, latência, roteamento e volume de tráfego, sem capturar dados sensíveis de forma indiscriminada. Para provas: autenticação da VPN, conectividade IP, resolução DNS e autorização de aplicação são etapas **separadas**, que precisam ser correlacionadas para explicar a falha."
+    }
+  ],
+  "summary": "A **VPN corporativa** protege caminhos de comunicação sobre redes compartilhadas, mas **encapsular não é necessariamente cifrar**. No **acesso remoto**, um cliente conecta usuário/dispositivo ao gateway; em **site-to-site**, os gateways conectam redes. **Full tunnel** leva o tráfego coberto pela política, frequentemente inclusive internet geral, ao concentrador; **split tunnel** usa a VPN apenas para destinos selecionados. As rotas IPv4 não garantem comportamento equivalente em IPv6.\n\nNo **IPsec**, **IKEv2 negocia chaves e SAs**; **ESP protege dados IP**, enquanto AH não provê confidencialidade. **WebVPN clientless** publica recursos via portal do navegador sem necessariamente fornecer interface IP de túnel; um **cliente completo** pode transportar tráfego de várias aplicações.\n\n**OpenVPN** utiliza TLS no controle, suporta **UDP/TCP** e pode operar com **TUN (camada 3)** ou **TAP (camada 2)**. **WireGuard** usa **UDP**, identidade por chaves públicas, handshake Noise e **AllowedIPs** para vincular prefixos aos peers; MFA e provisionamento corporativo requerem integrações. **L2TP** encapsula PPP e **não cifra sozinho**; L2TP/IPsec adiciona proteção do IPsec. **PPTP** é legado e inadequado para novas VPNs seguras. Por fim, **MFA, segmentação, menor privilégio, atualização do gateway, postura do endpoint e Zero Trust** complementam a VPN. Para diagnosticar falhas, separe túnel, rotas, DNS, firewall e autorização de aplicação.",
+  "flashcards": [
+    {
+      "front": "Qual a finalidade de uma VPN corporativa?",
+      "back": "Criar caminho lógico protegido para comunicação com recursos institucionais sobre redes compartilhadas, conforme os mecanismos configurados."
+    },
+    {
+      "front": "Tunelamento é sinônimo de criptografia?",
+      "back": "Não. Tunelamento encapsula e conduz tráfego; criptografia efetivamente protege confidencialidade."
+    },
+    {
+      "front": "Acesso remoto e site-to-site: qual a diferença?",
+      "back": "Acesso remoto conecta usuários ou dispositivos à organização; site-to-site interliga redes por gateways."
+    },
+    {
+      "front": "O que caracteriza full tunnel?",
+      "back": "Encaminhar o conjunto de tráfego determinado pela política, muitas vezes incluindo a internet geral, pela infraestrutura VPN."
+    },
+    {
+      "front": "O que caracteriza split tunnel?",
+      "back": "Encaminhar apenas os destinos selecionados pela VPN e permitir que outros fluxos usem o caminho local."
+    },
+    {
+      "front": "O que faz o DNS numa conexão VPN?",
+      "back": "Resolve nomes de serviços; um túnel pode estar ativo mesmo com DNS corporativo mal configurado."
+    },
+    {
+      "front": "Qual o papel do ESP no IPsec?",
+      "back": "Proteger o tráfego IP, podendo prover confidencialidade e integridade/autenticidade conforme os parâmetros."
+    },
+    {
+      "front": "AH oferece confidencialidade no IPsec?",
+      "back": "Não. AH destina-se a proteção de integridade e autenticação, não à cifragem do conteúdo."
+    },
+    {
+      "front": "Qual a função do IKEv2?",
+      "back": "Negociar parâmetros, autenticar pares e estabelecer/gerenciar associações de segurança usadas pelo IPsec."
+    },
+    {
+      "front": "O que distingue modo túnel e modo transporte em IPsec?",
+      "back": "Modo túnel protege e encapsula um pacote IP interno com cabeçalho externo; transporte protege a carga útil do pacote original."
+    },
+    {
+      "front": "O que é WebVPN clientless?",
+      "back": "Portal acessível por navegador que publica/intermedeia recursos, sem exigir necessariamente interface VPN de rede instalada."
+    },
+    {
+      "front": "O que um cliente completo de VPN oferece?",
+      "back": "Conectividade por túnel capaz de transportar tráfego de várias aplicações conforme rotas e regras de acesso."
+    },
+    {
+      "front": "O que muda entre TUN e TAP no OpenVPN?",
+      "back": "TUN é interface virtual de camada 3 para IP; TAP é interface virtual de camada 2 para quadros Ethernet."
+    },
+    {
+      "front": "Qual a distinção entre tls-auth e tls-crypt?",
+      "back": "tls-auth autentica pacotes de controle; tls-crypt acrescenta cifragem da proteção do canal de controle."
+    },
+    {
+      "front": "Quais transportes o OpenVPN admite?",
+      "back": "UDP e TCP, conforme configuração e restrições de conectividade."
+    },
+    {
+      "front": "Qual é o transporte usado pelo WireGuard?",
+      "back": "UDP, com handshake baseado em Noise e peers identificados por chaves públicas."
+    },
+    {
+      "front": "Para que serve AllowedIPs no WireGuard?",
+      "back": "Vincular prefixos a peers para seleção de saída e validação de endereços internos de origem na entrada."
+    },
+    {
+      "front": "Por que L2TP costuma ser associado ao IPsec?",
+      "back": "Porque L2TP realiza tunelamento PPP, mas não fornece, isoladamente, proteção criptográfica comparável à do IPsec."
+    },
+    {
+      "front": "Por que PPTP é legado inadequado a novas VPNs?",
+      "back": "Por fragilidades históricas de autenticação/cifragem em suas implantações e alternativas modernas mais seguras."
+    },
+    {
+      "front": "Qual o princípio central de Zero Trust?",
+      "back": "Não conceder confiança implícita só por localização de rede; autorizar com base em identidade, contexto, dispositivo e recurso."
+    },
+    {
+      "front": "MFA dispensa atualização do gateway VPN?",
+      "back": "Não. MFA reforça autenticação, mas não corrige vulnerabilidades de software nem substitui segmentação."
+    },
+    {
+      "front": "O que verificar se o IP funciona e o nome não?",
+      "back": "Resolução DNS, servidores recebidos, sufixos e regras de resolução condicional."
+    },
+    {
+      "front": "Qual a ação diante de perda da chave privada?",
+      "back": "Tratar como incidente de credencial, removendo confiança do peer e rotacionando/provisionando novas chaves."
+    },
+    {
+      "front": "O que significa NAT-T em IPsec?",
+      "back": "Técnica de travessia de NAT que pode encapsular ESP em UDP, usualmente usando porta 4500."
+    },
+    {
+      "front": "O que é kill switch numa VPN?",
+      "back": "Política que bloqueia o tráfego definido quando a proteção do túnel falha ou fica indisponível."
+    }
+  ],
+  "tips": [
+    "Na comparação de protocolos, separe três perguntas: quem encapsula, quem cifra e quem autentica. Tunelamento e sigilo não são equivalentes.",
+    "Associe IKEv2 à negociação de associações de segurança; ESP à proteção de pacotes IP; AH à integridade/autenticidade sem cifragem.",
+    "Memorize: OpenVPN TUN = camada 3/pacote IP; TAP = camada 2/quadro Ethernet, quando suportado.",
+    "Em WireGuard, AllowedIPs é vínculo entre prefixos e peers, não substituto de políticas corporativas de identidade.",
+    "Para WebVPN, distinga portal clientless que publica aplicações de cliente completo com roteamento de diversos fluxos.",
+    "Quando 'VPN conecta, mas o sistema não abre', confira sequencialmente handshake, rotas, firewall, DNS e autorização da aplicação.",
+    "Se a questão trouxer PPTP como solução atual para informações sensíveis, desconfie: trata-se de tecnologia legada inadequada."
+  ],
+  "traps": [
+    "Confundir split tunnel com tráfego corporativo sem criptografia: o túnel protege os destinos que ele efetivamente transporta.",
+    "Achar que abrir UDP 500 resolve todo IPsec: NAT-T, ESP, SAs, filtros, rotas e aplicações também importam.",
+    "Dizer que uma WebVPN pelo navegador equivale obrigatoriamente a uma interface IP completa: o portal pode ser proxy de aplicações.",
+    "Trocar papéis de TUN/TAP ou afirmar que OpenVPN só opera em TCP: há suporte a UDP e TCP.",
+    "Tratar AllowedIPs como MFA, SSO ou firewall completo: ele participa do cryptokey routing, mas não contém essas funções.",
+    "Afirmar que L2TP cifra por si só ou que PPTP é recomendação moderna: ambos pertencem ao contexto histórico de tunelamento.",
+    "Tomar o IP interno recebido pela VPN como autorização irrestrita: menor privilégio e Zero Trust continuam válidos."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique por que uma sessão VPN ativa não garante acesso à aplicação.",
+      "answer": "Autenticação e negociação do túnel não validam rotas, firewall, DNS, estado do servidor nem autorização de cada recurso."
+    },
+    {
+      "question": "Compare um acesso site-to-site com acesso remoto individual.",
+      "answer": "O primeiro interconecta redes por gateways; o segundo fornece conectividade para um dispositivo/usuário específico, sob políticas."
+    },
+    {
+      "question": "Como diferenciar full tunnel e split tunnel num teste de rotas?",
+      "answer": "Verifique os prefixos efetivamente enviados à interface VPN, a rota padrão e exceções, tanto IPv4 como IPv6."
+    },
+    {
+      "question": "Qual a função de IKEv2 em relação ao ESP?",
+      "answer": "IKEv2 negocia SAs e chaves; ESP transporta pacotes IP protegidos segundo as SAs estabelecidas."
+    },
+    {
+      "question": "Qual caso favorece WebVPN clientless e qual demanda cliente completo?",
+      "answer": "Portal clientless para aplicações web publicadas; cliente completo quando vários protocolos de rede precisam atravessar túnel IP."
+    },
+    {
+      "question": "Quais componentes definem o WireGuard e o que fica fora do protocolo?",
+      "answer": "UDP, chaves públicas, handshake Noise e AllowedIPs; SSO, MFA e governança precisam de integrações externas."
+    },
+    {
+      "question": "Por que L2TP/IPsec não equivale a L2TP sozinho?",
+      "answer": "L2TP encapsula PPP; IPsec oferece a proteção criptográfica que o protocolo L2TP isolado não proporciona."
+    },
+    {
+      "question": "Quais controles reduzem risco de movimento lateral após conexão VPN?",
+      "answer": "Segmentação, firewall, autorização por recurso, MFA, checagem de postura, atualizações e monitoramento de atividades."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Tunelamento, roteamento e confidencialidade confundidos",
+      "summary": "Dificuldade em distinguir encapsulamento, cifragem, escolha de rotas e a diferença de acesso remoto, site-to-site, split e full tunnel. Verifique o trajeto real dos fluxos e IPv6."
+    },
+    {
+      "key": "e2",
+      "title": "IPsec/IKEv2 e portal WebVPN indevidamente equivalentes",
+      "summary": "Erro de atribuir ao IKEv2 o transporte do conteúdo, ao AH a criptografia ou ao portal clientless acesso IP geral. Separe negociação, proteção de dados e publicação de aplicações."
+    },
+    {
+      "key": "e3",
+      "title": "OpenVPN e WireGuard com funções e interfaces trocadas",
+      "summary": "Confusão entre TUN e TAP, entre tls-auth e tls-crypt ou interpretação de AllowedIPs como autorização universal. Diferencie transporte, identidade de peers e governança de usuários."
+    },
+    {
+      "key": "e4",
+      "title": "Protocolos legados tratados como criptografia moderna",
+      "summary": "Equívoco de presumir que L2TP oferece sigilo isoladamente ou que PPTP continua apropriado para novas implantações. Separe PPP, GRE, encapsulamento e segurança IPsec."
+    },
+    {
+      "key": "e5",
+      "title": "Autenticação confundida com autorização e segurança total",
+      "summary": "Erro de presumir que conexão VPN e MFA dispensam patches, controle por recurso ou diagnóstico de rota e DNS. Aplique menor privilégio, Zero Trust e defesa em profundidade."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma VPN corporativa de acesso remoto pode estabelecer um caminho protegido para que um empregado utilize recursos internos por meio de uma rede pública.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O acesso remoto é um caso típico de VPN: o cliente forma um caminho lógico para o gateway institucional. A proteção do transporte não dispensa autenticação específica nas aplicações nem controle das permissões do empregado.",
+      "section": "Fundamentos, modalidades e encaminhamento de tráfego",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como a técnica de tunelamento encapsula pacotes, toda VPN fornece confidencialidade criptográfica independentemente dos protocolos empregados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Encapsulamento e criptografia são funções distintas. Há protocolos de túnel que apenas transportam pacotes; o sigilo depende de mecanismos criptográficos efetivos e de sua configuração, não do nome VPN atribuído à conexão.",
+      "section": "Fundamentos, modalidades e encaminhamento de tráfego",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No split tunnel, as rotas destinadas aos recursos corporativos podem usar a VPN enquanto outros destinos saem pela conexão local; isso não impede a criptografia do tráfego selecionado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Split tunnel é uma política de encaminhamento, não um algoritmo criptográfico. O tráfego destinado às redes definidas continua protegido pelo túnel, enquanto os demais destinos podem seguir diretamente pela internet.",
+      "section": "Fundamentos, modalidades e encaminhamento de tráfego",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando uma rota padrão IPv4 aponta para a VPN, é garantido que também todo o tráfego IPv6 e todos os fluxos do dispositivo passarão pelo concentrador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A rota IPv4 padrão não define, por si só, o encaminhamento de IPv6; rotas específicas e regras de política também interferem. Confirmar full tunnel exige verificar tabelas de rotas e proteção de ambos os protocolos.",
+      "section": "Fundamentos, modalidades e encaminhamento de tráfego",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O IPsec atua na camada IP, ao passo que o IKEv2 é utilizado para negociação e gerenciamento de associações de segurança.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "IPsec é a arquitetura de proteção do tráfego IP. O IKEv2 negocia parâmetros e chaves de SAs; o transporte de dados protegidos é realizado por mecanismos como ESP, e não pela simples troca inicial de mensagens IKE.",
+      "section": "IPsec, IKEv2, TLS e modalidades de WebVPN",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O cabeçalho AH do IPsec cifra obrigatoriamente o conteúdo dos pacotes, sendo equivalente ao ESP em termos de confidencialidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "AH provê autenticação e integridade, mas não realiza a criptografia de confidencialidade atribuída a configurações de ESP. Os dois mecanismos possuem funções próprias; tratá-los como equivalentes elimina distinção central.",
+      "section": "IPsec, IKEv2, TLS e modalidades de WebVPN",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma WebVPN clientless pode disponibilizar aplicações por um portal do navegador sem configurar necessariamente uma interface de rede virtual no sistema operacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "No modelo clientless, o gateway pode publicar ou intermediar aplicações acessadas por navegador. Isso não implica uma VPN IP completa nem garante compatibilidade automática com todos os protocolos de aplicações legadas.",
+      "section": "IPsec, IKEv2, TLS e modalidades de WebVPN",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A liberação de UDP 500 em um firewall comprova, por si só, que todo fluxo IPsec negociado por IKEv2 conseguirá atravessar NAT e chegar à aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A formação das SAs, o encapsulamento NAT-T, as rotas, as políticas e os filtros do tráfego efetivo também precisam funcionar. A abertura de uma única porta de negociação não demonstra conectividade IPsec ponta a ponta.",
+      "section": "IPsec, IKEv2, TLS e modalidades de WebVPN",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O OpenVPN pode ser configurado para utilizar transporte UDP ou TCP e usa TLS na proteção de seu canal de controle.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "OpenVPN admite UDP e TCP conforme os requisitos da implantação. O TLS atua na autenticação e negociação do canal de controle, enquanto os dados seguem pela estrutura própria do túnel com proteção criptográfica adequada.",
+      "section": "OpenVPN e WireGuard: arquitetura e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No OpenVPN, a interface TUN transporta quadros Ethernet de camada 2, enquanto a TAP transporta exclusivamente pacotes IP de camada 3.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Os papéis foram invertidos: TUN representa interface virtual de camada 3 para pacotes IP; TAP representa interface de camada 2 para quadros Ethernet quando suportada. A escolha afeta broadcasts e modelo de rede.",
+      "section": "OpenVPN e WireGuard: arquitetura e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No WireGuard, AllowedIPs auxilia a associar prefixos IP a pares criptográficos e pode ser utilizado na escolha do peer para o encaminhamento de pacotes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "AllowedIPs participa do cryptokey routing: relaciona prefixos ao peer e auxilia no controle de endereços internos recebidos. Não equivale a autorização de usuário para aplicações nem substitui todas as políticas de firewall.",
+      "section": "OpenVPN e WireGuard: arquitetura e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A negociação inicial do WireGuard depende obrigatoriamente de uma sessão TLS com certificados X.509 e do estabelecimento de um canal TCP persistente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "WireGuard utiliza handshake próprio baseado em Noise e chaves públicas, com tráfego via UDP. TLS, certificados X.509 e TCP persistente não são requisitos do protocolo; outras camadas de identidade podem ser integradas pela organização.",
+      "section": "OpenVPN e WireGuard: arquitetura e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "L2TP, quando empregado isoladamente, realiza tunelamento de tráfego PPP, mas não deve ser tratado como mecanismo autossuficiente de criptografia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "L2TP tem função de tunelamento de sessões PPP e não inclui, por si só, a proteção criptográfica exigida de uma VPN corporativa segura. A associação clássica L2TP/IPsec combina esse túnel com a segurança do IPsec.",
+      "section": "PPTP, L2TP e evolução dos protocolos de tunelamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por utilizar PPP, o PPTP é uma alternativa atualmente recomendada para novos acessos remotos corporativos que envolvam informações sensíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O PPTP é legado e seu uso histórico com mecanismos vulneráveis compromete a segurança exigida de novas VPNs corporativas. A existência de PPP ou de encapsulamento não corrige fragilidades de autenticação e criptografia.",
+      "section": "PPTP, L2TP e evolução dos protocolos de tunelamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na arquitetura L2TP/IPsec, L2TP e IPsec exercem papéis complementares de tunelamento PPP e proteção de tráfego, respectivamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A denominação composta expressa funções diferentes: L2TP encapsula sessões PPP, enquanto IPsec aplica mecanismos de autenticação, integridade e confidencialidade conforme a configuração. Um protocolo não se transforma no outro.",
+      "section": "PPTP, L2TP e evolução dos protocolos de tunelamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PPTP clássico, o tráfego de dados utiliza apenas o mesmo fluxo TCP do canal de controle, não havendo encapsulamento GRE.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "PPTP usa um canal de controle TCP e transporta os dados PPP por GRE. Essa distinção explica parte das dificuldades operacionais em NAT e firewall; liberar uma porta TCP não equivale a permitir todos os fluxos envolvidos.",
+      "section": "PPTP, L2TP e evolução dos protocolos de tunelamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A autenticação bem-sucedida de um usuário em uma VPN não elimina a necessidade de autorização nas aplicações acessadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Autenticação confirma a identidade perante o serviço de acesso; autorização limita recursos e operações que essa identidade pode utilizar. Menor privilégio e segmentação permanecem necessários mesmo após o túnel estar ativo.",
+      "section": "Controles corporativos, Zero Trust e diagnóstico de falhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Segundo a abordagem Zero Trust, um acesso originado de endereço IP interno deve ser considerado confiável sem reavaliar identidade, dispositivo ou contexto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Zero Trust rejeita confiança implícita fundada exclusivamente na localização de rede. Identidade, postura do dispositivo, sensibilidade do recurso e políticas são avaliadas para autorizar acessos, mesmo a partir de redes internas.",
+      "section": "Controles corporativos, Zero Trust e diagnóstico de falhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "É possível estabelecer uma sessão VPN e, ainda assim, não resolver nomes internos devido a problemas de configuração ou seleção de servidores DNS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Túnel ativo não garante resolução de nomes. A aplicação pode funcionar pelo endereço IP e falhar pelo nome se servidores DNS, sufixos de busca ou regras de resolução não tiverem sido entregues e aplicados corretamente.",
+      "section": "Controles corporativos, Zero Trust e diagnóstico de falhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A implantação de MFA torna dispensáveis correções de segurança do concentrador VPN e verificação da postura do dispositivo remoto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "MFA reduz riscos de credenciais isoladamente comprometidas, mas não corrige vulnerabilidades do gateway nem impede a operação de um endpoint infectado. Defesa em profundidade exige atualização, segmentação e controles do dispositivo.",
+      "section": "Controles corporativos, Zero Trust e diagnóstico de falhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa pretende interligar permanentemente as redes de sua matriz e de uma filial por gateways de segurança, sem exigir que cada funcionário abra uma sessão individual. Qual é o modelo mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "WebVPN clientless de navegador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "VPN comercial para mascaramento de IP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "VPN site-to-site.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Proxy HTTP isolado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Autenticação local de cada estação sem túnel.",
+          "correct": false
+        }
+      ],
+      "explanation": "O cenário descreve interconexão entre duas redes por gateways, típica de VPN site-to-site. Acesso por portal é orientado a aplicações e não substitui automaticamente a ligação de sub-redes inteiras.",
+      "section": "Fundamentos, modalidades e encaminhamento de tráfego",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma política de split tunnel, qual encaminhamento é esperado para o acesso a um servidor interno incluído nas rotas corporativas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pelo túnel VPN configurado para aquela rede.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Sempre por um proxy HTTP externo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Por GRE, independentemente da tecnologia VPN.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pelo link local sem nenhuma criptografia.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pela rota de internet mais longa em número de saltos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Split tunnel separa destinos: redes definidas na política corporativa seguem pela VPN, enquanto outros fluxos podem sair localmente. O critério não é número de saltos nem adoção automática de GRE ou de proxy.",
+      "section": "Fundamentos, modalidades e encaminhamento de tráfego",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um funcionário alcança um servidor corporativo pelo IP, mas não pelo nome DNS, mesmo com o túnel ativo. Qual componente deve ser investigado prioritariamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O algoritmo de assinatura do navegador, necessariamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A versão do kernel do roteador do provedor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A quantidade de quadros Ethernet da rede local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A troca física do concentrador VPN.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os resolvedores DNS e as regras de resolução aplicadas pelo cliente.",
+          "correct": true
+        }
+      ],
+      "explanation": "O acesso por IP sugere que existe um caminho IP até o serviço, enquanto a falha por nome aponta para DNS ou resolução condicional. Não há razão inicial para concluir defeito criptográfico ou de equipamento físico.",
+      "section": "Fundamentos, modalidades e encaminhamento de tráfego",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador afirma ter implantado full tunnel porque configurou apenas a rota padrão IPv4 para a VPN. Qual é a ressalva técnica correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A rota padrão IPv4 bloqueia automaticamente serviços DNS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ainda é necessário verificar IPv6, rotas específicas e regras de política.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Todo pacote Ethernet deve ser enviado como broadcast.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O cliente deverá obrigatoriamente usar L2TP para proteger IPv6.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Rotas de maior prefixo são sempre ignoradas após uma rota padrão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma rota padrão IPv4 não determina a política do IPv6 e pode ser superada por rotas mais específicas. A validação de full tunnel inclui tabelas de encaminhamento, exceções e comportamento dos dois protocolos IP.",
+      "section": "Fundamentos, modalidades e encaminhamento de tráfego",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após migrar centenas de usuários de split tunnel para full tunnel, a empresa observa maior volume no gateway e reclamações sobre a saída para a internet. Qual explicação é tecnicamente coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O full tunnel desabilita todos os mecanismos de criptografia.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A mudança transforma obrigatoriamente TUN em TAP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O tráfego externo deixa de usar o concentrador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O gateway passou a encaminhar também fluxos antes enviados localmente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O tráfego da internet foi convertido automaticamente em mensagens IKEv2.",
+          "correct": false
+        }
+      ],
+      "explanation": "No full tunnel, fluxos que antes saíam diretamente podem atravessar o gateway corporativo, aumentando a demanda por banda e processamento. Isso não altera compulsoriamente a tecnologia de túnel ou seus algoritmos.",
+      "section": "Fundamentos, modalidades e encaminhamento de tráfego",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na arquitetura IPsec, qual mecanismo é associado à proteção dos dados IP, inclusive à confidencialidade quando configurado com cifragem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "L2TP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "PPTP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DHCP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ESP.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "DNSSEC.",
+          "correct": false
+        }
+      ],
+      "explanation": "O ESP integra IPsec e pode oferecer confidencialidade e proteção de integridade/autenticidade conforme os algoritmos negociados. L2TP e PPTP são túneis históricos; DHCP e DNSSEC desempenham funções diferentes.",
+      "section": "IPsec, IKEv2, TLS e modalidades de WebVPN",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a função típica do IKEv2 em uma VPN IPsec?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Transportar exclusivamente as páginas HTML do portal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Negociar parâmetros, autenticar os pares e gerenciar associações de segurança.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Resolver nomes DNS para o cliente remoto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transportar quadros Ethernet em TAP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir as rotas IP por nomes de domínio.",
+          "correct": false
+        }
+      ],
+      "explanation": "IKEv2 estabelece a negociação de parâmetros e chaves e gerencia as SAs da solução IPsec. O encaminhamento do tráfego protegido e a resolução de nomes são funções distintas da troca de mensagens IKE.",
+      "section": "IPsec, IKEv2, TLS e modalidades de WebVPN",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma universidade publicará duas aplicações web por um portal acessível diretamente no navegador de prestadores, sem instalar cliente de rede. Que modalidade atende melhor à descrição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "WebVPN clientless.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "VPN IPsec site-to-site obrigatória.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "TAP com extensão automática de broadcasts.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conexão PPTP com GRE transparente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Acesso a toda a sub-rede por roteamento L3 local.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um portal WebVPN clientless pode publicar aplicações web mediante intermediação do gateway e sessão pelo navegador, sem interface de túnel IP no equipamento. Seu escopo não equivale necessariamente a acesso de rede completo.",
+      "section": "IPsec, IKEv2, TLS e modalidades de WebVPN",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma implantação IKEv2/IPsec há NAT entre cliente e concentrador, e o túnel não conduz dados embora parte da negociação tenha ocorrido. Qual verificação é mais pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar de imediato o TLS dos sistemas internos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir todos os pacotes IP por quadros PPP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar o portal web por transmissão de broadcast.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tratar UDP 500 como único requisito de dados protegidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conferir NAT-T, UDP 4500, SAs, políticas de tráfego e rotas.",
+          "correct": true
+        }
+      ],
+      "explanation": "A travessia de NAT pode envolver encapsulamento de ESP em UDP 4500, além de negociação e políticas de SAs. A comunicação inicial por UDP 500 não comprova a passagem do tráfego protegido até os destinos.",
+      "section": "IPsec, IKEv2, TLS e modalidades de WebVPN",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao elaborar política de VPN baseada em TLS, uma equipe propõe reabilitar TLS 1.0 e TLS 1.1 para aumentar compatibilidade. Qual medida está alinhada às referências técnicas atuais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adotar SSL 3.0 como opção padrão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar somente PPTP para os clientes antigos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Evitar versões de TLS formalmente depreciadas e atualizar clientes incompatíveis.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Dispensar certificados em qualquer VPN de acesso remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Utilizar AH como substituto completo do TLS.",
+          "correct": false
+        }
+      ],
+      "explanation": "TLS 1.0 e 1.1 foram depreciados; manter versões inseguras para compatibilidade amplia riscos. A adequação requer atualizar sistemas ou escolher meios suportados e seguros, não migrar para protocolos antigos vulneráveis.",
+      "section": "IPsec, IKEv2, TLS e modalidades de WebVPN",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma VPN OpenVPN roteada que transportará pacotes IP, qual tipo de dispositivo virtual corresponde à camada 3?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "TAP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "GRE.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PPP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Bridge Ethernet obrigatório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "TUN.",
+          "correct": true
+        }
+      ],
+      "explanation": "TUN é a interface virtual usada para transportar pacotes IP em camada 3. TAP está associada a quadros Ethernet de camada 2, quando a plataforma permite; os outros termos não identificam essa interface OpenVPN.",
+      "section": "OpenVPN e WireGuard: arquitetura e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em relação aos protocolos de transporte, o OpenVPN pode operar, conforme configurado, sobre:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas TCP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas ICMP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "UDP ou TCP.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Somente GRE.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somente ESP sem TLS.",
+          "correct": false
+        }
+      ],
+      "explanation": "OpenVPN oferece suporte a UDP e TCP, com diferenças operacionais e de desempenho. UDP costuma evitar sobreposição de mecanismos de retransmissão de TCP, mas a escolha deve respeitar redes e requisitos da implantação.",
+      "section": "OpenVPN e WireGuard: arquitetura e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No WireGuard, um administrador define AllowedIPs para o peer de uma filial. Qual interpretação é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É o repositório de todos os certificados TLS confiáveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Associa prefixos ao peer para envio e validação de endereços internos recebidos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Cria automaticamente contas corporativas e MFA para os usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Habilita navegação clientless via portal HTML5.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Bloqueia obrigatoriamente qualquer pacote UDP fora da VPN por firewall.",
+          "correct": false
+        }
+      ],
+      "explanation": "AllowedIPs integra o cryptokey routing, vinculando endereços de tráfego a identidades criptográficas de peers. Não é um gerenciador de usuários nem uma política de firewall completa para todas as aplicações.",
+      "section": "OpenVPN e WireGuard: arquitetura e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer diferenciar tls-auth e tls-crypt na configuração do OpenVPN. Que afirmação descreve corretamente o papel adicional de tls-crypt?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Elimina a necessidade de verificar o certificado do servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Transforma o túnel TUN em TAP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garante autorização irrestrita do usuário na rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Além da autenticação, protege por cifragem informações do canal de controle.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Passa a transportar apenas pacotes ESP do IPsec.",
+          "correct": false
+        }
+      ],
+      "explanation": "tls-auth autentica pacotes de controle com chave compartilhada; tls-crypt acrescenta cifragem dessa camada de controle. Ambos são complementares à autenticação TLS e não concedem privilégios em aplicações internas.",
+      "section": "OpenVPN e WireGuard: arquitetura e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instituição utilizará WireGuard entre equipes, mas precisa integrar contas corporativas, MFA, inventário de dispositivos e revogação de acessos. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Esses recursos de gestão precisam ser implementados no entorno do protocolo, por ferramentas e políticas próprias.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O handshake Noise substitui todos os diretórios de identidade e qualquer MFA.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "AllowedIPs contém nativamente cadastros de funcionários e verificações de postura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma única chave privada compartilhada por todos oferece a melhor rastreabilidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O uso de UDP impede tecnicamente o gerenciamento de chaves por solução externa.",
+          "correct": false
+        }
+      ],
+      "explanation": "WireGuard define um túnel seguro entre peers identificados por chaves; provisionamento corporativo e controles de usuário normalmente dependem de componentes adicionais. Compartilhar chaves indiscriminadamente prejudica a rastreabilidade.",
+      "section": "OpenVPN e WireGuard: arquitetura e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em seu modelo clássico, o PPTP transporta dados PPP encapsulados utilizando qual mecanismo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SMTP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "GRE.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "ESP obrigatoriamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "TLS 1.3.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "DNS.",
+          "correct": false
+        }
+      ],
+      "explanation": "O PPTP utiliza GRE para encapsular o tráfego PPP e um canal de controle TCP. Essa distinção é relevante para firewall e NAT; não implica que o protocolo legado tenha segurança comparável à de alternativas atuais.",
+      "section": "PPTP, L2TP e evolução dos protocolos de tunelamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "L2TP é melhor caracterizado como um protocolo destinado a:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cifrar automaticamente todo pacote IP usando ChaCha20.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Negociar certificados TLS de navegadores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gerenciar exclusivamente rotas BGP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tunelar sessões PPP sobre uma rede de pacotes.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Substituir o DNS em todas as VPNs.",
+          "correct": false
+        }
+      ],
+      "explanation": "L2TP provê tunelamento de sessões PPP e normalmente é usado em associação com mecanismos adicionais quando se deseja confidencialidade. Sua definição não corresponde a algoritmo de criptografia, BGP ou DNS.",
+      "section": "PPTP, L2TP e evolução dos protocolos de tunelamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma questão de edital afirma que L2TP/IPsec reúne duas tecnologias com finalidades complementares. Qual opção expressa essa complementaridade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "IPsec transporta páginas web e L2TP assina certificados digitais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "L2TP substitui o gateway e IPsec substitui endereçamento IP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "L2TP conduz sessões PPP, e IPsec protege os pacotes conforme a política.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ambos são variantes obrigatórias do TLS 1.3.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "L2TP realiza exclusivamente autenticação e IPsec resolve nomes DNS.",
+          "correct": false
+        }
+      ],
+      "explanation": "A composição L2TP/IPsec combina tunelamento PPP realizado por L2TP com mecanismos de proteção do IPsec. Os papéis não se confundem com DNS, certificados web nem substituição das funções de roteamento.",
+      "section": "PPTP, L2TP e evolução dos protocolos de tunelamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um órgão identifica um servidor de acesso remoto PPTP utilizado por terceiros e decide renová-lo. Qual plano é mais defensável tecnicamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Migrar para solução atual suportada, revendo autenticação, rotas, políticas e dispositivos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter PPTP e trocar apenas a porta de controle por uma porta aleatória.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desligar logs e preservar credenciais históricas para evitar incompatibilidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eliminar criptografia, pois o GRE já garante sigilo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar a mesma conta para todos os prestadores, simplificando auditoria.",
+          "correct": false
+        }
+      ],
+      "explanation": "A substituição do PPTP deve tratar conjuntamente segurança criptográfica, identidade, privilégios e operação. Alterar porta ou ocultar logs não corrige suas fragilidades históricas nem permite responsabilização por acesso.",
+      "section": "PPTP, L2TP e evolução dos protocolos de tunelamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual contraste entre protocolos históricos e mecanismos atuais está correto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "PPTP e WireGuard compartilham obrigatoriamente o mesmo handshake Noise.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "L2TP é componente interno obrigatório de todas as VPNs TLS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PPTP utiliza ESP para dados em qualquer implementação, dispensando GRE.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "IKEv2 é somente um modo de encapsular quadros PPP por L2TP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "L2TP é túnel PPP sem cifragem própria; IPsec pode ser adicionado para proteção.",
+          "correct": true
+        }
+      ],
+      "explanation": "L2TP e IPsec desempenham papéis diferentes: o primeiro encapsula sessões PPP e o segundo oferece segurança IP segundo políticas. As demais descrições misturam mecanismos de protocolos diferentes e atribuem funções inexistentes.",
+      "section": "PPTP, L2TP e evolução dos protocolos de tunelamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após autenticar um funcionário na VPN, a equipe deseja permitir acesso apenas ao sistema de sua unidade. Qual princípio fundamenta essa restrição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Menor privilégio.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Acesso irrestrito por confiança de localização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Extensão obrigatória do domínio de broadcast.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eliminação dos controles de firewall.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Compartilhamento das credenciais de administrador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Menor privilégio restringe acessos aos recursos e operações necessários à função. A entrada na VPN confirma conectividade e identidade conforme a configuração; não deve promover a usuário privilégios sobre toda a infraestrutura.",
+      "section": "Controles corporativos, Zero Trust e diagnóstico de falhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o objetivo principal da autenticação multifator em um serviço corporativo de VPN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar a MTU do túnel automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Transformar conexões UDP em TCP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dispensar senhas e credenciais em qualquer cenário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar endereços IPv6 públicos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reduzir a dependência de um único fator de autenticação.",
+          "correct": true
+        }
+      ],
+      "explanation": "MFA exige fatores independentes ou mecanismos equivalentes segundo a solução, reduzindo riscos de comprometimento isolado de senha. Não substitui atualizações do concentrador, gestão de dispositivos ou autorização nas aplicações.",
+      "section": "Controles corporativos, Zero Trust e diagnóstico de falhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O monitoramento registra túnel estabelecido e autenticação bem-sucedida; entretanto, um usuário não alcança um banco de dados interno por IP. Qual sequência de verificações é mais pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar todos os registros do concentrador e repetir o acesso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Considerar que o servidor está necessariamente com certificado TLS expirado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir roteamento por resolução DNS, mesmo em acesso por IP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificar rotas de ida e retorno, firewall, segmentação e permissões de acesso.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Concluir que a VPN está completamente operacional e encerrar o chamado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um túnel estabelecido não comprova conectividade com cada destino. Rotas, retorno, regras de firewall, segmentação e autorização podem bloquear o serviço; DNS não explica diretamente falha de acesso por IP.",
+      "section": "Controles corporativos, Zero Trust e diagnóstico de falhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na adoção de full tunnel, o time de segurança deseja evitar saída inadvertida quando a VPN cair e considera fluxos IPv6 não tunelados. Qual medida é coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Presumir que a rota IPv4 padrão controla também qualquer tráfego IPv6.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Eliminar toda inspeção, já que os dados são cifrados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Validar rotas IPv4/IPv6 e aplicar política de bloqueio de tráfego quando o túnel estiver indisponível.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Forçar PPTP para permitir conectividade mesmo sem criptografia.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir exceções de todo o tráfego por interfaces locais sem registro.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma proteção eficaz contra vazamentos exige considerar rotas, políticas de firewall e IPv6, além de comportamento na queda do túnel. O kill switch pode bloquear fluxos protegidos definidos; a rota IPv4 isolada é insuficiente.",
+      "section": "Controles corporativos, Zero Trust e diagnóstico de falhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização mantém uma VPN tradicional, mas pretende adotar políticas de Zero Trust. Qual desenho é conceitualmente consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confiar automaticamente em qualquer endereço IP recebido pela VPN.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Preservar o túnel quando necessário e condicionar acesso a identidade, dispositivo, contexto e recurso.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Eliminar a autorização das aplicações, confiando só na chave criptográfica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir MFA por lista de redes internas confiáveis em qualquer condição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tornar obrigatório que toda aplicação aceite conexões sem autenticação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Zero Trust não impede necessariamente o uso de túneis VPN: o princípio é evitar confiança implícita na localização e reforçar decisões de acesso por recurso, identidade e contexto, independentemente do caminho de rede.",
+      "section": "Controles corporativos, Zero Trust e diagnóstico de falhas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Guide to Enterprise Telework, Remote Access, and BYOD Security",
+      "publisher": "NIST",
+      "reference": "NIST SP 800-46 Rev. 2",
+      "url": "https://csrc.nist.gov/pubs/sp/800/46/r2/final",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Guide to IPsec VPNs",
+      "publisher": "NIST",
+      "reference": "NIST SP 800-77 Rev. 1",
+      "url": "https://csrc.nist.gov/pubs/sp/800/77/r1/final",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Guide to SSL VPNs",
+      "publisher": "NIST",
+      "reference": "NIST SP 800-113",
+      "url": "https://csrc.nist.gov/pubs/sp/800/113/final",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Zero Trust Architecture",
+      "publisher": "NIST",
+      "reference": "NIST SP 800-207",
+      "url": "https://csrc.nist.gov/pubs/sp/800/207/final",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Security Architecture for the Internet Protocol",
+      "publisher": "IETF / RFC Editor",
+      "reference": "RFC 4301",
+      "url": "https://www.rfc-editor.org/info/rfc4301/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Internet Key Exchange Protocol Version 2 (IKEv2)",
+      "publisher": "IETF / RFC Editor",
+      "reference": "RFC 7296",
+      "url": "https://www.rfc-editor.org/info/rfc7296/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Layer Two Tunneling Protocol (L2TP)",
+      "publisher": "IETF / RFC Editor",
+      "reference": "RFC 2661",
+      "url": "https://www.rfc-editor.org/info/rfc2661/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Point-to-Point Tunneling Protocol (PPTP)",
+      "publisher": "IETF / RFC Editor",
+      "reference": "RFC 2637",
+      "url": "https://www.rfc-editor.org/info/rfc2637/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Deprecating TLS 1.0 and TLS 1.1",
+      "publisher": "IETF / RFC Editor",
+      "reference": "RFC 8996",
+      "url": "https://www.rfc-editor.org/info/rfc8996/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenVPN 2.6 Manual",
+      "publisher": "OpenVPN Inc. / OpenVPN Community",
+      "reference": "OpenVPN 2.6 Community Manual",
+      "url": "https://openvpn.net/community-docs/community-articles/openvpn-2-6-manual/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Protocol & Cryptography",
+      "publisher": "WireGuard",
+      "reference": "WireGuard Protocol",
+      "url": "https://www.wireguard.com/protocol/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Quick Start",
+      "publisher": "WireGuard",
+      "reference": "WireGuard Quick Start",
+      "url": "https://www.wireguard.com/quickstart/",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

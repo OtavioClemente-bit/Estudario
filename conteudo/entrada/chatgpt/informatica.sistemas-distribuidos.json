@@ -1,0 +1,1891 @@
+{
+  "id": "informatica.sistemas-distribuidos",
+  "subject": "Informática / Tecnologia da Informação",
+  "title": "Sistemas Distribuídos",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Sistemas Distribuídos",
+    "Sistemas Distribuídos"
+  ],
+  "scope": {
+    "covers": "Conceito, características, transparências, arquitetura, relógios lógicos, descoberta, comunicação, RPC, eventos, Kafka, consenso, liderança, CAP, modelos de consistência, replicação, particionamento, transações, HDFS, NFS, armazenamento de objetos, S3, indexação, índices invertidos, shards e recuperação distribuída.",
+    "excludes": "Administração operacional de instalações específicas, comandos dependentes de versão, parametrizações não explicitadas no edital, análise aprofundada de provas formais de consenso e dimensionamento financeiro de fornecedores."
+  },
+  "theoryTitle": "Sistemas Distribuídos: fundamentos, consistência, sistemas de arquivos, objetos e indexação",
+  "chapters": [
+    {
+      "title": "Fundamentos, arquiteturas e tempo lógico",
+      "markdown": "## 1. Conceito, objetivos e limites\nUm **sistema distribuído** reúne componentes autônomos, conectados por rede, que cooperam para fornecer um serviço. O usuário pode enxergar um sistema único, mas os nós possuem memória, processadores, relógios, estados e pontos de falha próprios. Essa diferença explica por que um programa local e uma aplicação distribuída não são equivalentes: a comunicação remota sofre latência variável, perda, duplicação, reordenação de mensagens, partições e falhas parciais. Um processo pode continuar operando enquanto outro está inacessível, e um tempo limite não prova que a operação remota não ocorreu.\n\n**Objetivos clássicos:** compartilhamento de recursos; desempenho e elasticidade por paralelismo; tolerância a falhas; disponibilidade; escalabilidade horizontal; localização geográfica; interoperabilidade. Há compromissos: a redundância amplia a resistência a falhas, porém impõe sincronização e custos; distribuir dados reduz gargalos em certos acessos, mas complica transações globais; adicionar servidores não elimina limites de rede, contenção ou gerenciamento de metadados. Escalabilidade pode ser medida por aumento de usuários, do volume de dados e da distância entre componentes. Não confunda escalabilidade com disponibilidade: um cluster pode suportar carga crescente e, ainda assim, parar quando perde seu coordenador.\n\n## 2. Transparência e estilos arquiteturais\nTransparências são propriedades desejadas, não promessas absolutas. A de **acesso** oculta diferenças de representação e invocação; a de **localização** evita exigir do cliente a posição física de um recurso; a de **migração** procura preservar o uso quando um recurso muda de lugar; a de **replicação** esconde a presença de cópias; a de **falhas** procura atenuar interrupções; a de **concorrência** permite compartilhamento por usuários distintos. Transparência total de falhas é inviável em todos os cenários porque não há como distinguir instantaneamente servidor lento de servidor indisponível usando somente comunicação assíncrona. Expor certos limites, como prazo máximo de resposta e possibilidade de repetição, pode produzir sistemas mais corretos.\n\nNa arquitetura **cliente-servidor**, clientes solicitam operações a servidores; em **multicamadas**, interface, lógica de negócios e persistência possuem responsabilidades distintas. Em **microsserviços**, capacidades são implantadas como serviços menores com contratos explícitos e autonomia operacional relativa, mas exigem observabilidade e controle das dependências. Em **peer-to-peer**, participantes podem oferecer e consumir recursos. Modelos de serviços, filas, eventos e tarefas em lote podem coexistir numa mesma solução; o uso de eventos não converte automaticamente tudo em descentralizado. Um balanceador reparte requisições, enquanto uma malha de serviços pode fornecer descoberta, roteamento e políticas de tráfego, conforme a implementação.\n\n## 3. Nomes, descoberta e topologia\n**Nome** é uma identificação lógica; **endereço** indica como chegar a um destino; **localizador** pode identificar a posição atual de um recurso. A dissociação entre nome estável e endereço mutável facilita a substituição de réplicas. DNS resolve nomes para registros e pode participar da descoberta, mas TTL, caches e atualização assíncrona impedem supor visibilidade instantânea de qualquer alteração. Em orquestradores, serviços podem apresentar um nome lógico estável a clientes mesmo quando os endereços dos processos de execução mudam. Um registro de serviços também pode reunir metadados e informação de saúde, sujeita a atrasos de atualização.\n\n**Balanceamento** pode ser feito na entrada ou pelo próprio cliente; políticas incluem round-robin, menor carga estimada e afinidade por chave. Health checks reduzem o direcionamento de tráfego para instâncias defeituosas, mas não constituem prova de que toda dependência de negócio esteja correta. Afinidade de sessão pode ajudar aplicações legadas, porém introduz restrições de distribuição. Replicar o processamento sem externalizar sessões pode criar inconsistências quando o balanceador muda o destino.\n\n## 4. Tempo, causalidade e ordenação\nRelógios físicos são necessários para relatórios, expiração e auditoria, mas sofrem desvios. Sincronização por protocolos de tempo reduz diferença entre máquinas sem conferir simultaneidade perfeita. **Relógios lógicos de Lamport** atribuem contadores que respeitam causalidade: se um evento antecede causalmente outro, seu contador é menor. O inverso não é garantido: contador menor não prova causalidade. **Relógios vetoriais**, no modelo adequado, codificam relações causais entre eventos e permitem reconhecer concorrência quando os vetores não são comparáveis componente a componente. Isso é distinto de medir latência real em milissegundos.\n\nEm sistemas distribuídos, o relacionamento *aconteceu-antes* inclui a ordem dos eventos de um processo, o envio antes do recebimento da mesma mensagem e o fecho transitivo dessas relações. Uma ordenação total adicional pode ser estabelecida por critérios de desempate, mas não equivale a causalidade física. A escolha entre ordem causal, ordem por partição e ordem global depende do requisito: registro de alterações de um cliente pode exigir ordem por chave; um livro-razão crítico exige coordenação mais forte. A ausência de relógio perfeitamente comum é uma das fontes de dificuldade para auditar eventos simultâneos.\n\n## 5. Modelos de falha, observabilidade e desempenho\nFalhas podem ser de **parada** (*crash*), omissão de envio/recebimento, atraso, resposta incorreta e comportamento arbitrário. Uma partição impede a troca de mensagens entre subconjuntos, mesmo que todos os equipamentos permaneçam ligados. Detectores de falha por timeout realizam suspeitas, não certezas; por isso, exclusão automática, reeleição e *fencing* devem ser desenhados com cuidado. Monitoramento contempla métricas de latência (inclusive percentis), taxa de erros, saturação, consumo de recursos e capacidade; logs estruturados e rastreamento distribuído ajudam a localizar falhas entre serviços.\n\nA latência de uma requisição com chamadas sequenciais soma esperas; a paralelização pode reduzir caminho crítico, mas amplia a pressão sobre dependências. Filas acomodam picos, não criam capacidade ilimitada. **Backpressure** freia produtores quando consumidores estão saturados. *Bulkheads* isolam recursos para limitar o raio de falhas; *circuit breakers* deixam de insistir temporariamente em dependências problemáticas. A meta de um projeto sério é explicitar garantias observáveis, limites de falha e compromissos, em vez de prometer que a rede se comportará como memória compartilhada."
+    },
+    {
+      "title": "Comunicação, coordenação, consenso e eventos",
+      "markdown": "## 1. Mensageria, RPC e limites de rede\nA comunicação **síncrona** faz o chamador aguardar resposta; a **assíncrona** desacopla a entrega do processamento, com filas, tópicos ou notificações. Chamada de procedimento remoto (RPC) pode aparentar uma chamada local, mas a semântica é diferente: a rede introduz serialização, latência, timeouts e incerteza de execução. APIs HTTP e gRPC são alternativas de contrato e transporte; a seleção deve considerar compatibilidade, streaming, tipagem, segurança e depuração. Serialização por JSON, Protobuf ou outro formato requer evolução cuidadosa de esquemas, com campos novos tratados por consumidores de versões distintas.\n\n**Timeout** limita a espera; **retry** tenta novamente; nenhum dos dois assegura que o primeiro pedido foi abortado. Para operações com efeitos, como cobrar uma compra, utilize **chaves de idempotência**, identificando a mesma intenção de negócio para que pedidos repetidos não produzam novos débitos. A operação matemática idempotente satisfaz f(f(x)) = f(x), mas operações de negócio exigem persistir o resultado ou deduplicar dentro de escopo apropriado. Retentativas com recuo exponencial, aleatoriedade (*jitter*) e orçamento de tentativas reduzem tempestades coordenadas. A concatenação de retries por várias camadas pode multiplicar chamadas ao backend.\n\n## 2. Filas, tópicos e garantias de entrega\nEm mensageria, **at-most-once** admite perda e procura evitar reentrega; **at-least-once** privilegia entrega, mas permite duplicatas; **exactly-once** depende de condições e do escopo do sistema. Mesmo quando uma plataforma garante processamento transacional entre seus próprios tópicos, uma API externa ou banco independente exige coordenação adicional, deduplicação ou desenho idempotente. O consumidor deve distinguir receber, executar efeitos e confirmar o progresso; confirmar antes da execução pode perder trabalho em falhas, enquanto confirmar depois pode permitir reprocessamento.\n\nNo Apache Kafka, tópicos são divididos em **partições**. Uma partição preserva uma ordem de registros, e consumidores de um grupo dividem as partições para processamento paralelo; não há ordem total garantida entre partições diferentes. Escolher uma chave estável mantém eventos da mesma entidade na mesma partição, quando o particionamento configurado preserva esse mapeamento, mas concentra carga caso uma única chave seja dominante. O *offset* indica posição no log de uma partição, e sua confirmação não substitui a transação do sistema de destino. Técnicas como **dead-letter queue** isolam falhas persistentes, mas requerem políticas de reprocessamento e governança de dados.\n\n## 3. Liderança, consenso e quóruns\nSistemas coordenados precisam definir quem pode tomar certas decisões. Em protocolos como **Raft**, nós elegem um líder e replicam um registro de comandos; regras de termos, persistência e maioria procuram impedir que dois líderes confirmem conjuntos conflitantes de decisões. Uma maioria de cinco membros corresponde a três participantes; se dois se tornam inacessíveis, os três restantes podem preservar o quórum de decisão, supondo comunicação e funcionamento adequados. Nem todo mecanismo de replicação exige o mesmo protocolo, e consenso não é sinônimo de simples eleição por DNS ou por balanceador.\n\nQuando duas partições acreditam ter autoridade para escrever, surge risco de **split-brain**. Quórum, controle de mandato e **fencing tokens** ajudam a impedir que líderes antigos continuem modificando recursos após perderem legitimidade. Uma *lease* é autorização temporal e depende de pressupostos sobre relógios e pausas; não basta confiar apenas nela se um processo antigo puder continuar escrevendo após o vencimento. Serviços de coordenação (como etcd) são usados para metadados críticos e eleições, com cautela sobre disponibilidade durante perda de maioria.\n\n## 4. Transações entre serviços e padrões de integração\n**Transação distribuída** pretende coordenar efeitos em múltiplos participantes. O *two-phase commit* (2PC) tem, em linhas gerais, fases de preparação e decisão; mantém atomicidade sob hipóteses específicas, mas pode bloquear participantes quando o coordenador falha e não é, por si só, um algoritmo de consenso tolerante a partições. **Sagas** substituem uma transação global por etapas locais e operações compensatórias; compensação não significa desfazer literalmente todo efeito observado, como uma mensagem já lida por terceiros. É necessário definir estados intermediários, timeouts, reversões possíveis e estratégias para falhas da compensação.\n\n**Transactional outbox** resolve o problema de gravar estado de negócio e publicar evento em sistemas diferentes: o serviço registra a alteração e o evento pendente na mesma transação local, e um processo posterior publica o evento. Isso diminui o risco de confirmação da compra sem registro do evento, mas a publicação pode repetir; consumidores idempotentes continuam necessários. **Inbox** e identificadores de eventos contribuem para deduplicar. **CQRS** separa modelos de escrita e consulta quando há ganho legítimo; projeções de leitura podem atrasar em relação à fonte, e exigir leitura imediatamente atualizada demanda mecanismo adicional.\n\n## 5. Operação e confiabilidade dos fluxos\nMensagens precisam de contrato claro: identificador de evento, versão, horário, origem, entidade afetada, política de retenção e regras de privacidade. Fluxos sem controle de duplicatas e sem rastreabilidade são difíceis de auditar. Métricas de *consumer lag* mostram o atraso no consumo, mas não garantem que o efeito de negócio já foi persistido corretamente. Uma fila vazia não significa sucesso se mensagens foram descartadas ou desviadas sem tratamento.\n\nO serviço resiliente distingue **falha transitória** de **falha permanente**. Erro de validação não deve gerar retries infinitos; indisponibilidade temporária pode justificar novos envios. Timeout fim a fim deve considerar o tempo ainda disponível em cada chamada descendente. Reprocessamento deve respeitar a ordem relevante, regras de deduplicação e versões dos esquemas. A banca costuma trocar o significado das garantias de entrega ou afirmar que a presença de um broker elimina a necessidade de coordenação com o banco de dados; essa conclusão é incorreta."
+    },
+    {
+      "title": "Replicação, consistência, particionamento e tolerância a falhas",
+      "markdown": "## 1. Replicação e distribuição de carga\n**Replicação** mantém cópias de dados para disponibilidade, tolerância a falhas e, em certos casos, desempenho de leitura. Não é o mesmo que **particionamento horizontal** (*sharding*), que distribui subconjuntos de dados entre grupos distintos. Em arranjos com shards replicados, ambos são combinados: cada partição possui cópias. A replicação **líder-seguidores** concentra gravações autorizadas no líder e propaga alterações; a **multilíder** admite entradas em mais de uma região e precisa tratar conflitos. Modelos sem líder podem usar quóruns e reconciliação, conforme a tecnologia.\n\nUma escrita pode ser considerada confirmada antes ou depois da propagação a réplicas. Replicação **síncrona** normalmente espera confirmações definidas pela política, adicionando latência ou reduzindo disponibilidade em certos cenários; **assíncrona** pode aceitar escrituras mais rapidamente, mas há janela de divergência e potencial perda de alterações ainda não replicadas após falha do primário. Replicar não substitui backup: exclusões acidentais ou corrupção lógica também podem ser propagadas. Segurança operacional exige isolamento, restauração testada e controle de acesso.\n\n## 2. Modelos de consistência\n**Linearizabilidade** exige que cada operação pareça ocorrer em um instante entre sua invocação e resposta, respeitando a ordem real de operações não sobrepostas; trata-se de uma propriedade de objeto/serviço. **Consistência sequencial** admite uma ordem total que preserve a ordem de operações de cada processo, sem necessariamente respeitar a ordem temporal de operações de clientes diferentes. **Consistência causal** obriga observações compatíveis com dependências causais. **Consistência eventual** informa que cópias convergirão na ausência de novas alterações, sob condições de entrega/reconciliação; não promete que uma leitura imediatamente após a gravação mostrará o novo valor.\n\nGarantias de **sessão** incluem *read-your-writes* (ver os próprios escritos), leituras monotônicas (não voltar a estados anteriores em certas condições) e escritas monotônicas. Uma aplicação pode fornecer regras mais fortes em parte das operações e mais fracas em outras. O termo **consistência** em ACID indica preservação de invariantes da base de dados; não é intercambiável com a consistência do teorema CAP. Já a **serializabilidade** das transações diz respeito a um resultado equivalente a uma execução serial, podendo existir sem a propriedade de respeito à ordem temporal exigida pela consistência externa.\n\n## 3. Teorema CAP: leitura correta\nO **CAP** trata da impossibilidade de garantir simultaneamente, diante de uma partição de rede relevante, consistência forte no sentido da linearizabilidade e disponibilidade para todas as requisições dirigidas a nós não falhos. Não significa escolher duas características para sempre, independentemente das falhas, nem permite ignorar partições porque a rede corporativa parece confiável. Quando a rede se divide, um lado pode recusar algumas operações para preservar consistência; ou responder e aceitar divergência, segundo o desenho. A decisão pode variar por operação e chave.\n\n**ACID** (atomicidade, consistência de invariantes, isolamento e durabilidade) descreve propriedades transacionais; **BASE** resume uma postura arquitetural de disponibilidade básica, estado flexível e convergência eventual. Nem toda solução distribuída precisa abandonar transações ACID. Há bancos distribuídos com transações de consistência forte, ainda que o custo e a disponibilidade sob falhas devam ser considerados. Em questões, suspeite de frases que dizem que CAP impede qualquer sistema de oferecer consistência e disponibilidade quando a rede está saudável.\n\n## 4. Quóruns, conflitos e reconciliação\nEm uma replicação simplificada de fator **RF = 3**, uma política de leitura por duas cópias e escrita por duas cópias satisfaz R + W > RF, produzindo interseção entre os conjuntos de réplicas contatados, sob hipóteses da configuração. Essa condição é útil, mas **não é garantia universal de linearizabilidade**: *sloppy quorums*, falhas concorrentes, relógios, reparação, leituras de versões e regras concretas de resolução interferem no resultado. Há diferenças entre quórum local e global em ambientes multirregião.\n\nResolução de conflitos pode recorrer a versões, registros de causalidade, operações comutativas, intervenção da aplicação ou estruturas convergentes (*CRDTs*), conforme os requisitos. Critério de *last-write-wins* facilita implementação, mas pode sobrescrever alteração concorrente e depende de definição de ordem. A convergência eventual só é útil se os dados e operações respeitarem as regras do domínio; fusão de carrinho de compras é distinta da atualização do saldo bancário. **Anti-entropy** e reparação ajudam réplicas a convergir; *read repair* depende da tecnologia e da operação.\n\n## 5. Sharding e continuidade\n**Particionamento por intervalo** favorece consultas por faixa, porém concentra tráfego em chaves crescentes, quando mal projetado. **Hash** espalha chaves com maior uniformidade, mas dificulta consultas por intervalo. **Hash consistente** reduz, em determinadas estratégias, a quantidade de chaves realocadas ao adicionar nós; não elimina rebalanceamento, nem corrige automaticamente uma chave extremamente popular. Chave de partição deve refletir padrões de acesso, cardinalidade, crescimento e localização das transações.\n\nA tolerância a falhas requer política de promoção de réplicas, observação de recuperação, *replay* de logs e testes de desastre. **RPO** descreve a perda de dados tolerável em uma recuperação; **RTO**, o tempo pretendido para restaurar o serviço. Replicação em zonas distintas protege contra certos domínios de falha, mas não substitui análise de dependências comuns. Uma solução sem testes de recuperação pode parecer redundante até o momento de um incidente real."
+    },
+    {
+      "title": "Sistemas de arquivos distribuídos",
+      "markdown": "## 1. Abstração de arquivo e semântica de acesso\nUm **sistema de arquivos distribuído** disponibiliza arquivos e diretórios pela rede e procura fornecer operações familiares, como abrir, ler, escrever, listar e renomear, segundo semântica própria. O cliente pode usar montagem, protocolos ou bibliotecas para acessar arquivos armazenados em outros servidores. A abstração difere de armazenamento por objetos: sistemas de arquivos frequentemente expõem nomes hierárquicos, permissões, metadados, posições em arquivo e operações de acesso parcial. Não se pode pressupor que qualquer implementação remota ofereça todas as garantias POSIX locais, especialmente sob cache e concorrência.\n\nEm soluções como **NFS**, clientes acessam diretórios exportados por servidores de arquivos; caches de atributos e de dados podem melhorar desempenho, mas exigem atenção à coerência. A semântica concreta depende da versão, configuração e modo de montagem. **SMB** é outro protocolo de compartilhamento de arquivos, comum em ambientes de redes corporativas, e não se confunde com os blocos internos do HDFS. A unidade de acesso lógico para o usuário pode ser um arquivo; o sistema pode distribuí-lo fisicamente em diversos servidores.\n\n## 2. Arquitetura HDFS\nO **Hadoop Distributed File System (HDFS)** foi projetado para grandes conjuntos de dados e acesso de alta vazão, especialmente processamento em lote. Um **NameNode** administra o espaço de nomes e os metadados que relacionam arquivos a blocos; **DataNodes** armazenam e servem os blocos. O cliente obtém informações sobre onde estão os blocos e transfere os dados com DataNodes, em vez de fazer o NameNode encaminhar todo o conteúdo de cada leitura. Esse contraste entre plano de metadados e plano de dados é recorrente em concursos.\n\nArquivos podem ser divididos em **blocos** cujo tamanho e fator de replicação são configuráveis. Blocos de um mesmo arquivo são colocados em DataNodes distintos, conforme as políticas de posicionamento. O NameNode gerencia a replicação; DataNodes comunicam estado por **heartbeats** e **block reports**. Os relatórios de blocos informam quais blocos estão presentes no nó; os heartbeats ajudam a indicar que o nó continua respondendo. A ausência de um heartbeat pode acionar suspeita e ações de recuperação, mas a falha real pode envolver rede, máquina ou sobrecarga.\n\n## 3. Replicação, topologia e escrita\nCom **replicação de blocos**, a falha de um disco ou nó pode ser tolerada se outras cópias necessárias estiverem disponíveis. A política sensível a **racks** procura evitar concentrar todas as réplicas no mesmo domínio de falha; quantidade exata e escolha dos racks dependem da configuração. Replicação não significa que cada arquivo será necessariamente copiado integralmente para todos os servidores. Uma escrita pode encaminhar pacotes por um **pipeline** de DataNodes e receber confirmações de acordo com a estratégia do protocolo; o cliente não tem de enviar toda cópia de forma isolada ao NameNode.\n\n**Alta disponibilidade do NameNode** e replicação de dados são problemas diferentes: duplicar blocos não torna automaticamente os metadados imunes a falhas. Configurações de HA do HDFS utilizam instâncias de NameNode com mecanismos de sincronização de estado e alternância de papel. O **checkpoint** da representação dos metadados não é substituto automático de backup externo. A organização por blocos melhora a leitura sequencial de grandes arquivos, mas uma quantidade enorme de arquivos muito pequenos pressiona memória e processamento de metadados.\n\n## 4. Atualização, localidade e limites\nHDFS enfatiza arquivos grandes, leituras em fluxo e modelo predominantemente **write-once, read-many**, com possibilidade de append segundo as operações suportadas. Não é um substituto direto de sistemas transacionais de arquivos com muitas escritas aleatórias de poucos bytes. A orientação para vazão elevada pode ser preferível à otimização de latência de cada operação individual. No processamento de dados, **localidade** significa tentar aproximar a tarefa do local em que blocos estão armazenados; isso reduz tráfego de rede em cenários adequados, sem garantir que toda tarefa rode fisicamente sobre o nó do bloco.\n\nA **renomeação** em sistemas de arquivos com metadados hierárquicos pode ser tratada como operação no espaço de nomes, conforme implementação. Em armazenamento de objetos de namespace plano, ela geralmente é emulada por cópia para outra chave e exclusão da anterior. Esse contraste é importante ao migrar aplicações: bibliotecas que dependem de renomeação atômica, travas ou atualização aleatória não podem assumir comportamento idêntico ao trocar o armazenamento subjacente.\n\n## 5. Segurança, recuperação e comparação\nPolíticas de autenticação, autorização, criptografia em trânsito/repouso e auditoria devem cobrir tanto metadados como conteúdo. Um backup fora do mesmo domínio de falha protege contra corrupção, exclusão e incidentes que a replicação propaga. **Snapshots** capturam um estado lógico para recuperação e auditoria, mas sua independência física depende do armazenamento e da política de cópias. **Erasure coding** armazena fragmentos de dados e paridade de forma a suportar certos desaparecimentos com menor sobrecarga de capacidade que múltiplas cópias integrais, em troca de custos de cálculo, leitura e reparo.\n\nAo comparar arquiteturas, relacione a **interface** ao padrão de acesso: arquivo compartilhado para aplicações com navegação e operação sobre diretórios; HDFS para processamento de grandes conjuntos de dados; objeto para conteúdos identificados por chaves e acessados por API. Nenhum desses modelos é superior em qualquer situação. Uma questão que afirma que o NameNode contém fisicamente todos os blocos do HDFS confunde metadados com dados e deve ser rejeitada."
+    },
+    {
+      "title": "Armazenamento de objetos, durabilidade e operação",
+      "markdown": "## 1. Modelo de objetos\n**Armazenamento de objetos** organiza unidades lógicas compostas por conteúdo, identificador e metadados. Em serviços semelhantes ao Amazon S3, o objeto é identificado por uma **chave** dentro de um **bucket**. APIs de operações como PUT, GET, HEAD, DELETE e LIST substituem a ideia de montar obrigatoriamente um sistema de arquivos POSIX. O namespace costuma ser **plano**: barras no nome da chave podem simular pastas na interface, mas não significam necessariamente diretórios físicos com as mesmas operações de um sistema de arquivos hierárquico. Metadados e tags auxiliam organização, acesso e ciclo de vida.\n\nO objeto pode ser armazenado e distribuído internamente em dispositivos e domínios de falha diferentes, sem que isso esteja visível ao consumidor. Em regra, modificar alguns bytes de um objeto não equivale à atualização aleatória *in-place* de um arquivo por offset; aplicações normalmente enviam nova representação, usando recursos próprios de upload ou composição quando disponíveis. **Renomear** uma chave não é operação universal nativa e atômica: em buckets convencionais do S3, mudanças de chave geralmente requerem cópia e exclusão. Por isso, aplicações que dependem de commit por rename precisam de protocolo adaptado.\n\n## 2. Consistência: não usar mitos desatualizados\nO Amazon S3, conforme sua documentação atual, oferece **consistência forte de leitura após escrita** para operações de objeto PUT e DELETE e consistência forte de listagem, no escopo documentado do serviço. Portanto, a afirmação genérica de que 'o S3 sempre apresenta consistência eventual após gravar um objeto' está desatualizada. Isso não significa que qualquer banco, cache, CDN, réplica entre regiões ou sistema construído sobre S3 possua automaticamente a mesma garantia. Cada camada de cache ou replicação possui seu próprio contrato, com atrasos possíveis.\n\n**Versionamento** permite preservar versões de uma chave conforme a configuração e facilita recuperação de sobrescritas e exclusões, mas não equivale a uma política de backup completa. Políticas de **ciclo de vida** podem transicionar objetos entre classes de armazenamento ou determinar expiração, sujeitas às condições contratadas. Escolhas de classe afetam custo, latência, padrões de acesso e recuperação. Um objeto não precisa ter índice invertido para ser recuperado por chave; busca textual e agregações exigem mecanismos extras.\n\n## 3. Durabilidade, disponibilidade e proteção\n**Durabilidade** mede resistência à perda permanente de dados; **disponibilidade** mede a capacidade de responder a acessos no período considerado. Muitas réplicas e dispersão geográfica não eliminam indisponibilidade causada por credenciais, configuração, políticas ou rede. **RPO** e **RTO** devem orientar a solução de backup/replicação. Replicação **entre regiões**, quando configurada, envolve regras, custos e prazos próprios; não pressupõe que todo objeto tenha instantaneamente cópia atualizada em qualquer região.\n\nO modelo de responsabilidade compartilhada exige configurar identidade, permissões, bloqueio de acesso público quando cabível, criptografia e logs conforme a plataforma. **URLs pré-assinadas** concedem acesso temporário a operações e recursos especificados pela assinatura, respeitando também outras restrições aplicáveis; não devem ser tratadas como prova de que o objeto é público de forma permanente. Criptografia em trânsito protege o transporte; criptografia em repouso aborda o armazenamento, mas nenhuma das duas substitui controle de credenciais.\n\n## 4. Desempenho e grandes volumes\nUploads de grande porte podem usar partes, retomada e transferência paralela, conforme a API, reduzindo o custo de reiniciar operações extensas após falhas. A eficiência depende de largura de banda, concorrência, tamanho dos objetos, perfil de leitura e número de solicitações. Muitos objetos pequenos podem aumentar solicitações e despesas de metadados/consulta, mesmo quando o volume total em bytes é modesto. Prefixos de chave apoiam organização e acesso por listagem filtrada, mas não criam automaticamente índices secundários para pesquisa por todos os atributos do objeto.\n\n**CDNs** armazenam cópias em pontos de borda para reduzir latência de entrega e aliviar a origem, porém cache precisa de política de expiração/invalidação. Assim, uma atualização fortemente consistente na origem não implica que uma resposta servida por cache de borda mude de imediato. O uso de ETag e condições de atualização pode ajudar a impedir sobrescritas acidentais dependendo das semânticas suportadas pela API. Estratégias de *multipart upload* e gerenciamento de partes não concluídas também importam para controle de custo.\n\n## 5. Arquivos, blocos e objetos: prova comparativa\n**Armazenamento em blocos** disponibiliza volumes vistos por sistemas operacionais como dispositivos para organizar sistemas de arquivos; **armazenamento em arquivos** fornece nomes, diretórios e operação compartilhada sobre arquivos; **armazenamento em objetos** oferece recursos endereçados por chaves e APIs com metadados. Os três podem usar replicação interna, mas não têm a mesma interface. Um banco de dados transacional de baixa latência frequentemente requer acesso por bloco ou outro mecanismo com garantias adequadas; um repositório massivo de fotos e backups pode se beneficiar de objetos; análises em lotes podem combinar HDFS, objeto e motores de processamento.\n\nA **separação entre objeto e índice** é recorrente: bytes podem ficar em armazenamento de objetos, enquanto um catálogo relacional ou motor de busca mantém campos, termos e caminhos lógicos. Essa separação traz desafios de sincronização: a gravação do conteúdo pode ser confirmada antes de o novo registro aparecer em um índice assíncrono. Exames exploram justamente a distinção entre consistência do objeto e consistência da consulta por atributos."
+    },
+    {
+      "title": "Indexação, busca distribuída e atualização de índices",
+      "markdown": "## 1. O que se indexa e por quê\nUm **índice** organiza informações auxiliares para localizar dados sem percorrer integralmente todos os registros. É útil distinguir o identificador primário do documento, o caminho/chave física do conteúdo e as estruturas usadas para consulta. Índices **primários** apoiam acesso por chave; índices **secundários** atendem a outros atributos e podem exigir manutenção adicional em cada gravação. Em bases tradicionais, estruturas como **árvores B/B+** favorecem buscas por igualdade e faixas com dados ordenados. **Tabelas de dispersão** favorecem localização por chave de igualdade, mas não fornecem, por si só, ordenação para intervalos. Índice traz custo de memória, disco e escrita: a indexação indiscriminada não acelera todas as tarefas.\n\nEstruturas **LSM** frequentemente acumulam gravações em memória e segmentos ordenados em armazenamento, com operações de compactação posterior. Isso pode favorecer taxas de escrita, ao custo de amplificação de leitura/escrita e manutenção de arquivos. O fato de um banco ser distribuído não define se ele usa B-tree, LSM, índice invertido ou combinação; escolha depende de consulta, atualização, consistência e infraestrutura.\n\n## 2. Índice invertido e análise textual\nPara busca textual, o **índice invertido** associa cada termo a uma lista de documentos que o contêm (*posting list*), possivelmente com posições e frequência. Exemplo: 'nuvem' → documentos 2, 4 e 9. Esse modelo inverte a relação documento→palavras e permite reunir candidatos a uma consulta sem ler o texto integral de cada documento. **Tokenização** separa sequências de caracteres em tokens; **normalização** pode padronizar caixa e acentuação; **stopwords**, **stemming** ou **lematização** ajustam termos conforme idioma e finalidade. Decisões inadequadas de análise perdem precisão ou revocação.\n\nÉ importante compatibilizar **analisador de indexação** e **analisador de consulta**. Em mecanismos como Elasticsearch, o campo **text** normalmente passa por análise para busca em linguagem natural, enquanto **keyword** serve a valores exatos, agregações e filtros típicos. Consulta **match** processa texto conforme o analisador apropriado; consulta **term** busca um termo sem a análise de texto que ocorre em uma pesquisa full-text, de modo que aplicá-la ingenuamente a conteúdo analisado pode não devolver o resultado esperado. **BM25** é uma técnica de relevância usada para pontuação textual, não mecanismo de consenso entre réplicas.\n\n## 3. Shards, réplicas e roteamento\nÍndices grandes podem ser divididos em **shards**, unidades de particionamento armazenadas em nós diferentes. Cada shard mantém um subconjunto dos documentos e respectivas estruturas de busca. **Réplicas de shard** conservam cópias para tolerância a falhas e, conforme o motor, ampliação de capacidade de consulta. Aumentar réplicas não aumenta necessariamente capacidade de ingestão ou reduz latência em todos os cenários: atualizações precisam ser propagadas e resultados podem exigir coordenação. **Roteamento por hash** de identificador ou chave direciona inserções e consultas ao shard pertinente; consultas sem rota podem atingir múltiplos shards.\n\nUma pesquisa distribuída costuma ter fases de encaminhamento às partições, execução local, reunião dos resultados e ordenação/mesclagem. Para **top-k**, cada partição oferece candidatos, que um coordenador combina. Relevância global e paginação profunda exigem cuidados: as estatísticas e resultados locais podem diferir entre shards, e a busca em todas as partições consome rede e CPU. Um número excessivo de shards pequenos eleva custos fixos de metadados, abertura e coordenação; shards gigantescos dificultam recuperação e redistribuição.\n\n## 4. Atualização, visibilidade e reconstrução\nEm certos motores de busca, a confirmação da gravação de um documento e sua **visibilidade em busca** não ocorrem no mesmo instante; a exposição pode depender de uma operação de **refresh** ou do ciclo de publicação de segmentos. Isso caracteriza um atraso de indexação mesmo que a camada de armazenamento de objetos seja fortemente consistente. Não confunda **refresh** (disponibilizar documentos a consultas) com **flush**, **commit** ou **reindexação**, que têm objetivos distintos conforme a plataforma. **Reindexar** significa construir novo índice a partir de dados de origem ou de outra representação, útil em alterações de mapeamento, analisador e estrutura.\n\nManter documentos e índices sincronizados requer estratégia explícita: a transação no banco de origem e a atualização de um motor de busca externo não são automaticamente atômicas. O padrão de **outbox** e consumidores de eventos podem publicar mudanças de forma confiável, ainda sujeitos a atrasos, duplicatas e reconciliações. É prudente definir um identificador estável do documento, versões de atualização e regras contra eventos fora de ordem. Em operações de exclusão, a busca deve respeitar políticas de retenção e garantir que índices e caches não exponham informações indevidas durante a convergência.\n\n## 5. Indexação na arquitetura de dados\nUm **catálogo de objetos** pode manter metadados, etiquetas e trilhas de auditoria em banco ou mecanismo especializado para permitir buscas não atendidas pela chave do bucket. Listar por prefixo não é procurar arbitrariamente por conteúdo, data de captura e autor. Uma arquitetura pode armazenar fotografias como objetos, manter localização e propriedade em banco transacional e pesquisar descrições num índice invertido. A mesma chave lógica precisa ligar os componentes; a integridade exige tratamento de exclusão, reprocessamento e concorrência.\n\n**Trade-offs fundamentais:** indexação acelera leituras seletivas, mas aumenta espaço e atualizações; shards distribuem carga, porém elevam coordenação; réplicas aumentam disponibilidade, mas podem replicar erros lógicos; caches reduzem latência, mas precisam de invalidação. Em provas, separe três perguntas: onde ficam os bytes, como localizar um item por identificador e como pesquisar atributos ou texto. A primeira pode ser respondida por armazenamento de objetos; a segunda, por chave e metadados; a terceira, por índices secundários ou invertidos."
+    }
+  ],
+  "summary": "Sistemas distribuídos reúnem nós autônomos conectados por rede, com falhas parciais, latência variável e ausência de relógio global perfeito. A arquitetura envolve descoberta de serviços, comunicação síncrona e assíncrona, filas, RPC, idempotência, eleição de líderes e consenso por quóruns. Replicação não é particionamento: a primeira conserva cópias; o segundo reparte dados. CAP trata da escolha, durante partições, entre disponibilidade de requisições e consistência linearizável. Na persistência, o HDFS separa NameNode (metadados) e DataNodes (blocos) e privilegia grandes arquivos e alta vazão. Armazenamento de objetos usa buckets e chaves, sem pressupor operações POSIX ou rename atômico; o S3 atualmente documenta consistência forte para operações centrais sobre objetos e listagens. Indexação inclui B-trees, LSM e índices invertidos. Busca textual combina tokenização, analisadores, shards, réplicas e fusão de resultados; a atualização do índice de busca pode atrasar em relação à gravação do conteúdo. Para resolver questões, diferencie durabilidade de disponibilidade, entrega de mensagem de efeito externo, quorum de garantia universal de linearizabilidade e consistência do armazenamento de visibilidade nas camadas de cache ou indexação.",
+  "flashcards": [
+    {
+      "front": "O que caracteriza um sistema distribuído?",
+      "back": "Nós autônomos em rede que cooperam e podem falhar parcialmente, sem memória ou relógio global comum."
+    },
+    {
+      "front": "Replicação é igual a sharding?",
+      "back": "Não. Replicação mantém cópias; sharding distribui subconjuntos dos dados."
+    },
+    {
+      "front": "O que é transparência de localização?",
+      "back": "Acesso a recursos sem precisar conhecer a posição física atual do servidor."
+    },
+    {
+      "front": "Lamport prova causalidade nos dois sentidos?",
+      "back": "Não. Causalidade implica contador menor; contador menor, isoladamente, não implica causalidade."
+    },
+    {
+      "front": "Por que timeout não prova falha de execução?",
+      "back": "A operação pode ter sido realizada no servidor, embora a resposta tenha se perdido ou atrasado."
+    },
+    {
+      "front": "Como evitar efeitos duplicados em retries?",
+      "back": "Usar identificador de requisição ou chave de idempotência e persistir/deduplicar o efeito conforme o contrato."
+    },
+    {
+      "front": "Kafka garante ordem global por tópico?",
+      "back": "Não. A garantia geral de ordenação é por partição, não entre todas as partições."
+    },
+    {
+      "front": "O que um quorum em Raft protege?",
+      "back": "Confirmações e decisões de estado com interseção de maiorias, sob as regras do protocolo."
+    },
+    {
+      "front": "O que é split-brain?",
+      "back": "Situação em que componentes isolados acreditam simultaneamente possuir autoridade para operações conflitantes."
+    },
+    {
+      "front": "Qual é a principal limitação de uma saga?",
+      "back": "Compensações são operações de negócio e não equivalem necessariamente a desfazer efeitos externos já observados."
+    },
+    {
+      "front": "Qual é a ideia do transactional outbox?",
+      "back": "Persistir alteração de negócio e registro de evento na mesma transação local; publicar depois, aceitando necessidade de deduplicação."
+    },
+    {
+      "front": "Defina linearizabilidade.",
+      "back": "Operações parecem ocorrer instantaneamente entre invocação e resposta e respeitam a ordem real das operações não sobrepostas."
+    },
+    {
+      "front": "O que CAP afirma durante partição?",
+      "back": "Não se garantem ao mesmo tempo linearizabilidade e resposta a todas as solicitações de nós não falhos."
+    },
+    {
+      "front": "R + W > RF basta sempre para linearizabilidade?",
+      "back": "Não. A interseção é condição útil em modelos específicos; políticas de quorum e concorrência podem mudar as garantias."
+    },
+    {
+      "front": "Qual é a função do NameNode no HDFS?",
+      "back": "Gerenciar namespace e metadados que mapeiam arquivos para blocos; dados dos blocos ficam em DataNodes."
+    },
+    {
+      "front": "O que são heartbeats e block reports?",
+      "back": "Sinais periódicos de funcionamento dos DataNodes e relatórios dos blocos armazenados por cada nó."
+    },
+    {
+      "front": "Qual é o problema dos pequenos arquivos no HDFS?",
+      "back": "Elevam o número de entradas e o custo de metadados, pressionando o NameNode."
+    },
+    {
+      "front": "Bucket e chave representam o quê em objeto?",
+      "back": "Bucket agrupa objetos; chave identifica logicamente um objeto nesse contexto."
+    },
+    {
+      "front": "Prefixos de S3 criam diretórios POSIX?",
+      "back": "Não. Podem simular hierarquia visual, mas o namespace do bucket convencional é plano."
+    },
+    {
+      "front": "O S3 atual mantém consistência eventual geral para GET e LIST?",
+      "back": "Não. A documentação informa consistência forte no escopo de operações de objeto e listagem."
+    },
+    {
+      "front": "Qual a distinção entre durabilidade e disponibilidade?",
+      "back": "Durabilidade é proteção contra perda permanente; disponibilidade é capacidade de atender solicitações."
+    },
+    {
+      "front": "O que é índice invertido?",
+      "back": "Mapa de termos para listas de documentos que contêm os termos, com informações adicionais possíveis."
+    },
+    {
+      "front": "Qual a diferença entre text e keyword na busca?",
+      "back": "Text é analisado para pesquisa textual; keyword representa valores exatos para filtros e agregações."
+    },
+    {
+      "front": "Refresh de busca é igual a reindexação?",
+      "back": "Não. Refresh expõe mudanças à pesquisa; reindexação reconstrói uma estrutura ou conjunto indexado."
+    }
+  ],
+  "tips": [
+    "Quando a questão disser “sistema distribuído”, procure falhas parciais, atraso de rede e inexistência de relógio global perfeitamente compartilhado.",
+    "Em CAP, identifique explicitamente uma partição; a impossibilidade se manifesta no requisito de responder durante essa partição.",
+    "Diferencie prazo de resposta e confirmação de execução: retry com timeout pode cobrar duas vezes se não houver idempotência.",
+    "Em HDFS, memorize a separação NameNode = metadados e DataNodes = blocos; heartbeats não transportam o conteúdo dos arquivos.",
+    "Em storage, compare API: arquivo (diretórios e operações), bloco (volume), objeto (bucket, chave, metadados, GET/PUT).",
+    "Em indexação, separe busca por chave de busca textual; o índice invertido não se confunde com a armazenagem física do objeto."
+  ],
+  "traps": [
+    "“Timeout confirma que operação remota não ocorreu” é falso; a resposta pode ter falhado após a execução.",
+    "“CAP significa escolher duas de três características o tempo todo” é simplificação incorreta.",
+    "“Fator de replicação é o número de partições” troca dois mecanismos diferentes.",
+    "“NameNode armazena todos os bytes dos arquivos HDFS” confunde metadados e dados.",
+    "“S3 só oferece consistência eventual” generaliza modelo superado para operações centrais atuais.",
+    "“Índice textual sempre se atualiza atomicamente com o banco ou objeto de origem” ignora fluxos assíncronos."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como a perda da resposta de uma RPC impacta a política de retentativas?",
+      "answer": "O cliente ignora se a execução ocorreu; deve impor limites de tempo e garantir idempotência/deduplicação para evitar duplicidade de efeitos."
+    },
+    {
+      "question": "Por que adicionar réplica não resolve necessariamente lentidão por chave quente?",
+      "answer": "Todas as solicitações podem continuar concentradas na mesma partição, líder, recurso ou dependência; a distribuição por chave e acesso precisa ser revista."
+    },
+    {
+      "question": "Diferencie consistência eventual, sequencial e linearizável.",
+      "answer": "Eventual busca convergência sem atualização nova; sequencial preserva ordem por processo em uma ordem total; linearizável ainda respeita ordem real de operações não sobrepostas."
+    },
+    {
+      "question": "Explique a escolha de um cluster sob partição de rede.",
+      "answer": "Ele pode bloquear operações em subconjunto para preservar linearizabilidade ou aceitar respostas divergentes e reconciliar, segundo o contrato da operação."
+    },
+    {
+      "question": "Quais papéis possuem NameNode e DataNodes?",
+      "answer": "NameNode administra namespace/metadados; DataNodes guardam blocos, servem leituras/escritas e informam seu estado."
+    },
+    {
+      "question": "Por que armazenamento de objetos não substitui automaticamente filesystem POSIX?",
+      "answer": "API orientada a bucket/chave não garante rename atômico, escrita por offset, travas e diretórios com semântica de filesystem."
+    },
+    {
+      "question": "Qual a diferença entre RPO e RTO?",
+      "answer": "RPO é objetivo máximo de perda de dados em tempo; RTO é objetivo de tempo para restabelecer serviço."
+    },
+    {
+      "question": "Como funciona um índice invertido na pesquisa por palavra?",
+      "answer": "Associa cada termo a uma lista de documentos e permite buscar candidatos pelas listas, em vez de varrer todos os textos."
+    },
+    {
+      "question": "O que ocorre quando consulta textual usa analisador incompatível com o da indexação?",
+      "answer": "Tokens podem não coincidir, causando omissões ou resultados inadequados apesar de o conteúdo estar armazenado."
+    },
+    {
+      "question": "Por que GET forte no armazenamento não implica resultado de busca imediatamente atualizado?",
+      "answer": "O mecanismo de indexação e caches possui seus próprios tempos de publicação; a consistência de uma camada não se transfere automaticamente a outra."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Falhas remotas e idempotência",
+      "summary": "Confundir timeout com cancelamento de execução e ignorar repetição de efeitos de chamadas ou eventos."
+    },
+    {
+      "key": "e2",
+      "title": "Consenso, quórum e CAP",
+      "summary": "Tratar maioria como garantia genérica de linearizabilidade ou CAP como escolha estática sem partições."
+    },
+    {
+      "key": "e3",
+      "title": "Replicação versus particionamento",
+      "summary": "Confundir multiplicação de cópias com repartição de conjunto de dados e capacidade de leitura com capacidade de escrita."
+    },
+    {
+      "key": "e4",
+      "title": "HDFS e semântica de arquivos",
+      "summary": "Trocar os papéis de NameNode e DataNodes ou atribuir ao HDFS a mesma semântica de arquivos locais para qualquer carga."
+    },
+    {
+      "key": "e5",
+      "title": "Objetos e consistência do armazenamento",
+      "summary": "Supor diretórios POSIX, renomeação nativa atômica ou consistência eventual obrigatória nas operações atuais do S3."
+    },
+    {
+      "key": "e6",
+      "title": "Indexação e visibilidade da busca",
+      "summary": "Confundir índice invertido com armazenamento do conteúdo e confirmação de escrita com atualização instantânea do motor de busca."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um sistema distribuído, falhas de rede podem afetar apenas parte dos nós, enquanto outros continuam executando suas tarefas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A presença de múltiplos processos e enlaces cria falhas parciais: um servidor pode funcionar enquanto outro está inacessível. A arquitetura deve distinguir indisponibilidade local de queda completa do serviço.",
+      "section": "Fundamentos, arquiteturas e tempo lógico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer acessar a mesma API enquanto as instâncias são substituídas pelo orquestrador. Qual mecanismo atende diretamente à exigência de não expor endereços físicos aos clientes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar um nome lógico de serviço resolvido para endpoints atuais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Registrar manualmente o endereço IP de cada instância no código do cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eliminar a descoberta, exigindo conexão com o mesmo processo para sempre.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar a resolução de nomes e utilizar apenas endereços de hardware.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sincronizar todos os relógios físicos para impedir mudanças de endereço.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um nome lógico com descoberta de serviços desacopla cliente de endereços mutáveis. IP fixo por processo e ausência de resolução tornam o cliente dependente da topologia; sincronização de relógios não resolve localização.",
+      "section": "Fundamentos, arquiteturas e tempo lógico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um timeout de RPC comprova que o servidor não executou o pedido, permitindo repeti-lo com segurança mesmo sem idempotência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Timeout limita o tempo de espera do cliente, mas não informa se o servidor concluiu a operação. A resposta pode ter sido perdida depois do efeito; repetir sem deduplicação pode gerar duplicidade.",
+      "section": "Fundamentos, arquiteturas e tempo lógico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma falha de rede, dois eventos emitidos em nós diferentes não possuem relação de envio/recebimento nem dependências comuns. Qual ferramenta lógica pode identificar essa concorrência, no modelo apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Relógios físicos sem sincronização, sempre que exibirem o mesmo segundo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Relógios vetoriais, quando os vetores dos eventos são incomparáveis.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Contadores de Lamport, porque contador menor prova causalidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Round-robin, porque alternância de nós revela dependência causal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "TTL do DNS, porque mede a ordem de eventos de aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Vetores permitem comparar componentes e distinguir precedência causal de concorrência. O contador escalar de Lamport não fornece o recíproco da relação causal; relógio físico, DNS e roteamento não fornecem essa análise.",
+      "section": "Fundamentos, arquiteturas e tempo lógico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o relógio lógico de Lamport de A é menor que o de B, isso prova, isoladamente, que A causou B.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A implicação válida é de causalidade para a ordem dos contadores: A aconteceu antes de B implica relógio menor. O recíproco não vale, pois eventos concorrentes também podem possuir valores diferentes.",
+      "section": "Fundamentos, arquiteturas e tempo lógico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API de consulta de preço apresenta picos de tempo de resposta causados pela fila interna do servidor. Qual afirmação sobre latência distribuída é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A latência da rede é necessariamente zero quando o serviço está no mesmo datacenter.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Replicar instâncias elimina qualquer espera causada por uma dependência central.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A latência observada inclui rede, espera, processamento e dependências percorridas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Medir apenas o tempo de CPU da instância representa a latência percebida pelo cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma chamada remota sempre demora o mesmo que uma chamada na memória local.",
+          "correct": false
+        }
+      ],
+      "explanation": "O tempo fim a fim inclui enfileiramento, transferência, computação e chamadas descendentes. A localização no mesmo datacenter não elimina rede, e aumentar instâncias não corrige necessariamente um gargalo compartilhado.",
+      "section": "Fundamentos, arquiteturas e tempo lógico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A transparência de localização permite que o nome lógico de um serviço permaneça estável mesmo quando suas instâncias mudam de endereço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A identificação lógica desacopla o cliente da localização física, permitindo trocar endpoints mediante resolução ou descoberta. Isso não assegura que caches e registros sejam atualizados instantaneamente.",
+      "section": "Fundamentos, arquiteturas e tempo lógico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema inclui várias chamadas sequenciais a serviços externos e a equipe pretende melhorar resiliência sem gerar sobrecarga adicional em indisponibilidades. Qual ação é a mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar retries ilimitados em cada camada até qualquer chamada receber sucesso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover prazos máximos, deixando requisições bloqueadas enquanto houver rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reenviar simultaneamente todas as operações não idempotentes sem identificadores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar timeouts proporcionais ao prazo total, retries limitados e backoff com jitter.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Reduzir observabilidade para impedir coleta de logs e rastros das chamadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Orçamentos de timeout e retries com recuo e aleatorização reduzem tempestades de tentativas e respeitam o prazo do cliente. Repetição ilimitada ou sem idempotência amplia a pressão e pode duplicar efeitos.",
+      "section": "Fundamentos, arquiteturas e tempo lógico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A confirmação de consumo de uma mensagem antes de executar seu efeito pode provocar perda lógica do trabalho se o consumidor falhar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Se o progresso é confirmado e o processo cai antes de aplicar a operação, a infraestrutura pode considerar a mensagem concluída. Confirmar depois reduz esse risco, embora permita reentregas.",
+      "section": "Comunicação, coordenação, consenso e eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma plataforma de pagamentos recebe repetidamente a mesma requisição devido a timeouts da rede. Como preservar um único efeito financeiro para cada intenção de compra?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Assumir que o timeout cancelou a operação anterior no banco do servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Escolher uma porta TCP nova para cada tentativa de pagamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Enviar cópias paralelas a mais servidores e somar todas as confirmações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Confirmar a mensagem antes de processar a transação sem registrar identificadores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Persistir uma chave de idempotência e reutilizar o resultado da operação já registrada.",
+          "correct": true
+        }
+      ],
+      "explanation": "A chave de idempotência vincula retentativas à mesma intenção e permite identificar efeito já persistido. Timeout e troca de conexão não anulam pagamentos; processamento paralelo e confirmações antecipadas não evitam duplicação.",
+      "section": "Comunicação, coordenação, consenso e eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Kafka, a ordem dos eventos é garantida globalmente entre todas as partições de um mesmo tópico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A ordenação geral documentada é por partição. Mensagens em partições distintas podem ser processadas em paralelo, sem uma ordem total observável entre elas; uma chave coerente reúne eventos relacionados.",
+      "section": "Comunicação, coordenação, consenso e eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa registra a venda no banco e precisa publicar evento para outro serviço, mas não pode coordenar uma transação global entre o banco e o broker. Qual padrão reduz o risco de perda do evento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Transactional outbox com evento pendente gravado na mesma transação local da venda.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Publicar o evento antes da venda e ignorar falhas na transação do banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Excluir logs e reenviar eventos de forma aleatória após o fechamento diário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar a fila por consulta DNS e presumir entrega transacional automática.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar apenas mensagens at-most-once, sem persistir o evento de domínio.",
+          "correct": false
+        }
+      ],
+      "explanation": "O outbox persiste mudança de estado e registro de evento atomicamente no banco, permitindo envio posterior e reprocessamento. As demais práticas deixam lacunas de persistência; ainda é necessário deduplicar entregas repetidas.",
+      "section": "Comunicação, coordenação, consenso e eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No consenso por maioria de um grupo de cinco votantes, três participantes podem formar um quórum de decisão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A maioria estrita de cinco é três. Quóruns de maioria possuem interseção, atributo explorado por protocolos como Raft, mas decisões corretas ainda dependem de suas regras de eleição e registro.",
+      "section": "Comunicação, coordenação, consenso e eventos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um tópico Kafka com várias partições, o requisito principal é preservar a ordem das atualizações de uma mesma conta. Qual estratégia é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Distribuir aleatoriamente todos os eventos da conta entre partições diferentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Utilizar identificador estável da conta como chave de particionamento.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Assumir que offsets de partições distintas formam uma sequência global.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o consumidor de grupo a cada mensagem para preservar ordem temporal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar o particionamento porque qualquer tópico fornece ordem total.",
+          "correct": false
+        }
+      ],
+      "explanation": "O roteamento por chave estável tende a direcionar alterações da mesma conta à mesma partição, onde a ordem é preservada. A ordem entre partições não é global, e redistribuição aleatória quebra a sequência por entidade.",
+      "section": "Comunicação, coordenação, consenso e eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O padrão transactional outbox torna desnecessária a idempotência do consumidor, pois publicar evento depois da transação elimina toda duplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A transação local garante gravar estado e evento pendente juntos, mas o publicador pode falhar após enviar e antes de registrar a entrega. Uma nova tentativa pode repetir a mensagem; o consumidor deve tratar isso.",
+      "section": "Comunicação, coordenação, consenso e eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cluster de coordenação de cinco membros perde comunicação entre grupos de dois e três nós. Supondo funcionamento correto de um protocolo por maioria, qual grupo pode continuar confirmando decisões?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambos, porque cada grupo contém ao menos dois participantes ativos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas o grupo de dois, porque tem menos custos de comunicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O grupo com três nós, pois reúne uma maioria de cinco membros.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Nenhum, pois o consenso exige unanimidade de todos os cinco membros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Qualquer grupo isolado, desde que escolha localmente um novo líder.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um quórum por maioria estrita de cinco requer três membros; o lado de dois não pode confirmar alterações de forma independente. Permitir os dois lados como líderes escreverem geraria risco de split-brain.",
+      "section": "Comunicação, coordenação, consenso e eventos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Replicação mantém cópias de dados; particionamento horizontal divide o conjunto de dados entre partições.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "São eixos independentes: um shard pode ter várias réplicas. Usar ambos oferece distribuição de dados e redundância, mas não implica que qualquer gravação já esteja sincronizada em todas as cópias.",
+      "section": "Replicação, consistência, particionamento e tolerância a falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma base é dividida em oito conjuntos de chaves, e cada conjunto tem três cópias. Qual descrição distingue as técnicas utilizadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Oito réplicas contêm a base inteira, e três shards representam os usuários.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Todos os dados precisam existir em todos os nós porque houve particionamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Particionamento cria cópias idênticas, enquanto replicação seleciona faixas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Oito shards distribuem chaves e três réplicas preservam cópias de cada shard.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "As duas técnicas designam exclusivamente balanceamento de CPU sem dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sharding reparte o espaço de chaves, enquanto replicação mantém redundância de cada parte. Trocar esses conceitos impede avaliar capacidade, tolerância a falhas e armazenamento do conjunto.",
+      "section": "Replicação, consistência, particionamento e tolerância a falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A consistência eventual assegura que toda leitura imediatamente posterior a uma gravação confirmada verá, necessariamente, o novo valor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O modelo eventual admite divergência temporária de réplicas; na ausência de novas atualizações, espera-se convergência sob as hipóteses do sistema. Visibilidade imediata requer garantias mais fortes.",
+      "section": "Replicação, consistência, particionamento e tolerância a falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante uma partição de rede, um banco recusa algumas operações para impedir que lados isolados retornem estados conflitantes. Qual propriedade ele priorizou, segundo CAP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Disponibilidade total ao aceitar gravações divergentes em todos os lados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumento automático da largura de banda disponível entre os nós separados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Isolamento de transações ACID como único significado da letra C de CAP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Particionamento físico dos dados para impedir a falha de rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Consistência linearizável em detrimento da disponibilidade dessas operações.",
+          "correct": true
+        }
+      ],
+      "explanation": "Durante a partição, recusar operações pode preservar a consistência forte, sacrificando respostas em nós afetados. CAP não usa o C de ACID, e particionar dados não elimina o isolamento da rede.",
+      "section": "Replicação, consistência, particionamento e tolerância a falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O teorema CAP proíbe que um sistema distribuído tenha disponibilidade e consistência forte enquanto não ocorre partição de rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A restrição crítica de CAP surge durante partições: não se preservam simultaneamente linearizabilidade e resposta a todas as requisições relevantes. Com rede saudável, as duas propriedades podem coexistir.",
+      "section": "Replicação, consistência, particionamento e tolerância a falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente grava um valor e precisa lê-lo em seguida na mesma sessão, mesmo que outras sessões possam observar dados antigos por algum tempo. Qual garantia específica atende ao cliente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Read-your-writes, que oferece visibilidade dos próprios escritos na sessão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Last-write-wins, que garante ordenação causal de todos os eventos de todos os nós.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "At-most-once, que impede resultados antigos de um banco distribuído.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Erasure coding, que atualiza de imediato todos os leitores sem réplicas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Hash consistente, que substitui qualquer regra de visibilidade por sessão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Read-your-writes é uma garantia de sessão centrada no próprio cliente. Políticas de resolução, entrega de mensagens, codificação de dados e hash de chaves não definem por si só o que esse cliente consegue observar.",
+      "section": "Replicação, consistência, particionamento e tolerância a falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Mesmo quando R + W é superior ao fator de replicação, outras condições do protocolo podem impedir a conclusão de linearizabilidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A soma superior ao fator sugere interseção de conjuntos de respostas e confirmações, mas é insuficiente de forma geral. Políticas de quórum, falhas, concorrência e resolução de versões alteram as garantias reais.",
+      "section": "Replicação, consistência, particionamento e tolerância a falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe afirma que usar R=2 e W=2 com RF=3 torna qualquer leitura, em qualquer implementação, linearizável. Qual análise é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A equação é inválida porque a soma R + W precisa ser sempre menor que RF.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A interseção é relevante, mas não dispensa avaliar quóruns efetivos, versões e concorrência.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Qualquer leitura por uma réplica passa a ser linearizável, independentemente da escrita.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A condição impede por definição toda partição física da rede de ocorrer.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O mecanismo só funciona quando nenhuma réplica conserva os dados escritos.",
+          "correct": false
+        }
+      ],
+      "explanation": "R + W > RF sugere interseção dos conjuntos sob hipóteses específicas, mas não define sozinho a semântica completa. Quóruns flexíveis, reparação e conflitos entre escritas podem impedir garantias mais fortes.",
+      "section": "Replicação, consistência, particionamento e tolerância a falhas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No HDFS, o NameNode administra metadados, ao passo que os DataNodes mantêm os blocos de dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O cliente obtém informações de localização de blocos junto ao serviço de metadados e transfere conteúdo com os DataNodes. Confundir ambos os papéis distorce o fluxo de leitura e escrita.",
+      "section": "Sistemas de arquivos distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um cluster HDFS, um usuário quer localizar os blocos de um arquivo para lê-los. Qual componente mantém o mapeamento lógico entre arquivos e blocos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada cliente web, que é a autoridade global dos diretórios do HDFS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A interface de armazenamento de objetos, obrigatoriamente presente no HDFS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "NameNode, responsável pelo namespace e pelos metadados do HDFS.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma fila Kafka, que contém a lista de todos os blocos do filesystem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O balanceador de carga HTTP, que armazena integralmente os dados do arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "No HDFS, o NameNode organiza metadados do namespace e aponta onde localizar blocos, mantidos pelos DataNodes. Confundir a função com cliente, broker, objeto ou balanceador ignora a arquitetura do filesystem.",
+      "section": "Sistemas de arquivos distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório de blocos de DataNode informa quais blocos esse nó armazena, auxiliando o gerenciamento feito pelo NameNode.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Os block reports identificam o conjunto de blocos presente em um DataNode; heartbeats auxiliam no acompanhamento de atividade. Nenhum deles equivale a enviar integralmente os dados dos arquivos ao NameNode.",
+      "section": "Sistemas de arquivos distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização tem milhões de arquivos de poucos bytes e avalia HDFS como armazenamento principal. Qual preocupação técnica é mais pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O HDFS só admite um arquivo por cluster, independentemente de configuração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O NameNode é obrigado a conter uma cópia integral dos bytes de todos os arquivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada arquivo pequeno ativa uma nova rede física independente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A grande quantidade de arquivos aumenta a pressão sobre metadados administrados pelo NameNode.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A existência de arquivos pequenos desabilita toda replicação de blocos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O custo de metadados por arquivo e bloco torna workloads de muitos arquivos pequenos uma preocupação clássica do HDFS. Não existe regra geral de arquivo único nem transferência de todos os bytes para o NameNode.",
+      "section": "Sistemas de arquivos distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A replicação dos blocos do HDFS, por si só, elimina qualquer risco associado à indisponibilidade do serviço de metadados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Redundância de blocos protege o plano de dados, mas a disponibilidade do namespace demanda mecanismos próprios de alta disponibilidade e recuperação do NameNode. São problemas de falha distintos.",
+      "section": "Sistemas de arquivos distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após falha de um rack inteiro, os DataNodes restantes ainda devem conseguir servir blocos replicados. Qual prática é coerente com o HDFS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colocar todas as réplicas no mesmo rack para minimizar o custo de cabeamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar a replicação para evitar leituras por servidores alternativos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar no NameNode uma cópia integral de cada bloco de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exigir que toda leitura use apenas o nó que recebeu inicialmente o arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Distribuir réplicas por domínios de falha diferentes mediante política consciente de racks.",
+          "correct": true
+        }
+      ],
+      "explanation": "Políticas rack-aware procuram impedir que uma falha localizada elimine todas as cópias de um bloco. Concentrar réplicas ou depender exclusivamente de um nó contradiz o objetivo de tolerância a falhas.",
+      "section": "Sistemas de arquivos distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O HDFS foi concebido prioritariamente para grandes arquivos e altas taxas de transferência, não para inúmeras edições aleatórias de poucos bytes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Seu desenho favorece acesso em fluxo e processamento analítico, com modelo predominante de escrita seguida de múltiplas leituras. Uma carga de pequenas alterações aleatórias é inadequada ao perfil arquitetural.",
+      "section": "Sistemas de arquivos distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ferramenta depende de edições aleatórias frequentes em pequenos intervalos internos de muitos arquivos. Qual avaliação sobre HDFS é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É necessário reconsiderar a escolha, pois o HDFS privilegia acesso sequencial e grandes arquivos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O HDFS necessariamente será superior porque qualquer arquivo remoto aceita escrita aleatória eficiente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A replicação de blocos substitui integralmente o suporte a atualização por offset.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A presença de NameNode torna todas as operações de arquivo idênticas às locais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A política de rack awareness transforma acesso sequencial em transação de baixa latência.",
+          "correct": false
+        }
+      ],
+      "explanation": "O HDFS é voltado a alta vazão e grandes fluxos, com modelo de atualização distinto do filesystem transacional local. Replicação e topologia não acrescentam automaticamente a semântica de escrita aleatória.",
+      "section": "Sistemas de arquivos distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em armazenamento de objetos, as barras presentes nas chaves podem representar prefixos lógicos sem materializar diretórios POSIX.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O namespace de buckets convencionais é plano; o console pode agrupar objetos por nomes com barras. Essa apresentação não cria a mesma semântica de diretórios, travas ou renomeação de um filesystem.",
+      "section": "Armazenamento de objetos, durabilidade e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação armazena fotos por chave e precisa recuperar cada arquivo com GET, sem montar volume remoto. Qual modelo de armazenamento descreve melhor a solução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sistema de arquivos de memória local sem uso de identificadores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Armazenamento de objetos acessado por API, com bucket e chave.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Volume de bloco obrigatoriamente exposto como disco bruto ao cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tabela de relógios vetoriais usada como repositório de conteúdo binário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fila de eventos que garante consulta aleatória de qualquer fotografia.",
+          "correct": false
+        }
+      ],
+      "explanation": "A interface com bucket, chave e GET corresponde ao modelo de objetos. Blocos e arquivos têm abstrações diferentes; filas e relógios não são interfaces de persistência de conteúdo por chave.",
+      "section": "Armazenamento de objetos, durabilidade e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A documentação atual do Amazon S3 estabelece apenas consistência eventual para listagens de objetos após gravações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O S3 documenta consistência forte para listagem e operações centrais sobre objetos no escopo do serviço. Atraso em CDN ou índice externo não deve ser confundido com a visibilidade da listagem no próprio S3.",
+      "section": "Armazenamento de objetos, durabilidade e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um desenvolvedor afirma que, após PUT bem-sucedido no S3, a operação LIST obrigatoriamente só mostrará o novo objeto após convergência eventual. Qual resposta é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela é correta porque armazenamento por objetos nunca oferece listagem consistente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela é correta porque o S3 sempre replica operações por ordem aleatória.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A afirmação contraria a consistência forte de listagem documentada atualmente para o S3.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A afirmação vale automaticamente para todo cache CDN e índice externo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O modelo de consistência do S3 depende apenas do formato do nome da chave.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação atual do S3 prevê consistência forte no escopo de LIST e operações centrais sobre objetos. Isso não implica que CDN ou outro índice externo compartilhe a mesma visibilidade de dados.",
+      "section": "Armazenamento de objetos, durabilidade e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A durabilidade se refere à resistência à perda permanente do dado, enquanto a disponibilidade se refere à possibilidade de acesso ao serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O dado pode permanecer íntegro e, ainda assim, estar inacessível durante uma indisponibilidade. Diferenciar durabilidade e disponibilidade é essencial para dimensionar backup, replicação e metas de recuperação.",
+      "section": "Armazenamento de objetos, durabilidade e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação usa rename como etapa atômica de commit em um filesystem e será migrada para bucket convencional do S3. Qual risco deve ser tratado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A chave do objeto será automaticamente convertida em um inode POSIX remoto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Todos os objetos passam a permitir alteração por offset exatamente como disco local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O bucket força o NameNode HDFS a executar a operação de renomeação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A mudança de chave pode exigir cópia e exclusão, sem a atomicidade de rename POSIX.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Apenas a ativação de versionamento torna qualquer mudança de chave atômica.",
+          "correct": false
+        }
+      ],
+      "explanation": "O bucket convencional do S3 tem namespace plano; mudar a chave não equivale a rename atômico de filesystem. Versionamento ajuda em recuperação, mas não cria automaticamente protocolo transacional de arquivos.",
+      "section": "Armazenamento de objetos, durabilidade e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Renomear um objeto de bucket convencional do S3 equivale, necessariamente, a alterar atomicamente um diretório de sistema de arquivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Barras e prefixos não criam rename POSIX nativo. Mudar uma chave geralmente implica copiar conteúdo sob outra chave e remover o original, razão pela qual aplicações dependentes de atomicidade precisam de adaptação.",
+      "section": "Armazenamento de objetos, durabilidade e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço guarda arquivos em objetos, mas precisa buscar documentos pela combinação de autor, categoria e palavras do texto. Que desenho atende melhor ao requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas colocar barras no nome dos objetos, pois prefixos criam índice textual completo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar metadados dos objetos, porque eles impedem consultas por conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar PUT como mecanismo de pesquisa por palavras sem recuperar conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Concluir que armazenamento de objetos sempre contém índice invertido de todo payload.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter catálogo e índice de busca associados às chaves dos objetos, com sincronização controlada.",
+          "correct": true
+        }
+      ],
+      "explanation": "Objetos são localizados por chave; pesquisas arbitrárias por campos e texto requerem catálogo ou motor de indexação. Prefixos oferecem organização e listagem filtrada, não substituem índices de atributos e termos.",
+      "section": "Armazenamento de objetos, durabilidade e operação",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um índice invertido associa termos às listas de documentos nos quais eles ocorrem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Esse arranjo permite recuperar candidatos por palavra sem percorrer integralmente todos os documentos. As listas podem incluir posições e frequências, úteis para busca por expressão e relevância.",
+      "section": "Indexação, busca distribuída e atualização de índices",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer recuperar documentos que contenham a palavra “replicação” sem examinar cada arquivo integralmente. Que estrutura é a mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Índice invertido que associa o termo à lista dos documentos correspondentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Relógio vetorial para distribuir a palavra igualmente entre datacenters.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Round-robin que armazena apenas posições dos servidores em uma fila.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mapa de endereços DNS que identifica o texto de todos os arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tabela de timeouts usada como substituto do conteúdo indexado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O índice invertido relaciona termo e documentos, viabilizando busca textual eficiente. Relógio, DNS, balanceamento e timeouts tratam outros problemas e não constroem o mapa de ocorrências necessário.",
+      "section": "Indexação, busca distribuída e atualização de índices",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Distribuir um índice em shards implica que toda consulta seja respondida por uma única partição, independentemente do filtro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma consulta sem informação suficiente de roteamento pode atingir vários shards e exigir mesclagem de resultados pelo coordenador. A distribuição física não elimina o custo de pesquisa global.",
+      "section": "Indexação, busca distribuída e atualização de índices",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um índice de busca, qual escolha é mais apropriada para um campo de código de produto usado em filtragem exata e agregações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tokenizá-lo sempre em palavras de linguagem natural com remoção de stopwords.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Representá-lo como campo de valor exato, como keyword, conforme o mecanismo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Transformá-lo obrigatoriamente em sequência de posições de relógio lógico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Distribuí-lo apenas por ordem de chegada sem armazenar seu valor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazená-lo só como texto analisado sem considerar filtros por igualdade.",
+          "correct": false
+        }
+      ],
+      "explanation": "Campos keyword preservam valores para igualdade e agregações típicas; análise textual costuma servir a conteúdo de linguagem natural. Tokenização indevida pode alterar o código consultado, prejudicando o filtro exato.",
+      "section": "Indexação, busca distribuída e atualização de índices",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A confirmação de um PUT de objeto garante, automaticamente, que um índice textual externo exiba o documento na busca no mesmo instante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A consistência da operação no armazenamento é independente da atualização de mecanismos de indexação. Um pipeline assíncrono, refresh ou cache pode introduzir atraso até o documento tornar-se pesquisável.",
+      "section": "Indexação, busca distribuída e atualização de índices",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um motor de busca distribui índice por quatro shards e recebe consulta sem chave de roteamento específica. O que pode ocorrer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A pesquisa é necessariamente local ao shard que foi criado primeiro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A consulta se torna impossível porque um índice só admite um shard por vez.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O coordenador consulta múltiplos shards e combina os resultados retornados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Cada réplica precisa conter obrigatoriamente todos os documentos do cluster.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A busca remove todos os critérios de pontuação ao cruzar a rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando não é possível direcionar a pesquisa a uma partição, o motor pode fan-out para diversos shards e mesclar candidatos. Isso envolve custo de coordenação; réplicas copiam shards, não necessariamente o conjunto inteiro.",
+      "section": "Indexação, busca distribuída e atualização de índices",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Reindexação e refresh de mecanismo de busca são operações conceitualmente distintas, mesmo quando ambas afetam a pesquisa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Refresh publica alterações já indexadas para consulta, conforme o mecanismo; reindexação reconstrói ou migra dados para outra estrutura. Tratar ambas como sinônimas oculta custos e efeitos diferentes.",
+      "section": "Indexação, busca distribuída e atualização de índices",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um documento foi salvo no armazenamento, porém não aparece imediatamente na pesquisa textual. Qual hipótese explica corretamente o comportamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O objeto precisa ser perdido e recuperado por backup antes de poder ser indexado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma gravação confirmada prova que todo mecanismo de busca externo está sincronizado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A presença de índice invertido elimina toda etapa de publicação de alterações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A visibilidade do índice depende de atualização e refresh próprios do mecanismo de busca.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "As mensagens de indexação nunca podem sofrer atraso ou duplicação em redes.",
+          "correct": false
+        }
+      ],
+      "explanation": "A persistência do dado e a publicação do índice são etapas distintas, com contratos próprios. Pipelines assíncronos e refresh podem atrasar a pesquisa, mesmo quando o armazenamento de origem já confirmou a escrita.",
+      "section": "Indexação, busca distribuída e atualização de índices",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "HDFS Architecture — Hadoop 3.4.3",
+      "publisher": "Apache Software Foundation",
+      "reference": "Arquitetura HDFS, NameNode, DataNode, blocos, replicação e racks",
+      "url": "https://hadoop.apache.org/docs/r3.4.3/hadoop-project-dist/hadoop-hdfs/HdfsDesign.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "What is Amazon S3?",
+      "publisher": "Amazon Web Services",
+      "reference": "Consistência forte e interface de armazenamento de objetos",
+      "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Naming Amazon S3 objects",
+      "publisher": "Amazon Web Services",
+      "reference": "Chaves e prefixos de objetos",
+      "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Organizing objects using folders",
+      "publisher": "Amazon Web Services",
+      "reference": "Namespace plano e simulação de pastas em buckets",
+      "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-folders.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Amazon S3 FAQs",
+      "publisher": "Amazon Web Services",
+      "reference": "Consistência forte das operações de objeto e listagem",
+      "url": "https://aws.amazon.com/s3/faqs/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Managing Critical State: Distributed Consensus",
+      "publisher": "Google SRE",
+      "reference": "Consenso distribuído, CAP, quórum e split-brain",
+      "url": "https://sre.google/sre-book/managing-critical-state/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "etcd Glossary",
+      "publisher": "etcd",
+      "reference": "Raft, eleição de líder, quórum e leases",
+      "url": "https://etcd.io/docs/v3.7/learning/glossary/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Kafka Documentation — Introduction",
+      "publisher": "Apache Software Foundation",
+      "reference": "Ordenação por partição e processamento de eventos",
+      "url": "https://kafka.apache.org/documentation/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Cassandra Basics",
+      "publisher": "Apache Software Foundation",
+      "reference": "Fator de replicação, consistência configurável e quóruns",
+      "url": "https://cassandra.apache.org/_/cassandra-basics",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "How full-text search works",
+      "publisher": "Elastic",
+      "reference": "Tokenização, postings e índice invertido",
+      "url": "https://www.elastic.co/docs/solutions/search/full-text/how-full-text-works",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OpenSearch Concepts",
+      "publisher": "OpenSearch Project",
+      "reference": "Shards, réplicas, índice invertido e documentos",
+      "url": "https://docs.opensearch.org/latest/getting-started/concepts/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "DNS for Services and Pods",
+      "publisher": "Kubernetes",
+      "reference": "Resolução de nomes e descoberta de serviços",
+      "url": "https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

@@ -1,0 +1,1980 @@
+{
+  "id": "estatistica.computacao-estatistica-simulacao-e-bootstrap",
+  "subject": "Estatística",
+  "title": "Computação estatística, simulação e bootstrap",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Computação estatística, simulação e bootstrap",
+    "Computação estatística, simulação e bootstrap"
+  ],
+  "scope": {
+    "covers": "Simulação de variáveis e processos aleatórios; geradores pseudoaleatórios; Monte Carlo, convergência e variância; bootstrap, jackknife, permutação e desenhos dependentes; passeios aleatórios e cadeias de Markov; filas M/M/1, lei de Little e eventos discretos; gráficos exploratórios e diagnósticos.",
+    "excludes": "Demonstrações avançadas de teoremas de processos estocásticos, inferência bayesiana completa, programação específica de uma única biblioteca, teoria geral de processos contínuos e otimização de sistemas não estocásticos."
+  },
+  "theoryTitle": "Computação estatística, simulação, reamostragem e processos estocásticos",
+  "chapters": [
+    {
+      "title": "Fundamentos computacionais e números pseudoaleatórios",
+      "markdown": "## O que a computação estatística resolve\n\nComputação estatística é a aplicação de algoritmos para representar distribuições, calcular estimadores, estudar sua variabilidade, ajustar modelos e avaliar cenários probabilísticos. Envolve tanto procedimentos determinísticos, como resolver equações e otimizar funções, quanto procedimentos estocásticos, nos quais sorteios são parte do cálculo. **Simulação** produz realizações artificiais segundo regras especificadas; **inferência** extrai conclusões sobre a população a partir de dados observados. Uma simulação bem-programada não substitui um plano amostral representativo nem corrige um modelo mal especificado.\n\nUm estudo computacional deve definir: problema e parâmetro-alvo; unidades de observação; distribuição ou mecanismo gerador; parâmetros; hipóteses; tamanho das repetições; estatísticas armazenadas; métricas de desempenho; e critério de parada. Distinguir **uma amostra de tamanho n** de **B réplicas de Monte Carlo** é essencial. n governa a informação por conjunto de dados; B controla a precisão da aproximação numérica de uma distribuição ou esperança. Aumentar B não cria novas observações reais.\n\n## Aleatoriedade em computadores\n\nGeradores de números pseudoaleatórios (PRNG) produzem sequências determinísticas que procuram reproduzir propriedades estatísticas de sorteios. Uma **semente** fixa, mantidos algoritmo, versão e ambiente computacional pertinentes, permite reproduzir a sequência; não transforma a sequência em aleatoriedade física nem demonstra independência perfeita. A qualidade dos resultados depende do gerador, dos estados, da transformação para a distribuição desejada e da separação entre fluxos paralelos. Para aplicações criptográficas, exige-se outro requisito: imprevisibilidade, não assegurada por um PRNG estatístico comum.\n\nA distribuição uniforme U(0,1) é ponto de partida de muitos métodos. Se F for uma função de distribuição contínua e estritamente crescente, então X=F⁻¹(U) tem distribuição F. Usa-se a **inversa generalizada** inf{x:F(x)≥u} para distribuições sem inversa usual. Outras técnicas são transformação específica, aceitação-rejeição e algoritmos de bibliotecas estatísticas. Para Bernoulli(p), X=1{U<p} funciona para 0≤p≤1; para uma exponencial de taxa λ>0, X=−ln(U)/λ, com U em (0,1). Não se deve confundir taxa λ com média, que vale 1/λ.\n\n## Vetorização e estabilidade numérica\n\nRepetir um experimento milhões de vezes pede atenção a complexidade, memória e validação. Vetorização pode reduzir o custo de laços interpretados, porém armazenar toda a matriz B×n talvez seja inviável; lotes e acumuladores online resolvem a limitação. Para a média, uma atualização estável é m_k=m_(k−1)+(x_k−m_(k−1))/k. A variância amostral usa divisor n−1 ao estimar a variância da população de observações independentes sob as condições usuais; a variância empírica com divisor n descreve outra convenção.\n\nNa aritmética de ponto flutuante, calcular exp(x) para x muito grande pode transbordar, e subtrair números quase iguais pode perder precisão. Para probabilidades pequenas, usar funções logarítmicas estáveis e evitar subtrações catastróficas. Sobretudo em caudas, aproximar a densidade não equivale a aproximar corretamente probabilidades de eventos raros.\n\n## Reprodutibilidade, auditoria e comunicação\n\nUm fluxo auditável registra versão do código, ambiente, gerador, semente, parâmetros, tamanho do experimento e controle de entradas. Testes unitários confrontam simulações com casos de solução teórica conhecida: a média de Bernoulli tende a p; a variância tende a p(1−p); uma cadeia com matriz identidade não muda de estado. Executar uma única semente pode esconder defeitos; é útil validar com sementes adicionais e verificar sensibilidade a hipóteses.\n\nNos estudos de concursos, diferencie claramente **erro de programação**, **erro de Monte Carlo**, **erro amostral** e **viés de modelo**. O primeiro decorre de implementação incorreta; o segundo, de simulação finita; o terceiro, de observar apenas uma amostra da população; o quarto, da distância entre modelo e fenômeno. Nenhum número grande de réplicas elimina automaticamente os quatro. Em relatórios, apresentar o estimador, sua incerteza, a população ou modelo visado e limitações é mais informativo do que expor apenas um resultado com várias casas decimais.\n\n**Exemplo em R:** `set.seed(2026); x <- rbinom(1000, size=1, prob=0.3); mean(x)`. A saída aproxima 0,3, sem obrigação de ser exatamente 0,3. **Exemplo em Python/NumPy:** `rng = np.random.default_rng(2026); x = rng.binomial(1, 0.3, 1000)`. A mesma semente em linguagens diferentes não impõe sequências iguais, porque algoritmos e protocolos podem diferir."
+    },
+    {
+      "title": "Monte Carlo: estimativas, precisão e variância",
+      "markdown": "## Fundamentos do método de Monte Carlo\n\nO método de Monte Carlo transforma uma quantidade de interesse em média, frequência ou funcional de resultados simulados. Se X₁,…,X_B são independentes e identicamente distribuídas com E[g(X)] finita, a estimativa `θ̂_B=(1/B)Σg(X_b)` converge para θ=E[g(X)] sob a lei dos grandes números. Se a variância σ² de g(X) for finita, o erro-padrão de Monte Carlo da média é aproximadamente `s/√B`, onde s é o desvio-padrão amostral dos valores simulados. A precisão tende a melhorar na ordem de 1/√B, não na ordem de 1/B. Quadruplicar B reduz aproximadamente pela metade o erro-padrão, se as hipóteses se mantiverem.\n\nPara um evento A, seu indicador I(A) vale 1 quando ocorre e 0 em caso contrário. A frequência `p̂=ΣI(A_b)/B` estima P(A), com erro-padrão aproximado `√[p̂(1−p̂)/B]` em condições usuais. Se nenhum evento ocorrer, uma frequência observada zero **não prova** probabilidade exatamente nula; eventos raros pedem amostras maiores ou técnicas específicas.\n\n## Integração por amostragem e intervalo de Monte Carlo\n\nPara U uniforme em [0,1], `∫₀¹f(u)du=E[f(U)]` quando a integral existe. Assim, a média de f(U_b) aproxima a integral. Um exemplo simples é estimar π pela proporção de pontos uniformes no quadrado [0,1]² que satisfazem x²+y²≤1; nesse caso `π̂=4p̂`. Trata-se de exemplo didático, não da maneira computacional mais eficiente de obter π.\n\nUm intervalo aproximado de 95% para a expectativa estimada pela média de B simulações independentes, quando a aproximação normal for apropriada, é `θ̂_B ± 1,96(s/√B)`. Esse é o **intervalo para o erro numérico de Monte Carlo**, não necessariamente o intervalo de confiança para um parâmetro da população baseado em dados reais. Essa distinção aparece com frequência em provas: simular muitas vezes uma estatística calculada de uma mesma amostra não multiplica a amostra original.\n\n## Experimento de comparação e redução de variância\n\nSimulações são úteis para avaliar, por exemplo, viés, erro quadrático médio e cobertura de um método. Em cada réplica, gerar um conjunto de dados completo, calcular o estimador e registrar se o intervalo cobre o verdadeiro parâmetro. Ao final, `viés≈média(θ̂_b)−θ`, `EQM≈média[(θ̂_b−θ)²]` e `cobertura≈proporção de intervalos que contêm θ`. O EQM soma, conceitualmente, variância e viés ao quadrado. Para avaliar cobertura, o parâmetro verdadeiro é conhecido porque o modelo gerador foi especificado.\n\nTécnicas para reduzir a variância incluem **variáveis antitéticas**, que procuram induzir correlação negativa entre parcelas; **variáveis de controle**, que exploram uma esperança conhecida e correlação com a saída; **amostragem estratificada**, que distribui sorteios entre regiões; e **amostragem por importância**, que muda a distribuição amostrada e usa pesos para preservar a esperança-alvo. A amostragem por importância exige que as regiões relevantes da distribuição original tenham suporte sob a proposta; pesos extremamente variáveis podem tornar a estimativa instável. Variáveis antitéticas não reduzem variância automaticamente: depende da função avaliada.\n\n## Erro, convergência e diagnósticos\n\nUma curva do estimador acumulado ao longo de B pode mostrar instabilidade inicial; um gráfico do erro estimado contra o número de réplicas ajuda a avaliar custo e precisão. Para repetições dependentes, como saídas de cadeias de Markov, o erro-padrão simples s/√B pode subestimar a incerteza devido à autocorrelação; métodos apropriados consideram dependência e tamanho efetivo da amostra.\n\nSeparar variabilidade das **entradas reais** da variabilidade dos **sorteios computacionais** é fundamental. Se o gerador está incorreto, reduzir o erro numérico apenas fornece resposta precisa para um experimento errado. Uma análise de sensibilidade altera os parâmetros assumidos e identifica quanto a conclusão depende das hipóteses.\n\n## Pseudocódigo de uma estimativa\n\n1. Definir o evento A e o número B de repetições.\n2. Inicializar o gerador e guardar parâmetros.\n3. Para b de 1 até B, gerar dados pelo modelo e calcular I(A_b).\n4. Obter `p̂=ΣI(A_b)/B`.\n5. Estimar a incerteza numérica e relatar B, modelo e diagnósticos.\n\nO procedimento serve para risco de falha, frequência de tempos de espera elevados e confiabilidade, desde que as hipóteses probabilísticas sejam defendidas. Não é uma licença para usar uma distribuição arbitrária só porque o computador consegue simulá-la."
+    },
+    {
+      "title": "Bootstrap, jackknife e testes de reamostragem",
+      "markdown": "## Reamostragem e distribuição de uma estatística\n\n**Bootstrap não paramétrico** aproxima a distribuição amostral de uma estatística por reamostragem **com reposição** dos dados observados. Dada uma amostra de n observações independentes sob um modelo adequado, a réplica bootstrap consiste em sortear n índices entre 1 e n, permitindo repetições; calcula-se a estatística em cada conjunto reamostrado. Repetindo B vezes, obtém-se uma distribuição empírica para desvio-padrão, viés e intervalos. O bootstrap não produz novos indivíduos reais: reutiliza a informação da amostra inicial.\n\nCada posição da amostra bootstrap tem probabilidade 1/n de escolher determinado registro; a probabilidade de um registro não aparecer em uma réplica é `(1−1/n)^n`, que tende a e⁻¹. Assim, para n grande, aproximadamente 63,2% dos registros distintos aparecem em cada réplica; os demais ficam fora daquela amostra reamostrada. Esse fato ajuda a entender procedimentos *out-of-bag* em aprendizagem estatística.\n\n## Intervalos, viés e diferentes métodos\n\nUm erro-padrão bootstrap é o desvio-padrão das B estatísticas reamostradas. O viés bootstrap estimado pode ser escrito `média(θ̂*)−θ̂`, onde θ̂* é a estatística em cada reamostra e θ̂ é a da amostra original. Um **intervalo percentílico de 95%** toma os quantis empíricos aproximados de 2,5% e 97,5% das réplicas; essa receita não assegura cobertura correta em qualquer situação. O intervalo **básico** reflete os quantis em torno de 2θ̂, enquanto o **BCa** aplica ajustes para viés e aceleração. Escolher o método depende de estatística, tamanho da amostra, assimetria e regularidade.\n\nPara estatísticas muito sensíveis a extremos ou estimadores em fronteiras, o bootstrap ordinário pode falhar ou exigir variantes. O máximo da amostra, por exemplo, não costuma ter sua incerteza capturada adequadamente pelo bootstrap ingênuo em muitos modelos contínuos. Se dados são temporais e autocorrelacionados, reamostrar linhas individuais destrói a dependência; pode-se usar bootstrap em blocos, respeitando pressupostos e comprimento de bloco.\n\n## Dependência, pareamento e estratificação\n\nQuando se compara o antes e depois de um mesmo participante, a unidade de reamostragem deve ser o **par**, ou as diferenças por participante, e não duas listas independentes que apaguem o vínculo. Em amostras estratificadas, convém preservar estratos e probabilidades de seleção conforme o desenho. Para unidades agrupadas (escolas, domicílios), reamostrar observações como se fossem independentes pode reduzir artificialmente a variância; em muitos desenhos, reamostram-se os conglomerados.\n\n**Bootstrap paramétrico** é outra ideia: ajustar distribuição paramétrica e gerar novas amostras do modelo ajustado. Ele depende mais fortemente da adequação do modelo. O não paramétrico reutiliza a distribuição empírica dos dados; ambos dependem de condições de validade e não resolvem viés de seleção.\n\n## Jackknife, permutação e validação\n\nNo **jackknife delete-1**, retiram-se sucessivamente cada uma das n observações e recalcula-se a estatística, obtendo n valores. Esse procedimento é útil para avaliar sensibilidade e, em certas classes de estatísticas, estimar erro-padrão e viés. Não é sinônimo de bootstrap: não há sorteio com reposição nas n réplicas delete-1. Em situações irregulares, como certas estatísticas baseadas em quantis, a versão simples pode ter limitações.\n\nNo **teste de permutação**, a lógica é diferente: sob hipótese nula apropriada, reorganizam-se rótulos ou valores de modo compatível com permutabilidade sob H₀ para formar a distribuição nula da estatística. Não se trata de amostrar com reposição da distribuição empírica para aproximar, em geral, a distribuição do estimador. Em dados pareados, por exemplo, permutar arbitrariamente participantes e medidas pode violar a estrutura. Um valor-p por Monte Carlo em um teste aleatorizado costuma ser obtido contando resultados tão ou mais extremos que o observado, com correção adequada à forma de amostragem e ao desenho do teste.\n\n## Protocolo auditável\n\nCalcular a estatística na amostra real; definir unidade e desenho; selecionar abordagem e B; usar semente registrada; gerar réplicas; analisar histograma das estatísticas; verificar casos degenerados; informar método e intervalos; fazer análise de sensibilidade. Incerteza bootstrap descreve o comportamento sob a distribuição empírica e seus pressupostos: **uma amostra enviesada continua enviesada**, mesmo com milhões de reamostragens. Ferramentas como `scipy.stats.bootstrap` documentam métodos percentílico, básico e BCa, mas não dispensam interpretação estatística."
+    },
+    {
+      "title": "Passeios aleatórios e cadeias de Markov",
+      "markdown": "## Processos estocásticos e passeios aleatórios\n\nUm processo estocástico é uma família de variáveis aleatórias indexada por tempo ou outra dimensão. Em um **passeio aleatório simples** na reta, `S₀=0` e `S_t=Σ_{i=1}^t X_i`, com incrementos independentes, cada um igual a +1 com probabilidade p e −1 com probabilidade 1−p. Logo, `E[S_t]=t(2p−1)` e `Var(S_t)=4tp(1−p)`. Para p=1/2, a esperança da posição é zero e a variância é t; isso não significa que a posição se mantenha próxima de zero em toda trajetória. Em uma trajetória, deslocamentos consecutivos se acumulam.\n\nO passeio simétrico é uma cadeia de Markov cujo estado é a posição atual e cujas transições são para vizinhos. Probabilidades de **primeira passagem** e **ruína** tratam do instante em que o processo atinge uma barreira, problema distinto da probabilidade de estar numa posição em um instante fixo. A simulação aproxima probabilidades de absorção e tempos de primeira passagem quando fórmulas analíticas são difíceis. Se for imposto limite de tempo computacional, trajetórias não absorvidas até esse limite não podem ser silenciosamente tratadas como absorvidas.\n\n## Cadeias de Markov de tempo discreto\n\nA **propriedade de Markov** afirma que, conhecido o estado presente, a distribuição do próximo estado não depende adicionalmente do passado completo. Uma cadeia homogênea possui probabilidades de transição constantes no tempo. Com estados i e j, `P_ij=P(X_(t+1)=j | X_t=i)`; cada P_ij≥0 e a soma de cada linha de P é 1, sob a convenção linha-estocástica. Se π_t é vetor-linha das probabilidades dos estados, então `π_(t+1)=π_t P`; em k etapas, `π_(t+k)=π_t P^k`.\n\nPor exemplo, para `P=[[0,8;0,2],[0,3;0,7]]`, uma cadeia iniciada com certeza no primeiro estado tem, após uma etapa, probabilidades 0,8 e 0,2. Uma distribuição **estacionária** π satisfaz πP=π e soma de seus componentes 1; isso não equivale à probabilidade inicial e tampouco implica convergência automática para π a partir de qualquer estado. Irredutibilidade e aperiocidade em espaço finito garantem, sob condições usuais, convergência para a única distribuição estacionária. Sem essas condições, podem ocorrer classes fechadas ou oscilações periódicas.\n\n## Comunicação, absorção e simulação\n\nEstados i e j **comunicam** quando cada um pode ser alcançado a partir do outro com probabilidade positiva em algum número de passos. Um estado absorvente tem P_ii=1: depois de entrar nele, a cadeia permanece ali. Recorrência significa retorno com probabilidade um; transiência significa possibilidade positiva de nunca retornar. Para cadeias finitas irredutíveis, os estados são recorrentes positivos. Em espaço infinito, detalhes adicionais importam.\n\nA simulação direta da cadeia requer escolher o estado inicial; a cada passo, sortear o próximo segundo a linha da matriz P correspondente ao estado atual. Não se deve sortear repetidamente estados de acordo com uma distribuição estacionária e chamar isso de trajetória de Markov: tal operação, em geral, perde a dependência temporal das transições.\n\n## Médias de trajetória e inferência\n\nUma cadeia pode ter observações correlacionadas ao longo do tempo. Estimativas de médias estacionárias por `m_T=(1/T)Σh(X_t)` podem exigir descarte justificado de fase inicial (*burn-in*) e diagnóstico de mistura; remover trechos iniciais não garante convergência. **Tamanho amostral efetivo** pode ser muito menor que o número de observações quando há autocorrelação positiva. Para comparar estimativas, estudar gráficos de trajetória, autocorrelação e replicações independentes ou métodos adequados de erro-padrão.\n\nA técnica MCMC utiliza cadeias cuja distribuição estacionária-alvo é escolhida, sob condições de convergência. É diferente de Monte Carlo com sorteios independentes, porque os pontos sucessivos geralmente são dependentes. Em provas, observe a pegadinha: o fato de uma cadeia ter distribuição estacionária não faz com que suas observações sejam independentes nem elimina a necessidade de verificar irreducibilidade, periodicidade e comportamento inicial."
+    },
+    {
+      "title": "Filas e simulação de eventos discretos",
+      "markdown": "## Teoria de filas como modelo probabilístico\n\nFilas descrevem chegadas, espera, atendimento e saída de entidades. Um modelo deve especificar **processo de chegadas**, **distribuição do serviço**, **número de servidores**, **capacidade**, **disciplina de atendimento**, população-fonte e eventual desistência. Na notação de Kendall, **M/M/1** representa chegadas com intervalos exponenciais associados a processo de Poisson homogêneo, serviços exponenciais independentes e um servidor; o segundo M não quer dizer serviço com tempo constante. Disciplinas como primeiro a chegar, primeiro a ser atendido (FIFO/FCFS) precisam ser indicadas quando relevantes.\n\nEm M/M/1 com taxa média de chegada λ, taxa de atendimento μ e hipótese de estabilidade λ<μ, a intensidade de tráfego é `ρ=λ/μ`, com 0≤ρ<1. A probabilidade estacionária de o sistema estar vazio é `1−ρ`; a quantidade média no sistema é `L=ρ/(1−ρ)`; o tempo médio no sistema é `W=1/(μ−λ)`; a quantidade média aguardando serviço é `Lq=ρ²/(1−ρ)`; e a espera média na fila é `Wq=ρ/[μ−λ]`. As dimensões são decisivas: λ e μ em clientes/hora implicam W e Wq em horas. O **tempo no sistema** inclui espera mais atendimento; o **tempo na fila** não inclui o serviço.\n\n## Lei de Little e premissas\n\nA **lei de Little** relaciona quantidade média no sistema, taxa efetiva média de entradas/saídas e tempo médio de permanência: `L=λ_eff W`, em condições adequadas de regime e estabilidade. Analogamente, `Lq=λ_eff Wq` para a fila. A taxa efetiva pode diferir da taxa potencial de chegada em sistemas com bloqueios ou rejeições. Little não depende especificamente de tempos exponenciais, mas pressupõe cuidado com fronteira do sistema, média e estabilidade operacional. Por isso, aplicar diretamente fórmulas de M/M/1 a qualquer fila só porque se conhece λ e μ é incorreto.\n\nEm M/M/1 com λ=4 por hora e μ=6 por hora, `ρ=2/3`, `W=1/2` hora =30 minutos e `L=2` clientes no sistema. O tempo médio na fila é `Wq=(2/3)/(6−4)=1/3` hora=20 minutos. Se λ aumenta próximo de μ, as médias de espera crescem fortemente; **não** se conclui que todos esperam o mesmo tempo médio.\n\n## Simulação de eventos discretos\n\nNa simulação de eventos discretos, o relógio avança entre instantes que alteram o estado: chegada, início ou término de serviço, abandono. O estado pode incluir número de pessoas na fila, situação dos servidores, agenda de eventos e instante atual. Uma estrutura de prioridade escolhe o próximo evento cronológico; entre eventos, estado permanece constante se o modelo assim definir. Para uma fila FIFO de servidor único, chegada em servidor ocioso inicia atendimento; chegada com servidor ocupado entra na fila; uma conclusão libera o servidor e chama o próximo da fila, se houver.\n\nÉ necessário decidir como tratar eventos simultâneos, capacidade máxima, desistências, intervalos de atendimento, variação da taxa ao longo do dia e prioridades. Uma **fila com múltiplos servidores** não é, sem justificativa, equivalente a multiplicar μ em todas as fórmulas de M/M/1. Eventos discretos reduzem operações desnecessárias quando comparados a atualizar o sistema a cada fração minúscula de tempo.\n\n## Transiente, aquecimento e validação\n\nSimulações de filas iniciadas vazias podem ter **viés de inicialização** na estimativa da média estacionária: os primeiros usuários enfrentam, em geral, condições mais brandas. Uma fase de aquecimento (*warm-up*) pode ser removida mediante diagnóstico, mas essa exclusão não deve ser aplicada quando o objeto de estudo é precisamente a abertura do serviço. A duração total, número de replicações independentes e método de estimação da variância influenciam o intervalo de precisão.\n\nValidar consiste em comparar com resultados conhecidos do M/M/1, verificar conservação de clientes (entradas, saídas, em atendimento e em fila), testar casos extremos e examinar gráficos do tamanho da fila ao longo do tempo. A média simples do número de pessoas registrada **apenas nos instantes de chegada** não equivale necessariamente à média ponderada pelo tempo, pois as regras de amostragem são diferentes. Para médias temporais, integra-se a área sob a trajetória N(t) e divide-se pela duração observada.\n\n## Aplicações\n\nModelos de filas auxiliam dimensionamento de recepção, redes, atendimento hospitalar e logística. Devem representar dados empíricos relevantes: sazonalidade, correlação de chegadas, variabilidade do serviço e regras de prioridade. Uma solução que reduz espera média pode aumentar custos ou produzir desigualdade entre categorias de usuários; decisões demandam múltiplos indicadores, como percentis de espera, utilização, abandono e equidade."
+    },
+    {
+      "title": "Gráficos exploratórios e diagnóstico de simulações",
+      "markdown": "## Análise exploratória antes e depois da simulação\n\nA **análise exploratória de dados (AED/EDA)** examina estrutura, distribuição, relações, observações atípicas, falhas e padrões sem pressupor de início que um único resumo numérico basta. Estatísticas como média, mediana, quartis, desvio-padrão e amplitude interquartil sintetizam aspectos diferentes; nenhuma delas descreve sozinha uma distribuição assimétrica ou multimodal. Limpeza de dados deve ser documentada: excluir extremos só por aparência pode distorcer o fenômeno, especialmente em riscos raros.\n\nUm **histograma** agrega observações em classes e mostra forma, assimetria, concentração e possíveis modos. A escolha da largura das classes altera a aparência; frequências absolutas, relativas e densidade têm escalas distintas. Um **gráfico de densidade** suaviza a distribuição por uma janela ou núcleo e requer escolha de banda; suavização excessiva pode esconder multimodalidade. A **função de distribuição empírica (ECDF)** é uma função em degraus que informa a proporção observada de dados menores ou iguais a cada valor e facilita comparar quantis sem arbitrariamente escolher classes.\n\n## Boxplot, Q-Q plot e dispersão\n\nNo **boxplot**, a caixa representa tipicamente o intervalo entre primeiro e terceiro quartis e a linha interna indica a mediana. Os bigodes têm convenções distintas; numa convenção muito comum, estendem-se até os valores observados mais extremos dentro de 1,5 vezes a amplitude interquartil dos quartis, marcando separadamente outros pontos. Ponto fora do bigode é **potencial** outlier, não prova de erro ou observação impossível.\n\nO **gráfico Q-Q** compara quantis empíricos com quantis de uma distribuição teórica ou de outra amostra. Aproximação a uma linha de referência sugere compatibilidade no padrão de quantis; desvios sistemáticos, principalmente nas pontas, indicam possíveis diferenças de cauda ou assimetria, mas a interpretação exige escala e tamanho amostral. **Gráficos de dispersão** exploram relações bivariadas, tendência, heterocedasticidade e agrupamentos; correlação alta não estabelece causalidade.\n\n## Diagnósticos específicos de processos e Monte Carlo\n\nPara trajetórias de Markov, simulações temporais e filas, **gráfico de série temporal** revela tendências, mudanças de regime, aquecimento e picos. O **correlograma (ACF)** mostra associação entre valores defasados: autocorrelação positiva importante reduz a informação efetiva em médias. Histograma de B estatísticas bootstrap descreve a aproximação de sua distribuição; histograma da amostra original mostra outra grandeza. Compará-los como se fossem a mesma distribuição confunde observações e estimadores.\n\nUm **gráfico de convergência** da média cumulativa de uma simulação permite avaliar estabilização aparente, mas não é prova matemática de convergência nem de ausência de viés. Faixas de incerteza devem considerar dependência, número de replicações e método de construção. Para múltiplos cenários, comparar boxplots de tempos de espera e curvas de quantis frequentemente informa mais que comparar somente médias.\n\n## Escolher gráfico segundo a pergunta\n\nPara uma variável numérica contínua: histograma, ECDF, densidade e boxplot. Para duas numéricas: dispersão, cores/grupos e, se aplicável, linhas de tendência. Para dados no tempo: séries e ACF, respeitando espaçamento de observações. Para categorias: gráfico de barras, sem tratar códigos nominais como quantidades. Para proporções simuladas: trajetória cumulativa, barras com incerteza e análise de eventos raros. Em todas as figuras, eixos e unidades devem ser explícitos; cortes do eixo vertical e escalas logarítmicas alteram a percepção e devem ser informados.\n\n## Cuidados na interpretação e roteiro de concurso\n\nDistinguir dispersão dos **dados** da incerteza do **estimador**: o desvio-padrão das observações não é, em regra, o erro-padrão da média; sob independência e variância finita, este é aproximadamente s/√n. Um gráfico com cauda direita não implica erro de coleta; pode descrever tempos de fila genuinamente assimétricos. Uma nuvem de pontos curva pode exigir modelo não linear, não sendo suficiente julgar apenas o coeficiente de Pearson.\n\nPara validar resultados: comparar gráfico com medidas-resumo, explicitar dados ausentes e exceções, confirmar unidades, usar gráficos de diagnóstico apropriados e guardar código da transformação. Uma boa sequência de AED é: inspecionar registros; visualizar uma e duas variáveis; examinar estratificações; investigar anomalias; revisar suposições; e só então formalizar modelos. A computação amplia o exame visual, mas não substitui a pergunta estatística e o conhecimento sobre a origem dos dados."
+    }
+  ],
+  "summary": "**Computação estatística** combina algoritmos, inferência e exploração gráfica para investigar modelos e dados. Geradores pseudoaleatórios permitem simulações reprodutíveis quando semente, algoritmo e ambiente são documentados. No método de **Monte Carlo**, uma média de B repetições estima probabilidades ou esperanças e, sob independência e variância finita, o erro-padrão decresce aproximadamente com 1/√B. **Bootstrap não paramétrico** reamostra com reposição os registros observados para aproximar a distribuição de uma estatística; intervalos percentílicos, básicos e BCa possuem condições de aplicação e não removem viés de seleção. O **jackknife** realiza omissões sistemáticas, enquanto **permutação** testa hipóteses sob esquemas de intercambialidade. Passeios aleatórios acumulam incrementos, e cadeias de **Markov** evoluem segundo probabilidades condicionadas ao estado presente; estacionariedade não garante independência. Modelos de **filas**, como M/M/1, descrevem chegada, atendimento e espera, com atenção à estabilidade e à lei de Little. A **análise exploratória** usa histograma, ECDF, boxplot, Q-Q, séries e ACF para avaliar forma, atipicidade, dependência e validade das conclusões. Em provas, destaque a separação entre incerteza amostral e erro de simulação, a unidade correta de reamostragem e as hipóteses por trás de cada fórmula.",
+  "flashcards": [
+    {
+      "front": "Computação estatística e simulação são sinônimos?",
+      "back": "Não. Computação estatística é mais ampla; simulação gera dados ou trajetórias por um modelo para estudar quantidades probabilísticas."
+    },
+    {
+      "front": "Qual é a diferença entre n e B?",
+      "back": "n representa o tamanho de uma amostra ou conjunto de dados; B representa o número de replicações computacionais."
+    },
+    {
+      "front": "O que significa fixar a semente?",
+      "back": "Estabelecer o estado inicial do gerador pseudoaleatório para favorecer reprodutibilidade sob algoritmo e ambiente compatíveis."
+    },
+    {
+      "front": "Como gerar Bernoulli(p) com U uniforme?",
+      "back": "Usar o indicador 1{U<p}; ele vale 1 com probabilidade p, quando U é uniforme contínua em (0,1)."
+    },
+    {
+      "front": "Qual é a ideia da transformação inversa?",
+      "back": "Obter X=F⁻¹(U), ou inversa generalizada, para gerar uma variável com distribuição F."
+    },
+    {
+      "front": "Qual é o erro-padrão de uma média Monte Carlo independente?",
+      "back": "Aproximadamente s/√B, com s igual ao desvio-padrão dos valores simulados."
+    },
+    {
+      "front": "Por que quadruplicar B é especial?",
+      "back": "Sob variância finita e independência, reduz aproximadamente pela metade o erro-padrão do cálculo Monte Carlo."
+    },
+    {
+      "front": "Como estimar a probabilidade de um evento por simulação?",
+      "back": "Calcular a proporção de réplicas em que o evento ocorreu; uma frequência nula não prova probabilidade zero."
+    },
+    {
+      "front": "O que mede o viés de um estimador em simulação?",
+      "back": "A diferença entre a média simulada do estimador e o parâmetro verdadeiro conhecido do modelo gerador."
+    },
+    {
+      "front": "O que mede a cobertura empírica?",
+      "back": "A fração dos intervalos calculados em réplicas que contêm o valor verdadeiro do parâmetro."
+    },
+    {
+      "front": "Como funciona bootstrap não paramétrico?",
+      "back": "Sorteiam-se, com reposição, n registros da amostra original, calculando-se a estatística em cada uma das B reamostras."
+    },
+    {
+      "front": "O que é intervalo percentílico bootstrap?",
+      "back": "Intervalo obtido a partir dos quantis apropriados das estatísticas bootstrap, como 2,5% e 97,5% para 95% bilateral."
+    },
+    {
+      "front": "O que é BCa?",
+      "back": "Intervalo bootstrap com ajustes para viés e aceleração; não garante validade universal."
+    },
+    {
+      "front": "Diferença entre bootstrap e jackknife delete-1?",
+      "back": "Bootstrap sorteia com reposição; jackknife delete-1 recalcula o estimador n vezes, omitindo uma observação de cada vez."
+    },
+    {
+      "front": "Como preservar pareamento no bootstrap?",
+      "back": "Reamostrar cada par como unidade ou as diferenças entre medidas correspondentes."
+    },
+    {
+      "front": "Qual é a característica do passeio aleatório simples simétrico?",
+      "back": "Incrementos independentes +1 e −1 com probabilidade 1/2 cada; esperança de posição zero e variância t no tempo t."
+    },
+    {
+      "front": "O que define a propriedade de Markov?",
+      "back": "Dado o estado presente, a distribuição do próximo estado independe do passado adicional."
+    },
+    {
+      "front": "O que define matriz de transição linha-estocástica?",
+      "back": "Entradas não negativas e cada linha somando um; P_ij representa transição do estado i ao j."
+    },
+    {
+      "front": "Qual é a condição de estacionariedade de π?",
+      "back": "πP=π, com componentes não negativos que somam um."
+    },
+    {
+      "front": "O que é estado absorvente?",
+      "back": "Um estado i com P_ii=1, no qual o processo permanece após ingressar."
+    },
+    {
+      "front": "Qual é a estabilidade em uma M/M/1 clássica?",
+      "back": "A taxa de chegada λ deve ser inferior à taxa de serviço μ, ou ρ=λ/μ<1."
+    },
+    {
+      "front": "O que diz a lei de Little?",
+      "back": "Em condições apropriadas, número médio no sistema L = taxa efetiva de fluxo × permanência média W."
+    },
+    {
+      "front": "O que diferencia W de Wq em filas?",
+      "back": "W inclui espera e atendimento; Wq representa apenas o tempo aguardando na fila."
+    },
+    {
+      "front": "O que identifica a ECDF?",
+      "back": "A proporção acumulada de observações que são menores ou iguais a cada valor de referência."
+    },
+    {
+      "front": "Para que serve o gráfico Q-Q?",
+      "back": "Comparar quantis observados com quantis de uma distribuição teórica ou de outra amostra."
+    },
+    {
+      "front": "Por que examinar ACF em simulações de cadeias?",
+      "back": "Porque dependência temporal pode reduzir a informação efetiva e invalidar erros-padrão que suponham independência."
+    }
+  ],
+  "tips": [
+    "Se o enunciado falar em diminuir erro de Monte Carlo, recorde a regra 1/√B; se falar em amostra enviesada, mais B não corrige o viés.",
+    "Associe bootstrap não paramétrico a reposição, mesma unidade de amostragem e estatísticas das reamostras; associe jackknife delete-1 a omissões sistemáticas.",
+    "Para Markov, determine primeiro a convenção da matriz: vetor-linha evolui por πP; cada linha de P soma um.",
+    "Em M/M/1, escreva ρ=λ/μ e teste λ<μ antes de usar qualquer fórmula estacionária.",
+    "Converta unidades antes de interpretar W=1/(μ−λ): taxas por hora produzem tempos em horas.",
+    "Gráfico de histogramas responde sobre distribuição marginal; gráfico de série e ACF, sobre dinâmica temporal e dependência.",
+    "Em questões de gráficos, uma identificação de outlier pede investigação; nunca pressuponha erro apenas por estar além do bigode."
+  ],
+  "traps": [
+    "Confundir precisão computacional obtida com B elevado com validade do desenho amostral.",
+    "Supor que uma semente igual produza sequências idênticas em bibliotecas e geradores diferentes.",
+    "Tomar a distribuição dos dados brutos como se fosse a distribuição bootstrap de um estimador.",
+    "Reamostrar observações dependentes como se fossem independentes, apagando pares, blocos ou conglomerados.",
+    "Afirmar que distribuição estacionária de Markov implica independência ou convergência a partir de qualquer início.",
+    "Aplicar as fórmulas de M/M/1 a filas multisservidor ou com chegadas arbitrárias.",
+    "Confundir espera na fila (Wq) com permanência total (W) ou usar λ ofertada em lugar de λ efetiva na lei de Little.",
+    "Tratar marcação de outlier, histograma bimodal ou Q-Q curvo como prova automática de erro ou de causalidade."
+  ],
+  "activeRecall": [
+    {
+      "question": "Por que milhões de simulações não eliminam o viés de seleção?",
+      "answer": "Porque sorteios computacionais apenas propagam a distribuição dos dados e as hipóteses adotadas; unidades não observadas ou mal selecionadas não passam a integrar a amostra real."
+    },
+    {
+      "question": "Como estimar a integral de u² entre 0 e 1 por Monte Carlo?",
+      "answer": "Sortear B valores U uniformes em [0,1] e calcular a média de U². O alvo exato é 1/3; a diferença observada é erro Monte Carlo."
+    },
+    {
+      "question": "Como distinguir bootstrap percentílico de intervalo normal da média?",
+      "answer": "O percentílico usa quantis das estatísticas reamostradas; o normal usa aproximação centrada no estimador, geralmente com multiplicador de erro-padrão."
+    },
+    {
+      "question": "Se uma amostra tem pares antes/depois, qual unidade bootstrap usar?",
+      "answer": "Sortear pares inteiros (ou as diferenças individuais) com reposição para preservar a ligação entre as observações."
+    },
+    {
+      "question": "Calcule a variância de S_40 em passeio simples simétrico.",
+      "answer": "É 40, pois cada incremento independente tem variância 1 e as variâncias se somam."
+    },
+    {
+      "question": "Como calcular distribuição de estado após k passos com vetor-linha π₀?",
+      "answer": "Efetuar π₀P^k, sendo P a matriz linha-estocástica de transições."
+    },
+    {
+      "question": "Em M/M/1 com chegada 4/h e serviço 6/h, qual W?",
+      "answer": "W=1/(6−4)=0,5 hora, ou 30 minutos de permanência média no sistema."
+    },
+    {
+      "question": "Como estimar média temporal de ocupação em simulação de eventos?",
+      "answer": "Somar, para cada intervalo entre eventos, ocupação multiplicada por duração; depois dividir pelo tempo total."
+    },
+    {
+      "question": "Que dois gráficos ajudam a verificar dependência serial de uma cadeia?",
+      "answer": "Série temporal (*trace plot*) e correlograma da autocorrelação por defasagem (ACF)."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Erro amostral versus erro de Monte Carlo",
+      "summary": "Erro de Monte Carlo é a flutuação por número finito de sorteios computacionais; erro amostral resulta de observar apenas parte da população. Mais B reduz o primeiro, não necessariamente o segundo."
+    },
+    {
+      "key": "e2",
+      "title": "Bootstrap sem respeitar desenho",
+      "summary": "Unidade de reamostragem inadequada pode destruir pareamento, clusters ou dependência temporal. Reamostrar as unidades primárias corretas é condição para incerteza defensável."
+    },
+    {
+      "key": "e3",
+      "title": "Markov: estação não é independência",
+      "summary": "πP=π significa conservação da distribuição marginal, sem garantir independência das observações ou convergência a partir de todas as condições iniciais."
+    },
+    {
+      "key": "e4",
+      "title": "M/M/1 e lei de Little",
+      "summary": "M/M/1 requer chegadas e serviços específicos e λ<μ para regime estacionário. Little é mais amplo, usa fluxo efetivo e exige consistência da fronteira do sistema."
+    },
+    {
+      "key": "e5",
+      "title": "Dados versus estatísticas em gráficos",
+      "summary": "Histogramas de dados, distribuições bootstrap de estimadores e curvas temporais representam objetos diferentes e têm escalas e interpretações próprias."
+    },
+    {
+      "key": "e6",
+      "title": "Outliers e viés do modelo",
+      "summary": "Pontos atípicos não são automaticamente erros; além disso, resultados numéricos estáveis podem estar errados se o modelo gerador ou a seleção de dados forem inadequados."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Fixada a semente de um gerador pseudoaleatório e mantida a implementação relevante, a mesma sequência pode ser reproduzida, embora não se trate necessariamente de aleatoriedade física.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A semente controla o estado inicial de um processo algorítmico, permitindo reprodução sob condições iguais. A pegadinha é confundir reprodutibilidade computacional com uma fonte física imprevisível de números aleatórios.",
+      "section": "Fundamentos computacionais e números pseudoaleatórios",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Gerar 100 mil réplicas a partir de uma amostra observacional não corrige automaticamente a falta de representatividade da amostra original.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O volume de repetições reduz a variabilidade causada pelos sorteios do computador, mas não introduz unidades da população ausentes na coleta. Viés de seleção é uma limitação dos dados e do desenho, não do número de réplicas.",
+      "section": "Fundamentos computacionais e números pseudoaleatórios",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na transformação inversa, X=F(U), com U uniforme entre zero e um, sempre gera observações com função de distribuição F.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A construção adequada utiliza F inversa ou inversa generalizada aplicada à uniforme, e não a própria função F. Confundir probabilidade acumulada com quantil produz, em geral, uma distribuição diferente da pretendida.",
+      "section": "Fundamentos computacionais e números pseudoaleatórios",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer estimar a proporção de defeitos sob um gerador Bernoulli(p). Qual é a interpretação correta de B=10.000 e n=50 em um estudo de simulação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dez mil conjuntos simulados, cada qual com cinquenta observações.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Cinquenta conjuntos, cada qual com dez mil indivíduos reais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dez mil observações da população, sem replicações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cinquenta sementes independentes e dez mil parâmetros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dez mil testes que eliminam o erro de seleção.",
+          "correct": false
+        }
+      ],
+      "explanation": "B é o número de réplicas de Monte Carlo e n é o número de observações por amostra simulada. Os papéis são distintos; aumentar réplicas não amplia a amostra real nem corrige seleção inadequada.",
+      "section": "Fundamentos computacionais e números pseudoaleatórios",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para gerar X com distribuição exponencial de taxa λ>0 a partir de U uniforme em (0,1), uma transformação válida é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "X=λU.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "X=−ln(U)/λ.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "X=U/λ.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "X=−λ ln(U).",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "X=λ−ln(U).",
+          "correct": false
+        }
+      ],
+      "explanation": "A inversa da distribuição exponencial usa o logaritmo de uma uniforme e divide pela taxa. O valor esperado resultante é 1/λ; multiplicar pela taxa confundiria escala com parâmetro de intensidade.",
+      "section": "Fundamentos computacionais e números pseudoaleatórios",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após executar uma simulação com a mesma semente e obter saídas diferentes em versões distintas de bibliotecas, qual conclusão é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O uso de semente tornou os sorteios fisicamente aleatórios.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sementes iguais obrigam todas as bibliotecas a usar a mesma sequência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A reprodutibilidade também depende da implementação e do ambiente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Qualquer diferença prova manipulação intencional de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sementes servem apenas para aumentar o tamanho amostral.",
+          "correct": false
+        }
+      ],
+      "explanation": "A semente controla o estado de um algoritmo específico, mas algoritmos e regras de geração podem mudar entre bibliotecas ou versões. Guardar código e ambiente é parte da reprodutibilidade.",
+      "section": "Fundamentos computacionais e números pseudoaleatórios",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pesquisador simula um milhão de amostras de dados que foram coletados somente em uma clínica privada. Qual limitação permanece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A impossibilidade de calcular médias numéricas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A obrigatoriedade de usar estatísticas apenas categóricas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A redução a zero da variabilidade da simulação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A representatividade dos dados em relação à população de interesse.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A perda de qualquer capacidade de reproduzir o cálculo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Simular muitas vezes não inclui grupos que não participaram da coleta original. A inferência sobre população mais ampla depende do mecanismo de seleção, não apenas da precisão de cálculos computacionais.",
+      "section": "Fundamentos computacionais e números pseudoaleatórios",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa precisa calcular a média de dez milhões de valores sem guardar todos em memória. Qual estratégia é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Recalcular integralmente a soma em todas as etapas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Guardar todas as matrizes de dados replicados em memória.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Arredondar cada nova observação para zero.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir a média pelos dois maiores valores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atualizar a média incrementalmente a cada novo valor.",
+          "correct": true
+        }
+      ],
+      "explanation": "A fórmula m_k=m_(k−1)+(x_k−m_(k−1))/k utiliza memória constante para a média. A preocupação é eficiência e estabilidade; não é necessário reter cada observação se apenas a média interessa.",
+      "section": "Fundamentos computacionais e números pseudoaleatórios",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para estimar uma média por Monte Carlo usando réplicas independentes com variância finita, quadruplicar B reduz aproximadamente à metade o erro-padrão numérico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O erro-padrão é proporcional a 1/√B sob as hipóteses indicadas. Quadruplicar B multiplica o denominador por dois. O resultado não significa que viés de modelo ou erro amostral também sejam cortados pela metade.",
+      "section": "Monte Carlo: estimativas, precisão e variância",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ausência de ocorrências de um evento em B simulações independentes demonstra que a probabilidade do evento é rigorosamente zero.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma frequência empírica nula pode ocorrer quando o evento é raro e o número de ensaios é insuficiente. Essa observação informa a amostra simulada, mas não prova impossibilidade probabilística no modelo.",
+      "section": "Monte Carlo: estimativas, precisão e variância",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um intervalo numérico para erro de Monte Carlo é, por definição, um intervalo de confiança para o parâmetro populacional baseado em observações reais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O intervalo de Monte Carlo mede imprecisão causada pela quantidade finita de sorteios computacionais. Um intervalo inferencial sobre a população incorpora a incerteza amostral, questão diferente que exige desenho e hipóteses.",
+      "section": "Monte Carlo: estimativas, precisão e variância",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma estimativa de Monte Carlo da média de uma variável de variância finita, o erro-padrão estimado é 0,04 com B=2.500. Mantidas as condições, para obter aproximadamente 0,02 deve-se usar:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "B=10.000.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "B=5.000.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "B=1.250.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "B=2.520.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "B=625.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para reduzir o erro-padrão à metade, é preciso quadruplicar as réplicas, pois o erro cai com a raiz quadrada de B. Duplicar B gera redução por fator aproximadamente 1,41, insuficiente.",
+      "section": "Monte Carlo: estimativas, precisão e variância",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma simulação de 500 trajetórias registra 75 eventos adversos. A estimativa da probabilidade é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "0,075.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "0,15.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "0,85.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "0,30.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "0,015.",
+          "correct": false
+        }
+      ],
+      "explanation": "A proporção simulada é frequência dividida pelo número de trajetórias: 75/500=0,15. O resultado estima a probabilidade sob o mecanismo simulado, com incerteza numérica por quantidade finita de repetições.",
+      "section": "Monte Carlo: estimativas, precisão e variância",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para estimar I=∫₀¹u²du usando sorteios uniformes independentes U_b, qual estatística aproxima I?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O quadrado do máximo dos U_b.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A soma simples dos U_b sem dividir por B.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A média dos valores U_b².",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O menor dos U_b².",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A média dos inversos de U_b².",
+          "correct": false
+        }
+      ],
+      "explanation": "A integral equivale à esperança de U² sob uniforme em [0,1]. Portanto a média das potências quadráticas converge ao alvo de 1/3; máximo, mínimo e soma sem normalização não representam essa esperança.",
+      "section": "Monte Carlo: estimativas, precisão e variância",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gestor compara dois sistemas de filas por simulação e usa a mesma sequência básica de sorteios para ambos. O benefício potencial dessa escolha é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Garantir a mesma média em qualquer cenário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Eliminar a necessidade de replicações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tornar toda saída de cada cenário independente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reduzir a variância da diferença estimada entre cenários.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Corrigir automaticamente uma modelagem incorreta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Números aleatórios comuns podem induzir correlação positiva entre resultados dos cenários, reduzindo a variância de sua diferença. O ganho depende do acoplamento; não é uma garantia universal.",
+      "section": "Monte Carlo: estimativas, precisão e variância",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em importância amostral, sorteia-se de uma distribuição proposta q em vez da distribuição-alvo f. Qual requisito é central para uma estimativa correta por pesos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descartar todos os sorteios que pareçam extremos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir toda probabilidade por sua raiz quadrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Exigir que q e f tenham médias necessariamente iguais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar os pesos para preservar o caráter aleatório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Empregar pesos f(x)/q(x) nas regiões relevantes com suporte adequado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Quando q cobre o suporte relevante de f, a ponderação f/q reconstrói a esperança visada. Sem suporte ou com pesos instáveis, o procedimento pode produzir viés ou variância muito elevada.",
+      "section": "Monte Carlo: estimativas, precisão e variância",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No bootstrap não paramétrico usual, cada reamostra tem tipicamente o mesmo tamanho n da amostra original e permite repetição de registros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O procedimento sorteia índices com reposição da própria amostra, formando réplicas de tamanho n para recalcular a estatística. Sorteio sem reposição de todos os registros manteria a estatística inalterada em muitos casos.",
+      "section": "Bootstrap, jackknife e testes de reamostragem",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em dados pareados, reamostrar independentemente a coluna 'antes' e a coluna 'depois' sempre preserva a variabilidade correta da diferença média.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Sortear separadamente as duas colunas costuma destruir a correlação intrapessoal que caracteriza o pareamento. A unidade adequada é o par ou a diferença individual, observando-se o desenho amostral.",
+      "section": "Bootstrap, jackknife e testes de reamostragem",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O intervalo bootstrap percentílico usa quantis da distribuição das estatísticas reamostradas, mas sua cobertura não é garantida para toda estatística e amostra.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Os percentis das réplicas fornecem limites candidatos para a incerteza do estimador. Assimetria, tamanho pequeno, estatísticas irregulares ou fronteiras podem prejudicar a cobertura, exigindo avaliação do método.",
+      "section": "Bootstrap, jackknife e testes de reamostragem",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "De uma amostra com n=80 observações independentes, a reamostragem bootstrap não paramétrica usual sorteia:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Oitenta registros com reposição da amostra original.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Oitenta novas pessoas da população real.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada registro uma única vez, sempre sem reposição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente observações acima da mediana.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registros do modelo normal sem ajustar parâmetros.",
+          "correct": false
+        }
+      ],
+      "explanation": "O bootstrap não paramétrico reproduz o tamanho original por sorteios com reposição, permitindo duplicações e omissões em cada réplica. Novas observações reais e simulação paramétrica são procedimentos distintos.",
+      "section": "Bootstrap, jackknife e testes de reamostragem",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma distribuição de estatísticas bootstrap, o método percentílico bilateral de 95% utiliza aproximadamente:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A média menos e mais dez desvios-padrão dos dados originais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os quantis de 2,5% e 97,5% das estatísticas reamostradas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Os extremos mínimo e máximo de uma única amostra.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os quantis de 25% e 75% dos dados brutos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os valores fixos de −1,96 e +1,96, em qualquer escala.",
+          "correct": false
+        }
+      ],
+      "explanation": "O intervalo percentílico lê os quantis das B estatísticas bootstrap, e não dos dados individuais. A cobertura real pode divergir da nominal se a estatística for irregular ou as condições forem inadequadas.",
+      "section": "Bootstrap, jackknife e testes de reamostragem",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num levantamento com entrevistas de alunos agrupados por escola, qual reamostragem respeita melhor a dependência intraclasse, em geral?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sortear cada resposta isoladamente como se fosse independente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Eliminar as escolas que têm maior número de alunos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sortear conglomerados escolares como unidades, conforme o desenho.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Repetir sempre o mesmo aluno de cada escola.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desconsiderar a relação entre amostragem e estrutura dos dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Alunos da mesma escola compartilham fatores que induzem correlação. A reamostragem por unidade primária de seleção preserva melhor essa estrutura, embora detalhes dependam do plano amostral.",
+      "section": "Bootstrap, jackknife e testes de reamostragem",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No método jackknife delete-1 aplicado a n=50 observações, quantos conjuntos reduzidos são normalmente formados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dois, com metades iguais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cem, com cada observação duplicada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um, com os cinquenta registros originais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cinquenta, retirando uma observação diferente em cada conjunto.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Infinitos, por sorteio contínuo com reposição.",
+          "correct": false
+        }
+      ],
+      "explanation": "O jackknife delete-1 recalcula a estatística deixando de fora uma observação por vez, obtendo n valores. Não é um sorteio bootstrap e não produz n novos indivíduos ou pares arbitrários.",
+      "section": "Bootstrap, jackknife e testes de reamostragem",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao testar igualdade de distribuições sob permutabilidade válida dos rótulos dos grupos, o método de permutação constrói a referência nula por:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reamostras com reposição obrigatória de cada grupo original.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumento artificial do número de participantes originais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escolha apenas dos resultados com maior diferença observada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituição dos dados por uma amostra de distribuição exponencial.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reatribuições dos rótulos compatíveis com a hipótese nula.",
+          "correct": true
+        }
+      ],
+      "explanation": "A permutação explora a intercambialidade sob a hipótese nula para obter a distribuição de uma estatística de teste. Já o bootstrap usual aproxima a distribuição de estimadores sob a amostra empírica.",
+      "section": "Bootstrap, jackknife e testes de reamostragem",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num passeio aleatório simples simétrico iniciado no zero, a esperança da posição após t passos é zero, mas a variância da posição cresce com t.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Incrementos +1 e −1 equiprováveis têm esperança zero e variância unitária; ao somar t incrementos independentes, a esperança permanece zero e a variância vira t. Uma trajetória não fica parada na origem.",
+      "section": "Passeios aleatórios e cadeias de Markov",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma matriz de transição linha-estocástica de Markov, cada coluna deve necessariamente somar um.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Na convenção linha-estocástica, as entradas são não negativas e cada linha soma um porque representa a distribuição do próximo estado a partir de um estado atual. A soma das colunas não precisa valer um.",
+      "section": "Passeios aleatórios e cadeias de Markov",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Existir uma distribuição estacionária implica que a cadeia produz observações independentes em tempos consecutivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Estacionariedade significa invariância da distribuição marginal sob a transição, não ausência de dependência serial. Cadeias com forte persistência no estado são estacionárias quando iniciadas de forma adequada e ainda correlacionadas.",
+      "section": "Passeios aleatórios e cadeias de Markov",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um passeio aleatório simétrico começa em S₀=0 e tem incrementos independentes de +1 e −1 com iguais probabilidades. Após 25 passos, sua variância é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "25.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "0.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "5.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "50.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "625.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada incremento possui esperança zero e variância igual a um. A variância da soma de 25 incrementos independentes é a soma de suas variâncias, resultando em 25, embora a posição média seja zero.",
+      "section": "Passeios aleatórios e cadeias de Markov",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cadeia de Markov de dois estados tem matriz P com primeira linha (0,7;0,3). Partindo do estado 1 com probabilidade um, a chance de estar no estado 2 após um passo é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "0,7.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "0,3.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "1,0.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "0,21.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "0,0.",
+          "correct": false
+        }
+      ],
+      "explanation": "A entrada P₁₂ fornece a probabilidade de sair do primeiro estado para o segundo em uma etapa. O estado inicial é conhecido; não se deve confundir a diagonal com a transição para o outro estado.",
+      "section": "Passeios aleatórios e cadeias de Markov",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para um vetor-linha de distribuição inicial π₀ em uma cadeia homogênea com matriz P linha-estocástica, a distribuição após três etapas é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "P³π₀, sem alterar a convenção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "π₀+3P.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "π₀P³.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "π₀/P³.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "π₀P/3.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com vetores-linha, cada passo aplica multiplicação à direita por P. Após três passos resulta π₀P³. O produto em ordem inversa pertence a outra convenção e pode nem ter dimensões compatíveis.",
+      "section": "Passeios aleatórios e cadeias de Markov",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cadeia tem matriz de transição identidade e estado inicial conhecido. Qual comportamento será observado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mudará de estado em todo passo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Convergirá imediatamente para distribuição uniforme.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Terá transições com probabilidade igual em todos os estados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O processo permanecerá indefinidamente no estado inicial.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Exibirá independência temporal com mudanças obrigatórias.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na matriz identidade, P_ii=1 e todas as demais probabilidades de transição são zero. Cada estado é absorvente, e a distribuição inicial não é misturada por passos adicionais.",
+      "section": "Passeios aleatórios e cadeias de Markov",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma simulação MCMC, a forte autocorrelação positiva dos sorteios tende a:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Transformar a cadeia automaticamente em amostra independente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Garantir que não existe erro de Monte Carlo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Obrigar a distribuição estacionária a ser uniforme.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tornar a análise de convergência desnecessária.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reduzir a quantidade de informação equivalente à de sorteios independentes.",
+          "correct": true
+        }
+      ],
+      "explanation": "Observações semelhantes em sequência trazem informação redundante. O tamanho efetivo da amostra pode ficar abaixo do número de iterações, e erros-padrão devem contemplar a dependência serial.",
+      "section": "Passeios aleatórios e cadeias de Markov",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma fila M/M/1 estável, elevar a taxa de chegada para perto da taxa de serviço tende a aumentar fortemente o tempo médio de permanência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Para M/M/1 estável, W=1/(μ−λ). Quando λ se aproxima de μ por baixo, o denominador diminui e o tempo médio cresce. A conclusão exige as premissas do modelo e não descreve toda organização de filas.",
+      "section": "Filas e simulação de eventos discretos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A lei de Little é exclusiva de sistemas com chegadas de Poisson e atendimento exponencial.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A identidade L=λ efetiva×W vale em uma classe ampla de sistemas sob condições apropriadas de estabilidade e definição das médias. Poisson e exponencial caracterizam modelos particulares, não a exigência geral de Little.",
+      "section": "Filas e simulação de eventos discretos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para a fila M/M/1, o tempo médio no sistema inclui tanto a espera na fila quanto a duração do serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "W representa permanência total; Wq representa só o período em espera. A separação é essencial para interpretar fórmulas, comparar cenários de atendimento e manter coerência entre medidas de filas.",
+      "section": "Filas e simulação de eventos discretos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um M/M/1 estável, com λ=3 clientes/h e μ=5 clientes/h, a utilização do servidor é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "0,6.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "0,4.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "1,5.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "2,0.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "0,2.",
+          "correct": false
+        }
+      ],
+      "explanation": "A utilização é ρ=λ/μ=3/5=0,6. Ela expressa fração de tempo ocupado em equilíbrio sob o modelo, não tempo de espera nem probabilidade de dois servidores estarem ativos.",
+      "section": "Filas e simulação de eventos discretos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num sistema M/M/1 com λ=2/h e μ=4/h, o tempo médio total de permanência W é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "15 minutos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "30 minutos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "60 minutos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "120 minutos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "10 minutos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pela fórmula W=1/(μ−λ)=1/2 hora, o tempo médio no sistema é 30 minutos. Esse intervalo inclui espera e atendimento, ao contrário de Wq, que considera só a fila.",
+      "section": "Filas e simulação de eventos discretos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema possui quantidade média L=18 usuários e taxa efetiva de saída de 6 usuários por hora. Pela lei de Little, o tempo médio no sistema é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "12 horas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "108 horas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "3 horas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "1/3 de hora.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "24 horas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sob as condições de Little, W=L/λ efetiva=18/6=3 horas. A taxa precisa refletir o fluxo efetivo na fronteira definida; se houver perdas ou bloqueios, a taxa ofertada pode não servir.",
+      "section": "Filas e simulação de eventos discretos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma simulação por eventos discretos de atendimento FIFO com servidor único, qual evento altera diretamente o estado do sistema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada segundo do relógio, necessariamente, ainda que nada ocorra.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente o encerramento do dia, ignorando chegadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A média diária calculada após encerrar a simulação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Chegada de cliente ou conclusão de serviço.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A troca da unidade de medida no relatório final.",
+          "correct": false
+        }
+      ],
+      "explanation": "A dinâmica de eventos discretos atualiza o estado em instantes de ocorrências relevantes, como chegadas e partidas. Avançar o relógio em passos fixos não é requisito desse tipo de simulação.",
+      "section": "Filas e simulação de eventos discretos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao calcular o número médio de clientes presentes N(t) numa simulação de duração T, deve-se usar:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A soma de N(t) registrada em chegadas, sem ponderação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A duração média do serviço multiplicada por T.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas o máximo da ocupação observada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número inicial de clientes sem considerar saídas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A área sob a trajetória N(t) dividida por T.",
+          "correct": true
+        }
+      ],
+      "explanation": "A média temporal é T⁻¹∫₀ᵀN(t)dt, obtida pela soma de áreas de trechos constantes em simulação por eventos. Medidas somente nos instantes de chegada têm outro esquema de amostragem.",
+      "section": "Filas e simulação de eventos discretos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um histograma pode aparentar formas diferentes quando se modificam a largura e os limites das classes, mesmo sem alterar os dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Classes largas podem esconder modos e classes estreitas podem tornar a figura irregular. A apresentação gráfica deve indicar a escala e ser acompanhada de outras medidas ou representações da mesma distribuição.",
+      "section": "Gráficos exploratórios e diagnóstico de simulações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ponto assinalado além dos bigodes de um boxplot é necessariamente um erro de medição e deve ser removido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A marcação identifica valor potencialmente atípico segundo uma convenção gráfica; pode ser resultado legítimo do processo, inclusive em tempos de espera de cauda longa. Excluir exige fundamento de qualidade e objetivo analítico.",
+      "section": "Gráficos exploratórios e diagnóstico de simulações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um histograma das estatísticas bootstrap e um histograma dos dados originais representam necessariamente a mesma variável aleatória.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O primeiro descreve a variabilidade de uma estatística sob reamostragem; o segundo descreve os valores observados individuais. Unidades, escalas e dispersões podem diferir, mesmo quando derivados do mesmo conjunto.",
+      "section": "Gráficos exploratórios e diagnóstico de simulações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um histograma mostra aparente unimodalidade com classes muito largas. Que análise ajuda a investigar modos ocultos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Examinar larguras de classe alternativas e a distribuição empírica.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Excluir automaticamente metade das observações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Concluir que a distribuição é normal sem testes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fixar o eixo vertical em valores arbitrários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir o histograma pelo número total de registros.",
+          "correct": false
+        }
+      ],
+      "explanation": "A forma aparente pode depender das classes escolhidas. Variar a resolução e consultar ECDF, densidade e contexto dos dados ajuda a avaliar multimodalidade sem confundir aparência gráfica com prova.",
+      "section": "Gráficos exploratórios e diagnóstico de simulações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um boxplot construído pela convenção de 1,5×AIQ marca um ponto acima do bigode superior. Qual conclusão é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É definitivamente uma observação digitada incorretamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É um valor potencialmente atípico, que requer exame contextual.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Deve ser eliminado de toda análise inferencial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Demonstra que a média é necessariamente menor que zero.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Comprova que a amostra segue distribuição normal.",
+          "correct": false
+        }
+      ],
+      "explanation": "A regra dos bigodes é critério descritivo para destacar valores afastados dos quartis, não teste definitivo de erro. Distribuições assimétricas podem produzir muitos pontos legítimos nessa região.",
+      "section": "Gráficos exploratórios e diagnóstico de simulações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gráfico Q-Q normal apresenta curvatura acentuada nas caudas. Isso sugere:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmação de normalidade perfeita.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Necessariamente independência serial entre medições.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Possível diferença de comportamento nas caudas em relação à referência normal.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Que todos os valores possuem a mesma frequência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Que a regressão linear causal está identificada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Q-Q compara quantis empíricos e teóricos. Desvios sistemáticos nas extremidades indicam possível incompatibilidade de caudas ou assimetria; a interpretação considera amostra e demais diagnósticos.",
+      "section": "Gráficos exploratórios e diagnóstico de simulações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para identificar persistência temporal em uma saída simulada de cadeia de Markov, um gráfico diretamente indicado é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gráfico de setores de categorias sem ordem temporal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tabela contendo somente o maior valor simulado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Histograma do número de colunas da base.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Correlograma da autocorrelação por defasagem.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Diagrama de dispersão entre variáveis não observadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A autocorrelação por defasagem mede dependência entre observações separadas no tempo. O correlograma ajuda a avaliar mistura e tamanho efetivo; histograma marginal, sozinho, não revela a sequência.",
+      "section": "Gráficos exploratórios e diagnóstico de simulações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pesquisa de tempos de espera relata mediana 12 minutos e média 25 minutos, com cauda direita longa. Qual interpretação é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A mediana é necessariamente superior a todos os tempos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O valor médio de 25 minutos prova que metade espera exatamente 25.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A cauda longa impossibilita calcular qualquer quantil.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Todos os atendimentos duraram entre 12 e 25 minutos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Algumas esperas elevadas podem puxar a média para cima sem igual aumento da mediana.",
+          "correct": true
+        }
+      ],
+      "explanation": "A média é sensível a observações extremas e pode exceder a mediana em distribuições à direita. Nenhuma dessas medidas, isoladamente, determina máximos, proporções exatas ou normalidade.",
+      "section": "Gráficos exploratórios e diagnóstico de simulações",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "NIST/SEMATECH e-Handbook of Statistical Methods: Exploratory Data Analysis",
+      "publisher": "National Institute of Standards and Technology (NIST)",
+      "reference": "Seção 1: exploração e técnicas gráficas",
+      "url": "https://www.itl.nist.gov/div898/handbook/eda/eda.htm",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NIST e-Handbook: Bootstrap Plot",
+      "publisher": "National Institute of Standards and Technology (NIST)",
+      "reference": "Seção 1.3.3.4: reamostragem e distribuição das estatísticas",
+      "url": "https://www.itl.nist.gov/div898/handbook/eda/section3/bootplot.htm",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SciPy: scipy.stats.bootstrap",
+      "publisher": "SciPy Developers",
+      "reference": "Documentação oficial de intervalos bootstrap, métodos percentil, básico e BCa",
+      "url": "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.bootstrap.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SciPy: scipy.stats.monte_carlo_test",
+      "publisher": "SciPy Developers",
+      "reference": "Documentação oficial de testes e distribuições nulas por Monte Carlo",
+      "url": "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.monte_carlo_test.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SciPy: scipy.stats.permutation_test",
+      "publisher": "SciPy Developers",
+      "reference": "Documentação oficial de testes por permutação",
+      "url": "https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.permutation_test.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "R: Random Number Generation",
+      "publisher": "R Core Team / R Project",
+      "reference": "Manual de geração pseudoaleatória e sementes em R",
+      "url": "https://stat.ethz.ch/R-manual/R-devel/library/base/help/Random.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MIT OpenCourseWare: Introduction to Stochastic Processes — Lecture Notes",
+      "publisher": "Massachusetts Institute of Technology (MIT)",
+      "reference": "Material oficial sobre cadeias de Markov, mistura e passeios aleatórios",
+      "url": "https://ocw.mit.edu/courses/18-445-introduction-to-stochastic-processes-spring-2015/pages/lecture-notes/",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MIT OpenCourseWare: Little, M/G/1, Ensemble Averages",
+      "publisher": "Massachusetts Institute of Technology (MIT)",
+      "reference": "Curso 6.262, aula sobre a lei de Little e filas",
+      "url": "https://ocw.mit.edu/courses/6-262-discrete-stochastic-processes-spring-2011/resources/lecture-13-little-m-g-1-ensemble-averages/",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MIT OpenCourseWare: Markov Chains and Queueing",
+      "publisher": "Massachusetts Institute of Technology (MIT)",
+      "reference": "Curso 6.262, aula 18 sobre cadeias e filas M/M/1",
+      "url": "https://ocw.mit.edu/courses/6-262-discrete-stochastic-processes-spring-2011/resources/lecture-18-countable-state-markov-chains-and-processes/",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "R: acf, Auto- and Cross-Covariance and -Correlation",
+      "publisher": "R Core Team / R Project",
+      "reference": "Documentação oficial do correlograma de autocorrelação",
+      "url": "https://stat.ethz.ch/R-manual/R-devel/library/stats/html/acf.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NIST e-Handbook: Histogram",
+      "publisher": "National Institute of Standards and Technology (NIST)",
+      "reference": "Seção 1.3.3.14, descrição e interpretação de histogramas",
+      "url": "https://itl.nist.gov/div898/handbook/eda/section3/histogra.htm",
+      "accessedAt": "2026-11-17"
+    }
+  ]
+}

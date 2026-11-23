@@ -1,0 +1,2019 @@
+{
+  "id": "informatica.virtualizacao-vmware",
+  "subject": "Informática",
+  "title": "Virtualização e VMware",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Virtualização e ferramentas VMware",
+    "Virtualização e ferramentas VMware"
+  ],
+  "scope": {
+    "covers": "Fundamentos, modelos e emulação; hipervisores tipo 1/2 e paravirtualização; VMware ESXi, vCenter, vMotion, Storage vMotion, HA, DRS e FT; CPU e memória; redes e datastores; HCI/vSAN; Hyper-V, KVM/QEMU, Xen/XCP-ng, Proxmox VE e IBM z/VM; VDI/RDS; menções a Docker, Kubernetes e OpenShift; snapshots, CBT, VADP, NetBackup, continuidade e segurança.",
+    "excludes": "Tutoriais exaustivos de versões específicas, comandos descontinuados, preços e licenças variantes por contrato, certificações de hardware por modelo, implementação profunda de orquestração de contêineres ou administração avançada de mainframe."
+  },
+  "theoryTitle": "Virtualização de servidores, VMware e tecnologias correlatas",
+  "chapters": [
+    {
+      "title": "Fundamentos, hipervisores e emulação",
+      "markdown": "## 1. Conceitos e finalidade\nVirtualização é a abstração de recursos computacionais para executar ambientes isolados sobre uma infraestrutura física. Uma máquina virtual (VM) é uma configuração de hardware virtual — processadores, memória, controladoras, interfaces de rede e discos — na qual se instala um sistema operacional convidado (*guest*). O equipamento físico e seu sistema de controle constituem o *host*. Uma VM não é simplesmente um programa comum: apresenta uma plataforma computacional ao convidado, cujo núcleo e serviços operam em contexto próprio. A camada de virtualização gerencia acesso a CPU, memória e dispositivos e procura reduzir a dependência entre carga de trabalho e equipamento específico.\n\nConsolidação significa reunir aplicações antes distribuídas por vários servidores físicos em menos hosts, com monitoramento de ocupação e isolamento. Outros usos são laboratórios, recuperação de desastres, infraestrutura de desktops, testes de atualização e execução de versões diferentes de sistemas. O ganho de flexibilidade não elimina custos: existe sobrecarga de virtualização, disputas por recursos, consumo da plataforma de gerenciamento, complexidade operacional e concentração de riscos no host e no armazenamento compartilhado. *Oversubscription* é alocar vCPUs ou capacidade lógica agregada acima dos recursos físicos disponíveis; pode ser aceitável quando demandas são variáveis, mas não cria capacidade material e exige controle de contenção e latência.\n\n## 2. Hipervisores e mecanismos\nHipervisor de tipo 1, usualmente chamado *bare-metal*, opera diretamente sobre o hardware ou na camada de controle próxima dele, sem depender do sistema operacional de desktop como plataforma de execução das VMs. VMware ESXi, Xen, Hyper-V e a camada de hipervisor do z/VM são exemplos relevantes; detalhes de arquitetura variam. O tipo 2 é executado como aplicativo apoiado em um sistema operacional hospedeiro, padrão associado a produtos de desktop como VMware Workstation e VirtualBox. A distinção é arquitetural, não uma garantia de desempenho ou segurança. No Hyper-V há uma partição raiz com funções de gerenciamento, sem transformá-lo por isso em mero aplicativo de tipo 2.\n\nNa virtualização completa, o sistema operacional convidado normalmente pode executar sem alterações obrigatórias em seu núcleo, enquanto o hipervisor intercepta operações privilegiadas. As extensões Intel VT-x e AMD-V auxiliam a execução da CPU convidada; mecanismos de tradução de endereços de segundo nível, como EPT e NPT, auxiliam a virtualização de memória. Na paravirtualização, o convidado ou seus drivers utilizam interfaces conscientes da virtualização, reduzindo certos custos de E/S. Exemplos são drivers de rede e armazenamento paravirtualizados, como virtio no universo KVM e VMXNET3 e PVSCSI no VMware. Paravirtualização de um dispositivo não obriga que todo o sistema operacional seja paravirtualizado. Também há passagem direta de dispositivos, dependente de suporte e configuração de IOMMU, com trade-offs de portabilidade, isolamento e migração.\n\n## 3. Emulação, contêineres e isolamento\nEmulação reproduz comportamentos de outra plataforma, inclusive conjunto de instruções de CPU quando necessário; pode executar um convidado de arquitetura diferente, em geral com custo de desempenho por tradução ou interpretação. O QEMU combina recursos de emulação de sistema com aceleração por KVM em arquiteturas suportadas: QEMU e KVM não são sinônimos. Virtualização de CPU de mesma arquitetura busca executar o máximo possível de instruções diretamente no processador. A formulação de prova 'emulador e hipervisor são equivalentes' é falsa. Contêineres, por sua vez, isolam processos que compartilham o kernel do host; não correspondem, em regra, a VMs independentes com kernel próprio. Docker é conhecido no empacotamento e execução de contêineres; Kubernetes e OpenShift são citados como plataformas de orquestração e operação desse ecossistema, sem substituir por definição a camada de hipervisor.\n\n## 4. Recursos virtualizados e desempenho\nO escalonador atribui tempo de CPU física às vCPUs; maior contagem de vCPUs nem sempre melhora o resultado, pois aumenta concorrência e pode prolongar espera de agendamento. *CPU ready* representa tempo em que a vCPU apta aguarda escalonamento e auxilia na investigação de contenção. Reservas garantem disponibilidade mínima sob condições aplicáveis; limites impõem teto; *shares* expressam prioridade relativa na disputa. Não confunda reserva de memória com capacidade física acrescentada. A pressão de memória pode levar a técnicas como recuperação de páginas, compressão e troca para disco, com impactos distintos. NUMA descreve domínios de memória com diferentes latências de acesso, importantes no dimensionamento de VMs grandes.\n\nNo plano de E/S, discos virtuais são representados por arquivos, objetos ou volumes, conforme a plataforma; dispositivos virtuais intermediam operações. Drivers otimizados e serviços de integração melhoram desempenho e operações de gerenciamento. Monitoramento precisa combinar métricas de host, VM, datastore, rede e aplicação: uso médio baixo de CPU não exclui latência por I/O, nem memória alocada significa memória efetivamente consumida. Planejamento de capacidade deve contemplar crescimento, manutenção, eventual falha de host, picos e reserva operacional. Uma VM com muitos recursos superdimensionados pode piorar a densidade do cluster e não resolver o gargalo real.\n\n## 5. Ciclo de vida, imagens e portabilidade\nCriar uma VM implica definir compatibilidade de hardware virtual, firmware virtual (BIOS ou UEFI), CPU/memória, controladoras, disco, conexão de rede e mídia de instalação; depois vêm instalação do guest, drivers, atualização, endurecimento e inclusão em backup. Clones reproduzem uma origem para novo ambiente, exigindo atenção a identidade, endereçamento e segredos; modelos (*templates*) padronizam novas implantações. O formato OVF descreve empacotamento e metadados de appliances virtuais, enquanto OVA costuma empacotar a distribuição em um único arquivo. Importar um appliance não dispensa verificação de compatibilidade e segurança.\n\nA distinção entre plano de dados e plano de controle evita erros de prova: CPU, memória e E/S executam cargas; serviços de inventário, identidade, política, orquestração e monitoramento administram essas cargas. A indisponibilidade temporária de um console central não significa necessariamente interrupção imediata de todas as VMs já executadas. A operação profissional exige inventário, segregação de permissões, documentação, relógios sincronizados, firmware e patches suportados e procedimentos de retorno de mudanças."
+    },
+    {
+      "title": "VMware vSphere: arquitetura, operação e disponibilidade",
+      "markdown": "## 1. Componentes do vSphere\nO VMware ESXi é um hipervisor instalado no host físico; executa máquinas virtuais e oferece recursos locais de processamento, armazenamento e conectividade. VMware vCenter Server é a plataforma de gerenciamento centralizado de hosts e ambientes vSphere. É possível administrar certas operações de ESXi isoladamente, mas funcionalidades de cluster, inventário e automação dependem da arquitetura e dos serviços de gerenciamento previstos. O cliente de administração vSphere trabalha sobre esse plano de controle. Objetos comuns do inventário são *datacenter* lógico, cluster, host, VM, datastore, rede, pool de recursos, permissões, pastas e modelos. Não se confunde datacenter lógico do inventário com um prédio físico.\n\nUma VM tem configuração de hardware virtual e discos virtualizados, frequentemente em VMDK. VMware Tools é um conjunto de serviços e drivers no guest que melhora integração e pode apoiar desligamento ordenado, sincronização operacional e coleta de informações; não é o próprio hipervisor. Arquivos de configuração, logs e cadeias de disco exigem preservação consistente ao mover ou recuperar workloads. Compatibilidade de hardware virtual e suporte do sistema operacional devem ser avaliados antes de migração ou atualização. API do vSphere e VMware PowerCLI permitem automação sob autorização adequada e com trilha de auditoria.\n\n## 2. Cluster, vMotion e Storage vMotion\nUm cluster reúne hosts para administração coordenada de recursos e disponibilidade. **vMotion** designa a migração de uma VM ligada entre hosts compatíveis, buscando continuidade do serviço, respeitadas as condições de rede, CPU, dispositivos e armazenamento. **Storage vMotion** desloca componentes de armazenamento virtual entre datastores com a VM em funcionamento, nos cenários suportados. Migrar computação e migrar arquivos de disco são operações conceitualmente distintas, ainda que determinadas tarefas possam combinar mudanças. Redes apropriadas, compatibilidade e capacidade devem ser verificadas previamente. Enhanced vMotion Compatibility (EVC) ajuda a expor conjunto comum de recursos de CPU para facilitar mobilidade entre processadores compatíveis; não converte processadores de arquiteturas arbitrárias.\n\n## 3. HA, DRS e tolerância a falhas\n**vSphere High Availability (HA)** detecta falhas previstas de infraestrutura e busca reiniciar VMs afetadas em hosts remanescentes capazes de recebê-las. O reinício envolve interrupção, e a disponibilidade depende de capacidade, comunicação, políticas e configuração correta; HA não garante indisponibilidade nula nem substitui backup. **Distributed Resource Scheduler (DRS)** avalia distribuição de carga e capacidade no cluster e recomenda ou automatiza posicionamento/migração, conforme edição e parametrização. DRS não é mecanismo de recuperação de dados. **Fault Tolerance (FT)** é conceito diferente: quando disponível e aplicável, mantém instância secundária sincronizada para continuidade diante de determinadas falhas; há pré-requisitos e limites específicos. Assim, 'HA reinicia', 'DRS equilibra' e 'FT mantém redundância ativa para proteção da execução' são aproximações didáticas úteis, mas nenhuma dispensa conhecer compatibilidade e limitações.\n\n## 4. Provisionamento e políticas de recursos\nOs pools de recursos organizam distribuição de CPU e memória, não criam hardware adicional. *Reservation* protege cota mínima conforme semântica do recurso; *limit* restringe consumo; *shares* indicam participação relativa em momentos de contenção. Configurações de afinidade e anti-afinidade podem orientar posicionamento de VMs ou hosts, úteis para separar réplicas de um serviço. Uma regra estrita de anti-afinidade pode limitar alternativas de recuperação em cenário de capacidade escassa, razão para projetá-la com conhecimento de HA/DRS. Colocar um host em modo de manutenção destina-se a preparar intervenções, geralmente com drenagem planejada das cargas quando possível. Uma VM *suspended* tem execução pausada e estado salvo; não se equipara à VM desligada normalmente.\n\nSnapshots no vSphere registram um ponto de estado de uma VM e modificações posteriores passam a ser rastreadas por mecanismos de disco diferenciado; conforme opções, pode haver estado de memória. Reverter snapshot afeta o estado da VM, e cadeias prolongadas podem elevar consumo e custos de consolidação. **Snapshot não é backup independente**: depende do ecossistema de arquivos/objetos subjacentes e não fornece por si só cópia isolada contra falha ou comprometimento do datastore. Operações de exclusão/consolidação não significam necessariamente apagar todos os dados atuais; exigem atenção ao processo de mesclagem. Para mudanças controladas, use snapshot temporário segundo boas práticas, mas mantenha proteção por backup.\n\n## 5. Disponibilidade da administração, versões e segurança\nUma falha de vCenter pode interromper tarefas centralizadas e prejudicar a gestão de cluster; VMs previamente ligadas em hosts saudáveis não precisam ser desligadas apenas porque o vCenter está indisponível. É necessário diferenciar dependências de criação de novas tarefas das rotinas já estabelecidas em componentes dos hosts. Atualizações devem respeitar matrizes de interoperabilidade entre ESXi, vCenter, drivers e firmware, licenciamento contratado e requisitos do fabricante. Há evolução de versões e nomes comerciais; questões conceituais devem privilegiar arquitetura estável sobre menus antigos.\n\nProteção do plano de gerenciamento abrange segregação de contas, menor privilégio, MFA quando disponível no provedor de identidade, redes de gerenciamento isoladas, certificados válidos, sincronização de tempo, logs centralizados, inventário de alterações e aplicação de correções. Privilegiar um único administrador com acesso irrestrito a todos os hosts eleva impacto de credencial comprometida. Os convidados continuam exigindo patch, antivírus/EDR apropriado, firewall e gestão de identidades: virtualizar um sistema não o protege automaticamente contra exploração de falhas internas."
+    },
+    {
+      "title": "Redes, armazenamento, HCI e vSAN",
+      "markdown": "## 1. Rede virtual\nUma VM normalmente utiliza placa de rede virtual (*vNIC*) conectada a uma rede lógica do hipervisor. No vSphere, um vSphere Standard Switch (vSS) tem configuração por host; um vSphere Distributed Switch (vDS) centraliza a definição de rede de um conjunto de hosts, respeitados requisitos de implantação. Os *port groups* associam configurações de conectividade e políticas; não substituem roteadores por definição. Uplinks associam conectividade lógica a interfaces físicas. Uma VLAN IEEE 802.1Q segmenta tráfego em camada 2, mas sua eficácia exige configuração coerente em switches físicos, trunks e acesso. Ter duas VMs no mesmo host não garante que estejam na mesma rede nem que o tráfego seja sempre enviado ao switch físico.\n\nInterfaces VMkernel oferecem conectividade para serviços do host, como administração, migração e determinados fluxos de armazenamento, conforme configuração. Isso é diferente da vNIC de uma VM convidada. A presença de uma porta para vMotion não configura backup de VM. Separar logicamente tráfego de gerenciamento, vMotion, armazenamento, aplicações e backup pode reduzir interferências e superfície de ataque, mas a segmentação por VLAN não equivale automaticamente a isolamento físico. Configuração de MTU jumbo exige suporte ponta a ponta, quando utilizada. Controle de acesso, filtragem, roteamento e diagnóstico por camadas são essenciais.\n\n## 2. Datastores, discos e formatos de provisionamento\n**Datastore** é a unidade lógica apresentada ao ESXi para armazenar componentes de VMs; pode ser sustentada por sistemas de arquivos, volumes em bloco ou armazenamento em rede, dependendo da tecnologia. VMFS é um sistema de arquivos otimizado para uso com volumes em bloco; NFS fornece acesso a arquivos em rede; SAN oferece conectividade de armazenamento em bloco por tecnologias como Fibre Channel ou iSCSI. **NAS** não significa automaticamente NFS exclusivo, e **SAN** não se resume a Fibre Channel. VMDK é um formato/disco virtual, não o nome de uma LUN física. Paths múltiplos e políticas de multipathing visam disponibilidade e distribuição de E/S conforme suporte, sem transformar uma única cópia de dado em backup.\n\n*Thin provisioning* reserva fisicamente espaço sob demanda até os limites e políticas da solução; pode melhorar eficiência mas produz risco de exaustão de capacidade se o crescimento real superar espaço livre. *Thick provisioning* destina ou reserva capacidade física de forma mais antecipada, com variações de formato conforme produto. Não se deduz desempenho somente do rótulo thin/thick; observe tipo de mídia, cache, controlador, fila, padrões de I/O, latência e bloco. Métricas fundamentais incluem IOPS, throughput, latência de leitura/escrita, profundidade de fila e capacidade utilizável. Para cargas críticas, compreender a aplicação é mais importante que ampliar indiscriminadamente o disco virtual.\n\n## 3. Virtualização de armazenamento\nVirtualizar armazenamento consiste em abstrair dispositivos e disponibilizar pools, volumes ou objetos lógicos aos consumidores, separando visão de alocação física. O conceito cobre arrays externos, sistemas distribuídos e soluções definidas por software. Replicação cria cópias ou estados redundantes conforme política; deduplicação reduz repetição de blocos; compressão diminui representação de dados compressíveis; *tiering* organiza níveis de mídia. Tais funções podem coexistir, mas não devem ser tratadas como sinônimas. Replicação síncrona tem requisitos fortes de conectividade/latência e consistência; assíncrona admite intervalo de defasagem de dados. Nenhuma replicação, isoladamente, protege de todas as formas de exclusão lógica ou ransomware.\n\n## 4. HCI e VMware vSAN\n**Infraestrutura hiperconvergente (HCI)** integra computação, armazenamento e camada de virtualização em nós gerenciáveis de maneira conjunta. A proposta reduz dependência de ilhas separadas de infraestrutura, mas exige dimensionamento para falhas, capacidade, desempenho e rede. VMware **vSAN** é uma solução de armazenamento definido por software integrada ao vSphere que agrega armazenamento local de hosts de um cluster, apresentando armazenamento distribuído para VMs. Sua resiliência e layout são guiados por políticas de armazenamento de VMs (*Storage Policy Based Management*, SPBM) e disponibilidade dos componentes necessários. Uma política pode determinar objetivos de tolerância a falhas e disposição de dados; nem toda configuração possui capacidade de acomodar toda política. Configuração incorreta de rede ou falta de capacidade pode gerar degradação e descumprimento de políticas.\n\nvSAN não é simplesmente um nome alternativo para VMFS e não implica que qualquer disco local seja automaticamente compartilhado entre hosts. Conforme geração e arquitetura, modos internos de organização variam; não extrapole um detalhe de versão para todo o produto. É preciso conhecer domínios de falha, efeitos de manutenção, reconstrução de componentes, capacidade de reserva, tráfego de armazenamento e possível separação entre nós de computação e nós de armazenamento em arquiteturas suportadas. **Falha tolerada** não significa perda de desempenho zero e tampouco substitui cópias de segurança externas.\n\n## 5. Confiabilidade da infraestrutura\nDisponibilidade resulta de projeto de ponta a ponta: controladoras e discos, energia, uplinks, switches, caminhos de storage, redundância de hosts, quorum/testemunha quando a topologia exigir e capacidade residual após falha. Redundância de discos não cobre necessariamente indisponibilidade total de um site. É incorreto afirmar que a existência de um cluster dispensa análise de domínio de falha ou testes. O número de cópias e o modelo de proteção são propriedades da política e da arquitetura, não equivalem universalmente a 'dois discos por VM'. A operação deve acompanhar saturação de datastore, *resync*, saúde dos componentes, desgaste de SSD, taxa de erro de rede e alarmes de conformidade de políticas.\n\nPara recuperação de aplicações críticas, dependências externas — banco, DNS, identidade, firewall e balanceador — podem ser mais decisivas que a mera sobrevivência da VM. Planeje RTO e RPO em conjunto com proprietários do serviço: uma tecnologia de alta disponibilidade não implica recuperação de dados em qualquer ponto do tempo."
+    },
+    {
+      "title": "Plataformas concorrentes, VDI e contêineres",
+      "markdown": "## 1. Microsoft Hyper-V\nHyper-V é a plataforma de virtualização da Microsoft e funciona com arquitetura de hipervisor, partição raiz e partições convidadas. Sua integração com Windows Server permite gestão de VMs Windows e Linux. **Virtual Switch** conecta interfaces virtuais a redes lógicas e, conforme tipo, a redes físicas. **Live Migration** move VMs ligadas entre hosts sob condições suportadas; **Storage Migration** atende deslocamento de dados de uma VM. **Checkpoints** registram estado recuperável da VM; checkpoints de produção procuram utilizar mecanismos de consistência apropriados ao guest e não equivalem, por si, a backups completos independentes. Failover Clustering integra cenários de alta disponibilidade; não é requisito universal para que se configure toda e qualquer forma de live migration. Em provas, a palavra Hyper-V não designa um produto de emulação de CPU arbitrária nem um simples serviço remoto de desktop.\n\n## 2. KVM, QEMU e libvirt\nKVM (*Kernel-based Virtual Machine*) provê suporte de virtualização no kernel Linux e utiliza recursos de hardware quando presentes e habilitados. O QEMU fornece dispositivos e execução da máquina virtual, podendo atuar como emulador e como componente associado a KVM para aceleração. **libvirt** é camada/API de gerenciamento para diferentes hipervisores e fornece abstrações de domínio, rede e armazenamento, frequentemente acessadas por ferramentas como `virsh` e `virt-manager`. O comando `virsh list` refere-se à gestão de domínios/VMs no contexto libvirt; não é comando do vCenter. Drivers **virtio** oferecem interfaces paravirtualizadas para dispositivos, favorecendo E/S no universo KVM. Regras de segurança e desempenho dependem também de kernel, QEMU, rede e armazenamento subjacentes.\n\n## 3. Xen, XCP-ng, Proxmox e IBM z/VM\nO hipervisor Xen sustenta arquiteturas que empregam domínio privilegiado de controle e domínios convidados; a terminologia **dom0** é frequentemente usada para o domínio de controle. **XCP-ng** é plataforma de virtualização baseada no ecossistema Xen, administrável por XAPI e pelo **Xen Orchestra**, usado em gerenciamento, monitoramento e backup. Não se deve confundir Xen Orchestra com hipervisor executado diretamente na CPU. **Proxmox Virtual Environment (VE)** é plataforma integrada de gerenciamento que usa **QEMU/KVM para VMs** e **LXC para contêineres**, reunindo cluster, rede e opções de armazenamento, inclusive Ceph em implantações adequadas. Proxmox não inventou um hipervisor independente chamado 'Proxmox KVM'. Regras de cluster, migração e HA dependem de recursos compartilhados, compatibilidade e quorum conforme solução.\n\n**IBM z/VM** é sistema de virtualização para mainframes IBM Z. Seu **Control Program (CP)** realiza controle de recursos e criação/gestão das máquinas virtuais; **CMS** é ambiente interativo tradicional para usuários de z/VM. Convidados podem executar diferentes sistemas operacionais suportados, inclusive Linux e z/OS. O desenho do z/VM tem história e conceitos próprios de mainframe; reduzi-lo a uma distribuição Linux com KVM seria erro. Esse exemplo demonstra que virtualização não surgiu com servidores x86 e que hipervisores existem em diferentes famílias de hardware.\n\n## 4. VDI e RDS\n**Virtual Desktop Infrastructure (VDI)** entrega desktops virtuais, tipicamente baseados em VMs de sistema operacional de desktop, acessados por protocolo remoto. Os pools podem ser pessoais/persistentes ou compartilhados/não persistentes, conforme solução e desenho. **Remote Desktop Services (RDS)** disponibiliza sessões remotas e aplicações em infraestrutura Windows; várias sessões podem compartilhar um sistema operacional servidor no modelo de sessão. RDS também pode participar de implantações de desktops virtuais em cenários específicos. A distinção clássica cobrada é: VDI centrada em desktop virtual por VM e RDS Session Host centrada em múltiplas sessões de usuário num host de sessão. Não se conclui que uma sessão RDS exija uma VM exclusiva.\n\nO produto historicamente chamado VMware Horizon hoje possui documentação e operação sob **Omnissa Horizon**, após mudanças empresariais; é apropriado reconhecê-lo como solução de desktop/aplicação remotos, sem confundir seu papel com o ESXi. A oferta de aplicativos publicados pode usar hosts RDS. Benefícios incluem centralização de dados e padronização, mas dependem de rede e desempenho de exibição, além de controle de perfis, autenticação, licenciamento, impressão, periféricos e GPU quando necessários.\n\n## 5. Contêineres e interoperabilidade\nContêineres isolam aplicações e suas dependências, compartilhando o kernel do host; em ambientes Linux usam primitivas como namespaces e cgroups. **Docker** é citado pelo empacotamento e execução de imagens/contêineres; **Kubernetes**, pela orquestração; **OpenShift**, como plataforma que agrega recursos empresariais ao ecossistema Kubernetes. Uma VM pode hospedar nós de contêineres; portanto, contêiner e VM não são tecnologias necessariamente excludentes. A existência de contêineres não dispensa virtualização de rede, gerenciamento de capacidade, backup dos dados persistentes e controles de segurança. Em migrações entre plataformas, imagens de disco, drivers, tipo de firmware, rede virtual, licenças e ferramentas de conversão exigem atenção; 'exportar e importar' não garante compatibilidade instantânea."
+    },
+    {
+      "title": "Backup, recuperação, segurança e governança de VMs",
+      "markdown": "## 1. Continuidade, backup e restauração\n**RPO (Recovery Point Objective)** expressa a perda máxima de dados tolerável em tempo, isto é, o quão antiga pode ser a cópia recuperável. **RTO (Recovery Time Objective)** expressa o tempo-alvo para restaurar o serviço. RPO de 15 minutos não significa restauração em 15 minutos; RTO de uma hora não implica haver cópia com perda máxima de uma hora. A estratégia de proteção deve definir escopo de VMs e aplicações, frequências, retenção, isolamento de cópias, dependências e exercícios de recuperação. Backup consistente com a aplicação exige atenção ao estado transacional de bancos e mecanismos de *quiescing*, quando suportados; um backup apenas consistente em falha (*crash-consistent*) equivale a um desligamento abrupto quanto ao estado de algumas aplicações. Não é correto garantir integridade transacional apenas pela existência de snapshot.\n\nO backup completo captura conjunto definido de dados; incremental registra alterações desde referência anterior pertinente, em função da solução; diferencial registra diferenças em relação a referência de base. A restauração pode depender de cadeia e catálogo, razão para manter integridade e testar procedimentos de recuperação integral, granular e fora do local original. Snapshots, replicação e backup possuem finalidades relacionadas, mas distintas. Um snapshot sobre o mesmo datastore é vulnerável a indisponibilidade ou destruição desse armazenamento. Réplicas também podem propagar erros lógicos; backups isolados e protegidos ajudam a recuperar versões anteriores.\n\n## 2. VMware VADP e NetBackup\n**VMware vStorage APIs for Data Protection (VADP)** viabilizam integração de soluções de proteção com VMs vSphere, permitindo mecanismos de leitura e cópia com apoio das APIs da plataforma. O **NetBackup for VMware** oferece proteção e restauração de VMs vSphere usando recursos de integração, inclusive VADP em modalidades suportadas. Em fluxos comuns de backup baseados em imagem, a aplicação solicita um snapshot transitório, lê dados do disco virtual, grava uma cópia em repositório de backup e remove/consolida o snapshot conforme a operação. **Changed Block Tracking (CBT)** identifica blocos alterados desde um marco aplicável e pode acelerar incrementais; não é um repositório de backup nem garante consistência de aplicação. Se a cadeia de CBT estiver inadequada, a solução deve tratar a condição segundo documentação, em vez de confiar cegamente nos metadados de mudança.\n\nTransportes e arquiteturas de proxy variam conforme produto/versão e topologia; conhecer a distinção entre tráfego de leitura, repositório de destino e plano de controle é mais útil que memorizar um nome de botão antigo. Backup realizado por APIs sem agente no guest pode capturar discos virtuais; granularidade e consistência fina de aplicações podem exigir integrações adicionais. **NetBackup não é componente nativo obrigatório do ESXi**, mas uma solução de proteção integrada. A existência de VADP tampouco prova que qualquer software de backup já tenha sido configurado.\n\n## 3. Ransomware, segurança e resposta\nSegregação de funções, privilégios mínimos, autenticação forte, segredos protegidos, armazenamento de backup com imutabilidade ou isolamento quando disponível e política de retenção mitigam destruição simultânea da produção e de cópias. Um repositório acessível com credenciais administrativas amplas eleva risco de comprometimento. Monitorar exclusões anômalas, alterações em políticas, crescimento inesperado de snapshots, tarefas de exportação e logins privilegiados é parte da governança. Criptografia em trânsito e em repouso depende de configuração e gestão de chaves; a virtualização isoladamente não garante proteção criptográfica.\n\nAo detectar possível comprometimento, a equipe deve preservar evidências e executar procedimentos autorizados de contenção, análise e recuperação; desligamentos ou restaurações impulsivas podem eliminar rastros ou propagar problemas. O isolamento lógico entre VMs não extingue riscos de vulnerabilidades no hipervisor, firmware, hardware, drivers, plano de gestão ou sistemas operacionais convidados. Hardening de ESXi, hypervisor concorrente e guest são camadas distintas e complementares.\n\n## 4. Operação, diagnóstico e observabilidade\nFalhas de desempenho exigem identificar qual recurso é limitante: alto CPU ready sugere contenção de escalonamento; latência de datastore aponta problema de storage; perda de pacote pode estar na rede física, virtual ou no guest. Correlacione alarmes, logs, eventos de host, alterações recentes, métricas de aplicação e capacidade residual. Mover uma VM para outro host sem confirmar o gargalo pode apenas deslocar o problema. Instabilidade em cluster pode decorrer de DNS, NTP, regras de firewall, configuração de uplinks, certificados ou armazenamento, mesmo quando CPUs parecem disponíveis.\n\nProcessos maduros incluem gestão de mudanças, atualização testada, backups de configuração do plano de controle conforme suporte, inventário de dependências e validação de restauração. Os acordos de nível de serviço devem diferenciar disponibilidade do hipervisor, disponibilidade da VM, disponibilidade da aplicação e recuperabilidade dos dados; os quatro indicadores não são sinônimos. Exercícios de desastre validam sequência de acionamento e tempo real; um cronograma de backup 'verde' sem teste de restore não é prova de recuperabilidade.\n\n## 5. Roteiro de prova e tomada de decisão\nDiante de migração planejada sem parar uma aplicação, considere requisitos de vMotion ou live migration, não HA como resposta automática. Se o host caiu e a VM precisa reiniciar em outro host, pense em HA e capacidade residual. Se os discos precisam ir para outro datastore com a carga ativa, a operação é de armazenamento, não apenas de computação. Se uma gravação errada foi replicada, a réplica pode conter o mesmo erro: recuperar uma versão anterior exige cópia adequada. Se a banca disser que um snapshot elimina a necessidade de backup, a proposição contraria a prática técnica oficial.\n\nCompare plataformas por requisitos — guest suportado, suporte de CPU, gestão central, licenças, RTO/RPO, conectividade, drivers, storage, ferramentas e capacitação — e não por um suposto 'melhor hipervisor universal'. Arquitetura resiliente combina redundância planejada, segurança, cópias recuperáveis e observabilidade; cada mecanismo tem limites e contexto de uso. A resposta de alto nível da prova costuma depender da diferença entre abstração, isolamento, disponibilidade, migração, replicação e restauração, não da memorização de marcas isoladas."
+    }
+  ],
+  "summary": "Virtualização separa cargas lógicas de hosts físicos por meio de hipervisores, melhorando consolidação, provisionamento e flexibilidade, mas exigindo controle de capacidade e isolamento. No VMware vSphere, ESXi executa as VMs e vCenter gerencia centralmente o ambiente. vMotion movimenta execução, Storage vMotion movimenta dados, DRS equilibra recursos e HA busca reiniciar VMs após falhas. Snapshots são estados transitórios e não substituem backups. Redes vSphere distinguem vNIC de convidado e VMkernel do host; datastores podem usar diferentes tecnologias de storage. Em HCI, vSAN agrega discos de hosts e utiliza políticas de proteção de objetos. Hyper-V, KVM/QEMU, Xen/XCP-ng, Proxmox VE e z/VM exibem arquiteturas distintas. VDI entrega desktops virtuais, ao passo que RDS Session Host pode compartilhar servidor em múltiplas sessões. Docker, Kubernetes e OpenShift pertencem ao ecossistema de contêineres. Na proteção, VADP integra soluções como NetBackup ao VMware; CBT rastreia blocos alterados, RPO mede perda de dados tolerável e RTO o tempo de retomada. A confiabilidade depende de cópias isoladas, teste de restauração, segurança e observabilidade.",
+  "flashcards": [
+    {
+      "front": "O que diferencia hipervisor de emulador?",
+      "back": "O hipervisor virtualiza recursos e procura executar instruções compatíveis com aceleração; o emulador pode reproduzir outra arquitetura de CPU por tradução/interpretação."
+    },
+    {
+      "front": "O que caracteriza hipervisor tipo 1?",
+      "back": "Opera na camada diretamente associada ao hardware, sem funcionar meramente como aplicativo de um SO de desktop; ESXi e Xen são exemplos."
+    },
+    {
+      "front": "Qual a função do vCenter Server?",
+      "back": "Centralizar o gerenciamento e a automação de hosts ESXi, clusters, inventário e operações vSphere."
+    },
+    {
+      "front": "Qual a diferença entre vMotion e Storage vMotion?",
+      "back": "vMotion migra a execução da VM entre hosts; Storage vMotion migra seu armazenamento entre datastores em cenários suportados."
+    },
+    {
+      "front": "HA e DRS têm a mesma finalidade?",
+      "back": "Não. HA visa recuperação de VMs após falha de infraestrutura, normalmente por reinício; DRS distribui capacidade e carga."
+    },
+    {
+      "front": "Snapshot é backup?",
+      "back": "Não. Snapshot mantém estado/deltas ligados ao armazenamento original; backup requer cópia recuperável em repositório adequadamente protegido."
+    },
+    {
+      "front": "O que são shares de recursos?",
+      "back": "Pesos de prioridade relativa que influenciam a distribuição de recursos em situação de contenção."
+    },
+    {
+      "front": "O que diferencia vSS de vDS?",
+      "back": "O vSS tem configuração associada a um host; o vDS centraliza a definição de rede para vários hosts."
+    },
+    {
+      "front": "O que é VMkernel NIC?",
+      "back": "Interface do host ESXi destinada a serviços como gerenciamento, vMotion e certos acessos ao armazenamento."
+    },
+    {
+      "front": "O que é thin provisioning?",
+      "back": "Alocação física gradual da capacidade lógica solicitada; exige monitoramento para evitar falta real de espaço."
+    },
+    {
+      "front": "O que é HCI?",
+      "back": "Integração operacional de computação, armazenamento e virtualização em infraestrutura de nós coordenados."
+    },
+    {
+      "front": "Qual a função do vSAN?",
+      "back": "Agregar armazenamento de hosts vSphere em solução distribuída definida por software e governada por políticas de storage."
+    },
+    {
+      "front": "O que é KVM?",
+      "back": "Infraestrutura de virtualização no kernel Linux, normalmente utilizada com QEMU e ferramentas de gestão como libvirt."
+    },
+    {
+      "front": "Quais tecnologias básicas o Proxmox VE reúne?",
+      "back": "QEMU/KVM para VMs e LXC para contêineres, com gerenciamento integrado de cluster e storage."
+    },
+    {
+      "front": "O que é Xen Orchestra?",
+      "back": "Camada de gerenciamento, automação e backup em ambientes XCP-ng, não o hipervisor Xen propriamente dito."
+    },
+    {
+      "front": "Quais são CP e CMS no z/VM?",
+      "back": "CP é o programa de controle/hipervisor; CMS é ambiente interativo tradicional do z/VM."
+    },
+    {
+      "front": "Como distinguir VDI de RDS Session Host?",
+      "back": "VDI normalmente entrega desktops em VMs; RDS Session Host oferece múltiplas sessões remotas no sistema operacional servidor."
+    },
+    {
+      "front": "Qual a diferença entre VM e contêiner?",
+      "back": "Uma VM dispõe de sistema operacional convidado com kernel próprio; o contêiner normalmente compartilha o kernel do host."
+    },
+    {
+      "front": "O que é RPO?",
+      "back": "Objetivo de ponto de recuperação: perda temporal máxima de dados que o negócio admite."
+    },
+    {
+      "front": "O que é RTO?",
+      "back": "Objetivo de tempo de recuperação: duração-alvo para restabelecimento do serviço."
+    },
+    {
+      "front": "O que é VADP?",
+      "back": "Conjunto de APIs VMware para integração de ferramentas de proteção de dados com VMs vSphere."
+    },
+    {
+      "front": "O que registra o CBT?",
+      "back": "Blocos alterados em um disco virtual desde uma referência apropriada, viabilizando incrementais mais eficientes."
+    },
+    {
+      "front": "Em que o NetBackup se relaciona às VMs?",
+      "back": "É uma solução de backup/restauração que pode usar recursos VMware como VADP para proteger workloads vSphere."
+    },
+    {
+      "front": "Qual a diferença entre replicação e backup?",
+      "back": "Replicação mantém outro estado/cópia normalmente atualizável; backup conserva versões recuperáveis conforme política de retenção."
+    },
+    {
+      "front": "Qual o risco de superdimensionar vCPUs?",
+      "back": "Pode aumentar contenção e espera de escalonamento sem acrescentar CPU física, reduzindo densidade do host."
+    }
+  ],
+  "tips": [
+    "Associe ESXi a execução, vCenter a gestão, vMotion a migração de computação, Storage vMotion a dados, HA a reinício e DRS a balanceamento.",
+    "Identifique se a questão descreve falha, manutenção sem parada, migração de datastore ou recuperação de dados: cada problema pede tecnologia diferente.",
+    "Em rede vSphere, separe vNIC do convidado, adaptador VMkernel do host, port group, switch virtual e uplink físico.",
+    "Compare VMs e contêineres pelo kernel: VMs têm convidados independentes; contêineres compartilham o kernel hospedeiro.",
+    "Para backup, diferencie snapshot transitório, CBT como mapa de mudanças e repositório externo como local da cópia protegida.",
+    "Pense em capacidade após falha de host ao avaliar HA, HCI ou cluster; redundância lógica sem recursos suficientes é insuficiente."
+  ],
+  "traps": [
+    "\"Snapshot equivale a backup\" é falso: ele pode depender do datastore de origem e não garante cópia isolada.",
+    "\"HA garante zero interrupção\" é falso: o mecanismo clássico de HA reinicia VMs após detecção de falha.",
+    "\"vCenter executa as instruções das VMs\" confunde gerenciador central com hipervisor ESXi.",
+    "\"RDS Session Host oferece uma VM exclusiva por sessão\" confunde sessões compartilhadas com VDI baseado em VMs.",
+    "\"QEMU é sempre acelerado pelo KVM\" ignora o modo de emulação sem aceleração de hardware.",
+    "\"Thin provisioning já ocupa todo o espaço lógico em disco\" inverte alocação sob demanda e reserva antecipada.",
+    "\"CBT é mídia de backup\" confunde rastreamento de blocos alterados com cópia recuperável."
+  ],
+  "activeRecall": [
+    {
+      "question": "Uma empresa quer mover uma VM ligada para outro host. Qual recurso vSphere deve investigar?",
+      "answer": "vMotion, verificando compatibilidade, rede e recursos dos hosts."
+    },
+    {
+      "question": "O host ESXi falha de modo abrupto e o cluster deve reativar serviços. Que tecnologia entra em cena?",
+      "answer": "vSphere HA, que busca reiniciar VMs em hosts saudáveis com capacidade."
+    },
+    {
+      "question": "A administração necessita mover discos virtuais sem interromper a VM. Qual o mecanismo?",
+      "answer": "Storage vMotion, condicionado a suporte e compatibilidade do cenário."
+    },
+    {
+      "question": "Por que snapshots longos não substituem backup?",
+      "answer": "Porque deltas e estado estão ligados ao armazenamento e à cadeia da VM; não fornecem cópia externa isolada e podem gerar custo de consolidação."
+    },
+    {
+      "question": "Descreva a integração de QEMU e KVM.",
+      "answer": "QEMU modela e executa dispositivos/sistema virtual; KVM fornece aceleração da virtualização via kernel Linux nas plataformas suportadas."
+    },
+    {
+      "question": "Como o vSAN presta armazenamento às VMs?",
+      "answer": "Agrega recursos de discos locais dos hosts de um cluster e usa políticas para orientar proteção e colocação de objetos."
+    },
+    {
+      "question": "O que é preciso avaliar além do RTO ao escolher periodicidade de backups?",
+      "answer": "RPO, consistência transacional, retenção, dependências, capacidade e testes de restauração."
+    },
+    {
+      "question": "Qual a relação entre VDI, RDS e Omnissa Horizon?",
+      "answer": "VDI disponibiliza desktops virtuais; RDS permite sessões e aplicativos publicados; Horizon é uma plataforma de entrega/gestão de desktops e aplicações."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Hipervisor, emulador e contêiner",
+      "summary": "O hipervisor abstrai hardware e executa VMs; o emulador pode traduzir outra arquitetura; contêineres normalmente compartilham kernel. Não são termos intercambiáveis."
+    },
+    {
+      "key": "e2",
+      "title": "Funções vSphere confundidas",
+      "summary": "vMotion movimenta execução, Storage vMotion movimenta armazenamento, DRS gerencia distribuição de carga e HA recupera serviço após falhas por reinício."
+    },
+    {
+      "key": "e3",
+      "title": "Rede e armazenamento virtual",
+      "summary": "vNIC pertence ao convidado, VMkernel atende serviços do host; datastore abstrai armazenamento, thin provisioning não constitui espaço físico infinito."
+    },
+    {
+      "key": "e4",
+      "title": "Ecossistemas de hipervisores",
+      "summary": "KVM utiliza kernel Linux; Proxmox VE o gerencia com QEMU e LXC; XCP-ng usa Xen; z/VM possui CP e CMS. VDI e RDS têm modelos de sessão distintos."
+    },
+    {
+      "key": "e5",
+      "title": "Backup, snapshot e recuperação",
+      "summary": "Snapshot e replicação não substituem cópia recuperável; VADP integra ferramentas de proteção, CBT registra mudanças, e RTO/RPO medem objetivos diferentes."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um ambiente de virtualização de servidores, cada máquina virtual pode executar seu próprio sistema operacional convidado, ainda que compartilhe recursos de um mesmo host físico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma VM apresenta hardware virtual ao sistema operacional convidado e compartilha capacidade física administrada pelo hipervisor. O isolamento não significa exclusividade de CPU ou memória, nem ausência de contenção por recursos.",
+      "section": "Fundamentos, hipervisores e emulação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O hipervisor de tipo 2 deve ser necessariamente mais seguro e eficiente que o de tipo 1, pois depende do sistema operacional hospedeiro para controlar todas as VMs.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A classificação tipo 1 ou tipo 2 descreve a relação arquitetural com o hardware e o sistema hospedeiro. Ela não estabelece superioridade absoluta de segurança ou desempenho; cada implementação e configuração precisa ser avaliada.",
+      "section": "Fundamentos, hipervisores e emulação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A adoção de drivers paravirtualizados em uma VM implica que todas as instruções do sistema operacional convidado passam a ser traduzidas por um emulador de CPU.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Drivers paravirtualizados otimizam interfaces específicas, como disco e rede, enquanto a CPU pode usar virtualização assistida por hardware. A existência desses drivers não exige emular todo o conjunto de instruções do convidado.",
+      "section": "Fundamentos, hipervisores e emulação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VM configurada com número excessivo de vCPUs pode sofrer maior tempo de espera para escalonamento, ainda que a carga útil da aplicação não utilize intensamente cada vCPU.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Mais vCPUs aumentam a demanda potencial de escalonamento e podem pressionar hosts compartilhados. CPU ready é um sinal útil de espera. Dimensionar pelo consumo real e pela contenção é melhor que maximizar vCPUs indiscriminadamente.",
+      "section": "Fundamentos, hipervisores e emulação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa testar um sistema compilado para arquitetura de processador diferente daquela disponível no laboratório. Qual abordagem tem maior aderência a essa necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Emulação da arquitetura de destino por um emulador adequado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumento da reserva de memória de uma VM da mesma arquitetura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ativação exclusiva do DRS em um cluster VMware.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criação de um port group em um switch virtual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ajuste de shares de CPU no host físico.",
+          "correct": false
+        }
+      ],
+      "explanation": "A emulação pode reproduzir a arquitetura e as instruções esperadas pelo sistema testado. Reserva de memória, balanceamento de cluster, redes e prioridades de CPU não convertem um conjunto de instruções em outro.",
+      "section": "Fundamentos, hipervisores e emulação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura de virtualização, qual elemento é responsável por administrar a execução das VMs e mediar o acesso delas aos recursos físicos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Banco de dados do sistema convidado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Hipervisor.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Template de implantação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicação de backup.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Servidor de DNS.",
+          "correct": false
+        }
+      ],
+      "explanation": "O hipervisor é a camada que fornece recursos virtuais e controla sua utilização no host. Modelos, cópias de segurança, DNS e serviços internos do convidado cumprem finalidades distintas e não fazem o escalonamento das VMs.",
+      "section": "Fundamentos, hipervisores e emulação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um host apresenta lentidão mesmo com uso médio de CPU relativamente baixo. As vCPUs passam parte do tempo aptas a executar, porém aguardando recursos. Qual indicador é particularmente pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quantidade de modelos OVF arquivados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somatório de endereços IP livres da VLAN.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tempo de CPU ready das máquinas virtuais.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Quantidade total de arquivos ISO do datastore.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Número de instantâneos de tela dos administradores.",
+          "correct": false
+        }
+      ],
+      "explanation": "CPU ready evidencia espera para agendar vCPUs e ajuda a diagnosticar contenção. Os demais valores não medem esse comportamento. O diagnóstico ainda requer correlação com picos, configuração de VMs e métricas do host.",
+      "section": "Fundamentos, hipervisores e emulação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização usa máquinas virtuais para hospedar nós de aplicações conteinerizadas. Qual afirmação caracteriza corretamente a coexistência das tecnologias?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A presença de Docker impede uso simultâneo de qualquer VM.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O contêiner substitui necessariamente o kernel de seu host por outro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O uso de Kubernetes transforma automaticamente cada contêiner em hardware físico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os contêineres podem executar dentro de VMs, compartilhando o kernel do sistema convidado que os hospeda.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Cada contêiner precisa conter um hipervisor independente para funcionar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Máquinas virtuais e contêineres operam em camadas diferentes e podem ser combinados. Contêineres normalmente compartilham o kernel hospedeiro; Docker, Kubernetes e OpenShift não exigem um hipervisor exclusivo por contêiner.",
+      "section": "Fundamentos, hipervisores e emulação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação passa a executar mais lentamente depois que a equipe duplica as vCPUs da VM, sem ampliar a capacidade do host. Qual hipótese técnica é mais consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O acréscimo de vCPUs converteu automaticamente a VM em contêiner.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O hipervisor desativou obrigatoriamente todas as extensões de virtualização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A nova configuração transformou o datastore NFS em VMFS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cada vCPU adicionada criou um núcleo físico no processador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O aumento das vCPUs ampliou a concorrência por escalonamento, sem remover o gargalo original.",
+          "correct": true
+        }
+      ],
+      "explanation": "vCPU é unidade lógica sujeita ao escalonador; acrescentá-la não cria núcleos físicos e pode aumentar espera. É necessário medir CPU ready, afinidade, NUMA, memória e I/O para comprovar a causa da degradação.",
+      "section": "Fundamentos, hipervisores e emulação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer acelerar operações de disco de um convidado sem reescrever integralmente seu kernel. Qual solução é coerente com paravirtualização de dispositivos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Instalar o driver de armazenamento otimizado disponibilizado para o ambiente virtual.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar somente interpretação de todas as instruções da CPU.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Migrar todo o aplicativo para uma arquitetura de CPU necessariamente incompatível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar as extensões de virtualização no firmware físico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar todos os switches de camada 2 por roteadores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Drivers como virtio ou PVSCSI podem oferecer caminho de E/S adequado ao hipervisor mantendo o sistema convidado. Eles não exigem emulação completa da CPU nem alteração de toda a arquitetura de rede física.",
+      "section": "Fundamentos, hipervisores e emulação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O VMware ESXi executa as máquinas virtuais no host físico, ao passo que o vCenter Server se destina ao gerenciamento centralizado de recursos vSphere.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "ESXi provê a execução e os recursos de virtualização no host; o vCenter organiza inventário, administração e funcionalidades de gerenciamento. Confundir os papéis leva à falsa ideia de que o vCenter executa diretamente todas as VMs.",
+      "section": "VMware vSphere: arquitetura, operação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No vSphere, vMotion e Storage vMotion designam exatamente a mesma operação, ambos restritos a transferir arquivos VMDK de um datastore para outro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "vMotion se relaciona à migração da execução da VM entre hosts; Storage vMotion move componentes de armazenamento entre datastores. Existem operações combinadas, mas isso não torna as duas funcionalidades sinônimas.",
+      "section": "VMware vSphere: arquitetura, operação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O vSphere HA foi concebido para substituir as rotinas de backup, porque reiniciar uma VM em outro host recupera automaticamente versões anteriores de arquivos apagados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "HA atua na continuidade operacional após determinadas falhas, tipicamente reiniciando a VM em outro host. Não é mecanismo de restauração histórica e não recupera, por si, arquivos logicamente apagados ou corrompidos.",
+      "section": "VMware vSphere: arquitetura, operação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra estrita de anti-afinidade pode restringir o posicionamento de VMs durante uma falha, razão pela qual sua relação com capacidade residual e políticas de HA deve ser avaliada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Regras de anti-afinidade orientam separação entre cargas e podem reduzir as alternativas de posicionamento quando há poucos hosts disponíveis. Projetar HA exige compatibilizar isolamento, prioridades e recursos após a falha.",
+      "section": "VMware vSphere: arquitetura, operação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O administrador precisa distribuir automaticamente máquinas virtuais entre hosts com base em avaliações de utilização do cluster. Qual recurso do vSphere é o mais diretamente associado a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Changed Block Tracking (CBT).",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Distributed Resource Scheduler (DRS).",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Arquivo de configuração VMDK.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "vSphere High Availability (HA).",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "VMware Tools.",
+          "correct": false
+        }
+      ],
+      "explanation": "DRS considera a distribuição de cargas e recursos e pode automatizar posicionamento e migração conforme configuração. HA trata recuperação após falhas; VMware Tools integra o guest; CBT e VMDK não fazem balanceamento.",
+      "section": "VMware vSphere: arquitetura, operação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma falha abrupta de host, é necessário que VMs afetadas sejam iniciadas em hosts remanescentes. Que funcionalidade responde diretamente por esse comportamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "VMware PowerCLI por si só.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Thin provisioning.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "vSphere High Availability (HA).",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "vSphere Standard Switch.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Storage vMotion isoladamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O HA monitora condições de falha e busca reiniciar VMs em outros hosts que disponham de recursos. Esse procedimento pode envolver interrupção e não se confunde com migrar discos, automatizar scripts ou configurar redes.",
+      "section": "VMware vSphere: arquitetura, operação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma máquina virtual deve ter seu processamento deslocado para outro host sem desligamento planejado, mantendo o armazenamento em localização compatível. Qual recurso atende esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas exclusão dos snapshots antigos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas replicação assíncrona de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Restauração integral de um backup em outro ambiente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "vMotion, após verificação dos pré-requisitos de mobilidade.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Conversão da vNIC em interface VMkernel.",
+          "correct": false
+        }
+      ],
+      "explanation": "vMotion migra uma VM em execução entre hosts suportados, observando rede, CPU e recursos. Apagar snapshots, replicar ou restaurar cópias não executa a mesma migração contínua de computação.",
+      "section": "VMware vSphere: arquitetura, operação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante uma mudança, a equipe precisa preservar a prioridade relativa de VMs concorrentes sem reservar antecipadamente toda a CPU do host. Qual parâmetro responde a esse propósito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Número de checkpoints do convidado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Limite fixo de espaço do datastore.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Nome do arquivo OVF.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Endereço MAC da placa física.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Shares de recursos configuradas com pesos relativos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Shares especificam prioridade relativa quando há contenção por recursos. Reservas e limites têm funções diferentes; metadados de appliance, endereços e checkpoints não estabelecem esse peso de escalonamento.",
+      "section": "VMware vSphere: arquitetura, operação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O vCenter fica temporariamente indisponível, mas hosts ESXi estão saudáveis e suas VMs já estavam ligadas. Qual análise inicial é a mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "As VMs existentes podem continuar executando, embora tarefas centralizadas de gerenciamento sejam prejudicadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "As VMs perdem obrigatoriamente seus discos virtuais após falha do console.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O DRS converte as VMs em processos do sistema operacional do operador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Todas as VMs necessariamente desligam imediatamente ao perder a interface do vCenter.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O vCenter passa a atuar automaticamente como hipervisor substituto.",
+          "correct": false
+        }
+      ],
+      "explanation": "vCenter integra o plano de gestão e não é o executante direto das instruções do guest. Sua indisponibilidade afeta funções dependentes, mas não implica parada imediata de toda VM em host íntegro.",
+      "section": "VMware vSphere: arquitetura, operação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política precisa reduzir a indisponibilidade durante certas falhas de host por meio de redundância de execução sincronizada, respeitando limites de suporte. Qual conceito é pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente exportação para OVA.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Fault Tolerance (FT).",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Captura manual de imagem de tela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reconfiguração de DHCP no convidado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Thin provisioning.",
+          "correct": false
+        }
+      ],
+      "explanation": "FT é relacionado à manutenção de uma instância secundária sincronizada para cenários específicos. Difere de HA clássico, que reinicia VMs, e dos demais mecanismos, que não mantêm execução redundante ativa.",
+      "section": "VMware vSphere: arquitetura, operação e disponibilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em redes vSphere, uma interface VMkernel pode ser usada para serviços do host, como gerenciamento ou vMotion, sem ser a placa virtual do sistema operacional convidado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "VMkernel NIC pertence ao plano de comunicação do host e atende serviços configurados no ESXi. A vNIC pertence à VM e transporta tráfego do convidado. Confundir as duas interfaces dificulta diagnosticar migração e rede.",
+      "section": "Redes, armazenamento, HCI e vSAN",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um datastore NFS é obrigatoriamente um volume VMFS acessado por Fibre Channel, pois todas as VMs VMware utilizam o mesmo protocolo físico de armazenamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "NFS fornece acesso a arquivos pela rede e não pressupõe VMFS nem Fibre Channel. VMFS é sistema de arquivos para determinados dispositivos em bloco. vSphere pode operar com diferentes tipos de datastore e protocolos.",
+      "section": "Redes, armazenamento, HCI e vSAN",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O thin provisioning elimina o risco de indisponibilidade por falta de espaço, uma vez que o disco virtual lógico sempre dispõe de capacidade física reservada integralmente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Em thin provisioning, a ocupação física costuma crescer com os dados gravados e pode esgotar a capacidade disponível. Monitoramento, alarmes e planejamento de expansão são necessários para evitar falha operacional.",
+      "section": "Redes, armazenamento, HCI e vSAN",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A disponibilidade de um datastore distribuído vSAN depende tanto da política aplicada aos objetos quanto da saúde da rede, dos hosts e da capacidade remanescente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "vSAN agrega storage distribuído e aplica objetivos expressos em políticas. Perda de componentes, rede degradada ou capacidade insuficiente pode impedir cumprimento da política, ainda que as VMs continuem momentaneamente acessíveis.",
+      "section": "Redes, armazenamento, HCI e vSAN",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual componente do vSphere permite padronizar centralmente a configuração de conectividade de múltiplos hosts ESXi participantes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "vSphere Standard Switch local de apenas um host.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Disco virtual VMDK.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "vSphere Distributed Switch (vDS).",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "VMware Tools no sistema operacional convidado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registro CBT de backup incremental.",
+          "correct": false
+        }
+      ],
+      "explanation": "O vDS centraliza definições de rede entre hosts compatíveis. O vSS é associado individualmente ao host; VMDK, VMware Tools e CBT não substituem o plano de configuração de switches virtuais.",
+      "section": "Redes, armazenamento, HCI e vSAN",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa pretende agregar discos locais de vários hosts ESXi para oferecer datastore distribuído aos convidados em infraestrutura hiperconvergente. Qual tecnologia corresponde à proposta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "VMware Workstation como switch físico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "VMware Tools.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PowerCLI exclusivamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "VMware vSAN.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "RDS Session Host.",
+          "correct": false
+        }
+      ],
+      "explanation": "vSAN agrega armazenamento dos nós de um ambiente vSphere e o apresenta sob políticas, característica de HCI. VMware Tools, automação de comandos e entrega de sessões não são soluções equivalentes de storage distribuído.",
+      "section": "Redes, armazenamento, HCI e vSAN",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista identifica uma VM com 2 TB de capacidade lógica thin, embora poucos gigabytes estejam ocupados no datastore. Qual risco precisa constar do planejamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O datastore passa obrigatoriamente a utilizar somente Fibre Channel.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cada terabyte lógico gera uma cópia redundante independente de proteção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A alocação thin transforma automaticamente toda operação em backup.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A VM ficará sempre impedida de aumentar o consumo físico de disco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O crescimento simultâneo de discos thin pode esgotar a capacidade física antes de atingir os limites lógicos individuais.",
+          "correct": true
+        }
+      ],
+      "explanation": "Thin provisioning otimiza alocação inicial, mas cria relação dinâmica entre capacidade lógica anunciada e capacidade física consumida. Crescimento, snapshots e outros objetos exigem reservas e alarmes adequados.",
+      "section": "Redes, armazenamento, HCI e vSAN",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um cluster vSphere, o administrador deseja definir regras de proteção e distribuição de objetos de armazenamento por VM. Qual mecanismo se relaciona diretamente a esse desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Políticas de armazenamento de VMs (SPBM) aplicadas ao vSAN.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Alteração de shares de CPU no sistema convidado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mudança do nome do datacenter no inventário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Agendamento de sessões RemoteApp para usuários finais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Configuração de DNS recursivo na estação do usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "O vSAN utiliza políticas de armazenamento para orientar características de proteção e disposição de dados. Configurações de DNS, CPU, nomes de objetos e sessões remotas não especificam resiliência dos objetos de storage.",
+      "section": "Redes, armazenamento, HCI e vSAN",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe usa replicação síncrona entre unidades de armazenamento e afirma que a solução dispensa backups versionados. Qual argumento técnico contesta corretamente a afirmação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A replicação síncrona converte todos os discos em memória RAM volátil.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Erros lógicos e exclusões também podem alcançar a réplica; cópias históricas independentes continuam necessárias.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma réplica elimina automaticamente as interfaces de rede do host.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Backup é incompatível com qualquer armazenamento definido por software.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Volumes replicados impedem o funcionamento do hipervisor tipo 1.",
+          "correct": false
+        }
+      ],
+      "explanation": "Replicação protege contra determinadas falhas de infraestrutura, mas pode reproduzir corrupção ou exclusão. Backups retidos e testados permitem retorno a estados anteriores, inclusive quando a réplica já recebeu o erro.",
+      "section": "Redes, armazenamento, HCI e vSAN",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço sobre vSAN tem política que exige resiliência, mas o cluster apresenta falta de recursos após a perda de um nó. Qual decisão técnica é mais consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Presumir que HCI torna desnecessário monitorar utilização de disco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Assumir que qualquer número de discos locais garante recuperação integral automática.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reavaliar capacidade, rede, política e domínios de falha antes de supor que a redundância está preservada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desativar todos os alarmes de conformidade para evitar alertas de storage.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tratar a falha como problema exclusivamente do mouse do operador.",
+          "correct": false
+        }
+      ],
+      "explanation": "A capacidade de satisfazer políticas vSAN depende da topologia e dos recursos disponíveis. A falta de espaço e a perda de componentes podem causar degradação; ignorar alarmes ou assumir resiliência ilimitada amplia o risco.",
+      "section": "Redes, armazenamento, HCI e vSAN",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Proxmox VE integra QEMU/KVM para máquinas virtuais e LXC para contêineres em uma plataforma unificada de gerenciamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O Proxmox VE coordena VMs QEMU/KVM e contêineres LXC, além de recursos de cluster e armazenamento. A plataforma é uma integração de componentes existentes, não um hipervisor de CPU completamente independente.",
+      "section": "Plataformas concorrentes, VDI e contêineres",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo RDS Session Host, cada usuário precisa receber obrigatoriamente uma VM com kernel próprio e disco virtual exclusivo, da mesma maneira que em um desktop VDI pessoal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "RDS Session Host pode compartilhar um sistema operacional servidor entre diversas sessões remotas. VDI normalmente entrega desktops baseados em VMs. O modo de entrega e o isolamento não devem ser presumidos idênticos.",
+      "section": "Plataformas concorrentes, VDI e contêineres",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O z/VM utiliza um Control Program para virtualização de recursos e pode executar sistemas operacionais convidados; CMS é seu ambiente interativo tradicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "No IBM z/VM, CP é o programa de controle que gerencia a máquina e seus convidados, enquanto CMS fornece ambiente de interação. A arquitetura é própria do mainframe e não equivale a uma simples instalação de KVM em Linux.",
+      "section": "Plataformas concorrentes, VDI e contêineres",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Xen Orchestra é o mecanismo de virtualização de CPU que substitui o hipervisor Xen em hosts XCP-ng; por isso, sua indisponibilidade faz todas as VMs deixarem de executar imediatamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O XCP-ng baseia-se em Xen e usa ferramentas de gerenciamento como XAPI e Xen Orchestra. A camada de console/gestão não é sinônimo de hipervisor, e a indisponibilidade do gerenciador não implica sempre parada instantânea das VMs.",
+      "section": "Plataformas concorrentes, VDI e contêineres",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação corresponde corretamente a uma tecnologia de virtualização no kernel Linux e a uma API de gerenciamento usada frequentemente com ela?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CBT e VADP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "CMS e vCenter.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "vSAN e VMware Tools.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "KVM e libvirt.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "RDS e RemoteApp.",
+          "correct": false
+        }
+      ],
+      "explanation": "KVM fornece capacidades de virtualização pelo kernel Linux e libvirt abstrai operações de gerenciamento, com QEMU usualmente associado. Os outros pares tratam de storage, desktop, backup ou ambientes diferentes.",
+      "section": "Plataformas concorrentes, VDI e contêineres",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um órgão quer oferecer vários acessos simultâneos a aplicações de um servidor Windows por sessões remotas, sem criar uma VM de desktop específica para cada usuário. Qual abordagem é especialmente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma VM exclusiva por login como exigência técnica do RDS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Storage vMotion para cada abertura de aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Instalação de um hipervisor dentro do navegador do usuário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Emulação obrigatória de processador mainframe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remote Desktop Services com Session Host.",
+          "correct": true
+        }
+      ],
+      "explanation": "O RDS Session Host permite sessões simultâneas em sistema operacional servidor e publicação de aplicações. O modelo difere da exigência de desktop isolado por VM e não envolve emular CPU ou migrar discos a cada conexão.",
+      "section": "Plataformas concorrentes, VDI e contêineres",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No ambiente XCP-ng, qual ferramenta é reconhecida como interface de gerenciamento e automação, inclusive para tarefas de backup?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Xen Orchestra.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "VMware vCenter como componente obrigatório do Xen.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "IBM CMS para configurar pools de Xen.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Microsoft RemoteApp como hipervisor de XCP-ng.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "VMDK como console de administração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Xen Orchestra interage com a infraestrutura XCP-ng para administrar e proteger VMs. Não é o hipervisor Xen; os outros itens são ferramentas, ambientes e formatos de ecossistemas distintos.",
+      "section": "Plataformas concorrentes, VDI e contêineres",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um laboratório precisa de máquina virtual com aceleração assistida por hardware no Linux, mantendo modelo de dispositivos e suporte a execução do convidado. Qual arquitetura é coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um switch de camada 2 como processador virtual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "QEMU associado a KVM, com ferramentas como libvirt para administrar o domínio.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apenas aplicação RDS como tradutor de instruções de CPU.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CBT para substituir a implementação de dispositivos virtuais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "vSAN como kernel de sistema convidado universal.",
+          "correct": false
+        }
+      ],
+      "explanation": "QEMU modela dispositivos e execução de sistema; KVM oferece aceleração no kernel quando suportado. Libvirt pode administrar o domínio. Ferramentas de backup, desktop e armazenamento não fazem essa função.",
+      "section": "Plataformas concorrentes, VDI e contêineres",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma solução de desktop remoto mantém diferentes sessões em um único sistema operacional servidor e outra entrega desktops pessoais em VMs separadas. Como classificar predominantemente os modelos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Replicação síncrona para o primeiro; CBT para o segundo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "HCI para o primeiro; hipervisor tipo 2 obrigatoriamente para o segundo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RDS Session Host para o primeiro; VDI com desktops virtuais para o segundo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "VDI pessoal para o primeiro; emulação de mainframe para o segundo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Storage vMotion para o primeiro; DRS para o segundo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sessões compartilhadas de Windows Server apontam para RDS Session Host; desktops dedicados em VMs correspondem ao padrão de VDI pessoal. As demais técnicas tratam de mobilidade, resiliência ou infraestrutura subjacente.",
+      "section": "Plataformas concorrentes, VDI e contêineres",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa planeja migração entre dois ecossistemas de hipervisores. Qual conjunto de verificações reduz o risco de acreditar que exportar uma VM sempre basta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente número de administradores que acessam o portal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Exclusivamente tempo de expiração da sessão web de gestão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas ordem alfabética dos nomes de datastores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Compatibilidade de firmware virtual, drivers, formato de disco, dispositivos, sistema convidado e rede.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Apenas cor do ícone da VM no console de origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Interoperabilidade envolve formatos, firmware, controladoras, drivers de guest, configuração de boot e conectividade. Um pacote exportado não garante por si só que o convidado funcionará sem adaptação na plataforma de destino.",
+      "section": "Plataformas concorrentes, VDI e contêineres",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em proteção de dados, RPO descreve a perda temporal tolerável de informações, enquanto RTO representa o objetivo de tempo para restabelecer o serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "RPO relaciona-se ao ponto de recuperação e à idade máxima admitida dos dados restaurados; RTO refere-se ao intervalo de retomada. São metas complementares, não números necessariamente iguais nem garantias sem teste.",
+      "section": "Backup, recuperação, segurança e governança de VMs",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O CBT é uma tecnologia cuja função principal é manter, em repositório independente, cópias completas e imutáveis de todas as VMs VMware.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Changed Block Tracking registra blocos alterados para facilitar cópias incrementais. Ele não grava sozinho arquivos de backup, não substitui repositório seguro e não estabelece retenção ou imutabilidade das cópias.",
+      "section": "Backup, recuperação, segurança e governança de VMs",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O NetBackup pode integrar-se ao vSphere por meio das APIs de proteção VADP, sem que isso transforme o NetBackup em componente obrigatório e nativo do ESXi.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "NetBackup é solução de proteção de dados que pode usar VADP para capturar e restaurar VMs VMware. A integração por API não torna o software parte indispensável do hipervisor nem cria backup sem políticas configuradas.",
+      "section": "Backup, recuperação, segurança e governança de VMs",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cópia de segurança consistente em falha necessariamente preserva todas as transações em memória de qualquer banco de dados, dispensando mecanismos de quiescing.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A consistência em falha corresponde aproximadamente ao estado após interrupção súbita; aplicações transacionais podem precisar de quiescing e integrações específicas para obter consistência apropriada. Snapshot isolado não garante transação confirmada.",
+      "section": "Backup, recuperação, segurança e governança de VMs",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A organização precisa limitar a quantidade de dados potencialmente perdida entre uma falha e a cópia restaurada. Qual objetivo deve ser definido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Recovery Time Objective (RTO).",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Distributed Resource Scheduler (DRS).",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "vSphere Distributed Switch (vDS).",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Enhanced vMotion Compatibility (EVC).",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Recovery Point Objective (RPO).",
+          "correct": true
+        }
+      ],
+      "explanation": "RPO mede quanto tempo de dados se aceita perder em uma recuperação. RTO mede tempo de retomada, enquanto DRS, vDS e EVC tratam de outros assuntos. Periodicidade de cópias e replicação devem sustentar o RPO adotado.",
+      "section": "Backup, recuperação, segurança e governança de VMs",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso auxilia soluções de backup a identificar os blocos de disco virtual que se modificaram desde uma referência apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Changed Block Tracking (CBT).",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "IBM CMS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "vSphere High Availability.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "vSphere Distributed Switch.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "VMware Tools como repositório imutável.",
+          "correct": false
+        }
+      ],
+      "explanation": "CBT mantém informações de alterações em blocos de discos virtuais e pode acelerar backup incremental. Não é mecanismo de failover, switch de rede, repositório de cópias nem ambiente interativo de mainframe.",
+      "section": "Backup, recuperação, segurança e governança de VMs",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa afirma possuir proteção suficiente porque mantém snapshots de todas as VMs no mesmo datastore e nunca faz cópia externa. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O VMware recomenda manter snapshots indefinidamente como única proteção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os snapshots são úteis para estados transitórios, mas não substituem backups recuperáveis separados do armazenamento de origem.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A configuração transforma snapshots automaticamente em mídia offline.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Snapshots garantem restauração caso todo o datastore seja destruído.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A política elimina necessidade de reter versões de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Snapshots compartilham dependências com o ambiente original e cadeias prolongadas podem trazer custos e riscos. Backups versionados, protegidos e testados são necessários para enfrentar perda de storage ou erro lógico.",
+      "section": "Backup, recuperação, segurança e governança de VMs",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um desenho de backup por imagem de VM vSphere, qual sequência é conceitualmente típica de integração baseada em VADP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter cada aplicação em contêiner antes de poder copiar os seus arquivos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Excluir a VM de produção antes de iniciar a leitura dos dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar estado consistente transitório, ler discos virtuais, gravar cópia em repositório e concluir a consolidação necessária.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Utilizar somente o balanceamento DRS como meio de armazenar versões históricas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar permanentemente todos os discos físicos e confiar apenas no inventário vCenter.",
+          "correct": false
+        }
+      ],
+      "explanation": "Integrações VADP permitem obter dados de discos virtuais, frequentemente a partir de snapshot temporário, e registrar a cópia em destino de backup. Conclusão e consolidação precisam ser monitoradas para evitar resíduos.",
+      "section": "Backup, recuperação, segurança e governança de VMs",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma réplica atualizada de banco também recebeu a exclusão acidental de registros ocorrida na produção. Qual controle aumenta a possibilidade de recuperar estado anterior?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumento exclusivo do número de vCPUs da réplica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mudança da cor do alerta do console de gerenciamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criação de port group sem política de retenção de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Backups versionados, isolados e submetidos a testes periódicos de restauração.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desativação de logs para reduzir atividade da aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A replicação pode transmitir alterações indevidas e não oferece necessariamente histórico recuperável. Backups protegidos, retenção adequada e testes permitem selecionar versões anteriores e demonstram recuperabilidade real.",
+      "section": "Backup, recuperação, segurança e governança de VMs",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política exige voltar a operar em até quatro horas e perder no máximo trinta minutos de dados. Como classificar, respectivamente, as metas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "VADP de quatro horas e thin provisioning de trinta minutos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RPO de quatro horas e RTO de trinta minutos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DRS de quatro horas e HA de trinta minutos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CBT de quatro horas e vMotion de trinta minutos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RTO de quatro horas e RPO de trinta minutos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Tempo máximo para restabelecimento é RTO; idade máxima tolerada de dados recuperados é RPO. Inverter os conceitos gera estratégia incompatível com a necessidade do negócio, mesmo que a ferramenta de cópia esteja operacional.",
+      "section": "Backup, recuperação, segurança e governança de VMs",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Documentação oficial do VMware vSphere: recursos de produto",
+      "publisher": "VMware by Broadcom",
+      "reference": "Comparação oficial de recursos e funcionalidades de vSphere",
+      "url": "https://www.vmware.com/docs/vmw-version-comparison",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Arquitetura e armazenamento distribuído vSAN",
+      "publisher": "VMware by Broadcom",
+      "reference": "VMware vSAN Design Guide",
+      "url": "https://www.vmware.com/docs/vmware-vsan-design-guide",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Melhores práticas sobre snapshots VMware",
+      "publisher": "Broadcom",
+      "reference": "KB 318825: Best practices for using VMware snapshots",
+      "url": "https://knowledge.broadcom.com/external/article/318825/best-practices-for-using-vmware-snapshots.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "VADP e operações de backup via VDDK",
+      "publisher": "Broadcom Developer",
+      "reference": "Virtual Disk API: Design and Implementation Overview",
+      "url": "https://developer.broadcom.com/xapis/virtual-disk-api/latest/vddkBkupVadp.9.2.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Conceitos e recursos do Hyper-V",
+      "publisher": "Microsoft Learn",
+      "reference": "Hyper-V Features and Terminology Overview",
+      "url": "https://learn.microsoft.com/windows-server/virtualization/hyper-v/features-terminology",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "KVM: documentação do kernel",
+      "publisher": "Linux Kernel Documentation",
+      "reference": "KVM Virtualization Support",
+      "url": "https://docs.kernel.org/virt/kvm/index.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Arquitetura de XCP-ng",
+      "publisher": "XCP-ng Project",
+      "reference": "Architecture: XCP-ng Documentation",
+      "url": "https://docs.xcp-ng.org/project/architecture/",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Proxmox Virtual Environment",
+      "publisher": "Proxmox Server Solutions",
+      "reference": "Features: Proxmox VE",
+      "url": "https://www.proxmox.com/en/products/proxmox-virtual-environment/features",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Componentes do IBM z/VM",
+      "publisher": "IBM",
+      "reference": "z/VM components, facilities, and optional features",
+      "url": "https://www.ibm.com/docs/en/zvm/7.4.0?topic=overview-zvm-components-facilities-optional-features",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Serviços de área de trabalho remota",
+      "publisher": "Microsoft Learn",
+      "reference": "Remote Desktop Services overview",
+      "url": "https://learn.microsoft.com/en-us/windows-server/remote/remote-desktop-services/overview",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Plataforma Horizon e desktops publicados",
+      "publisher": "Omnissa",
+      "reference": "Setting Up Published Desktops and Applications in Horizon",
+      "url": "https://docs.omnissa.com/Desktops-and-Applications-in-Horizon-V2606/SettingUpPublishedDesktopsandApplicationsinHorizon",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Integração NetBackup para VMware",
+      "publisher": "Veritas",
+      "reference": "NetBackup for VMware Administrator Guide: About NetBackup for VMware",
+      "url": "https://origin-www.veritas.com/content/support/en_US/doc/166027891-167898579-0/v19545336-167898579",
+      "accessedAt": "2026-11-17"
+    }
+  ]
+}

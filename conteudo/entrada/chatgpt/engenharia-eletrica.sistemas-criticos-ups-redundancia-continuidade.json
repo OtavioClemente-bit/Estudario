@@ -1,0 +1,1895 @@
+{
+  "id": "engenharia-eletrica.sistemas-criticos-ups-redundancia-continuidade",
+  "subject": "Engenharia Elétrica",
+  "title": "Sistemas críticos: UPS, ATS, baterias e distribuição A/B",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Sistemas elétricos críticos: UPS, redundância e continuidade do fornecimento",
+    "Sistemas elétricos críticos: UPS, redundância e continuidade do fornecimento"
+  ],
+  "scope": {
+    "covers": "Continuidade em instalações elétricas críticas; cadeias rede–geração–ATS–UPS–distribuição; dupla conversão, VFD/VI/VFI, bypass, redundância N+1/2N, classificação Tier, caminhos A/B, falhas comuns, ATS/STS, grupo gerador, comparação VRLA e íons de lítio, BMS e autonomia, busway com tap-offs, carga em kW por rack, dimensionamento, PUE, comissionamento e segurança de operação.",
+    "excludes": "Dimensionamento executivo de cabos e proteções conforme projeto específico; sequências de manobra elétrica energizada; cálculo detalhado de curto-circuito, aterramento e seletividade de instalações particulares; reprodução integral de textos protegidos de normas técnicas."
+  },
+  "theoryTitle": "UPS, comutação de fontes, redundância e energia até o rack",
+  "chapters": [
+    {
+      "title": "Criticidade e arquitetura do suprimento",
+      "markdown": "## 1. O que se pretende assegurar\n\n**Continuidade do fornecimento à carga crítica** significa manter alimentação dentro das condições elétricas admissíveis ao equipamento durante falhas, intervenções programadas e perturbações da rede. Não equivale à simples existência de um grupo gerador: é o resultado coordenado de **fontes, conversão e armazenamento de energia, distribuição, proteção, operação e capacidade de manutenção**. Hospitais, centros de dados, telecomunicações, controle industrial e salas de comando podem ter requisitos distintos de autonomia, tempo de transferência, seletividade e tolerância a desligamentos. O projeto começa pela identificação de cargas cuja interrupção tenha consequências inaceitáveis e pela especificação do comportamento exigido durante a transição entre fontes.\n\nUma cadeia didática de um centro de dados é: **rede da concessionária → entrada e transformação → quadros e proteção → comutação para fonte alternativa, quando aplicável → barramento de suprimento → UPS → distribuição secundária → PDU/busway → PDU de rack → fontes dos equipamentos**. Essa representação é funcional, e a posição real do ATS e dos transformadores depende da topologia. O grupo gerador fornece energia alternativa após partida e estabilização; as baterias da UPS sustentam a carga no intervalo de transição. Ar-condicionado de precisão, bombas, telecomunicações, instrumentação, sistemas de comando, automação e combustível são dependências cuja falha também pode comprometer a continuidade.\n\n## 2. O que significa ser crítico\n\nUma análise de criticidade distingue **cargas ininterruptíveis**, que não admitem falta de tensão perceptível ao equipamento, de **cargas essenciais**, que podem aceitar interrupção breve até a entrada do grupo gerador, e de **cargas não essenciais**, desligáveis para preservar capacidade. A admissibilidade de uma interrupção é definida pela aplicação, não somente pelo nome do equipamento. Alguns servidores dispõem de fontes redundantes e tolerância a pequenas perturbações; outros dispositivos sensíveis requerem condicionamento de tensão e transição sem interrupção da UPS. O plano de continuidade deve especificar quais circuitos permanecem energizados, por quanto tempo e em quais falhas plausíveis.\n\nA análise de modos de falha e efeitos (FMEA), a investigação de causas comuns e o estudo de pontos únicos de falha (SPOF) ajudam a identificar riscos ocultos: dois UPS no mesmo quadro sem segregação, dois ramais no mesmo disjuntor, baterias comuns, ATS sem bypass de manutenção ou comando partilhado. **Redundância de equipamento não equivale automaticamente a redundância de caminho**. As duas fontes de um servidor só trazem benefício efetivo se a infraestrutura a montante tiver independência suficiente.\n\n## 3. Grandezas elétricas e capacidade\n\nPotência ativa **P** é medida em kW; potência aparente **S**, em kVA; fator de potência relaciona as duas em condições senoidais apropriadas (**P = S × FP**). Em cargas não lineares é necessário considerar também a distorção, e o fator de potência total continua sendo a razão entre potências ativa e aparente. Para circuito monofásico idealizado, **P = V × I × FP**; para trifásico equilibrado e tensão entre fases, **P = √3 × V_L × I_L × FP**. Não se deve dimensionar UPS com base apenas em kVA quando há limite próprio em kW, tampouco confundir potência instalada de placas de identificação com demanda medida e cenário de crescimento.\n\nExemplo: uma UPS com potência nominal de **200 kVA e 180 kW** alimenta uma carga que requer 170 kW e 175 kVA dentro do envelope informado, mas não uma que demande 190 kW mesmo que a demanda aparente seja inferior a 200 kVA. Em sistemas redundantes, cada caminho deve ser avaliado **após a perda de seu par**, com cabos, barramentos, proteções e dispositivos de comutação aptos a receber a carga transferida. O planejamento inclui partidas, inrush, harmônicas, aquecimento, desequilíbrio de fases, expansão, eficiência e temperatura ambiente.\n\n## 4. Disponibilidade, manutenção e dependências\n\nA disponibilidade operacional pode ser ilustrada pela razão **MTBF/(MTBF + MTTR)** em um modelo simplificado de falhas reparáveis; o resultado não representa garantia para uma instalação complexa com causas comuns e manutenções. Alta disponibilidade exige monitoramento de alarmes, manutenção preventiva, testes de transferência, documentação de manobras, peças de reposição e competência da equipe. O roteiro de contingência deve incluir perda de rede, falha da UPS, falha do gerador, degradação da bateria, sobrecarga e perda de ramo de distribuição. Procedimentos reais de manobra são específicos do equipamento e devem ser executados por profissionais habilitados e autorizados, com análise de risco e observância da NR-10.\n\n**Armadilha de prova:** a UPS não gera energia indefinidamente e o gerador não substitui o tempo de sustentação de uma UPS. A expressão *sem ponto único de falha* só pode ser analisada com limites claros: dois módulos em paralelo podem continuar compartilhando um painel, um software ou uma linha de combustível."
+    },
+    {
+      "title": "UPS: tecnologias, conversão, bypass e paralelismo",
+      "markdown": "## 1. UPS e qualidade da energia\n\nUPS (Uninterruptible Power System, sistema de alimentação ininterrupta) é o conjunto que mantém a carga em operação durante perturbações de entrada, utilizando armazenamento e eletrônica de potência. A classificação de desempenho da família IEC 62040 distingue o **grau de dependência da saída em relação à entrada**, frequentemente indicado pelas siglas **VFD, VI e VFI**, e não constitui, isoladamente, uma promessa de autonomia ou de ausência de todo tipo de perturbação. Na aplicação didática: VFD (dependente de tensão e frequência) é associado à arquitetura *off-line/standby*; VI (independente de tensão, mas não de frequência) à arquitetura *line-interactive*; VFI (independente de tensão e frequência) à dupla conversão *on-line*. A associação é típica, e a análise de produto depende de sua classificação declarada e dos ensaios aplicáveis.\n\nNo modelo *off-line*, a carga costuma receber a rede em regime normal e há mudança de percurso quando a entrada falha; tal arquitetura pode apresentar intervalo de transferência. No *line-interactive*, os recursos de regulação mitigam certas variações de tensão sem descarregar a bateria, mas há dependência da frequência de entrada em condições normais. Na **dupla conversão**, um retificador recebe CA e alimenta o barramento CC; um inversor sintetiza CA para a carga. No regime normal, a bateria fica disponível no lado CC mediante o circuito de armazenamento e carga. Quando a rede falta, o armazenamento mantém o barramento CC e o inversor continua suprindo a saída dentro das condições de projeto; daí a aptidão para operação sem o mesmo evento de comutação de uma UPS off-line.\n\n## 2. Bypass estático e bypass de manutenção\n\nO **bypass estático** é uma rota alternativa integrada ao sistema, comandada por chave eletrônica para transferir a carga ao suprimento de bypass quando necessário e quando as condições elétricas permitirem. Pode atuar, por exemplo, em determinadas sobrecargas ou falhas do inversor. Não se deve dizer que ele conserva a mesma filtragem e o mesmo isolamento funcional do modo inversor: **durante bypass, a carga fica mais exposta às condições da fonte de bypass**. A transição só é adequadamente tratada quando as fontes apresentam compatibilidade de tensão, frequência e sincronismo exigida pelo equipamento.\n\nO **bypass de manutenção** é um arranjo de seccionamento e derivação, usualmente externo ou dedicado, para permitir manutenção da UPS sem desligar a carga, desde que a arquitetura suporte essa finalidade. A existência de uma chave não autoriza manobras improvisadas: a sequência de transferência e a coordenação entre dispositivos seguem manual, diagrama unifilar, análise de riscos e pessoal autorizado. A proteção contra curto-circuito, a seletividade e o esquema de aterramento devem ser estudados também na condição de bypass, pois a contribuição de corrente de falta e a impedância podem mudar.\n\n## 3. Eficiência, autonomia e condições de carga\n\nPara uma UPS em regime estável, **η = P_saida/P_entrada**. Se entrega 90 kW com eficiência de 95%, a potência ativa absorvida é cerca de 94,74 kW e as perdas são aproximadamente 4,74 kW; a parcela de perdas contribui para a carga térmica a remover. A eficiência pode variar com carregamento, topologia e modo de operação. Um modo econômico pode reduzir perdas sob determinadas condições, mas exige exame das características da qualidade de energia e do comportamento na transição. A eficiência declarada não é igual à disponibilidade, e valores de catálogo não devem ser tratados como constantes universais.\n\nA autonomia é o período de sustentação nas condições especificadas de **potência da carga, tensão mínima, estado de carga, saúde da bateria, temperatura e perfil de descarga**. Uma estimativa energética preliminar pode usar E_útil ≈ P_carga × t / η_do_percurso, mas a seleção definitiva requer curvas de descarga do fabricante, restrições de corrente, envelhecimento, margens, tolerâncias e compatibilidade eletrônica. Não há relação linear universal entre autonomia e capacidade nominal em Ah, porque descarga rápida, temperatura e corte por tensão alteram a energia utilizável.\n\n## 4. UPS em paralelo e limites da redundância\n\nMódulos UPS em paralelo podem compartilhar carga e elevar capacidade ou redundância. Em configuração **N+1**, N módulos são suficientes para a carga de projeto e um módulo adicional oferece contingência para falha ou retirada planejada de uma unidade, desde que os controles, a distribuição e o sistema de baterias sejam adequadamente projetados. Se três módulos de 100 kW estiverem em arranjo no qual dois suprem a carga de 180 kW, o terceiro pode proporcionar contingência a uma unidade; porém, uma barra comum ou uma falha de controle compartilhado pode ser ponto único de falha. A soma das placas não prova tolerância a todo evento.\n\nO comportamento diante de sobrecargas, falhas, sincronismo, chaveamento estático, manutenção, recarga após descarga e atualização da lógica deve ser verificado em documentação técnica e testes. Para projeto crítico, os parâmetros em kW e kVA, a temperatura, o regime de operação, a corrente de curto-circuito admissível e a capacidade de transferência são tão importantes quanto a energia armazenada."
+    },
+    {
+      "title": "Redundância e caminhos A/B: N+1, 2N e níveis Tier",
+      "markdown": "## 1. Capacidade e segregação física\n\n**N** representa a capacidade mínima necessária para atender à carga crítica de projeto em determinado sistema. **N+1** adiciona um elemento de capacidade ao conjunto necessário, sem necessariamente criar um segundo caminho elétrico. **2N** prevê dois conjuntos, cada um com capacidade de sustentar integralmente a carga considerada; **2(N+1)** corresponde a conjuntos independentes com redundância interna adicional, de acordo com limites e nomenclatura definidos no projeto. A interpretação deve declarar o elemento analisado: módulos UPS, bombas, geradores, distribuição, resfriamento ou toda a instalação. Não é correto dizer que um arranjo 2N sempre garante continuidade diante de qualquer falha imaginável.\n\nUma arquitetura elétrica **A/B** fornece dois percursos distintos ao equipamento com duas entradas de energia. O percurso A pode compreender quadro, UPS, PDU e ramal próprios; o percurso B contém os equivalentes, suficientemente segregados. O servidor com duas fontes redundantes deve continuar operando se uma das alimentações for removida. Consequentemente, **cada ramo que possa permanecer sozinho deve ter capacidade para absorver a demanda pós-falha**, não apenas metade do consumo em regime normal. Uma operação com 50% da carga em cada ramo não elimina a necessidade de testar a situação de 100% em um só ramo, incluindo correntes de partida e limites dos conectores.\n\n## 2. Falhas de causa comum\n\nDois alimentadores elétricos podem compartilhar transformador, ATS, barramento de origem, dutos, sistema de controle, combustível, sala sujeita a inundação ou procedimento humano. Isso reduz a independência e cria causas comuns. Circuitos A/B mal etiquetados podem sofrer desligamento simultâneo durante manutenção. Rack PDU dupla não corrige, por si só, a ausência de separação a montante; da mesma forma, duas placas de alimentação no servidor não compensam barramento único sem alternativas. A avaliação da redundância deve atravessar **toda a cadeia**, desde a fonte até os terminais da carga, e incluir infraestrutura mecânica capaz de dissipar o calor da carga quando um sistema for retirado.\n\nEquipamentos com somente uma entrada (single-corded) exigem tratamento específico quando se pretende aproveitar caminhos A/B. Um comutador de transferência estático (STS), quando projetado e compatível, pode selecionar a fonte para a carga de alimentação única; entretanto, o STS também constitui componente de risco a analisar, e sua atuação não transforma o equipamento monofonte em dupla alimentação física independente. A comutação deve considerar sincronismo, qualidade e proteção das fontes. Não se confunde STS eletrônico para transferência rápida entre fontes CA com ATS eletromecânico usado frequentemente entre rede e geração de emergência.\n\n## 3. Classificação Tier e limites de inferência\n\nO Uptime Institute define quatro classes topológicas **Tier I, II, III e IV**, com aumento de exigências de capacidade, caminhos e resposta às falhas. Em termos conceituais: Tier I possui capacidade básica; Tier II acrescenta componentes de capacidade redundantes; Tier III exige **manutenção concorrente**, permitindo retirar componentes e caminhos necessários para manutenção planejada sem interromper a operação; Tier IV agrega **tolerância a falhas**, preservando a operação diante de evento de falha previsto nos critérios da classificação. Tier III e IV não são sinônimos. A certificação deve ser diferenciada de uma autodeclaração de projeto: **a presença de UPS N+1 ou gerador redundante, isoladamente, não confere automaticamente determinado Tier**.\n\nA classificação Tier é uma avaliação da topologia de infraestrutura e não impõe uma marca, tecnologia fixa de UPS, quantidade universal de minutos de bateria ou arquitetura única. A proteção térmica, a distribuição e os procedimentos operacionais integram a disponibilidade. O termo **concurrently maintainable** se refere à retirada planejada de componentes e percursos com a carga operando, sem significar imunidade a toda falha adicional durante a intervenção. **Fault tolerant** amplia o comportamento frente a falhas não programadas dentro dos critérios da norma.\n\n## 4. Exercícios de projeto e decisão\n\nConsidere uma carga crítica de 240 kW e UPS de 120 kW. Para N+1 com módulos iguais, são necessários pelo menos três módulos em um arranjo que permita 240 kW com apenas dois; a viabilidade também depende de kVA, fatores térmicos e integração. Para dois caminhos **2N**, cada caminho deve dispor dos 240 kW exigidos, sem supor que a carga total sobe a 480 kW: a potência é capacidade instalada para contingência. Em um cenário A/B em que uma PDU de rack consome 6 kW de cada lado normalmente, mas a carga total é 12 kW, ambos os alimentadores devem ser verificados para os 12 kW transferidos, caso a redundância funcional pressuponha transferência integral.\n\nPegadinhas recorrentes: equiparar redundância de componentes à tolerância a falhas; confundir manutenção concorrente com ausência absoluta de risco; classificar por porcentagens genéricas de disponibilidade; e dividir a capacidade de cada caminho A/B por dois sem analisar a condição degradada."
+    },
+    {
+      "title": "ATS, grupo gerador e sequência de transferência",
+      "markdown": "## 1. Papel do ATS\n\nA **chave de transferência automática (ATS, Automatic Transfer Switch)** seleciona, conforme lógica e intertravamentos, uma fonte preferencial e outra alternativa para alimentar determinada barra ou circuito. Em uma instalação usual, a rede elétrica é a fonte normal e o grupo gerador é a alternativa, mas também existem aplicações entre dois alimentadores de rede ou conjuntos geradores, conforme o controlador e o sistema. O ATS **não armazena energia**, **não substitui a UPS** e não assegura, por si, uma tensão sem interrupções durante a troca de fontes. Seu papel é supervisionar parâmetros das fontes e comandar a conexão segura de uma delas à carga conforme a modalidade de transferência.\n\nA operação normal pode compreender detecção de falha de tensão/frequência, temporização para evitar transferências por perturbações breves, sinal de partida do gerador, confirmação da estabilidade da fonte alternativa, transferência, monitoração do retorno da rede, retransferência conforme critérios configurados e resfriamento do gerador. Essa é uma **sequência funcional**, não um passo a passo de operação de um equipamento específico: ajustes, permissivos e dispositivos efetivos dependem do projeto e do fabricante. A UPS supre as cargas ininterruptíveis durante o período em que o grupo gerador ainda não está pronto para assumir.\n\n## 2. Tipos de transição\n\nNa **transição aberta (break-before-make)**, a ligação à primeira fonte é interrompida antes da conexão à segunda; ocorre uma descontinuidade potencial de alimentação à carga, que a UPS pode cobrir. Em **transição fechada (make-before-break)**, existe sobreposição controlada e temporária das fontes, exigindo condições específicas de sincronização e permissivos técnicos e regulatórios para paralelismo momentâneo. Portanto, não se presume a possibilidade de transição fechada em qualquer duas fontes, tampouco se declara que toda transferência fechada é automaticamente livre de qualquer perturbação. Existem ainda esquemas de transição aberta com retardo intencional, úteis conforme características de cargas e fontes.\n\nO **intertravamento** impede estados de conexão não autorizados e paralelismo indevido, em particular nos equipamentos que operam com transição aberta. O ATS deve ter adequação à corrente nominal, tensão, número de polos, capacidade de suportar e estabelecer correntes de curto-circuito segundo sua especificação, e compatibilidade com o esquema de aterramento. A seleção entre três ou quatro polos, inclusive a comutação de neutro, demanda avaliação técnica do sistema; não há regra universal de 'sempre comutar' nem 'nunca comutar' o neutro. A coordenação com proteção do grupo gerador e do quadro de baixa tensão é imprescindível.\n\n## 3. O que acontece em uma queda de rede\n\nImagine uma UPS de dupla conversão alimentando servidores, com ATS a montante e grupo gerador de emergência. No instante da perda da fonte normal, o armazenamento sustenta o elo CC e o inversor continua atendendo a carga. O controlador do gerador recebe solicitação de partida; quando a fonte alternativa satisfaz os critérios, o ATS transfere. A UPS passa a receber energia pela entrada de CA novamente e, segundo seu controle e limites, pode iniciar recarga. O dimensionamento da bateria deve considerar **tempo real de detecção, partida, estabilização e transferência**, contingências de falha de partida, margens, repetições e perfil de descarga.\n\nEm instalação sem UPS, o mesmo ATS com transição aberta pode provocar interrupção no circuito durante a partida e a transferência. Um gerador fornece potência pelo período em que houver combustível e condições operacionais adequadas, mas sua confiabilidade depende de manutenção, partida, qualidade do combustível, resfriamento, exaustão e suprimento de óleo e ar. O sistema elétrico não pode desconsiderar falha do ATS, uso de bypass de manutenção, curtos a jusante e erros de parametrização.\n\n## 4. Testes e segurança\n\nTestes integrados devem verificar resposta a falha da rede, passagem ao gerador, estabilidade, autonomia, alarmes, transferência de volta e comportamento das cargas efetivas, respeitadas condições autorizadas. Ensaios isolados de um gerador não provam o comportamento da **cadeia ponta a ponta**. Em cada teste, definem-se responsáveis, plano de contingência, critérios de abortar, instrumentos e registro de resultados. A NR-10 estabelece fundamentos para prevenção de riscos em intervenções elétricas: o estudo teórico não substitui diagramas, procedimentos formais e pessoal qualificado, habilitado ou autorizado conforme a atividade."
+    },
+    {
+      "title": "Armazenamento: VRLA e baterias de íons de lítio",
+      "markdown": "## 1. Função das baterias na continuidade\n\nA bateria de uma UPS fornece energia ao conversor durante a indisponibilidade da fonte CA ou enquanto ocorre transição para outra fonte. Sua função central em muitos centros de dados é **ponte de autonomia** até que outra alimentação se estabilize; em outros projetos, sustenta cargas por tempo mais longo para desligamento controlado ou continuidade sem geração. A escolha considera não somente energia nominal, mas **potência de descarga**, fim de descarga permitido, temperatura, degradação, disponibilidade de reposição, monitoramento, segurança, custos do ciclo de vida e compatibilidade do UPS.\n\nA designação **VRLA** significa bateria chumbo-ácida regulada por válvula (Valve-Regulated Lead-Acid), frequentemente em tecnologias AGM ou gel. Seu uso em UPS é consolidado, mas a vida útil e a capacidade são sensíveis à temperatura, à profundidade e frequência de descargas, ao regime de flutuação e à idade. 'Selada' ou 'de baixa manutenção' **não significa dispensada de inspeção**: conexões, temperatura, sinais de degradação, desequilíbrio entre blocos, alarmes e testes periódicos permanecem relevantes. A substituição deve seguir recomendações do fabricante e avaliação de desempenho, sem presumir que todos os blocos permanecem saudáveis até a data nominal de troca.\n\n## 2. Íons de lítio e BMS\n\nSoluções **Li-ion** para UPS podem apresentar maior densidade energética, massa e volume menores para a mesma aplicação, vida de serviço e desempenho em ciclos potencialmente superiores aos de VRLA; contudo, os resultados variam conforme a química, a configuração, a temperatura e o perfil de operação. Não se afirma que todo sistema de lítio é sempre mais barato: há custo inicial, requisitos de proteção, instalações e avaliação de custo total (TCO). **BMS (Battery Management System)** acompanha parâmetros como tensão, corrente, temperaturas e estado de carga/saúde, e toma ou recomenda medidas de proteção conforme o projeto. O BMS não elimina os riscos de aquecimento, falhas ou necessidade de engenharia de segurança.\n\nBaterias de lítio requerem estratégia de prevenção, detecção e resposta compatível com sua química, com atenção a propagação térmica, isolamento de falhas, ventilação e interfaces com proteção e controle. Sistemas VRLA também envolvem riscos elétricos, térmicos e químicos, inclusive eventual geração de gases em condições de carga e falha. A escolha não deve ser reduzida à ideia simplista de 'lítio seguro' versus 'chumbo inseguro'; as duas tecnologias exigem medidas específicas e instalações conformes.\n\n## 3. Autonomia: energia e potência não são sinônimos\n\nPara estimativa inicial, a energia ideal para alimentar **60 kW por 10 minutos** é 60 × (10/60) = **10 kWh na carga**. Se a cadeia de descarga apresentar eficiência suposta de 90%, seriam aproximadamente **11,1 kWh retirados do armazenamento**, antes de margens por fim de descarga, envelhecimento, temperatura e potência de descarga. Esse exemplo **não é um dimensionamento executivo**; a tensão do barramento CC, a curva de descarga e a potência exigida por módulo podem invalidar uma escolha fundada só no valor em kWh. Capacidade expressa em Ah deve ser associada à tensão e ao regime de descarga para estimar energia.\n\n**SOC** (state of charge) indica estado de carga, enquanto **SOH** (state of health) se relaciona ao estado de saúde e capacidade funcional em relação à referência. Um SOC elevado não comprova capacidade suficiente se houver degradação. A descarga em poucos minutos impõe taxas elevadas e limitações de corrente e queda de tensão. A recomendação de projetar margem não autoriza adotar percentual universal de envelhecimento ou temperatura sem dados do fabricante.\n\n## 4. Operação, manutenção e decisões econômicas\n\nMonitoramento pode abranger tensão de strings e blocos, resistência/impedância indicativa, temperatura, alarmes do BMS, SOC/SOH estimados, histórico de descargas, prazo de reposição e consistência entre bancos. Testes devem ser planejados para não transformar uma atividade de manutenção em causa de falha do ambiente crítico. Após uma falta extensa da rede, o sistema pode estar energizado, mas com menor autonomia disponível até que o armazenamento seja recarregado. Quando existem bancos comuns a vários módulos UPS, cabe examinar se eles criam dependência ou dificultam intervenção individual.\n\nEm análise de ciclo de vida, incluem-se compra, espaço ocupado, piso e estrutura, perdas, climatização, manutenção, descarte e reposições. A solução tecnicamente superior depende da finalidade e da carga, não só do preço da primeira bateria. Em provas, desconfie de comparações absolutas sobre 'vida útil fixa', 'imunidade total à temperatura', 'ausência de manutenção' ou 'capacidade em Ah independente da descarga'."
+    },
+    {
+      "title": "Busway, ATS de rack, carga por rack e operação",
+      "markdown": "## 1. Como a energia chega ao rack\n\nA distribuição terminal pode empregar quadros, PDUs de sala, **barramentos blindados ou busway**, caixas de derivação (*tap-off*) e **rack PDUs**. O busway é uma solução de condutores coletivos protegidos em invólucro, muitas vezes instalada sobre corredores de racks, com pontos de derivação para alimentar os equipamentos. Em ambientes sujeitos a realocação de cargas, módulos de derivação e monitoração podem simplificar mudanças e reduzir longos chicotes de cabos, mas a flexibilidade depende do modelo, das capacidades e do procedimento autorizado de instalação. Busway **não é fonte elétrica**, não armazena energia, não substitui UPS ou gerador e não produz redundância só por existir.\n\nO sistema deve dimensionar barramento, alimentador, caixas *tap-off*, proteção local, cabos flexíveis, conectores, PDUs e tomadas. Uma caixa de derivação com proteção pode limitar a área afetada por uma falha, desde que exista coordenação adequada com proteções superiores. A possibilidade comercial de instalar derivação com sistema energizado não constitui autorização genérica para trabalho energizado: valem as instruções do fabricante, avaliação de riscos, NR-10 e condições efetivas do modelo. Em solução A/B, dois busways independentes podem alimentar PDUs de rack distintas; se estiverem ligados a um mesmo ponto frágil, permanece a causa comum.\n\n## 2. Como estimar carga por rack\n\nA **carga por rack** costuma ser expressa em **kW/rack**, grandeza distinta de kWh, que mede energia consumida durante um intervalo. Deve-se obter inventário de servidores, armazenamento, redes e acessórios, potência nominal e medições reais nas rack PDUs, perfis de pico, fator de simultaneidade justificável, expansão projetada e eventual carga de resfriamento local. O pico de consumo da aplicação pode não coincidir com a soma das placas de identificação; por outro lado, média histórica baixa não autoriza ignorar picos de curta duração que ativam proteção. Em ambientes de computação de alta densidade, é necessário discutir carga térmica, capacidade de resfriamento e conexão elétrica por rack em conjunto.\n\nExemplo de planejamento: **40 racks com demanda projetada de 12 kW/rack** equivalem a **480 kW de carga de TI**. Se, como hipótese de engenharia, reservar-se capacidade operacional de 20% da capacidade instalada (opera-se até 80%), requer-se pelo menos **480/0,80 = 600 kW** de capacidade útil nominal antes de considerar outros fatores do sistema, limites de kVA, redundância e contingências. O cálculo não significa que a instalação consumirá 600 kW, nem que 20% seja exigência normativa universal. Numa distribuição A/B, cada percurso que possa assumir toda a carga de TI deverá ser capaz de suportar os **480 kW pós-falha**, sob os pressupostos adotados.\n\n## 3. Corrente, trifásico e balanceamento\n\nNo modelo ideal monofásico, um circuito de **230 V, 16 A e FP = 0,95** comporta cerca de 230 × 16 × 0,95 = **3,496 kW**, valor teórico nas condições dadas e não autorização para carregamento contínuo sem avaliar limites normativos, de conectores, disjuntores, cabos, temperatura e segurança. Em circuito trifásico equilibrado, **P = √3 × V_entre-fases × I_linha × FP**. Assim, 400 V, 32 A e FP 0,90 dão aproximadamente 19,95 kW. Correntes efetivas por fase, neutro, harmônicas, inrush e assimetrias precisam ser avaliadas, especialmente quando vários servidores com fontes chaveadas compartilham o mesmo ramo.\n\nA carga pode alternar entre fontes redundantes do servidor de modo desigual; não é seguro supor divisão 50/50 em todas as condições. O dimensionamento de cabos e PDUs deve considerar a condição de perda do lado oposto. A proteção seletiva busca isolar uma falta o mais perto possível de sua origem, evitando que um defeito de um circuito terminal desligue a alimentação de toda uma fileira; a seletividade efetiva depende das curvas dos dispositivos e das correntes de falta disponíveis.\n\n## 4. Indicadores e comissionamento\n\n**PUE (Power Usage Effectiveness)** é a razão entre energia consumida pela instalação e energia consumida pelos equipamentos de TI, considerando medição coerente no tempo: PUE = energia total do data center / energia de TI. Um PUE próximo de 1 indica menor parcela relativa de consumo não TI, mas não mede, por si, tolerância a falhas ou confiabilidade. Também não representa a autonomia das baterias. Medições de kW, kVA, corrente por fase, temperatura, alarmes de UPS/baterias/ATS, histórico de transferências e ocupação de rack são indicadores complementares de capacidade e saúde operacional.\n\nNo **comissionamento integrado**, verificam-se os caminhos A/B, a perda de um ramo, comportamento da carga com alimentação unilateral, limites do busway e da PDU, transferência entre fontes, integração com UPS e gerador, alarmes, comunicação, identificação e documentação. Testes devem obedecer a plano seguro, critérios mensuráveis e procedimentos de operação, sem aplicar falhas improvisadas em instalações vivas. O resultado desejado não é apenas uma lista de equipamentos redundantes, mas evidência técnica de que a cadeia atende ao perfil de risco da carga crítica."
+    }
+  ],
+  "summary": "A continuidade elétrica resulta de uma cadeia integrada: rede e geração alternativa, ATS, UPS, armazenamento, barramentos, PDUs e alimentação dos equipamentos. A UPS cobre perturbações e o intervalo até a estabilização da fonte alternativa; o ATS comuta fontes, mas não armazena energia. Bypass estático e bypass de manutenção têm finalidades distintas, e sua utilização pode expor a carga às condições da fonte não condicionada. Redundância N+1 adiciona capacidade; 2N replica capacidade integral; caminhos A/B precisam suportar a carga transferida quando um lado falha. Tier III destaca manutenção concorrente e Tier IV acrescenta tolerância a falhas. VRLA e íons de lítio apresentam diferentes compromissos de ciclo de vida, monitoramento, segurança e custos. Busway com tap-offs distribui energia de modo modular, mas não cria autonomia. Dimensionar por kW/rack, kVA, fator de potência, correntes por fase, crescimento e situação pós-falha é essencial. Testes integrados, segurança, manutenção e monitoramento são condições da disponibilidade efetiva.",
+  "flashcards": [
+    {
+      "front": "Qual é a função da UPS em um sistema crítico?",
+      "back": "Manter alimentação à carga durante perturbações ou falha da fonte, usando conversão eletrônica e energia armazenada dentro dos limites de projeto."
+    },
+    {
+      "front": "Qual é a função do ATS?",
+      "back": "Selecionar e transferir carga entre fontes de energia conforme lógica, monitoramento e intertravamentos; não armazena energia."
+    },
+    {
+      "front": "Qual é o papel do gerador em relação à bateria de UPS?",
+      "back": "Fornecer uma fonte alternativa sustentada após partida e estabilização, enquanto a bateria cobre o intervalo de transição."
+    },
+    {
+      "front": "O que caracteriza VFI?",
+      "back": "UPS cuja saída é independente das variações de tensão e frequência da entrada dentro da classificação de desempenho aplicável."
+    },
+    {
+      "front": "Como se diferenciam VI e VFD?",
+      "back": "VI caracteriza independência da saída quanto à tensão de entrada; VFD apresenta dependência quanto à tensão e à frequência."
+    },
+    {
+      "front": "O que ocorre no bypass estático?",
+      "back": "A carga passa a ser alimentada pela rota de bypass sob condições permitidas, podendo perder o condicionamento típico da saída do inversor."
+    },
+    {
+      "front": "Qual é a finalidade do bypass de manutenção?",
+      "back": "Viabilizar a manutenção isolada de partes da UPS, com continuidade da carga quando a arquitetura e os procedimentos permitem."
+    },
+    {
+      "front": "O que significa N+1?",
+      "back": "Capacidade suficiente por N elementos, acrescida de um elemento extra para contingência de capacidade."
+    },
+    {
+      "front": "O que significa 2N?",
+      "back": "Dois conjuntos de capacidade, cada qual apto a sustentar toda a carga de projeto considerada."
+    },
+    {
+      "front": "Por que 2 PDUs no rack não bastam para redundância real?",
+      "back": "Porque os caminhos podem compartilhar ATS, quadro, UPS, barramento ou alimentação a montante."
+    },
+    {
+      "front": "Qual o diferencial topológico do Tier III?",
+      "back": "Manutenção concorrente dos componentes e caminhos necessários sem interrupção planejada da carga crítica."
+    },
+    {
+      "front": "O que o Tier IV acrescenta conceitualmente ao Tier III?",
+      "back": "Tolerância a falhas consideradas na classificação, além da manutenção concorrente."
+    },
+    {
+      "front": "Qual é a diferença entre ATS e STS?",
+      "back": "ATS comuta fontes por mecanismo de transferência; STS usa chaveamento estático rápido em aplicações compatíveis; nenhum deles é bateria."
+    },
+    {
+      "front": "Por que transição fechada de ATS exige cuidados?",
+      "back": "Porque o paralelismo temporário das fontes só é admissível sob condições de sincronismo, proteção e permissivos específicos."
+    },
+    {
+      "front": "O que é VRLA?",
+      "back": "Bateria chumbo-ácida regulada por válvula, tradicional em UPS, sensível a temperatura, descargas e envelhecimento."
+    },
+    {
+      "front": "O que é BMS em sistemas de lítio?",
+      "back": "Sistema que monitora e gerencia parâmetros das células/módulos e executa funções de proteção conforme o projeto."
+    },
+    {
+      "front": "SOC e SOH significam a mesma coisa?",
+      "back": "Não. SOC indica estado de carga; SOH descreve estado de saúde/degradação da bateria."
+    },
+    {
+      "front": "Qual a função de tap-off em busway?",
+      "back": "Derivar energia do barramento principal para o circuito de alimentação de equipamentos ou racks, com recursos de proteção conforme o projeto."
+    },
+    {
+      "front": "Busway é a mesma coisa que UPS?",
+      "back": "Não. Busway distribui energia; UPS condiciona/sustenta a alimentação com energia armazenada."
+    },
+    {
+      "front": "Como calcular potência monofásica ativa aproximada?",
+      "back": "P = V × I × FP, em condições compatíveis com a definição de fator de potência total."
+    },
+    {
+      "front": "Como calcular potência ativa trifásica equilibrada?",
+      "back": "P = √3 × tensão entre fases × corrente de linha × fator de potência."
+    },
+    {
+      "front": "O que é kW/rack?",
+      "back": "Potência demandada por rack, diferente de kWh, que quantifica energia ao longo do tempo."
+    },
+    {
+      "front": "Por que cada caminho A/B pode precisar suportar 100% da carga?",
+      "back": "Para continuar alimentando toda a demanda quando o caminho oposto é perdido."
+    },
+    {
+      "front": "O que mede o PUE?",
+      "back": "Relação entre a energia total consumida pelo data center e a energia consumida pelos equipamentos de TI."
+    },
+    {
+      "front": "Por que medir somente potência nominal das placas é insuficiente?",
+      "back": "Não demonstra demanda real, picos, simultaneidade, transferência de cargas e expansão futura."
+    },
+    {
+      "front": "O que é teste integrado?",
+      "back": "Ensaio planejado do comportamento conjunto de alimentação, UPS, baterias, geração, ATS, distribuição, alarmes e cargas."
+    }
+  ],
+  "tips": [
+    "Em qualquer enunciado, separe três funções: ATS escolhe a fonte; UPS sustenta e condiciona; gerador fornece energia alternativa após estabilização.",
+    "Antes de aplicar N+1 ou 2N, defina exatamente qual componente ou caminho é a base N.",
+    "Em A/B, avalie a carga de cada circuito em condição normal e em falha do caminho oposto; capacidade pós-falha é decisiva.",
+    "Para questões de autonomia, converta minutos em horas e trate o resultado em kWh apenas como estimativa preliminar.",
+    "Se aparecer kVA e kW no catálogo da UPS, confira ambos: a carga deve respeitar as duas limitações.",
+    "Distingua bypass estático (rota operacional da UPS) de bypass de manutenção (isolamento para intervenção planejada).",
+    "Associe Tier III à manutenção concorrente e Tier IV à tolerância a falhas, nunca à mera existência de gerador.",
+    "Para busway e rack, confira tap-off, conectores, limites de proteção, monitoramento, balanço de fases e segregação A/B."
+  ],
+  "traps": [
+    "Confundir o tempo de partida do gerador com tempo de transferência zero oferecido pelo ATS.",
+    "Presumir que todo ATS de transição fechada pode paralelar quaisquer fontes sem sincronismo.",
+    "Tratar N+1 como sinônimo de dois caminhos elétricos inteiramente independentes.",
+    "Concluir que rack PDU dupla garante A/B mesmo quando há um único disjuntor comum a montante.",
+    "Afirmar que o bypass mantém a mesma proteção de qualidade de energia da dupla conversão.",
+    "Supor que lítio não requer BMS, inspeção ou estratégia contra falhas térmicas.",
+    "Confundir densidade em kW/rack com consumo energético em kWh ou com corrente em amperes.",
+    "Usar PUE como índice direto de disponibilidade ou Tier."
+  ],
+  "activeRecall": [
+    {
+      "question": "O que impede que dois UPS N+1 no mesmo painel forneçam necessariamente independência completa?",
+      "answer": "A existência de ponto comum a montante ou a jusante, incluindo quadro, barra, controle ou alimentação; N+1 trata da capacidade de módulos, não garante caminhos separados."
+    },
+    {
+      "question": "Por que a UPS pode manter o servidor ligado antes de o gerador assumir?",
+      "answer": "Seu armazenamento mantém o elo CC/inversor durante a ausência da alimentação CA, até o ATS transferir para uma fonte alternativa qualificada."
+    },
+    {
+      "question": "O que observar se um servidor de duas fontes recebe 5 kW por A e 5 kW por B?",
+      "answer": "Cada percurso deve suportar os 10 kW totais após perda do outro, desde que o servidor transfira integralmente a demanda ao lado remanescente."
+    },
+    {
+      "question": "Como distinguir VFD, VI e VFI sem confundir com autonomia?",
+      "answer": "VFD é dependente de tensão/frequência; VI é independente de tensão; VFI é independente de ambas, dentro dos critérios; autonomia depende do armazenamento e da carga."
+    },
+    {
+      "question": "O que ocorre ao enviar a carga para bypass estático?",
+      "answer": "A alimentação passa pelo caminho de bypass, não pela saída condicionada do inversor; devem ser avaliadas compatibilidade, proteção e exposição à fonte."
+    },
+    {
+      "question": "Que risco existe ao dimensionar baterias só pela capacidade nominal em Ah?",
+      "answer": "Ignoram-se tensão, potência de descarga, queda de tensão, temperatura, envelhecimento, tempo de descarga e limites de corrente."
+    },
+    {
+      "question": "Qual é a razão fundamental para distinguir Tier III de Tier IV?",
+      "answer": "Tier III contempla manutenção concorrente; Tier IV acrescenta tolerância a falhas de acordo com os critérios da classificação."
+    },
+    {
+      "question": "Que elementos avaliar no projeto de busway com derivação por rack?",
+      "answer": "Capacidade do barramento, tap-offs, proteção, conectores, circuitos, medição, segregação A/B, carga de pico e aquecimento."
+    },
+    {
+      "question": "Uma carga de 90 kW com UPS de eficiência 95% demanda quanto de potência ativa de entrada, aproximadamente?",
+      "answer": "90/0,95 = 94,74 kW, com cerca de 4,74 kW de perdas na UPS nas condições indicadas."
+    },
+    {
+      "question": "Que testes demonstram mais do que a mera partida isolada de gerador?",
+      "answer": "Testes integrados de falha de rede, atuação de UPS e ATS, transferência para geração, retorno, alarmes, autonomia e comportamento real da carga."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Transferência de fonte não é autonomia",
+      "summary": "ATS e gerador tratam seleção de fonte e geração alternativa; a UPS usa armazenamento para cobrir o intervalo e condicionar a energia. Transição aberta de ATS pode ter interrupção."
+    },
+    {
+      "key": "e2",
+      "title": "Redundância de módulos não garante caminhos independentes",
+      "summary": "N+1 trata capacidade adicional. Caminhos A/B e 2N exigem análise ponta a ponta de capacidade após falha e eliminação de causas comuns."
+    },
+    {
+      "key": "e3",
+      "title": "Bypass não conserva automaticamente o condicionamento da UPS",
+      "summary": "O bypass desvia o percurso do inversor e pode expor a carga a características da fonte alternativa; manobra de manutenção requer projeto e sequência autorizada."
+    },
+    {
+      "key": "e4",
+      "title": "Autonomia não equivale à capacidade nominal em Ah",
+      "summary": "Estimar bateria exige potência de descarga, tempo, tensão, perdas, curvas, temperatura, envelhecimento e limite de descarga; SOC alto não equivale a SOH bom."
+    },
+    {
+      "key": "e5",
+      "title": "Busway é distribuição, não fonte ininterrupta",
+      "summary": "Busway e tap-offs fornecem flexibilidade de distribuição. Não substituem UPS/geração, e sua flexibilidade não exclui dimensionamento e proteção."
+    },
+    {
+      "key": "e6",
+      "title": "kW/kVA, carga por rack e PUE não são intercambiáveis",
+      "summary": "kW mede potência ativa, kVA potência aparente, kWh energia; PUE mede proporção de energia da instalação destinada a TI, não sua confiabilidade."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No projeto de um centro de dados, qual medida melhor identifica continuidade real do fornecimento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Instalar um grupo gerador e dispensar o estudo de transferência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Examinar a cadeia completa, inclusive dependências, proteção, distribuição e falhas comuns.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Contabilizar somente o número de módulos UPS no ambiente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tomar a potência nominal dos servidores como garantia de disponibilidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adotar dois cabos de alimentação ligados ao mesmo disjuntor.",
+          "correct": false
+        }
+      ],
+      "explanation": "A continuidade depende de fontes, armazenamento, conversão, distribuição, proteção e manutenção coordenados. Gerador, UPS ou cabos isolados não eliminam interrupções nem pontos únicos de falha a montante.",
+      "section": "Criticidade e arquitetura do suprimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A existência de um gerador de emergência garante alimentação instantânea das cargas ininterruptíveis quando a concessionária falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O gerador requer detecção, partida, estabilização e transferência, o que pode criar intervalo sem suprimento direto. As cargas que não admitem esse intervalo precisam de UPS ou solução equivalente projetada.",
+      "section": "Criticidade e arquitetura do suprimento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma UPS tem limites declarados de 200 kVA e 180 kW. Qual carga está dentro de ambos os limites, desconsiderados outros fatores?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "195 kVA e 190 kW.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "205 kVA e 160 kW.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "180 kVA e 185 kW.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "175 kVA e 170 kW.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "210 kVA e 175 kW.",
+          "correct": false
+        }
+      ],
+      "explanation": "O ponto de operação deve respeitar simultaneamente potência ativa e aparente; 170 kW é inferior a 180 kW e 175 kVA é inferior a 200 kVA. As demais hipóteses excedem pelo menos um dos limites.",
+      "section": "Criticidade e arquitetura do suprimento",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois ramais elétricos alimentados pelo mesmo barramento podem compartilhar um ponto único de falha mesmo quando cada rack recebe dois cabos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A duplicação terminal não elimina a vulnerabilidade do barramento compartilhado. Uma falha desse elemento pode atingir as duas alimentações, devendo-se avaliar separação real dos percursos desde a origem até a carga.",
+      "section": "Criticidade e arquitetura do suprimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao classificar cargas de uma instalação crítica, o critério tecnicamente correto é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "definir a interrupção admissível conforme a função e o risco de cada carga.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "classificar toda carga elétrica como necessariamente ininterruptível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "classificar como não essencial qualquer carga sem UPS própria.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "atribuir a mesma autonomia a todos os circuitos, por convenção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "definir a criticidade apenas pela corrente nominal do equipamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "A criticidade nasce dos efeitos de uma indisponibilidade e da tolerância da aplicação, não apenas de consumo ou de presença de UPS. Cargas essenciais podem admitir breve intervalo, diferentemente das ininterruptíveis.",
+      "section": "Criticidade e arquitetura do suprimento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em modelo simplificado de equipamento reparável, maior tempo médio de reparo, mantido o tempo médio entre falhas, reduz a disponibilidade estimada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Pela expressão ilustrativa MTBF/(MTBF + MTTR), o aumento do tempo médio de reparo amplia o denominador e reduz a disponibilidade. Em instalações complexas, causas comuns e modos de falha exigem análise mais ampla.",
+      "section": "Criticidade e arquitetura do suprimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na avaliação do projeto de continuidade, qual risco representa causa comum?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um caminho A ter identificação visual distinta do caminho B e dispositivos de proteção próprios, sem apresentar interdependência entre suas alimentações.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cada rack ter medição individual de potência por ramo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dois percursos independentes em aparência utilizarem o mesmo quadro principal vulnerável.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A equipe manter procedimentos separados para cada UPS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os equipamentos possuírem duas fontes independentes em operação.",
+          "correct": false
+        }
+      ],
+      "explanation": "O quadro principal comum pode derrubar simultaneamente os dois percursos. Identificação, medição e duplicidade verdadeira das fontes não constituem, por si, causas comuns e podem contribuir para operação segura.",
+      "section": "Criticidade e arquitetura do suprimento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma carga de TI de 100 kW consome obrigatoriamente 100 kVA, independentemente de seu fator de potência e das correntes não lineares.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "kW e kVA são grandezas diferentes: a potência aparente depende do fator de potência total, inclusive de efeitos de distorção. A igualdade só ocorre sob condição apropriada de fator de potência unitário.",
+      "section": "Criticidade e arquitetura do suprimento",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em UPS de dupla conversão funcionando normalmente, qual sequência descreve o caminho essencial de potência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Inversor converte CA em CC, que segue diretamente à tomada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O bypass de manutenção permanece em série com o inversor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A bateria fornece toda a potência mesmo com a rede estável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O ATS integra obrigatoriamente o barramento CC do equipamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Retificador alimenta o elo CC e inversor fornece CA à carga.",
+          "correct": true
+        }
+      ],
+      "explanation": "Na dupla conversão, retificador e inversor processam a energia para a carga, com armazenamento associado ao lado CC. Bateria, bypass e ATS têm funções específicas e não substituem esse fluxo em regime normal.",
+      "section": "UPS: tecnologias, conversão, bypass e paralelismo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na classificação usual, uma UPS VFI busca tornar sua saída independente de variações de tensão e frequência da entrada nos limites especificados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "VFI caracteriza independência da tensão e da frequência de entrada conforme a classificação de desempenho do equipamento. Isso não assegura energia ilimitada nem elimina requisitos de ensaio e condições de operação.",
+      "section": "UPS: tecnologias, conversão, bypass e paralelismo",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em situação admissível de transferência ao bypass estático, a consequência de projeto mais relevante é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "a autonomia da bateria aumentar automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "a alimentação da carga tornar-se totalmente independente de qualquer fonte.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "a carga ser alimentada pela rota de bypass e ficar mais dependente da qualidade dessa fonte.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "a necessidade de coordenar proteções deixar de existir.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "o gerador passar a alimentar diretamente o barramento CC.",
+          "correct": false
+        }
+      ],
+      "explanation": "O bypass estático é uma rota alternativa que pode preservar suprimento em certas falhas, mas contorna o condicionamento típico do inversor. Proteções, sincronismo e qualidade da fonte de bypass continuam essenciais.",
+      "section": "UPS: tecnologias, conversão, bypass e paralelismo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O bypass de manutenção tem a finalidade de permitir intervenções planejadas na UPS com a carga atendida quando há arquitetura e manobra apropriadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O percurso de manutenção cria possibilidade de isolamento de partes da UPS sem desligar a carga, quando previsto em projeto. A operação depende de sequência formal, compatibilidade e equipe autorizada, não de improvisação.",
+      "section": "UPS: tecnologias, conversão, bypass e paralelismo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma UPS entrega 90 kW com eficiência constante suposta de 95%. Qual é aproximadamente sua potência ativa de entrada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "94,74 kW.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "85,50 kW.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "90,95 kW.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "95,00 kW de perdas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "100,00 kW de perdas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A eficiência é saída dividida pela entrada; logo, entrada = 90/0,95 ≈ 94,74 kW. As perdas são a diferença, aproximadamente 4,74 kW, e não a potência total absorvida.",
+      "section": "UPS: tecnologias, conversão, bypass e paralelismo",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A autonomia da UPS é definida exclusivamente pela potência nominal do inversor, ainda que a bateria esteja envelhecida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A potência nominal do inversor define parte da capacidade instantânea, não a energia útil disponível durante minutos. Autonomia depende também de carga, bateria, temperatura, estado de saúde e limites de descarga.",
+      "section": "UPS: tecnologias, conversão, bypass e paralelismo",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Três módulos UPS de 100 kW alimentam uma carga de 180 kW em arranjo que permite perder um módulo. A descrição correta é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "2N de caminhos separados, independentemente da distribuição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "N sem reserva, pois todos os módulos são indispensáveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tier IV automático, por haver três módulos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "N+1 em termos de módulos, pois dois atendem à carga de projeto.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Imunidade a falhas de barramento comum, por consequência do paralelismo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Dois módulos somam 200 kW e atendem aos 180 kW; o terceiro oferece margem de falha de módulo. Isso não demonstra dois caminhos independentes ou eliminação de pontos únicos no paralelismo.",
+      "section": "UPS: tecnologias, conversão, bypass e paralelismo",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A eficiência de uma UPS pode variar conforme percentual de carregamento e modo de operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "As perdas relativas dependem da topologia, da carga e da estratégia operacional, como a presença de modos de economia. Por isso, um valor de eficiência de catálogo não deve ser aplicado sem verificar condições associadas.",
+      "section": "UPS: tecnologias, conversão, bypass e paralelismo",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma infraestrutura possui dois sistemas completos, cada qual capaz de alimentar integralmente 240 kW de TI. Qual expressão melhor descreve a capacidade duplicada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "N+1 necessariamente, por haver uma unidade de reserva em vez de dois conjuntos de capacidade integral, independentemente da segregação das fontes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "2N para a carga especificada, desde que os conjuntos sejam adequadamente segregados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "N simples, porque metade da potência não é usada normalmente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tier IV certificado por definição, sem avaliação de topologia.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sistema sem qualquer causa comum, independentemente da origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "A expressão 2N descreve dois conjuntos com capacidade integral N. A segregação e as causas comuns precisam ser analisadas; a nomenclatura de capacidade não confere por si certificação ou tolerância universal.",
+      "section": "Redundância e caminhos A/B: N+1, 2N e níveis Tier",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A configuração N+1 de módulos UPS, isoladamente, comprova a existência de dois percursos de distribuição fisicamente independentes até cada rack.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "N+1 descreve reserva de componentes de capacidade. Os módulos podem usar barramento, quadro, ATS ou distribuição comuns; a independência A/B exige exame dos percursos completos e de pontos únicos de falha.",
+      "section": "Redundância e caminhos A/B: N+1, 2N e níveis Tier",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um rack consome 12 kW e possui fontes redundantes distribuídas entre A e B. Se perder um ramo e mantiver toda a carga, cada lado deve:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ser dimensionado para apenas 6 kW, porque as fontes redundantes impedem qualquer migração de potência para o lado que permanece energizado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "suportar 24 kW só por existir duplicidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "dispensar verificação de corrente de entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ter apenas medição energética, sem proteção elétrica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "suportar os 12 kW, observados proteção, cabeamento e conectores.",
+          "correct": true
+        }
+      ],
+      "explanation": "O arranjo A/B precisa suportar a carga íntegra no lado remanescente. O balanceamento de 6 kW por lado em regime normal não elimina a transferência pós-falha; limites dos circuitos continuam exigíveis.",
+      "section": "Redundância e caminhos A/B: N+1, 2N e níveis Tier",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Manutenção concorrente, característica conceitual do Tier III, significa retirar componentes e percursos para manutenção planejada sem interrupção da carga conforme a topologia prevista.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A classificação Tier III privilegia a possibilidade de manutenção planejada sem desligamento da operação crítica. Isso não deve ser confundido com tolerância a falhas imprevistas em qualquer cenário adicional.",
+      "section": "Redundância e caminhos A/B: N+1, 2N e níveis Tier",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comparação entre Tier III e Tier IV está tecnicamente correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tier III e Tier IV são iguais se ambos utilizam geradores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tier IV exige exclusivamente baterias de lítio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tier III se caracteriza por ausência de redundância.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tier IV depende somente do rendimento energético PUE.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tier III enfatiza manutenção concorrente; Tier IV acrescenta tolerância a falhas.",
+          "correct": true
+        }
+      ],
+      "explanation": "No sistema do Uptime Institute, as exigências crescem de manutenção concorrente para tolerância a falhas. Tecnologia de bateria, presença isolada de gerador ou PUE não determinam a classificação topológica.",
+      "section": "Redundância e caminhos A/B: N+1, 2N e níveis Tier",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instalação Tier III é, por definição, tolerante a qualquer falha simultânea e a erro humano irrestrito.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Manutenção concorrente não é imunidade irrestrita a falhas adicionais ou a erros humanos. A arquitetura precisa ser avaliada segundo cenários específicos, e tolerância a falhas é atributo adicional do Tier IV.",
+      "section": "Redundância e caminhos A/B: N+1, 2N e níveis Tier",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para um equipamento com uma única entrada CA que precise selecionar rapidamente A ou B, qual dispositivo pode ser estudado conforme compatibilidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retificador isolado que substitui ambas as fontes alternadas e elimina a necessidade de comutação entre os caminhos de distribuição independentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Chave estática de transferência (STS), sem dispensar análise de seu próprio risco.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Tomada simples com dois cabos em curto permanente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Bateria VRLA conectada diretamente à carga CA.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Medição de PUE instalada no rack como comutador.",
+          "correct": false
+        }
+      ],
+      "explanation": "O STS pode comutar rapidamente entre alimentações de CA para carga monofonte compatível, mas sua falha também precisa ser considerada. Medição, bateria direta ou paralelismo indevido não realizam tal função.",
+      "section": "Redundância e caminhos A/B: N+1, 2N e níveis Tier",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mesma sala sujeita a inundação pode representar causa comum para dois caminhos A/B instalados nela.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A segregação elétrica pode ser insuficiente se um evento ambiental afetar simultaneamente os equipamentos de ambos os ramos. O estudo de continuidade considera riscos físicos, locais, operação e dependências comuns.",
+      "section": "Redundância e caminhos A/B: N+1, 2N e níveis Tier",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em ATS de transição aberta, a sequência de contato característica é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "conectar ambas as fontes permanentemente em paralelo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "armazenar energia no ATS antes da mudança.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "desconectar a fonte anterior antes de conectar a fonte alternativa.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "passar a carga sempre por uma UPS embutida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "exigir tensão nula das duas fontes para toda transferência.",
+          "correct": false
+        }
+      ],
+      "explanation": "A transição aberta é break-before-make e pode interromper a alimentação brevemente. A sustentação de cargas ininterruptíveis deve vir de UPS ou arquitetura adequada, não de armazenamento inexistente no ATS.",
+      "section": "ATS, grupo gerador e sequência de transferência",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A transferência fechada de um ATS pode envolver paralelismo momentâneo das fontes e exige condições apropriadas de sincronismo e proteção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Na transição fechada há sobreposição controlada entre fontes. A compatibilidade de fase, tensão e frequência e as permissões aplicáveis são necessárias; não se admite conexão indiscriminada de fontes não sincronizadas.",
+      "section": "ATS, grupo gerador e sequência de transferência",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante queda da concessionária com UPS on-line e gerador com partida automática, qual sequência funcional é plausível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Bateria mantém a saída da UPS; gerador parte; ATS transfere quando a fonte está apta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "ATS armazena energia durante a falta da concessionária e fornece potência ininterrupta aos servidores até que o gerador esteja estabilizado, dispensando a UPS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gerador sincroniza-se instantaneamente sem qualquer tempo de partida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "UPS desliga obrigatoriamente ao detectar perda de rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Busway alimenta os inversores por energia própria.",
+          "correct": false
+        }
+      ],
+      "explanation": "A UPS faz a ponte entre ausência da rede e estabelecimento de alimentação alternativa, e o ATS conecta a fonte apta conforme controle. Gerador e busway não fornecem transferência instantânea por si mesmos.",
+      "section": "ATS, grupo gerador e sequência de transferência",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A seleção do número de polos do ATS, inclusive o tratamento do neutro, deve considerar o aterramento e a topologia do sistema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A comutação de neutro influencia referências elétricas, proteção e conexões entre fontes. Não existe regra única aplicável a todos os esquemas; a escolha exige estudo do sistema e do equipamento previsto.",
+      "section": "ATS, grupo gerador e sequência de transferência",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que ajustar a temporização de transferência ao grupo gerador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque a temporização elimina a necessidade de armazenamento e garante alimentação sem interrupção, independentemente do tempo de partida do gerador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque torna irrelevante a qualidade de tensão gerada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque autoriza interligar fontes de qualquer fase sem intertravamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para considerar detecção, partida, estabilização e critérios de retorno, com limites da carga.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Porque a corrente de curto-circuito do gerador é sempre igual à da rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "O controle deve reconhecer fonte estável e coordenar a mudança com a tolerância da carga. Temporizações não substituem UPS, não removem requisitos de intertravamento e não igualam características elétricas de fontes distintas.",
+      "section": "ATS, grupo gerador e sequência de transferência",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se a transferência ATS for aberta, a carga ligada diretamente ao circuito poderá experimentar intervalo sem tensão, ainda que exista grupo gerador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O ATS primeiro abre um contato e depois conecta a nova fonte, podendo haver interrupção durante a transferência e a partida. O gerador é fonte alternativa; somente uma solução de sustentação adequada cobre a lacuna.",
+      "section": "ATS, grupo gerador e sequência de transferência",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual resultado de teste melhor valida uma cadeia crítica com ATS, UPS e gerador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Teste isolado da lâmpada piloto do ATS, sem análise de carga.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Medição única de tensão da concessionária em operação normal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Partida do gerador sem alimentação das cargas essenciais e sem outros ensaios.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Registro integrado de falha de rede, sustentação da UPS, entrada do gerador e comportamento das cargas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Conferência visual de três fontes desenhadas no unifilar, sem comissionamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "O desempenho ponta a ponta deve ser evidenciado em condições controladas e documentadas. Verificações isoladas de componentes não demonstram sincronismo funcional, autonomia e continuidade efetiva das cargas.",
+      "section": "ATS, grupo gerador e sequência de transferência",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A chave ATS substitui a proteção contra sobrecorrente dos circuitos e dispensa coordenação dos disjuntores a jusante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A função primária da ATS é transferir fontes. A proteção contra faltas, o suportabilidade a curto-circuito e a seletividade dependem de dispositivos e estudos próprios; a mera presença de ATS não os substitui.",
+      "section": "ATS, grupo gerador e sequência de transferência",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual característica distingue tipicamente uma bateria VRLA usada em UPS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ausência completa de inspeções por ser selada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Química de íons de lítio com BMS obrigatório em cada célula.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Energia útil independente da taxa de descarga.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Vida de serviço imutável mesmo com temperatura elevada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tecnologia chumbo-ácida regulada por válvula, sensível a temperatura e envelhecimento.",
+          "correct": true
+        }
+      ],
+      "explanation": "VRLA designa chumbo-ácida regulada por válvula. Ela demanda gestão de temperatura, inspeção e avaliação de saúde; não possui comportamento independente do regime de descarga nem vida imune ao ambiente.",
+      "section": "Armazenamento: VRLA e baterias de íons de lítio",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um banco de bateria com estado de carga elevado pode, mesmo assim, apresentar autonomia insuficiente se seu estado de saúde estiver degradado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "SOC expressa o nível estimado de carga atual, enquanto SOH representa condições de saúde e degradação. Um banco envelhecido pode indicar carga completa, mas já não entregar energia e potência adequadas.",
+      "section": "Armazenamento: VRLA e baterias de íons de lítio",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para 60 kW durante 10 minutos e eficiência hipotética de descarga de 90%, qual estimativa inicial de energia retirada da bateria se obtém?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cerca de 6,0 kWh, tomando dez minutos como um décimo de hora e desconsiderando integralmente a eficiência de descarga informada no problema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cerca de 11,1 kWh, sem margens e sem substituir curvas de descarga.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Cerca de 60 kWh, pois o tempo não influi na energia.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cerca de 90 kWh, porque a eficiência é 90%.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cerca de 600 kWh, pois minutos e horas são equivalentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "A energia na carga é 60 × 10/60 = 10 kWh. Dividindo por 0,90, resulta aproximadamente 11,1 kWh no armazenamento; a seleção real exige derating, limites de corrente e dados do fabricante.",
+      "section": "Armazenamento: VRLA e baterias de íons de lítio",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A adoção de baterias de íons de lítio elimina a necessidade de monitoramento térmico e gerenciamento das células.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Sistemas Li-ion precisam de gerenciamento e proteção apropriados, frequentemente por BMS, além de requisitos de instalação e resposta a falhas térmicas. Maior densidade energética não significa ausência de risco.",
+      "section": "Armazenamento: VRLA e baterias de íons de lítio",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na avaliação de VRLA versus lítio para UPS, qual critério expressa decisão técnica completa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar potência de descarga, vida útil esperada, segurança, manutenção, espaço e custo do ciclo de vida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Escolher sempre a tecnologia de menor massa por quilowatt-hora e desconsiderar requisitos de proteção, compatibilidade com a UPS e custos de reposição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escolher apenas o menor preço inicial, independentemente da manutenção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar as condições térmicas por serem irrelevantes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Supor que toda química de lítio apresenta o mesmo comportamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "O melhor armazenamento depende do uso e da tecnologia concreta. Comparar apenas compra ou massa omite desempenho, riscos, ciclos, temperatura e despesas de operação e reposição.",
+      "section": "Armazenamento: VRLA e baterias de íons de lítio",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Capacidade nominal em ampère-hora é suficiente, sozinha, para calcular a autonomia real em altas taxas de descarga de qualquer banco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Ah não informa isoladamente tensão, energia disponível, limites de descarga, dependência com taxa e temperatura ou eficiência. Curvas do fabricante e condição de saúde são indispensáveis para estimativa confiável.",
+      "section": "Armazenamento: VRLA e baterias de íons de lítio",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma descarga prolongada da bateria, com a UPS novamente recebendo a rede, qual condição merece atenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Autonomia necessariamente maior que antes da falta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Impossibilidade de nova queda de rede enquanto há recarga.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Autonomia remanescente reduzida enquanto ocorre recarga.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desnecessidade de monitoramento do carregador e da bateria.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Capacidade nominal dos cabos automaticamente duplicada pela recarga.",
+          "correct": false
+        }
+      ],
+      "explanation": "O restabelecimento da fonte CA não recupera de imediato a energia armazenada. O sistema pode continuar alimentando a carga, porém com reserva menor até a recarga, conforme limites e monitoramento.",
+      "section": "Armazenamento: VRLA e baterias de íons de lítio",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A comparação de custo total de baterias pode incluir reposições, climatização, manutenção, área ocupada e descarte, além do preço de aquisição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O custo de ciclo de vida considera despesas e restrições operacionais ao longo do período de uso, não apenas o investimento inicial. Isso é relevante na comparação entre VRLA e soluções de íons de lítio.",
+      "section": "Armazenamento: VRLA e baterias de íons de lítio",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em distribuição de energia por busway de um data center, o tap-off exerce qual função?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gerar energia em corrente alternada quando a concessionária falha.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Armazenar carga elétrica como bateria de autonomia.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Derivar energia do barramento para circuitos e equipamentos, com proteção conforme o arranjo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Aumentar automaticamente a potência da UPS em kW.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir todos os dispositivos de proteção e comutação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A caixa tap-off conecta a distribuição do barramento aos circuitos de saída, eventualmente com proteção e medição. O busway não produz energia, não armazena energia e não amplia a capacidade da fonte.",
+      "section": "Busway, ATS de rack, carga por rack e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A instalação de dois busways na sala de racks garante caminhos A/B independentes mesmo quando ambos derivam do mesmo disjuntor sem alternativa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A independência não é definida pelo número de barramentos visíveis. Um disjuntor único a montante é ponto comum capaz de interromper simultaneamente os dois percursos, frustrando a redundância buscada.",
+      "section": "Busway, ATS de rack, carga por rack e operação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quarenta racks foram projetados para 12 kW/rack. Qual é a demanda total projetada de TI, antes de margens?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "40 kWh.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "12 kVA independentemente do fator de potência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "4.800 kWh necessariamente a cada minuto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "480 kW.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "52 kW.",
+          "correct": false
+        }
+      ],
+      "explanation": "Potência total é o produto da quantidade de racks pela demanda de cada um: 40 × 12 = 480 kW. Não se pode substituir essa potência por energia em kWh nem inferir kVA sem outras condições.",
+      "section": "Busway, ATS de rack, carga por rack e operação",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para carga trifásica equilibrada, a potência ativa pode ser estimada por P = √3 × tensão entre fases × corrente de linha × fator de potência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Essa relação expressa a potência ativa trifásica usando tensão entre fases, corrente de linha e fator de potência no modelo equilibrado. A avaliação real deve considerar desequilíbrio e distorções quando relevantes.",
+      "section": "Busway, ATS de rack, carga por rack e operação",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em circuito monofásico de 230 V, 16 A e fator de potência 0,95, a potência ativa teórica é aproximadamente:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "16,00 kW.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "230,00 kW.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "0,95 kW.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "36,80 kW.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "3,50 kW.",
+          "correct": true
+        }
+      ],
+      "explanation": "P = V × I × FP = 230 × 16 × 0,95 = 3.496 W, aproximadamente 3,50 kW. Esse resultado teórico não substitui avaliação de carregamento contínuo, proteção e conectores.",
+      "section": "Busway, ATS de rack, carga por rack e operação",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O PUE indica diretamente a tolerância a falhas de uma instalação, de modo que PUE menor classifica automaticamente o data center em Tier superior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "PUE mede a relação entre consumo total de energia e consumo da TI; não avalia redundância, manutenção concorrente ou tolerância a falhas. A classificação Tier requer critérios topológicos distintos.",
+      "section": "Busway, ATS de rack, carga por rack e operação",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um rack com equipamentos de alta densidade, o comissionamento mais pertinente da alimentação A/B inclui:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "verificar apenas a cor dos cabos e a presença visual de conectores duplicados, sem ensaiar a transferência de potência nem conferir a corrente do alimentador restante.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "testar de modo planejado a perda de um ramo e verificar carga, alarmes e limites do ramo remanescente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "dispensar estudo térmico porque existem dois caminhos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "presumir que cada ramo nunca transportará mais de 50% da carga.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "desligar os dois caminhos ao mesmo tempo para provar autonomia da PDU.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um teste controlado de perda de ramo verifica a transferência de toda a demanda ao lado remanescente, além de supervisão e proteção. Medição, resfriamento e procedimentos de segurança são imprescindíveis.",
+      "section": "Busway, ATS de rack, carga por rack e operação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rack PDU monitorada pode fornecer medições úteis de corrente e potência, mas não substitui a análise das proteções e da capacidade do caminho elétrico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A instrumentação facilita gestão de carga e identificação de tendências; não modifica a capacidade física de cabos, dispositivos ou barramentos. A conformidade depende de dimensionamento e coordenação de proteção.",
+      "section": "Busway, ATS de rack, carga por rack e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "IEC 62040-3:2021 — Uninterruptible power systems: performance and test requirements",
+      "publisher": "International Electrotechnical Commission (IEC)",
+      "reference": "IEC 62040-3:2021; classificação e requisitos de desempenho de UPS",
+      "url": "https://webstore.iec.ch/en/publication/60140",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "IEC 62040-1 — Uninterruptible power systems: safety requirements",
+      "publisher": "International Electrotechnical Commission (IEC)",
+      "reference": "IEC 62040-1:2017, consolidada com emendas",
+      "url": "https://webstore.iec.ch/en/publication/80573",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Norma Regulamentadora nº 10 — Segurança em instalações e serviços em eletricidade",
+      "publisher": "Ministério do Trabalho e Emprego (Brasil)",
+      "reference": "NR-10, página oficial de normas vigentes",
+      "url": "https://www.gov.br/trabalho-e-emprego/pt-br/acesso-a-informacao/participacao-social/conselhos-e-orgaos-colegiados/comissao-tripartite-partitaria-permanente/normas-regulamentadora/normas-regulamentadoras-vigentes/norma-regulamentadora-no-10-nr-10",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Uptime Institute Tier Classification System",
+      "publisher": "Uptime Institute",
+      "reference": "Critérios de Tier I a IV, manutenção concorrente e tolerância a falhas",
+      "url": "https://pt.uptimeinstitute.com/tiers",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Automatic transfer switches (ATS) fundamentals",
+      "publisher": "Eaton",
+      "reference": "Definição de ATS e modalidades de transição de fontes",
+      "url": "https://www.eaton.com/us/en-us/products/low-voltage-power-distribution-control-systems/automatic-transfer-switches/automatic-transfer-switch-fundamentals.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Easy UPS 3S — Operation, bypass modes",
+      "publisher": "Schneider Electric",
+      "reference": "Operação de bypass estático e de manutenção de UPS",
+      "url": "https://productinfo.se.com/easyups3s/5bf2d893347bdf0001db14ef/English/990-91079J_EN.pdf",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "What is a UPS?",
+      "publisher": "Vertiv",
+      "reference": "Funções, tipos de UPS e tecnologia de armazenamento",
+      "url": "https://www.vertiv.com/en-us/about/news-and-events/articles/educational-articles/what-is-a-ups/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Understanding lithium-ion solutions for UPS",
+      "publisher": "Vertiv",
+      "reference": "Comparativo de VRLA e baterias de lítio aplicadas a UPS",
+      "url": "https://www.vertiv.com/en-us/about/news-and-events/articles/educational-articles/understanding-lithium-ion-solutions-for-ups/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PowerWave 2 busway system",
+      "publisher": "Eaton",
+      "reference": "Busway, tap-off e distribuição modular sobre racks",
+      "url": "https://www.eaton.com/us/en-us/catalog/low-voltage-power-distribution-controls-systems/eaton-pdi-busway.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "iBusway for Data Centre",
+      "publisher": "Schneider Electric",
+      "reference": "Barramentos pré-fabricados e caixas de derivação para data center",
+      "url": "https://www.se.com/sa/en/product-range/60018-ibusway-for-data-centre/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PUE — Power Usage Effectiveness",
+      "publisher": "The Green Grid",
+      "reference": "Métrica de eficiência energética da instalação",
+      "url": "https://www.thegreengrid.org/node/722",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

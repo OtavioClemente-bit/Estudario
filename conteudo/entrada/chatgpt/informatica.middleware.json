@@ -1,0 +1,1959 @@
+{
+  "id": "informatica.middleware",
+  "subject": "Informática",
+  "title": "Middleware",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Middleware",
+    "Middleware"
+  ],
+  "scope": {
+    "covers": "Conceito, posição, serviços e transparências; arquitetura clássica distribuída; RPC, stubs, marshalling e RMI; MOM, filas, tópicos, pub/sub e confiabilidade; ORB, IDL, GIOP/IIOP e CORBA; servidores de aplicação; segurança, transações e integração empresarial; distinção em relação ao middleware web.",
+    "excludes": "Configuração operacional passo a passo de produtos, implementação de código de produção, aprofundamento formal em algoritmos de consenso ou protocolos de mensageria específicos fora do necessário para provas."
+  },
+  "theoryTitle": "Middleware em sistemas distribuídos: RPC, MOM, CORBA e servidores de aplicação",
+  "chapters": [
+    {
+      "title": "Fundamentos do middleware em sistemas distribuídos",
+      "markdown": "# Fundamentos do middleware em sistemas distribuídos\n\n## 1. Conceito e posição na arquitetura\n\n**Middleware** é o software intermediário que disponibiliza serviços de comunicação, coordenação e integração entre componentes de uma aplicação distribuída. Não é sinônimo de sistema operacional, rede física, protocolo TCP/IP nem da aplicação de negócio. Situa-se, conceitualmente, **entre a aplicação e os mecanismos básicos do sistema operacional e da comunicação**, oferecendo abstrações que simplificam o desenvolvimento. Uma aplicação deixa de manipular diretamente cada socket, cada conversão de dados e cada mecanismo de localização quando utiliza uma infraestrutura que encapsula parte dessas tarefas.\n\nImagine um órgão público com sistemas de cadastro, arrecadação e notificações executados em servidores distintos. A infraestrutura intermediária pode oferecer invocação de serviços, filas de eventos, descoberta de destinos, autenticação, controle de transações e observabilidade. Cada componente conserva sua lógica própria, mas usa contratos de comunicação e serviços compartilhados. O objetivo não é tornar a rede inexistente: é **reduzir a complexidade da distribuição**, sem negar seus custos e riscos.\n\nO termo tem sentido **clássico nos sistemas distribuídos**: tecnologia de RPC (Remote Procedure Call), middleware orientado a mensagens (MOM), intermediadores de objetos (ORB, como em CORBA), monitores de transação e servidores de aplicação. Em desenvolvimento web, também pode significar uma função inserida no pipeline de requisições HTTP para autenticação, logs ou tratamento de erros. Esse segundo uso é legítimo, porém **mais restrito**: uma função de middleware web não representa, por si só, toda a categoria de middleware de sistemas distribuídos.\n\n## 2. Heterogeneidade e interoperabilidade\n\nSistemas distribuídos podem conter plataformas, processadores, sistemas operacionais, linguagens, formatos de dados e fornecedores diferentes. O middleware procura criar interfaces comuns para que os participantes troquem informações apesar dessas diferenças. **Interoperabilidade** significa que sistemas distintos conseguem cooperar segundo contratos e protocolos compatíveis; não exige que implementem o mesmo código-fonte ou executem no mesmo ambiente.\n\nO contrato define como uma operação ou mensagem é reconhecida e interpretada. Pode estar expresso em uma IDL, um esquema de mensagem, uma interface de serviço ou um formato de serialização. **Serialização** converte estruturas de dados para uma representação transmissível ou armazenável; desserialização reconstrói os dados a partir dessa representação. Em arquiteturas heterogêneas, convenções de tipos, codificações, versões de contratos e semântica das operações importam tanto quanto conectividade.\n\nMiddleware de integração pode realizar transformação de mensagens, roteamento e mediação entre interfaces. A mera presença de um barramento, porém, não garante que conceitos de negócio diferentes se tornem compatíveis automaticamente: integração **sintática** (os dados podem ser lidos) não equivale, por si só, à integração **semântica** (os dados têm o mesmo significado).\n\n## 3. Transparências: utilidade e limites\n\nO middleware pode oferecer diferentes formas de **transparência**, como:\n- **Acesso:** usar interfaces semelhantes para recursos locais e remotos, ocultando detalhes de codificação e transporte.\n- **Localização:** acessar um serviço sem conhecer previamente o endereço físico ou host exato.\n- **Migração ou realocação:** diminuir o impacto de mudanças de localização de componentes.\n- **Replicação:** ocultar parte da existência de várias cópias ou instâncias.\n- **Concorrência:** coordenar acessos simultâneos a recursos compartilhados.\n- **Falhas:** detectar e tratar parcialmente interrupções e indisponibilidades, mediante políticas apropriadas.\n\nEssas transparências são **objetivos de projeto**, não garantias de invisibilidade total. Uma chamada remota pode apresentar latência muito superior à local, ocorrer sobre rede sujeita a particionamento e falhar após a operação já ter sido executada no destino. Abstrair a comunicação não elimina riscos de timeout, duplicidade, indisponibilidade ou divergência de estado. Na prova, desconfie das afirmações de que o middleware transforma integralmente invocações remotas em locais sem diferença observável.\n\n## 4. Acoplamento e formas de comunicação\n\nHá **acoplamento espacial** quando o emissor precisa identificar o destinatário e **acoplamento temporal** quando ambos precisam estar operacionais no mesmo momento. A comunicação por chamada remota direta costuma aproximar cliente e servidor no tempo: o cliente solicita e aguarda uma resposta em muitas operações. O envio a uma fila persistente pode diminuir esse acoplamento, pois a mensagem fica aguardando o processamento posterior. No entanto, o tipo de fila, o prazo de retenção e as condições de falha determinam o resultado real.\n\nComunicação **síncrona** enfatiza a dependência da conclusão ou da resposta da operação para que o chamador prossiga; **assíncrona** permite que o processamento ocorra em outro momento ou que o solicitante continue sem esperar o resultado imediato. A distinção não coincide perfeitamente com transporte nem com nomes de APIs: existe envio a fila com confirmação síncrona, recebimento bloqueante e até padrões de solicitação–resposta sobre mensageria.\n\nOs estilos mais importantes são **RPC** (invocação de operações), **MOM** (troca de mensagens), **ORB/CORBA** (objetos distribuídos com contratos de interfaces) e **servidores de aplicação** (execução de componentes com serviços de infraestrutura). São tecnologias complementares, não uma escala universal de superioridade.\n\n## 5. Serviços recorrentes\n\nConforme a implementação, o middleware pode oferecer descoberta e nomes, registro de serviços, gerenciamento de conexões, filas e roteamento, autenticação e autorização, criptografia em trânsito, pooling, gerenciamento de transações, monitoramento, registros e tratamento de falhas. Essas capacidades **variam por produto**; nenhuma lista deve ser lida como obrigatória para todo middleware. Um broker de mensagens não precisa executar componentes empresariais, e um mecanismo RPC não precisa fornecer filas duráveis.\n\n**Foco de concurso:** identifique a camada intermediária, diferencie interoperabilidade de identidade tecnológica, separe transparência de ausência de falhas e reconheça a diferença entre middleware clássico e interceptadores de requisições em frameworks web."
+    },
+    {
+      "title": "RPC, RMI e invocação remota",
+      "markdown": "# RPC, RMI e invocação remota\n\n## 1. O modelo de chamada de procedimento remoto\n\n**RPC (Remote Procedure Call)** permite que um programa solicite a execução de uma operação implementada em outro processo ou máquina por meio de uma interface de chamada. O mecanismo pode ocultar detalhes de comunicação, mas não elimina a natureza distribuída da operação. Em um modelo tradicional de solicitação–resposta, o cliente envia parâmetros ao servidor, o servidor executa a função e devolve resultado ou erro. A implementação pode oferecer chamadas bloqueantes ou outras formas de execução; não se deve confundir o conceito geral de RPC com a obrigatoriedade de uma API bloqueante.\n\nEm uma arquitetura clássica, o **stub do cliente** representa a interface remota e participa do empacotamento dos parâmetros; o componente correspondente no servidor (frequentemente chamado **skeleton**, dispatcher ou adaptador de servidor) recebe a requisição, interpreta os dados e aciona o procedimento real. A expressão **marshalling** designa a preparação dos parâmetros e resultados para transmissão; **unmarshalling**, sua reconstrução. Stubs e skeletons são descrições frequentes nos modelos clássicos; bibliotecas contemporâneas podem empregar código gerado, interceptadores e mecanismos internos com outros nomes.\n\n**Fluxo simplificado:** aplicação cliente → stub/biblioteca RPC → transporte de rede → dispatcher no servidor → implementação do serviço → retorno pelo caminho inverso. O processo é diferente de executar uma função local: há dois espaços de memória e podem existir duas máquinas, duas falhas independentes e atrasos de comunicação.\n\n## 2. Contratos, tipagem e serialização\n\nUma interface ou contrato especifica o nome das operações, tipos de parâmetros, resultados e, às vezes, regras de erro. Em tecnologias modernas, a descrição em arquivo de definição de serviço pode gerar código de cliente e servidor. **gRPC**, por exemplo, utiliza frequentemente **Protocol Buffers**, com definições em arquivos `.proto` e geração de código correspondente. Esse modelo mantém a ideia central de RPC, embora empregue recursos contemporâneos, como streaming de mensagens e prazos de execução.\n\n**Contrato não equivale a implementação.** Dois servidores podem oferecer o mesmo contrato e implementar internamente regras diferentes; a interoperabilidade depende de corresponderem ao comportamento esperado. A serialização não é apenas converter texto: pode usar representações binárias, estruturas tipadas e convenções de versionamento. Mudanças incompatíveis em tipos ou campos podem impedir clientes antigos de compreender novas mensagens.\n\n## 3. RMI: a especialização orientada a objetos em Java\n\n**RMI (Remote Method Invocation)** permite a um objeto Java invocar métodos de outro objeto Java remoto, inclusive localizado em outra JVM e em outro host. Diferentemente da imagem procedural pura da RPC clássica, a invocação está ligada a referências e interfaces de objetos. A abstração suporta objetos remotos, interfaces remotas, serialização e referência a objetos que são usados à distância.\n\nNa apresentação didática tradicional da tecnologia Java RMI, uma interface remota define operações, o servidor oferece a implementação e um **registro (registry)** pode permitir localizar o serviço por nome. O cliente obtém uma referência remota e invoca métodos por intermédio de mecanismos de stub. O registro é um mecanismo de **nomes e descoberta**, não o processador da lógica de negócio. Os métodos remotos podem sinalizar erros de comunicação, como `RemoteException`; o tratamento dessa possibilidade é indispensável.\n\nRPC e RMI não são sinônimos perfeitos: RMI é um mecanismo específico de **invocação de métodos remotos em um modelo de objetos**, enquanto RPC designa uma família conceitual mais ampla de chamadas de procedimentos ou operações remotas.\n\n## 4. Latência, indisponibilidade e semântica de execução\n\nSe o cliente envia uma requisição e o tempo limite expira, há pelo menos duas hipóteses: o servidor **não executou** a operação ou **executou, mas a resposta se perdeu ou chegou tarde**. O cliente não pode deduzir, só pelo timeout, que nada foi realizado. Fazer uma nova tentativa indiscriminada pode repetir uma transferência, um lançamento contábil ou uma atualização.\n\nA **idempotência** oferece proteção importante: repetir uma operação com a mesma chave de negócio deve produzir o mesmo efeito pretendido que executá-la uma única vez. Consultas são frequentemente naturalmente idempotentes; ações de criação e cobrança podem exigir chaves de idempotência e registro de resultados. **No máximo uma vez**, **pelo menos uma vez** e **exatamente uma vez** são expressões sobre semântica de entrega ou execução que dependem do protocolo e das fronteiras transacionais; não surgem automaticamente de stubs, retries ou TCP.\n\nTambém é importante distinguir **timeout** (prazo esgotado), **cancelamento** (pedido para interromper a operação) e **falha do destino** (indisponibilidade ou erro do servidor). Um cancelamento no cliente pode não desfazer efeitos já confirmados no servidor. Retries precisam ser ajustados à natureza da operação, ao orçamento de tempo e a mecanismos de deduplicação.\n\n## 5. gRPC e evolução da família RPC\n\nNo **gRPC**, uma definição de serviço descreve métodos e mensagens. São comuns quatro estilos de interação: chamada **unária** (pedido e resposta), streaming do servidor (um pedido, várias respostas), streaming do cliente (vários envios, uma resposta) e streaming bidirecional. Esses recursos mostram que RPC não é necessariamente restrito ao tradicional formato de uma requisição e uma resposta de cada lado.\n\nEm geral, a escolha entre RPC e mensageria considera a necessidade de resposta imediata, o acoplamento entre componentes, a tolerância à indisponibilidade temporária e a semântica de negócio. RPC é apropriado, por exemplo, para consultar saldo atualizado quando a requisição deve receber resposta do serviço; uma fila é útil quando uma tarefa pode ser executada posteriormente sem bloquear o serviço que a originou. O mesmo sistema pode usar ambos.\n\n**Foco de concurso:** stub não é o servidor de negócio; registry não processa método; RMI invoca métodos entre JVMs; timeout não comprova ausência de execução; idempotência protege contra retries duplicados; gRPC é uma realização moderna de RPC."
+    },
+    {
+      "title": "MOM: filas, tópicos e comunicação assíncrona",
+      "markdown": "# MOM: filas, tópicos e comunicação assíncrona\n\n## 1. O conceito clássico\n\n**Message-Oriented Middleware (MOM)** é middleware orientado a mensagens: componentes trocam dados por mensagens através de infraestrutura de comunicação, frequentemente mediada por um **broker**. O produtor não precisa executar diretamente uma função do consumidor. Ele publica ou envia uma unidade de informação contendo dados e, conforme o sistema, cabeçalhos, identificadores e metadados de entrega. O broker pode armazenar, rotear e disponibilizar mensagens para destinatários.\n\nO uso de MOM favorece **desacoplamento temporal**, especialmente quando existem filas persistentes. Um sistema de matrículas envia uma mensagem para emissão de certificado; o serviço de documentos pode consumi-la depois, sem impedir que o sistema de matrículas continue outras operações. Contudo, **mensagem enviada não significa trabalho já concluído**: confirmação de aceite pelo broker e confirmação de processamento pelo consumidor representam eventos distintos.\n\nMOM não é sinônimo estrito de broker: é uma categoria arquitetural ampla, e diferentes implementações distribuem as responsabilidades de transporte, retenção e consumo. Também não equivale a banco de dados tradicional; a retenção de mensagens e o histórico de eventos dependem do produto e da configuração.\n\n## 2. Ponto a ponto: filas\n\nNo padrão **ponto a ponto (point-to-point)**, um produtor envia mensagens a uma **fila**, e consumidores obtêm itens para processamento. Na representação didática usual, uma mensagem retirada de uma fila de tarefas é destinada a **um processamento por um consumidor**; quando existem consumidores concorrentes, eles dividem a carga. Isso não impede **redelivery**: uma mensagem pode voltar a ser oferecida a outro consumidor se a tentativa anterior não for confirmada.\n\nO papel da fila não é duplicar obrigatoriamente cada tarefa para todos os trabalhadores. Se dois consumidores recebem cópias para executar trabalhos independentes, já se está próximo de um arranjo de difusão ou de filas distintas ligadas ao mesmo evento. A distinção central para a prova é: **fila de trabalho distribui tarefas; tópico de publicação/assinatura distribui eventos a assinantes**.\n\n**Acknowledgement (ack)** sinaliza o tratamento ou recebimento conforme a semântica do protocolo. Em muitos brokers, quando um consumidor falha antes de confirmar a conclusão, a mensagem pode ser reenfileirada. **Persistência** e durabilidade podem aumentar a tolerância à reinicialização, mas dependem de configuração, limites de retenção e garantias concretas. Uma fila não significa garantia mágica de entrega em qualquer cenário.\n\n## 3. Publicação e assinatura: tópicos\n\nNo padrão **publish/subscribe (pub/sub)**, produtores publicam mensagens em um **tópico** ou destino lógico; assinantes interessados recebem mensagens conforme assinaturas e políticas de distribuição. Um mesmo evento de atualização cadastral pode interessar, em paralelo, aos sistemas de auditoria, de notificações e de análise estatística.\n\n**Assinaturas duráveis** podem permitir a retenção de mensagens durante a ausência temporária de um assinante, de acordo com as regras do sistema. Nem todo tópico armazena mensagens indefinidamente nem toda assinatura é durável por padrão. Uma confusão frequente é afirmar que todos os assinantes necessariamente receberão todos os eventos, independentemente de conexão, retenção ou configuração. A cobertura de entrega depende das condições estabelecidas.\n\n**Roteamento** determina quais destinos recebem mensagens. Em produtos que utilizam exchanges ou outros intermediários de roteamento, a publicação pode ser recebida por uma entidade lógica que encaminha mensagens a filas segundo regras. O nome e a implementação do mecanismo variam: não generalize uma particularidade do RabbitMQ, do Apache Kafka ou de um provedor em nuvem para todo MOM.\n\n## 4. Garantias, duplicidade e tratamento de falhas\n\nAs expressões **at-most-once** (no máximo uma entrega), **at-least-once** (uma ou mais entregas, sob as condições do protocolo) e **exactly-once** (efeito único na fronteira definida) não devem ser confundidas. Entrega **pelo menos uma vez** pode gerar duplicatas; por isso consumidores frequentemente precisam ser **idempotentes**. Entrega **no máximo uma vez** evita repetições dessa camada, mas pode permitir perda. Soluções de **efeito exatamente uma vez** exigem delimitação precisa do escopo e coordenação adicional; não decorrem automaticamente da existência de fila.\n\nQuando uma mensagem falha repetidamente, o sistema pode encaminhá-la à **dead-letter queue (DLQ)**, fila de mensagens rejeitadas ou não processáveis. Ela facilita investigação e recuperação, mas requer monitoramento e políticas de reprocessamento. Reenviar mensagens da DLQ sem corrigir a causa pode formar ciclos de falhas. Política de **retry** precisa distinguir erro transitório de erro permanente e pode empregar intervalos crescentes entre tentativas.\n\n**Ordenação** também é condicional. É possível que mensagens sejam processadas fora da ordem de publicação por paralelismo, redelivery ou particionamento. Quando a ordem importa, podem ser necessários particionamento por chave, consumidores sequenciais, sequências lógicas ou mecanismos específicos do produto.\n\n## 5. Mensageria Java e cenários combinados\n\n**Jakarta Messaging** (e historicamente **JMS, Java Message Service**) fornece uma API padronizada de mensageria no ecossistema Java, incluindo os modelos de **filas** e **tópicos**. Uma API especifica contratos de programação; não deve ser confundida com um produto broker específico. Provedores concretos implementam os serviços necessários.\n\nMOM pode ser usado com padrão **request/reply**: o produtor envia uma mensagem com identificador de correlação e indica um destino de resposta. Esse padrão demonstra que mensageria não se restringe a eventos sem retorno, mas a coordenação é diferente de uma chamada RPC direta. Em integrações de negócio, vale avaliar duração das tarefas, tolerância ao atraso, consistência requerida e impacto de duplicatas.\n\n**Foco de concurso:** produtor, broker, consumidor; fila ≠ tópico; ack ≠ processamento irrevogável em todos os produtos; persistência ≠ garantia absoluta; pub/sub ≠ distribuição de uma única tarefa entre trabalhadores; MOM permite desacoplamento, não elimina necessidade de monitoramento."
+    },
+    {
+      "title": "ORB e CORBA: middleware de objetos distribuídos",
+      "markdown": "# ORB e CORBA: middleware de objetos distribuídos\n\n## 1. O que é um ORB\n\n**Object Request Broker (ORB)** é um intermediador de requisições a objetos distribuídos. Sua função essencial é possibilitar que um cliente invoque operações de um objeto cujo processamento pode estar em outro processo, máquina ou plataforma. O ORB participa da localização lógica do destino e do encaminhamento de requisições e respostas, ocultando parte dos detalhes de comunicação.\n\nEssa tecnologia é classicamente associada à arquitetura **CORBA (Common Object Request Broker Architecture)**, desenvolvida e padronizada pela **Object Management Group (OMG)**. CORBA foi concebida para promover a interoperabilidade entre objetos distribuídos de fabricantes e linguagens diferentes. Em provas, é erro reduzir ORB a um simples roteador de pacotes IP: a atuação envolve **referências de objetos, invocações de operações e contratos de interfaces**, em nível mais alto do que o roteamento de rede.\n\nTambém é erro igualar ORB e banco de dados. Um ORB pode permitir a comunicação de objetos que utilizam bases de dados, mas não é, por definição, mecanismo de armazenamento relacional, linguagem SQL ou sistema gerenciador de banco de dados.\n\n## 2. IDL: interface sem dependência da implementação\n\nA **IDL (Interface Definition Language)** da OMG descreve interfaces, operações e tipos de dados independentemente de determinada linguagem de implementação. Partindo desse contrato, ferramentas e ambientes CORBA podem produzir vínculos e código auxiliar para linguagens diferentes. O **stub** no cliente e o **skeleton** ou mecanismo receptor no servidor atuam como intermediários da invocação; a implementação efetiva da regra de negócio permanece no objeto servidor.\n\n**Por que IDL importa?** Um componente implementado em uma linguagem pode expor operações que outro componente, escrito em linguagem distinta, compreende por meio do contrato padronizado. A padronização não converte todas as linguagens à mesma sintaxe nem elimina a necessidade de configurar os componentes. Ela estabelece um vocabulário comum para descrever a interface a ser utilizada.\n\nA IDL descreve a interface **do ponto de vista contratual**, não necessariamente o algoritmo, a estrutura interna de memória ou o esquema físico do banco de dados. Portanto, a afirmação de que IDL obriga todos os objetos a terem mesma implementação é incorreta.\n\n## 3. GIOP e IIOP\n\nA interoperabilidade CORBA envolve também protocolos padronizados. **GIOP (General Inter-ORB Protocol)** estabelece um modelo geral de comunicação entre ORBs. **IIOP (Internet Inter-ORB Protocol)** corresponde à aplicação desse protocolo no ambiente TCP/IP, permitindo que ORBs compatíveis interoperem por redes IP.\n\nPara não confundir: **IDL especifica interfaces e tipos; IIOP trata da comunicação interoperável pela rede**. Nenhum desses elementos substitui integralmente o ORB. O ORB executa ou coordena a mediação de invocações conforme a arquitetura CORBA; o protocolo fornece convenções comuns de comunicação; a interface define o contrato. A compatibilidade depende de implementações que respeitem as especificações.\n\nA presença da sigla *Internet* em IIOP não significa que todas as invocações tenham de atravessar a internet pública. O protocolo pode operar em redes TCP/IP privadas ou públicas, desde que haja conectividade e os requisitos aplicáveis sejam atendidos.\n\n## 4. Objetos remotos, referências e localização\n\nEm um sistema orientado a objetos distribuídos, o cliente frequentemente lida com uma **referência a um objeto remoto** e invoca métodos definidos em sua interface. A referência não é, conceitualmente, cópia integral do estado interno do objeto nem exige que a instância esteja na mesma memória do cliente. Os mecanismos CORBA permitem encaminhar a invocação ao destino apropriado.\n\n**Transparência de localização** reduz a necessidade de que a aplicação cliente conheça detalhes físicos do servidor. Isso não implica que os serviços de nomes e descoberta sejam sempre opcionais ou idênticos: tais mecanismos dependem da arquitetura adotada. Um serviço de nomes vincula identificadores a referências acessíveis; ele não deve ser confundido com o objeto de negócio que atende à requisição.\n\nA distribuição continua sujeita a **falhas parciais**: o cliente pode estar operacional e o servidor indisponível. O middleware facilita a comunicação e a gestão de exceções, mas não oferece uma garantia geral de que todas as chamadas remotas terão êxito ou serão instantâneas.\n\n## 5. CORBA, RMI, RPC e MOM: delimitação conceitual\n\n- **RPC:** família de técnicas para invocar operações remotas; o foco didático clássico costuma estar em procedimentos ou serviços.\n- **RMI:** invocação de métodos de objetos Java localizados em outras JVMs.\n- **ORB/CORBA:** arquitetura de objetos distribuídos voltada à interoperabilidade entre linguagens e plataformas por interfaces e protocolos padronizados.\n- **MOM:** comunicação por mensagens com padrões de filas, tópicos e possível desacoplamento temporal.\n\nEsses mecanismos resolvem problemas relacionados, mas **não são substitutos idênticos**. Uma instituição pode usar CORBA em integração legada e, paralelamente, adotar brokers para eventos e APIs RPC modernas para serviços internos. A relevância de uma tecnologia na prova não é medida apenas pela sua presença em projetos novos; CORBA permanece tópico clássico de arquitetura de sistemas distribuídos.\n\n**Foco de concurso:** OMG é a entidade da padronização; ORB encaminha invocações de objetos; IDL define interface; GIOP/IIOP fornecem protocolo de interoperabilidade; CORBA não exige uma única linguagem de programação."
+    },
+    {
+      "title": "Servidores de aplicação, integração e critérios de escolha",
+      "markdown": "# Servidores de aplicação, integração e critérios de escolha\n\n## 1. Servidor web e servidor de aplicação\n\nUm **servidor web** lida, entre outras funções, com requisições HTTP e entrega de conteúdo ou encaminhamento de solicitações. Um **servidor de aplicação** hospeda e executa componentes da lógica de negócio, oferecendo ambiente gerenciado e serviços de infraestrutura. A distinção é **conceitual**, e as fronteiras concretas podem se sobrepor: um servidor de aplicação pode incluir recursos de servidor web, enquanto produtos de servidor web podem usar módulos e extensões.\n\nNa tradição das plataformas corporativas Java EE/Jakarta EE, **contêineres** oferecem serviços como gerenciamento de ciclo de vida, transações, segurança, acesso a recursos, injeção de dependências e integração com mensageria, conforme a plataforma e o perfil implementados. O objetivo é retirar da aplicação parte das responsabilidades repetitivas de infraestrutura, de modo que os componentes de negócio utilizem contratos e serviços padronizados.\n\nUma aplicação implantada em servidor de aplicação pode consumir serviços externos via RPC, publicar eventos em broker e invocar objetos remotos. O servidor de aplicação, portanto, **integra o universo de middleware**, mas não é sinônimo de RPC, MOM ou ORB.\n\n## 2. Contêiner e serviços gerenciados\n\n**Contêiner**, nesse contexto, significa ambiente lógico de execução gerenciada de componentes empresariais. Não confunda automaticamente com **contêiner de sistema operacional**, usado no empacotamento e isolamento de processos. Ambos compartilham a palavra, porém tratam de níveis arquiteturais diferentes.\n\nO ambiente gerenciado pode realizar **pool de conexões**, reaproveitando conexões a bancos de dados ou outros recursos, reduzindo custos de criação repetida. Pode também integrar **naming/directory services**, utilizados para localizar recursos registrados, e **gerenciamento declarativo de transações**, no qual a infraestrutura controla fronteiras de transação de acordo com configurações e contratos. **Autenticação** verifica identidade; **autorização** determina permissões. Middleware pode apoiar ambos, sem substituir a modelagem correta das regras de acesso do sistema.\n\n**Transação local** coordena alterações dentro de um recurso ou domínio transacional; **transações distribuídas** envolvem recursos distintos e exigem mecanismos de coordenação conforme as tecnologias utilizadas. Em determinados cenários usa-se **two-phase commit (2PC)**: uma etapa de preparação e outra de decisão final. O protocolo pressupõe participantes e coordenador compatíveis e envolve custos e possibilidades de bloqueio. **Não é correto afirmar que toda fila ou todo servidor de aplicação implementa 2PC obrigatoriamente**.\n\n## 3. Integração empresarial e ESB\n\n**Enterprise Service Bus (ESB)** é uma abordagem de integração em que uma infraestrutura comum pode centralizar o encaminhamento, a transformação de mensagens e a mediação entre serviços. Frequentemente se associa a **SOA (arquitetura orientada a serviços)**, na qual funcionalidades são expostas como serviços com contratos definidos. A escolha de um ESB não torna todos os sistemas automaticamente interoperáveis: mapeamento semântico, governança e políticas de erro continuam necessários.\n\nUm **API gateway** costuma concentrar funções de entrada para APIs, como roteamento, autenticação, controle de tráfego e observabilidade. Um **service mesh** pode tratar aspectos de comunicação entre serviços, como políticas, telemetria e segurança do tráfego interno. São formas contemporâneas de infraestrutura intermediária, mas não anulam as categorias clássicas RPC, MOM e ORB. Uma **função middleware** em um framework web, por sua vez, atua no fluxo de requisições/respostas do framework, representando um significado específico do termo.\n\nA presença de vários componentes intermediários pode elevar complexidade operacional, latência e dependências. Por isso a arquitetura deve considerar onde cada responsabilidade pertence e evitar duplicação de autenticação, roteamento e transformação sem justificativa.\n\n## 4. Segurança, observabilidade e governança\n\nO middleware pode transportar dados sensíveis e concentrar acessos a vários serviços. Projetos seguros tratam **autenticação, autorização, criptografia de tráfego, gestão de credenciais, auditoria e minimização de privilégios**. Não basta confiar na rede interna nem instalar um gateway: cada sistema precisa preservar requisitos de segurança adequados às suas operações.\n\nEm soluções distribuídas, **logs, métricas e rastreamento distribuído** facilitam acompanhar uma requisição ou mensagem ao atravessar componentes. Identificadores de correlação podem relacionar uma chamada inicial a tarefas posteriores. Erros intermitentes exigem examinar timeouts, filas acumuladas, falhas de consumidores, taxa de tentativas e disponibilidade dos serviços. Monitoramento não resolve automaticamente falhas, mas torna seu diagnóstico e tratamento mais viáveis.\n\nEm operação, é preciso prever **versionamento de contratos** e compatibilidade dos consumidores. Mensagens antigas podem permanecer na fila enquanto novos produtores são implantados. Mudanças de campo, de interpretação e de identidade de operação precisam ser controladas, evitando quebrar clientes e assinantes.\n\n## 5. Matriz prática de escolha\n\n| Necessidade dominante | Tecnologia ou padrão comumente pertinente | Atenção |\n|---|---|---|\n| Consulta remota com resposta imediata | RPC/RMI/gRPC | Timeout e disponibilidade do destino |\n| Execução posterior de tarefa | MOM com fila | Retries, duplicatas e retenção |\n| Divulgação de evento a vários interessados | MOM com tópico/pub-sub | Assinaturas e política de entrega |\n| Interoperabilidade clássica entre objetos heterogêneos | ORB/CORBA | Contratos IDL e protocolo interoperável |\n| Execução empresarial com recursos compartilhados | Servidor de aplicação | Serviços efetivamente oferecidos pelo contêiner |\n| Mediação entre serviços e formatos | ESB/integração | Governança e compatibilidade semântica |\n\nNão existe solução universal. **Desacoplamento** e **transparência** reduzem dependências em aspectos determinados, mas não eliminam falhas parciais, necessidade de contratos, latência, decisões sobre consistência ou custos de operação. Para selecionar a tecnologia, pergunte: a resposta deve ser imediata? É admissível processar depois? Há múltiplos assinantes? Os sistemas usam linguagens diferentes? O processamento precisa de transação coordenada? O que ocorre após uma falha?\n\n**Foco de concurso:** servidor de aplicação oferece ambiente e serviços, não apenas páginas estáticas; contêiner empresarial ≠ contêiner de sistema operacional; transações distribuídas exigem coordenação específica; ESB, gateway e service mesh são conceitos relacionados, mas não equivalentes."
+    }
+  ],
+  "summary": "## Síntese estratégica\n\n**Middleware** é o software intermediário que disponibiliza serviços para aplicações distribuídas, como comunicação, descoberta de recursos, integração, transações e gerenciamento de componentes. O sentido **clássico** inclui **RPC**, **MOM**, **ORB/CORBA** e **servidores de aplicação**. Sua missão é simplificar a heterogeneidade, **não** extinguir latência, indisponibilidade e falhas parciais.\n\nNa **RPC**, o cliente invoca uma operação remota, usualmente apoiado por stubs e marshalling. **RMI** é a invocação remota orientada a objetos no ecossistema Java. Um **timeout** não revela se a operação foi executada; retries de operações com efeitos exigem atenção à **idempotência**. **gRPC** amplia a família com contratos e diferentes modalidades de streaming.\n\nNo **MOM**, produtores e consumidores se comunicam por mensagens. **Fila de trabalho** distribui tarefas entre consumidores; **tópico pub/sub** permite difundir eventos a assinantes. Um ack não equivale a garantia universal de efeito único, e entrega *at-least-once* pode gerar duplicatas. Retenção, DLQ, deduplicação e ordenação dependem da implementação e de políticas operacionais.\n\nEm **CORBA**, o **ORB** medeia invocações, a **IDL** descreve interfaces independentes da linguagem e o **IIOP** permite interoperabilidade sobre TCP/IP. **Servidores de aplicação** fornecem ambiente gerenciado com recursos como segurança, transações e pools. **ESB**, **API gateway**, **service mesh** e funções middleware HTTP são conceitos relacionados, porém não sinônimos. Em toda questão, identifique se a necessidade principal é chamada imediata, processamento assíncrono, difusão de eventos, interoperabilidade de objetos ou serviços de execução empresarial.",
+  "flashcards": [
+    {
+      "front": "O que é middleware no sentido clássico?",
+      "back": "Camada de software intermediário que fornece comunicação, integração e serviços compartilhados para aplicações distribuídas."
+    },
+    {
+      "front": "Por que middleware não equivale ao sistema operacional?",
+      "back": "Ele utiliza serviços do sistema operacional e da rede, mas oferece abstrações de nível superior para a aplicação."
+    },
+    {
+      "front": "O que é interoperabilidade?",
+      "back": "Capacidade de sistemas heterogêneos cooperarem por contratos e protocolos compatíveis, sem exigir linguagem ou plataforma idêntica."
+    },
+    {
+      "front": "O que significa transparência de localização?",
+      "back": "Acesso por referência ou nome lógico sem exigir que o cliente conheça diretamente a localização física do serviço."
+    },
+    {
+      "front": "A transparência de acesso elimina a latência?",
+      "back": "Não. A abstração pode esconder mecanismos, mas não os custos e as falhas da comunicação remota."
+    },
+    {
+      "front": "Qual a diferença entre comunicação síncrona e assíncrona?",
+      "back": "Na síncrona, o fluxo geralmente depende da resposta ou conclusão; na assíncrona, o produtor pode prosseguir enquanto a operação é tratada depois."
+    },
+    {
+      "front": "O que é RPC?",
+      "back": "Remote Procedure Call: técnica pela qual um programa invoca operação implementada em outro processo ou máquina."
+    },
+    {
+      "front": "O que faz o stub cliente na RPC clássica?",
+      "back": "Representa a interface remota e participa do empacotamento e envio de parâmetros ao servidor."
+    },
+    {
+      "front": "O que são marshalling e unmarshalling?",
+      "back": "Preparação de dados para transmissão e reconstrução desses dados no destinatário, respectivamente."
+    },
+    {
+      "front": "Qual é a diferença básica entre RPC e RMI?",
+      "back": "RPC é a família de chamadas remotas; RMI é invocação de métodos de objetos Java remotos, potencialmente em outras JVMs."
+    },
+    {
+      "front": "Para que serve o RMI registry?",
+      "back": "Para registrar e localizar referências remotas por nome; não é o executante da lógica de negócio."
+    },
+    {
+      "front": "O que um timeout remoto não permite concluir?",
+      "back": "Não permite afirmar que o servidor não executou a operação; a resposta pode ter se perdido ou atrasado."
+    },
+    {
+      "front": "Por que utilizar chaves de idempotência?",
+      "back": "Para reconhecer tentativas repetidas da mesma operação de negócio e prevenir efeitos duplicados."
+    },
+    {
+      "front": "Quais são os quatro padrões de chamadas gRPC?",
+      "back": "Unária, streaming do servidor, streaming do cliente e streaming bidirecional."
+    },
+    {
+      "front": "O que significa MOM?",
+      "back": "Message-Oriented Middleware: integração de componentes pela troca de mensagens, frequentemente com apoio de broker."
+    },
+    {
+      "front": "Como diferenciar fila de tópico?",
+      "back": "Fila de trabalho distribui mensagens entre consumidores; tópico pub/sub entrega eventos a assinantes conforme suas inscrições."
+    },
+    {
+      "front": "Qual a distinção entre aceite pelo broker e processamento?",
+      "back": "O broker pode confirmar recebimento antes de um consumidor efetivamente concluir a tarefa."
+    },
+    {
+      "front": "O que significa at-least-once?",
+      "back": "Entrega pelo menos uma vez dentro das condições do sistema, podendo ocorrer mensagens duplicadas."
+    },
+    {
+      "front": "O que é uma dead-letter queue?",
+      "back": "Fila reservada a mensagens não processadas normalmente, para investigação e possível reprocessamento."
+    },
+    {
+      "front": "O que é Jakarta Messaging?",
+      "back": "API/especificação padronizada de mensageria no ecossistema Java; não é um único produto broker."
+    },
+    {
+      "front": "Qual é a função do ORB?",
+      "back": "Intermediar requisições e respostas para objetos distribuídos, como na arquitetura CORBA."
+    },
+    {
+      "front": "O que a IDL da OMG especifica?",
+      "back": "Interfaces, operações e tipos de forma independente da linguagem de implementação."
+    },
+    {
+      "front": "Como distinguir GIOP de IIOP?",
+      "back": "GIOP é o protocolo geral de interoperabilidade entre ORBs; IIOP é sua realização para TCP/IP."
+    },
+    {
+      "front": "O que caracteriza um servidor de aplicação?",
+      "back": "Ambiente de execução de componentes empresariais com serviços gerenciados, como recursos, segurança e transações."
+    },
+    {
+      "front": "O que é pool de conexões?",
+      "back": "Reutilização gerenciada de conexões para reduzir custos de criação e encerramento repetidos."
+    },
+    {
+      "front": "O que faz um ESB?",
+      "back": "Intermedia, roteia e pode transformar mensagens entre serviços; não elimina a necessidade de contratos e governança."
+    }
+  ],
+  "tips": [
+    "Na banca, ao aparecer 'entre aplicação e sistema operacional/rede' com comunicação e integração, pense em middleware clássico; não restrinja o conceito a HTTP.",
+    "Associe RPC a invocação e stubs; RMI a métodos Java remotos; MOM a mensagens e broker; ORB/CORBA a objetos distribuídos interoperáveis.",
+    "Memorize o trio de CORBA: ORB medeia a requisição; IDL descreve interfaces; IIOP permite interoperabilidade por TCP/IP.",
+    "Em filas de trabalho, consumidores concorrentes dividem tarefas. Em tópicos, assinantes recebem eventos conforme suas inscrições.",
+    "Desconfie de absolutos como 'sempre', 'nunca', 'garante', 'elimina falhas' e 'todos recebem': garantias dependem da plataforma e do protocolo.",
+    "Timeout em RPC não é prova de que o destino não executou; a resposta pode ser perdida. Use esse raciocínio em questões de retry e idempotência.",
+    "Servidor de aplicação provê serviços gerenciados a componentes de negócio, mas pode incorporar funcionalidades de servidor web."
+  ],
+  "traps": [
+    "Chamar middleware de mero hardware de rede ou de substituto de todas as aplicações de negócio.",
+    "Confundir transparência de localização com eliminação da latência, da necessidade de rede ou de falhas parciais.",
+    "Tomar o stub da RPC ou o RMI registry como o componente que executa a regra de negócio remota.",
+    "Tratar uma fila com vários consumidores como se cada mensagem fosse necessariamente difundida a todos.",
+    "Supor que ack, persistência ou entrega pelo menos uma vez significam exatamente um efeito de negócio em qualquer circunstância.",
+    "Confundir ORB com roteador IP, IDL com protocolo de transporte ou IIOP com linguagem de definição de interfaces.",
+    "Considerar middleware de framework web, ESB, API gateway e service mesh nomes intercambiáveis para a mesma função.",
+    "Confundir contêiner de componentes Jakarta EE com contêiner de isolamento de processos do sistema operacional."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique em duas frases por que middleware é uma abstração de sistemas distribuídos, mas não torna uma chamada remota local.",
+      "answer": "Middleware encapsula detalhes de comunicação e integração para aplicações distribuídas; apesar disso, a chamada atravessa fronteiras de processo e rede, sujeitas a latência e falhas independentes."
+    },
+    {
+      "question": "Descreva o caminho básico de uma chamada RPC clássica.",
+      "answer": "O cliente invoca uma interface representada por stub, que prepara parâmetros e envia a requisição; o servidor recebe, reconstrói os dados, executa a operação e devolve resultado ou erro."
+    },
+    {
+      "question": "Por que um timeout após uma cobrança remota não autoriza repetição ingênua?",
+      "answer": "O servidor pode ter concluído a cobrança e perdido a resposta. Repetir sem chave de idempotência ou registro pode cobrar novamente a mesma operação."
+    },
+    {
+      "question": "Uma tarefa de geração de documento deve ocorrer mesmo se o consumidor estiver temporariamente indisponível. Qual padrão considerar e quais cuidados adotar?",
+      "answer": "Fila MOM com retenção apropriada; prever confirmação, persistência, expiração, tratamento de falhas, possíveis duplicatas e consumidor idempotente."
+    },
+    {
+      "question": "Diferencie fila de trabalho e tópico de pub/sub em um caso de auditoria e notificação.",
+      "answer": "Fila de trabalho divide tarefas entre processadores; tópico permite publicar o mesmo evento para assinantes independentes, como auditoria e notificação, conforme configuração."
+    },
+    {
+      "question": "Indique as funções de ORB, IDL e IIOP em CORBA.",
+      "answer": "ORB intermedeia invocações a objetos distribuídos; IDL define interfaces e tipos; IIOP viabiliza comunicação interoperável entre ORBs sobre TCP/IP."
+    },
+    {
+      "question": "Explique por que um servidor de aplicação é middleware e não apenas um servidor de páginas.",
+      "answer": "Ele hospeda componentes de negócio e pode fornecer transações, segurança, pooling e serviços de recursos que simplificam aplicações distribuídas; páginas HTTP podem ser apenas parte do ambiente."
+    },
+    {
+      "question": "Quais diferenças existem entre ack, persistência e idempotência na mensageria?",
+      "answer": "Ack sinaliza um estado previsto no protocolo; persistência retém mensagens conforme configurações; idempotência evita efeitos adicionais quando uma operação é processada novamente."
+    },
+    {
+      "question": "Qual diferença entre o significado clássico de middleware e o uso do termo em frameworks web?",
+      "answer": "O sentido clássico abrange RPC, MOM, ORB e servidores de aplicação; em frameworks web, middleware costuma ser uma função no pipeline de requisição e resposta."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Middleware versus redes, sistema operacional e interceptadores web",
+      "summary": "Confundir a camada intermediária com roteadores, núcleo do sistema operacional ou exclusivamente funções de pipeline HTTP. Middleware clássico fornece serviços de nível superior para comunicação e integração entre aplicações distribuídas."
+    },
+    {
+      "key": "e2",
+      "title": "RPC, stub, registry e falhas de execução remota",
+      "summary": "Atribuir a execução de negócio ao stub ou ao registry, ou deduzir que timeout prova não execução. A chamada cruza processos, admite falhas parciais e exige cuidado com tentativas repetidas e idempotência."
+    },
+    {
+      "key": "e3",
+      "title": "Fila versus tópico e falsas garantias de entrega",
+      "summary": "Confundir balanceamento de trabalho em fila com difusão pub/sub; considerar ack como confirmação irrestrita de negócio e supor que at-least-once exclui duplicatas. As garantias dependem do protocolo e da configuração."
+    },
+    {
+      "key": "e4",
+      "title": "CORBA: funções distintas de ORB, IDL e IIOP",
+      "summary": "Trocar os papéis de mediador de invocações, definição de interfaces e protocolo de comunicação. CORBA visa interoperabilidade de objetos heterogêneos, sem exigir mesma linguagem ou memória compartilhada."
+    },
+    {
+      "key": "e5",
+      "title": "Servidores de aplicação e integração empresarial",
+      "summary": "Reduzir servidores de aplicação a conteúdo estático ou confundir contêiner gerenciado com isolamento de processos. ESB e tecnologias de integração facilitam mediação, mas não eliminam contratos nem problemas de consistência."
+    },
+    {
+      "key": "e6",
+      "title": "Transparência, idempotência e transações distribuídas",
+      "summary": "Supor que abstração elimina custos da rede, que retry é sempre seguro ou que qualquer middleware garante efeito único e 2PC. Essas propriedades dependem de desenho da aplicação, coordenação e capacidades específicas da plataforma."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em uma arquitetura distribuída, qual é a função central do middleware no sentido clássico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Oferecer serviços intermediários de comunicação e integração entre componentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir toda a lógica de negócio dos sistemas envolvidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar exclusivamente as rotinas do núcleo do sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eliminar as diferenças de latência entre acesso local e remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Impedir que aplicações utilizem protocolos de rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Middleware oferece abstrações e serviços que facilitam a cooperação entre aplicações distribuídas, como comunicação, nomes e transações. Ele não substitui regras de negócio, não elimina a latência da rede e não impede o uso de protocolos.",
+      "section": "Fundamentos do middleware em sistemas distribuídos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O middleware clássico oferece abstrações entre componentes distribuídos, mas não elimina por completo latência e falhas da rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A afirmativa reconhece simultaneamente o propósito de simplificação do middleware e seus limites. A comunicação remota permanece sujeita a atrasos, perda de conectividade e falhas parciais, ainda que esses detalhes sejam parcialmente ocultados.",
+      "section": "Fundamentos do middleware em sistemas distribuídos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instituição mantém aplicações escritas em linguagens distintas. Que propriedade do middleware favorece a cooperação entre elas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Obrigatoriedade de reescrever todas as aplicações na mesma linguagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Interoperabilidade mediante contratos e protocolos compatíveis.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Cópia integral de cada base de dados para a memória do cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uso de uma única marca de processador em todos os servidores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ausência de qualquer definição dos formatos transmitidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Interoperabilidade pressupõe contratos compreendidos pelos sistemas participantes, mesmo quando eles usam tecnologias diferentes. A compatibilidade de mensagens e operações é essencial; homogeneizar hardware e linguagem não é condição necessária.",
+      "section": "Fundamentos do middleware em sistemas distribuídos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A interoperabilidade entre sistemas distribuídos exige que todos utilizem o mesmo sistema operacional e a mesma linguagem de programação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Interoperabilidade pressupõe contratos, formatos e protocolos compatíveis, não identidade de plataforma. O middleware justamente pode mediar sistemas heterogêneos, desde que as partes compreendam as interfaces e o significado dos dados.",
+      "section": "Fundamentos do middleware em sistemas distribuídos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente utiliza um nome lógico para acessar serviço sem conhecer seu servidor físico. Qual transparência está sendo exemplificada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Transparência de concorrência exclusivamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Transparência de persistência de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Transparência de localização.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Transparência de replicação necessariamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transparência de tipagem estática.",
+          "correct": false
+        }
+      ],
+      "explanation": "A transparência de localização busca ocultar o endereço ou posicionamento físico do serviço sob uma referência lógica. Ela não exige que existam réplicas, nem se confunde com controle de acessos concorrentes ou com tipagem de linguagens.",
+      "section": "Fundamentos do middleware em sistemas distribuídos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A transparência de localização permite referir-se a um serviço logicamente sem depender, em todos os casos, de informar o endereço físico do servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A transparência de localização oculta parte do endereçamento físico por meio de nomes ou referências lógicas. Ela não elimina a necessidade de mecanismos de descoberta, resolução ou conectividade, mas reduz dependências da localização.",
+      "section": "Fundamentos do middleware em sistemas distribuídos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em prova, middleware web é apresentado como sinônimo necessário de RPC, MOM e CORBA. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Middleware web designa exclusivamente um broker de mensagens persistentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma função middleware HTTP exige um ORB CORBA para operar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Toda função middleware de framework cria uma JVM remota.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Middleware web pode designar interceptadores de requisição, um uso mais específico do termo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O termo middleware é proibido para componentes de processamento HTTP.",
+          "correct": false
+        }
+      ],
+      "explanation": "Frameworks web chamam de middleware funções inseridas no fluxo de requisições, como autenticação e logs. O sentido clássico é mais amplo e compreende diversas categorias de infraestrutura distribuída, não exigidas por uma função HTTP.",
+      "section": "Fundamentos do middleware em sistemas distribuídos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função middleware de um framework HTTP representa, necessariamente, uma implementação de CORBA e de mensageria MOM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O uso do termo em frameworks web descreve frequentemente funções que interceptam requisições e respostas. RPC, CORBA e MOM são categorias clássicas de middleware distribuído, não componentes obrigatórios de todo pipeline HTTP.",
+      "section": "Fundamentos do middleware em sistemas distribuídos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Considere uma biblioteca que esconde detalhes do socket, mas cuja chamada remota sofre timeout. Qual conclusão é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O timeout demonstra que o servidor não chegou a executar a operação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O middleware torna todas as chamadas remotas equivalentes em custo às locais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Falhas parciais são impossíveis se existir uma camada intermediária.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A existência de um stub garante resultado correto mesmo sem rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A abstração de comunicação não elimina falhas parciais nem assegura execução instantânea.",
+          "correct": true
+        }
+      ],
+      "explanation": "Abstrações podem oferecer transparência de acesso, mas a rede conserva latência, indisponibilidade e resultados incertos. Um timeout não comprova ausência de execução; são necessárias políticas de erro, rastreamento e recuperação apropriadas.",
+      "section": "Fundamentos do middleware em sistemas distribuídos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O desacoplamento temporal de uma fila persistente significa que o consumidor não precisa estar ativo exatamente no instante do envio, respeitadas as garantias da plataforma.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma fila com retenção apropriada pode armazenar mensagens para consumo posterior, reduzindo a necessidade de disponibilidade simultânea. Isso não significa persistência ilimitada nem dispensa políticas de expiração e tratamento de falhas.",
+      "section": "Fundamentos do middleware em sistemas distribuídos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo clássico de RPC, que componente representa a interface remota junto ao código cliente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escalonador do kernel do servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Stub do cliente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Banco de dados da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Firewall de borda da instituição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Compilador da aplicação de negócio.",
+          "correct": false
+        }
+      ],
+      "explanation": "O stub disponibiliza ao chamador a interface necessária para invocar a operação remota, participando do empacotamento de parâmetros e da comunicação. Ele não substitui a implementação do servidor nem é sinônimo de banco ou firewall.",
+      "section": "RPC, RMI e invocação remota",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma chamada RPC clássica, o stub cliente costuma participar do empacotamento de parâmetros e do envio da invocação ao servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Stubs são representantes da interface remota junto ao cliente e cooperam com mecanismos de marshalling e transporte. A função de negócio é realizada pelo servidor remoto, não obrigatoriamente pelo stub local.",
+      "section": "RPC, RMI e invocação remota",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em RPC, o que melhor caracteriza marshalling?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar diretamente a regra de negócio no cliente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Autorizar o usuário a entrar no sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Preparar parâmetros e resultados em representação adequada à transmissão.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Distribuir arquivos de log por servidores de impressão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apagar requisições quando a conexão está lenta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Marshalling prepara valores e estruturas de dados para que possam atravessar a comunicação entre processos. No destino ocorre a reconstrução correspondente; não é autorização, descarte de requisições nem execução local da regra remota.",
+      "section": "RPC, RMI e invocação remota",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um timeout na chamada RPC demonstra de maneira inequívoca que o servidor não executou a operação solicitada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O timeout informa que a resposta não chegou no prazo esperado; a execução pode ter ocorrido e a resposta pode ter sido perdida ou atrasado. Repetições sem deduplicação podem causar efeitos de negócio duplicados.",
+      "section": "RPC, RMI e invocação remota",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe utiliza Java RMI. Qual afirmação descreve corretamente o mecanismo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O protocolo exige que o método execute na mesma instância da JVM.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O registry é quem implementa todos os métodos de negócio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RMI opera exclusivamente com mensagens depositadas em tópicos pub/sub.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um objeto Java pode invocar métodos de objeto remoto em outra JVM.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "RMI foi concebido para substituir a tipagem de métodos por SQL.",
+          "correct": false
+        }
+      ],
+      "explanation": "RMI oferece invocação remota no modelo de objetos Java, inclusive entre JVMs em máquinas distintas. O registro ajuda a localizar referências; ele não executa a lógica do objeto, e a tecnologia não se reduz a tópicos de mensageria.",
+      "section": "RPC, RMI e invocação remota",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Java RMI, o registry constitui o local obrigatório em que todas as operações de negócio são executadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O registry é associado à vinculação e à busca de referências remotas por nome. A execução de métodos de negócio cabe aos objetos servidores correspondentes; confundir descoberta com processamento remoto é erro comum.",
+      "section": "RPC, RMI e invocação remota",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após timeout numa operação de cobrança remota, qual conduta arquitetural reduz o risco de cobrança duplicada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Refazer a chamada ilimitadamente sem identificar a operação original.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Assumir que o timeout prova que a cobrança nunca ocorreu.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eliminar todo registro de operações executadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar erros da rede e declarar a cobrança concluída.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar chave de idempotência e consultar o resultado antes de repetir a operação.",
+          "correct": true
+        }
+      ],
+      "explanation": "O tempo limite não revela se o servidor executou a cobrança e perdeu apenas a resposta. Chaves de idempotência e controle do resultado permitem lidar com repetições sem multiplicar o efeito financeiro da mesma solicitação.",
+      "section": "RPC, RMI e invocação remota",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "gRPC comporta, além de chamadas unárias, modalidades de streaming entre cliente e servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "gRPC prevê diferentes padrões de interação, incluindo fluxos de mensagens originados por cliente e/ou servidor. Logo, enquadrar toda RPC como estritamente um pedido seguido de uma única resposta é generalização incorreta.",
+      "section": "RPC, RMI e invocação remota",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço gRPC envia várias respostas a partir de uma única requisição. Qual modalidade descreve esse fluxo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Streaming do servidor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Chamada obrigatoriamente unária.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Streaming exclusivo do cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Protocolo de duas fases de commit.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Publicação em tópico por meio de CORBA.",
+          "correct": false
+        }
+      ],
+      "explanation": "No streaming do servidor, uma solicitação pode originar uma sequência de mensagens de resposta. É modalidade prevista no modelo gRPC, distinta do fluxo unário e do streaming do cliente; não equivale a transação distribuída nem a pub/sub CORBA.",
+      "section": "RPC, RMI e invocação remota",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para evitar duplicação de efeitos, basta repetir automaticamente uma chamada de cobrança sempre que ocorrer falha de comunicação, sem identificar a operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Repetições indiscriminadas são inseguras para operações com efeitos colaterais, porque o servidor pode ter concluído a cobrança antes da falha. Idempotência e identificação da solicitação reduzem o risco de execução duplicada.",
+      "section": "RPC, RMI e invocação remota",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo de filas de trabalho com consumidores concorrentes, qual comportamento é esperado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada mensagem deve ser executada simultaneamente por todos os consumidores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A fila elimina a possibilidade de reentrega após falha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Consumidores dividem o processamento das mensagens da fila.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O produtor deve conhecer o endereço físico de cada consumidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O consumidor só pode operar no mesmo processo do produtor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Filas de trabalho permitem que consumidores concorrentes distribuam tarefas entre si. Uma mesma mensagem pode ser reentregue após falha ou ausência de confirmação, mas não se destina obrigatoriamente a todos os consumidores ao mesmo tempo.",
+      "section": "MOM: filas, tópicos e comunicação assíncrona",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No padrão pub/sub, a publicação de um evento pode interessar a vários assinantes, conforme a configuração das assinaturas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Um tópico de publicação e assinatura permite que diferentes destinatários recebam eventos de seu interesse. As condições de retenção e de entrega dependem de assinaturas e políticas, portanto não se deve presumir acesso eterno e irrestrito.",
+      "section": "MOM: filas, tópicos e comunicação assíncrona",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um evento precisa chegar a serviços de auditoria e notificação independentemente. Qual padrão é mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fila única com remoção definitiva pelo primeiro consumidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RPC que só permite um consumidor e impede observadores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Chamada local de função dentro do produtor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Publicação/assinatura em tópico com assinantes correspondentes.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Registro exclusivo de serviços sem transporte de eventos.",
+          "correct": false
+        }
+      ],
+      "explanation": "No pub/sub, um produtor publica um evento de interesse para múltiplos assinantes independentes. Uma fila de tarefas com consumidores concorrentes geralmente distribui trabalho, não replica automaticamente o mesmo evento a todos.",
+      "section": "MOM: filas, tópicos e comunicação assíncrona",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O modelo de consumidores concorrentes em fila exige que cada mensagem seja entregue e processada por todos os consumidores simultaneamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Em filas de trabalho, os consumidores normalmente dividem tarefas; o mesmo item não é destinado a todos simultaneamente. A reentrega após falha é possível, o que é distinto de difusão para todos os assinantes de um tópico.",
+      "section": "MOM: filas, tópicos e comunicação assíncrona",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No processamento de mensagens, o que significa um acknowledgement no cenário usual de broker?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma prova universal de que toda transação de negócio foi confirmada em todos os sistemas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma ordem para duplicar a mensagem a cada novo consumidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma substituição de todos os mecanismos de persistência do broker.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A garantia de que a mensagem será processada na mesma ordem em qualquer arquitetura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma confirmação segundo as regras do protocolo, frequentemente usada para controlar remoção ou reentrega.",
+          "correct": true
+        }
+      ],
+      "explanation": "O ack comunica ao broker um estado de recebimento ou processamento previsto no protocolo, influenciando a reentrega. Seu significado exato depende do produto e não constitui garantia universal de transação de negócio ou de ordenação global.",
+      "section": "MOM: filas, tópicos e comunicação assíncrona",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma confirmação de recebimento no broker dispensa sempre a aplicação de idempotência, pois exclui qualquer possibilidade de mensagem duplicada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Um ack segue a semântica do protocolo e não elimina, em todos os cenários, a necessidade de deduplicação. Reentregas, tentativas de processamento e falhas transacionais podem exigir consumidores idempotentes.",
+      "section": "MOM: filas, tópicos e comunicação assíncrona",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço reprocessa mensagens com garantia de entrega pelo menos uma vez. Que providência é essencial diante de possíveis duplicatas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tornar o consumidor idempotente em relação à operação de negócio.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desabilitar a identificação das mensagens recebidas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Confiar que pelo menos uma vez exclui toda duplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Concluir que toda fila possui garantia automática de efeito exatamente uma vez.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar cada mensagem duas vezes deliberadamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na entrega pelo menos uma vez, novas tentativas podem fazer o consumidor receber a mesma mensagem novamente. Idempotência ou deduplicação de negócios evita repetir efeitos indesejados, como cobranças e lançamentos.",
+      "section": "MOM: filas, tópicos e comunicação assíncrona",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma dead-letter queue pode auxiliar na investigação de mensagens que não puderam ser processadas normalmente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A DLQ permite separar mensagens malsucedidas para observação, correção e eventual reprocessamento sob regras próprias. A existência dessa fila não corrige o problema original, mas melhora o tratamento operacional das falhas.",
+      "section": "MOM: filas, tópicos e comunicação assíncrona",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem falha repetidamente por dados inválidos. Qual mecanismo facilita a segregação e análise do problema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registro RMI para atribuir nome à mensagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Fila de mensagens mortas (dead-letter queue).",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Stub CORBA para serialização de inteiros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Servidor DNS como armazenamento transacional do evento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Compilação da interface do produtor a cada tentativa.",
+          "correct": false
+        }
+      ],
+      "explanation": "A DLQ concentra mensagens que não puderam ser processadas conforme a política de falhas e tentativas. Ela facilita investigação e tratamento específico, mas não corrige dados inválidos automaticamente nem garante recuperação sem intervenção ou regra definida.",
+      "section": "MOM: filas, tópicos e comunicação assíncrona",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Jakarta Messaging é uma API padronizada para aplicações Java, e não o nome obrigatório de um único produto broker.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A especificação Jakarta Messaging define contratos de programação para comunicação por mensagens, com filas e tópicos. Provedores concretos podem implementá-los; confundir API padronizada com fornecedor ou broker específico é erro.",
+      "section": "MOM: filas, tópicos e comunicação assíncrona",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em CORBA, qual componente recebe o papel central de intermediar invocações a objetos remotos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Compilador SQL do banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Servidor de arquivos local exclusivamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Agendador de impressão do cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Object Request Broker (ORB).",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Mecanismo de renderização de páginas HTML.",
+          "correct": false
+        }
+      ],
+      "explanation": "O ORB participa do encaminhamento de solicitações e respostas entre clientes e objetos distribuídos, gerenciando detalhes da comunicação. Não é um SGBD, um compilador SQL ou um componente destinado apenas a HTML.",
+      "section": "ORB e CORBA: middleware de objetos distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O ORB de CORBA opera na mediação de invocações a objetos distribuídos, não se reduzindo ao roteamento IP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A finalidade do ORB é encaminhar invocações a objetos e tratar aspectos da comunicação remota no nível de interfaces. O roteamento de pacotes IP pertence a outra camada, insuficiente para representar o papel do intermediador.",
+      "section": "ORB e CORBA: middleware de objetos distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual artefato CORBA descreve interfaces e tipos sem exigir linguagem de implementação única?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Endereço IP físico do servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tabela interna de roteamento do switch.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Índice B-tree da base relacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Arquivo de log do sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "IDL da OMG.",
+          "correct": true
+        }
+      ],
+      "explanation": "A IDL da OMG declara operações e tipos de interfaces de objetos distribuídos de modo independente da linguagem usada para implementá-los. Ela define o contrato e não substitui endereçamento IP, índices de dados ou roteamento físico.",
+      "section": "ORB e CORBA: middleware de objetos distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A IDL da OMG impõe que clientes e servidores CORBA sejam implementados com código-fonte escrito na mesma linguagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A IDL especifica operações e tipos de maneira independente da linguagem, favorecendo interoperabilidade entre implementações distintas. Ela não obriga padronização do código-fonte nem algoritmos internos idênticos.",
+      "section": "ORB e CORBA: middleware de objetos distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para interoperabilidade CORBA em redes TCP/IP, qual protocolo é classicamente empregado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "IIOP.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SMTP como mecanismo obrigatório de objetos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "NTP como serialização de interfaces.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "FTP como contrato de métodos distribuídos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ICMP como serviço de nomes de objetos.",
+          "correct": false
+        }
+      ],
+      "explanation": "IIOP é a realização do protocolo de interoperabilidade entre ORBs sobre TCP/IP, conforme a arquitetura CORBA. GIOP é a especificação mais geral; IDL define interfaces. SMTP, NTP, FTP e ICMP têm outras finalidades.",
+      "section": "ORB e CORBA: middleware de objetos distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "IIOP é associado à interoperabilidade de ORBs CORBA sobre redes TCP/IP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "IIOP especifica comunicação interoperável entre ORBs em ambiente TCP/IP. A descrição das interfaces é trabalho da IDL, enquanto o ORB medeia a invocação; distinguir essas atribuições evita trocas de conceito.",
+      "section": "ORB e CORBA: middleware de objetos distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema CORBA possui cliente em uma linguagem e servidor em outra. Qual condição arquitetural favorece essa interoperabilidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Obrigação de executar ambas as aplicações no mesmo processo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Interfaces IDL compatíveis e ORBs que implementem os protocolos pertinentes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Identidade absoluta entre os algoritmos internos dos dois programas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Proibição de utilizar rede TCP/IP entre os sistemas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uso de uma única estrutura de memória compartilhada por todos os objetos.",
+          "correct": false
+        }
+      ],
+      "explanation": "CORBA separa a definição contratual da interface da implementação e padroniza comunicação entre ORBs. Por isso componentes em linguagens diferentes podem cooperar sem compartilhar processo ou algoritmo interno.",
+      "section": "ORB e CORBA: middleware de objetos distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em CORBA, uma referência remota deve conter obrigatoriamente uma cópia integral e atualizada de todo o estado do objeto servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A referência remota identifica ou permite alcançar um objeto distribuído para invocação de suas operações. Ela não equivale à cópia completa e sincronizada do estado interno do objeto no espaço de memória do cliente.",
+      "section": "ORB e CORBA: middleware de objetos distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No vocabulário CORBA, qual é a distinção correta entre IDL e IIOP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "IDL substitui TCP/IP e IIOP armazena os dados em tabelas SQL.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ambos são nomes diferentes para a linguagem Java.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "IDL descreve interfaces; IIOP padroniza comunicação interoperável sobre TCP/IP.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "IDL é mecanismo de roteamento IP e IIOP é o código-fonte do cliente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "IDL é fila assíncrona e IIOP é ferramenta de compilação de banco.",
+          "correct": false
+        }
+      ],
+      "explanation": "IDL informa quais operações e tipos integram um contrato de objetos; IIOP especifica como ORBs compatíveis trocam requisições via TCP/IP. A arquitetura separa descrição de interface, mediação da invocação e transporte interoperável.",
+      "section": "ORB e CORBA: middleware de objetos distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na arquitetura CORBA, GIOP e IDL são exatamente a mesma especificação, ambos destinados exclusivamente à declaração de métodos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "IDL define contratos de interfaces e tipos; GIOP define aspectos gerais do protocolo de interoperabilidade entre ORBs. Misturar descrição de operações e comunicação de rede apaga uma distinção fundamental de CORBA.",
+      "section": "ORB e CORBA: middleware de objetos distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual característica identifica um servidor de aplicação em sua acepção empresarial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Servir somente imagens e arquivos estáticos, sem lógica executável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Realizar apenas roteamento físico de pacotes entre redes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir obrigatoriamente todos os bancos de dados da organização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar exclusivamente backups de sistemas operacionais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Hospedar componentes de negócio oferecendo serviços de infraestrutura gerenciados.",
+          "correct": true
+        }
+      ],
+      "explanation": "Servidores de aplicação disponibilizam ambiente de execução e serviços como transações, segurança e gerenciamento de recursos, conforme o produto. Não são necessariamente restritos a páginas estáticas nem equivalem a roteadores ou ferramentas de backup.",
+      "section": "Servidores de aplicação, integração e critérios de escolha",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Servidores de aplicação podem disponibilizar gerenciamento de transações, segurança e recursos compartilhados a componentes hospedados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Servidores empresariais oferecem ambiente gerenciado e serviços que reduzem código repetitivo de infraestrutura. A disponibilidade concreta varia por plataforma e perfil, mas essas capacidades são características relevantes da categoria.",
+      "section": "Servidores de aplicação, integração e critérios de escolha",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar contêiner de servidor Jakarta EE com contêiner de sistema operacional, qual conclusão é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O primeiro gerencia componentes de aplicação; o segundo trata de empacotamento e isolamento de processos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "São sinônimos técnicos com responsabilidades sempre idênticas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ambos exigem CORBA para fornecer qualquer serviço de segurança.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O contêiner Jakarta EE existe apenas para executar comandos de shell.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O contêiner de sistema operacional define obrigatoriamente as interfaces EJB.",
+          "correct": false
+        }
+      ],
+      "explanation": "A palavra contêiner possui sentidos diferentes: em Jakarta EE, trata de ambiente gerenciado de componentes e serviços; na infraestrutura de sistemas, diz respeito ao isolamento e empacotamento de processos. Não são equivalentes.",
+      "section": "Servidores de aplicação, integração e critérios de escolha",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor de aplicação é, por definição, incapaz de atender requisições HTTP e sempre depende de um servidor web fisicamente separado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "As funções podem estar integradas no mesmo produto ou implantação. A distinção entre servidor web e de aplicação é arquitetural; não determina que devam ser máquinas separadas ou que um deles jamais trate HTTP.",
+      "section": "Servidores de aplicação, integração e critérios de escolha",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja reduzir a criação repetitiva de conexões com o banco. Qual serviço de middleware é especialmente pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Streaming bidirecional de chamadas RPC.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pool de conexões.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Compilação de interfaces OMG IDL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reprocessamento ilimitado de mensagens na DLQ.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Publicação obrigatória de todos os dados no tópico.",
+          "correct": false
+        }
+      ],
+      "explanation": "O pooling permite reutilizar conexões mantidas pela infraestrutura, reduzindo a sobrecarga de criação e encerramento frequentes. Não é o mesmo que streaming, compilação IDL ou reprocessamento de mensagens de erro.",
+      "section": "Servidores de aplicação, integração e critérios de escolha",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O pool de conexões permite reutilizar conexões a recursos, atenuando o custo de abrir e encerrar uma conexão para cada operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O gerenciamento de pool mantém recursos reaproveitáveis sob regras de utilização e disponibilidade. Ele não altera a finalidade das transações nem substitui controle de acesso, mas pode melhorar a eficiência da aplicação.",
+      "section": "Servidores de aplicação, integração e critérios de escolha",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instituição centraliza mediação e transformação de mensagens entre serviços heterogêneos. Qual conceito descreve melhor a solução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma interface gráfica local de edição de texto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um algoritmo de ordenação interna de vetores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Enterprise Service Bus (ESB).",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Um compilador que converte apenas Java em código de máquina.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma tabela ARP encarregada da lógica de negócio.",
+          "correct": false
+        }
+      ],
+      "explanation": "O ESB é uma abordagem de integração que pode concentrar roteamento, transformações e mediação entre serviços. Sua adoção não elimina a necessidade de governança e compatibilidade semântica e não se confunde com ferramentas locais ou de rede básica.",
+      "section": "Servidores de aplicação, integração e critérios de escolha",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em plataformas empresariais, o contêiner de componentes Jakarta EE e o contêiner de sistema operacional são termos necessariamente equivalentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Contêiner de componentes descreve ambiente lógico com serviços de execução gerenciada; contêiner de sistema operacional enfatiza empacotamento e isolamento de processos. A identidade do termo não torna idênticas as funções.",
+      "section": "Servidores de aplicação, integração e critérios de escolha",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um projeto de transação distribuída, qual análise sobre o protocolo 2PC é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É garantia implícita de qualquer chamada RPC, mesmo sem suporte transacional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Dispensa coordenador e estado de preparação das partes envolvidas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converte mensagens assíncronas em operações locais sem latência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exige coordenação e participantes compatíveis, podendo impor custos e riscos de bloqueio.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Torna desnecessárias políticas para falhas de componentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O protocolo de commit em duas fases coordena preparação e decisão de commit ou rollback entre participantes apropriados. Não aparece automaticamente em todo middleware e implica custos operacionais e dificuldades diante de falhas.",
+      "section": "Servidores de aplicação, integração e critérios de escolha",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A adoção de ESB, API gateway ou service mesh dispensa definição e versionamento de contratos entre produtores e consumidores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Infraestruturas intermediárias podem reduzir acoplamento e centralizar políticas, mas os sistemas continuam dependentes de contratos coerentes e compatíveis. Mudanças sem versionamento podem quebrar integrações, mesmo com roteamento mediado.",
+      "section": "Servidores de aplicação, integração e critérios de escolha",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "What Is Middleware?",
+      "publisher": "IBM",
+      "reference": "Conceito de middleware, RPC, MOM, ORB e infraestrutura de integração",
+      "url": "https://www.ibm.com/think/topics/middleware",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Java Remote Method Invocation API Guide",
+      "publisher": "Oracle",
+      "reference": "Java RMI: objetos remotos, JVMs e serviços distribuídos",
+      "url": "https://docs.oracle.com/en/java/javase/21/rmi/java-remote-method-invocation-api-guide.pdf",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "An Overview of RMI Applications",
+      "publisher": "Oracle",
+      "reference": "Registro, stub e fluxo de invocação Java RMI",
+      "url": "https://docs.oracle.com/javase/tutorial/rmi/overview.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Introduction to gRPC",
+      "publisher": "gRPC Authors",
+      "reference": "RPC, contratos .proto e geração de código",
+      "url": "https://grpc.io/docs/what-is-grpc/introduction/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Core Concepts, Architecture and Lifecycle",
+      "publisher": "gRPC Authors",
+      "reference": "Chamadas unárias e streaming",
+      "url": "https://grpc.io/docs/what-is-grpc/core-concepts/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Jakarta Messaging Concepts",
+      "publisher": "Eclipse Foundation / Jakarta EE",
+      "reference": "JMS/Jakarta Messaging, filas, tópicos e assinaturas duráveis",
+      "url": "https://jakarta.ee/learn/docs/jakartaee-tutorial/current/messaging/jms-concepts/jms-concepts.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Jakarta EE Platform: Overview",
+      "publisher": "Eclipse Foundation / Jakarta EE",
+      "reference": "Serviços empresariais e ambiente de componentes",
+      "url": "https://jakarta.ee/learn/docs/jakartaee-tutorial/current/intro/overview/overview.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Introduction To OMG Specifications",
+      "publisher": "Object Management Group (OMG)",
+      "reference": "CORBA, IDL, GIOP e IIOP",
+      "url": "https://www.omg.org/gettingstarted/specintro.htm",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "CORBA FAQ",
+      "publisher": "Object Management Group (OMG)",
+      "reference": "Stubs, skeletons, interfaces e interoperabilidade CORBA",
+      "url": "https://www.omg.org/corba/faq.htm",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ORB Basics",
+      "publisher": "Object Management Group (OMG)",
+      "reference": "Objeto distribuído, referências, ORB e encaminhamento de requisições",
+      "url": "https://www.omg.org/corba/orb_basics.htm",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RabbitMQ Tutorial: Work Queues",
+      "publisher": "RabbitMQ",
+      "reference": "Consumidores concorrentes, acknowledgement e reentrega",
+      "url": "https://www.rabbitmq.com/tutorials/tutorial-two-java",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Competing Consumers Pattern",
+      "publisher": "Microsoft Learn / Azure Architecture Center",
+      "reference": "Consumidores concorrentes, idempotência e DLQ",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/patterns/competing-consumers",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

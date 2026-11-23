@@ -1,0 +1,1907 @@
+{
+  "id": "informatica.fluxos-interoperabilidade-transacoes-recuperacao",
+  "subject": "Informática — Arquitetura de Sistemas e Integração",
+  "title": "Fluxos, Transações e Recuperação",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Fluxos, transações e recuperação",
+    "Fluxos e interoperabilidade: transações, estado e recuperação"
+  ],
+  "scope": {
+    "covers": "Fluxos e contratos de interoperabilidade; operações síncronas e assíncronas; estado e ACID; concorrência, isolamento e anomalias; commit distribuído 2PC e 3PC detalhados, mensagens, falhas, timeouts e premissas; WAL, REDO/UNDO, checkpoints, RPO/RTO; Sagas, outbox/inbox, mensageria, idempotência, compensações e recuperação de workflows.",
+    "excludes": "Sintaxe de programação detalhada de middleware específico; implementação formal de Paxos/Raft; parametrização de nuvens; tuning avançado de bancos e rotinas administrativas de produto fora do contexto conceitual."
+  },
+  "theoryTitle": "Fluxos e interoperabilidade: transações, estado, 2PC/3PC e recuperação",
+  "chapters": [
+    {
+      "title": "Fluxos de integração e interoperabilidade",
+      "markdown": "## 1. O que circula entre sistemas\n\nUm **fluxo de integração** é a sequência de operações, mensagens e mudanças de estado necessária para realizar um objetivo de negócio que atravessa componentes. Exemplo: no pedido de compra, a API recebe a solicitação, o serviço de pedidos registra a intenção, o estoque reserva itens, o pagamento autoriza a cobrança e a expedição inicia a entrega. Não se trata apenas de deslocar dados entre bancos: há **ordem causal**, compromissos, validações e reações a falhas. A arquitetura precisa definir onde a verdade do dado é mantida, quem pode alterá-la, que evento anuncia a mudança e como reconstituir a execução quando um serviço não responde.\n\n**Interoperabilidade** é a capacidade de sistemas distintos trocarem informações e usá-las corretamente. Ela é sintática quando formatos e interfaces são compreendidos (JSON, XML, contratos OpenAPI, esquemas de eventos); é semântica quando o significado dos campos e estados coincide; e é organizacional quando processos, responsabilidades e regras de operação permitem colaboração. Dois serviços que aceitam JSON podem falhar semanticamente se um interpretar `status=APROVADO` como autorização provisória e o outro como pagamento liquidado. Contratos devem explicitar tipos, unidades, valores possíveis, campos obrigatórios, identificadores, erros, versões e regras de compatibilidade.\n\n## 2. Acoplamento temporal e padrões de comunicação\n\nEm **chamadas síncronas**, como uma requisição HTTP aguardando resposta, o consumidor normalmente depende da disponibilidade e latência do provedor naquele instante. Em **trocas assíncronas**, mensagens duráveis podem desacoplar o momento da produção do momento do consumo; isso não elimina dependências de negócio nem dispensa o tratamento de duplicidades, atrasos e inversão de ordem. Um comando pede que outro componente faça algo; um evento comunica fato ocorrido; uma consulta solicita informação e, em princípio, não modifica o estado. Sistemas podem misturar os três estilos, sem transformar automaticamente uma chamada de rede em transação distribuída.\n\nNa comunicação **ponto a ponto**, cada mensagem tem um destino lógico de trabalho; na publicação/assinatura, múltiplos consumidores independentes reagem ao mesmo fato. Filas permitem nivelar picos e aplicar controle de pressão (*backpressure*). Porém, consumidor mais lento acumula atraso, e uma mensagem problemática pode bloquear a fila se não houver política de retentativa, quarentena e análise. Uma **dead-letter queue** abriga mensagens sem processamento bem-sucedido, mas não corrige o erro por si só. O reprocessamento precisa ser controlado e auditável.\n\n## 3. Identidade, correlação e contrato de fluxo\n\nÉ essencial distinguir **ID de entidade** (pedido), **ID de operação** (tentativa lógica de cobrança), **ID de mensagem** (envelope de transporte) e **correlation ID** (rastreamento de várias mensagens). A chave de idempotência precisa identificar a operação cujo efeito não deve se repetir; usar apenas a correlação geral de um processo pode causar supressão indevida de etapas diferentes. A **causation ID** pode apontar a mensagem responsável pela produção de outra, facilitando causalidade. Carimbos de tempo ajudam a observar, mas não substituem, por si sós, garantias de ordenação distribuída.\n\nO contrato pode carregar `schemaVersion`, `eventId`, `aggregateId`, `operationId`, instante de ocorrência e dados mínimos necessários. Ao evoluir um esquema, uma estratégia frequente é acrescentar campos opcionais e manter consumidores tolerantes a extensões, respeitando os acordos estabelecidos; apagar ou reinterpretar campos pode quebrar consumidores antigos. A compatibilidade retroativa depende do contrato efetivo, não do simples uso de uma tecnologia ou formato específico.\n\n## 4. Estados e observabilidade\n\nO fluxo deve ter estados explícitos, como `RECEBIDO → VALIDADO → RESERVADO → PAGO → CONCLUÍDO`, além de caminhos `FALHA_RECUPERÁVEL`, `CANCELANDO` e `CANCELADO`. Cada transição possui pré-condições, efeitos e eventos correlacionáveis. É errado deduzir sucesso apenas do retorno HTTP de uma etapa: uma requisição pode expirar depois de ter sido aplicada, gerando resultado **desconhecido do chamador**. Antes de repetir, deve-se consultar o estado ou usar chave idempotente. Registros estruturados, métricas de latência, tentativas, idade de mensagens e rastreamento distribuído oferecem evidências para diagnosticar o ponto de ruptura.\n\n**Exemplo de prova:** se o serviço A recebe erro de tempo esgotado após enviar uma transferência a B, o estado em B pode ser sucesso, falha ou ainda em andamento. Não existe inferência segura de que houve rollback pelo simples fato de não haver resposta. Em situações de incerteza, desenhe um protocolo de consulta e reconciliação."
+    },
+    {
+      "title": "Transações, isolamento e modelos de estado",
+      "markdown": "## 1. Conceito e propriedades ACID\n\nTransação é uma unidade lógica de trabalho cujas mudanças devem obedecer às garantias oferecidas pelo gerenciador de dados. As propriedades **ACID** são: **atomicidade**, segundo a qual a unidade é confirmada ou desfeita como um todo dentro do seu escopo; **consistência**, preservação de invariantes definidas e efetivamente verificadas; **isolamento**, controle dos efeitos observáveis de transações concorrentes; e **durabilidade**, manutenção da confirmação após falhas previstas pelo mecanismo. Consistência não é promessa mágica de que qualquer regra de negócio será respeitada: uma regra só é preservada se for corretamente implementada por restrições, lógica transacional ou controles de concorrência.\n\nUma transação local no banco A não inclui automaticamente uma chamada ao serviço B. Se A confirma a gravação e, depois, falha ao publicar um evento, o fluxo ficou incompleto apesar de a transação A ter sido perfeitamente ACID. Essa é a **lacuna de dupla gravação** (*dual write*), solucionável com padrões como outbox, ou com coordenação transacional quando recursos e infraestrutura suportam a solução. A escolha depende das garantias necessárias, do custo e das fronteiras de propriedade dos dados.\n\n## 2. Estados de transação e de negócio\n\nOs estados de uma transação de banco costumam incluir **ativa**, **em validação/decisão**, **confirmada** e **abortada**, com nomes específicos por produto. Já estados de negócio descrevem algo diferente: um pedido `APROVADO` pode envolver várias transações locais e ainda exigir expedição. Em sistemas distribuídos também surge o estado **preparada** ou **in-doubt**, quando um recurso votou que pode confirmar, mas ainda depende da decisão global. Confundir `PREPARED` com `COMMITTED` é erro clássico: a preparação preserva a possibilidade de confirmação futura; a confirmação torna efetiva a decisão final nos termos do protocolo.\n\n**Máquina de estados** usa transições permitidas e condições de guarda. Uma transição deve rejeitar eventos incompatíveis, como voltar de `ENTREGUE` para `NOVO` sem processo explícito de devolução. Em sistemas concorrentes, o estado pode usar número de versão ou comparação e troca para impedir sobrescrita silenciosa; por exemplo, atualizar um pedido apenas se `version=7`, incrementando a versão após sucesso. Isso é **controle otimista**. Bloqueios exclusivos ou compartilhados são instrumentos de **controle pessimista**; sua granularidade e duração afetam throughput e contenção.\n\n## 3. Isolamento e anomalias\n\n**Leitura suja** observa dado alterado por transação ainda não confirmada. **Leitura não repetível** ocorre quando a mesma linha apresenta valor diferente entre leituras de uma transação devido a confirmação concorrente. **Leitura fantasma** envolve alteração do conjunto de linhas que satisfaz um predicado. **Atualização perdida** é o desaparecimento lógico de uma alteração por escrita concorrente descoordenada. **Write skew** pode violar invariantes quando duas transações leem uma condição compartilhada e escrevem linhas diferentes; uma execução sob isolamento por instantâneo não equivale necessariamente à serialização.\n\nOs níveis SQL mais conhecidos são *Read Uncommitted*, *Read Committed*, *Repeatable Read* e *Serializable*. A norma define garantias mínimas; cada SGBD pode implementar variações: o PostgreSQL, por exemplo, trata *Read Uncommitted* como *Read Committed*, e seu *Repeatable Read* oferece comportamento por instantâneo mais forte do que o mínimo padronizado. O nível **Serializable** busca equivalência com alguma ordem serial, mas pode abortar uma transação por conflito e exigir repetição completa do trabalho. Não se deve afirmar que todo nível de isolamento tem implementação idêntica em todos os bancos.\n\n## 4. Consistência distribuída e visibilidade\n\nA **consistência forte** exige semântica de observação específica; a **consistência eventual** admite intervalo de propagação até convergência, sob condições de progresso. Uma réplica atrasada pode retornar estado antigo, embora o primário tenha confirmado a alteração. Essa diferença não apaga a atomicidade local nem transforma compensação em rollback físico. **Leitura após escrita**, ordenação por sessão e controle por versões são opções de contrato que podem reduzir surpresa para usuários.\n\nEm prova, a expressão “transação única de ponta a ponta” precisa ser investigada: o conjunto participa de um coordenador de commit ou há apenas várias confirmações locais conectadas por mensagens? Só a primeira hipótese pode fornecer atomicidade global via protocolo apropriado. A segunda requer estratégia explícita para estados intermediários e falhas parciais."
+    },
+    {
+      "title": "Commit em duas fases (2PC): protocolo, falhas e operação",
+      "markdown": "## 1. Finalidade e papéis do 2PC\n\nO **Two-Phase Commit (2PC)** coordena participantes capazes de transações para obter uma decisão final comum: ou todos os recursos envolvidos confirmam a transação global, ou todos a abortam, pressupostas as garantias do protocolo e da infraestrutura. Há um **coordenador**, que toma e registra a decisão global, e **participantes** ou gerentes de recursos, que executam e registram suas decisões locais. O mecanismo não é consenso distribuído em sentido amplo e não define sozinho a lógica de negócio. A atomicidade global depende de logs duráveis, recuperação, identificação da transação e obediência ao resultado decidido.\n\nConsidere um débito em banco X e crédito em banco Y, ambos participantes XA. Uma aplicação transacional solicita a confirmação global. Se a decisão for abortar, nenhum dos dois bancos pode tornar final apenas a sua parcela. A coordenação ocorre após a execução das operações locais ainda não confirmadas, evitando que um participante efetive a parte antes de saber se o outro está preparado. Não basta que os dois bancos suportem SQL: é necessário que os recursos e o gerenciador de transações consigam participar do mesmo protocolo.\n\n## 2. Fase 1: preparação/votação\n\nO coordenador envia a cada participante uma solicitação de **prepare**, também descrita como `VOTE-REQUEST`. Cada participante verifica se pode garantir a confirmação futura, inclusive integridade local, recursos e persistência das informações necessárias à recuperação. O voto positivo, `YES` ou `READY`, é registrado de modo durável; a partir dele, o participante não está livre para abortar unilateralmente se perder contato com o coordenador. Um voto `NO` ou falha de preparação conduz à decisão global de abortar, quando aplicável. Para que haja commit global, todos os votos exigidos devem ser positivos.\n\nA preparação pode manter **bloqueios e recursos** enquanto o desfecho global está pendente. É por isso que atrasos na resolução de uma transação preparada prejudicam concorrência e disponibilidade. A preparação não constitui a primeira parcela de uma confirmação já definitiva: é o compromisso de conseguir obedecer à decisão que virá. Bancos podem ter otimizações de leitura apenas ou de *one-phase commit* quando só resta um participante relevante; não confunda essas otimizações com a troca das duas fases do protocolo geral.\n\n## 3. Fase 2: decisão e comunicação\n\nApós os votos, o coordenador **registra duravelmente** a decisão global apropriada. Se todos aceitaram, a decisão é `GLOBAL COMMIT`; se houve voto negativo, falha que impede a preparação ou política de abortar antes da decisão irrevogável, comunica `GLOBAL ABORT`. Os participantes executam `COMMIT` ou `ROLLBACK` conforme a decisão, registram localmente o resultado e liberam recursos. Confirmações de recebimento e limpeza de registros permitem encerrar o ciclo. A decisão de confirmar não deve ser trocada por abortar apenas porque um participante demorou a responder na segunda fase: a segurança exige recuperação e propagação da decisão já fixada.\n\n**Sequência bem-sucedida:** (1) operações locais; (2) coordenador envia prepare; (3) participantes gravam `READY` e votam sim; (4) coordenador grava `COMMIT`; (5) envia decisão; (6) participantes confirmam e respondem; (7) coordenador conclui. **Sequência abortada:** um participante vota não; o coordenador registra a decisão de abortar e a difunde; participantes desfazem a parte ainda não confirmada. Se uma mensagem de decisão se perder, não é seguro presumir que a ausência de resposta significa que a decisão foi abortar.\n\n## 4. Falhas, in-doubt e bloqueio\n\nO problema central do **2PC é o bloqueio**: se um participante já votou `YES` e fica sem conhecer a decisão global após pane do coordenador, ele pode permanecer **in-doubt**, segurando recursos até resolver o resultado. O *timeout* identifica suspeita de falha, mas não autoriza um participante preparado a escolher arbitrariamente commit ou rollback. Se o coordenador havia registrado uma decisão irrevogável e ela foi transmitida apenas a parte dos participantes, uma escolha independente conflitante violaria a atomicidade global.\n\nNa retomada, o coordenador examina seu **log de decisões** e reenvia a decisão persistida. Os participantes recuperam seus estados preparados e consultam o coordenador ou procedimentos apropriados de resolução; podem também usar informações de outros envolvidos quando o protocolo permite. Algumas plataformas expõem transações pendentes para inspeção. Em PostgreSQL, `PREPARE TRANSACTION` prepara a transação; depois `COMMIT PREPARED` ou `ROLLBACK PREPARED` finalizam. O banco adverte que transações preparadas abandonadas podem manter bloqueios e dificultar manutenção; recomenda usar gerenciador externo adequado, não deixar recursos preparados indefinidamente.\n\n## 5. Custos e limites\n\nO 2PC agrega rodadas de rede, gravações duráveis de coordenação, retenção de bloqueios e risco de espera prolongada em falhas. Em microsserviços independentes, serviços externos de cobrança, correio eletrônico e gateways podem não oferecer recurso transacional compatível; nesse caso, não se pode estender 2PC a eles por mera configuração de uma biblioteca. Aplicar 2PC requer compromisso explícito com a latência, a disponibilidade do coordenador e os processos de recuperação. Não é um protocolo de replicação nem garante automaticamente escalabilidade, ausência de deadlock, exatamente uma execução de efeitos externos ou tolerância irrestrita a partições.\n\n**Pegadinhas:** 2PC = duas fases, não dois nós; o coordenador não necessariamente executa negócio local; voto `YES` não é confirmação; queda do coordenador depois da preparação pode bloquear; e log durável faz parte da solução, não é um detalhe opcional."
+    },
+    {
+      "title": "Commit em três fases (3PC): estados, temporização e limites",
+      "markdown": "## 1. Motivação e modelo de falhas\n\nO **Three-Phase Commit (3PC)** é uma família de protocolos estudados para reduzir o bloqueio associado ao 2PC. Sua ideia central é inserir um **estado intermediário de pré-confirmação** entre a votação e o commit definitivo, de forma que a decisão de recuperação possa ser relacionada ao estado conhecido dos participantes. O 3PC clássico é apresentado como não bloqueante **sob hipóteses fortes**, incluindo limites de atraso de comunicação, detecção confiável de falhas e ausência de certas partições de rede. Não se deve ensinar que 3PC oferece segurança e progresso incondicionais em redes totalmente assíncronas.\n\nNo 2PC, um participante preparado que perdeu o coordenador pode estar diante de duas decisões globais possíveis. No desenho clássico do 3PC, o processo é dividido para que o estado **WAIT** tenha um caminho seguro de abortar e **PRECOMMIT** tenha um caminho de completar commit no regime de falhas assumido. A distinção só é legítima porque há regras adicionais de comunicação e recuperação. Um timeout não é detector infalível de crash no mundo real: pode ser causado por lentidão, congestionamento ou partição.\n\n## 2. Fase 1 — CanCommit? (sondagem/voto)\n\nO coordenador pergunta aos participantes se **podem confirmar** a transação global (`CanCommit?`). Cada participante avalia restrições e disponibilidade e responde `YES` ou `NO`. Resposta negativa ou falha relevante pode levar ao abortamento. Um participante que responde `YES` entra em estado de espera, frequentemente chamado `WAIT`, sem que isso signifique commit. A operação corresponde à sondagem inicial da possibilidade de compromisso. Nesta fase, o protocolo ainda não comunicou que todos responderam positivamente.\n\n**Exemplo:** três bancos aceitam preparar transferências relacionadas. O coordenador colhe votos dos três. Se um não puder garantir seu trabalho local, a transação não deve avançar ao pré-commit. O erro frequente em concurso é dizer que o 3PC começa pelo `PreCommit`; sem votação prévia, não há a informação necessária para passar com segurança à etapa intermediária.\n\n## 3. Fase 2 — PreCommit (pré-confirmação)\n\nRecebidos os votos afirmativos exigidos, o coordenador envia `PreCommit`, e os participantes passam ao estado de **pré-confirmação**, reconhecendo a mensagem. Esse estado evidencia que a votação favorável foi consolidada no fluxo. A etapa extra separa a incerteza inicial sobre os votos da etapa em que a confirmação é esperada. Os participantes ainda não devem tratar a operação como commit final perante outros componentes; continuam sujeitos ao protocolo de recuperação e podem reter recursos. O registro durável dos estados relevantes é importante para continuar após pane.\n\nA pré-confirmação não equivale ao **PREPARE** do 2PC em todos os aspectos semânticos: o 3PC introduz um estágio entre o aceite de capacidade e a decisão final. A comparação deve observar a sequência efetiva e o modelo de falhas, e não o número de mensagens de um produto particular. A nomenclatura `CanCommit? → PreCommit → DoCommit` é útil para identificar as três fases do desenho didático clássico.\n\n## 4. Fase 3 — DoCommit (confirmação)\n\nApós os reconhecimentos de `PreCommit` esperados, o coordenador emite `DoCommit`, determinando a conclusão. Os participantes tornam o commit definitivo e liberam os recursos pertinentes. Em operação normal, a sequência é: sondar capacidade, pré-confirmar, confirmar. Se o coordenador falha, pode haver escolha de novo coordenador e consulta aos estados para estabelecer como concluir, **sempre observadas as premissas do protocolo**. Ao comparar 2PC e 3PC, a conclusão correta é relativa: o 3PC troca uma fase e custo adicionais por uma estratégia de redução de bloqueio em condições controladas.\n\n**Cenário de recuperação simplificado:** sob as hipóteses do 3PC clássico, se não há participante que tenha avançado à pré-confirmação, o caminho de recuperação pode terminar em aborto; a existência de estado de pré-confirmação indica que o sistema alcançou a etapa a partir da qual pode concluir commit. Essa explicação exige coordenação do estado conhecido, não uma escolha simultânea e independente por quaisquer nós que ficaram isolados.\n\n## 5. Partições, assincronia e comparação com consenso\n\nEm uma **partição de rede**, grupos de nós podem não saber se o outro grupo caiu ou apenas ficou inalcançável. Tomar decisões definitivas distintas com base em timeouts locais pode produzir desfechos incompatíveis. Por isso, a alegação “3PC nunca bloqueia e sempre preserva atomicidade” é falsa sem restringir o modelo de falhas; o 3PC clássico não é solução universal para partições arbitrárias. Em sistemas modernos com falhas de rede reais, frequentemente se usam outros mecanismos de consenso e replicação, ou fluxos de compensação adequados às fronteiras da aplicação.\n\n**Consenso** (em protocolos como Paxos/Raft) busca acordo sobre valores ou entradas de log sob condições próprias; **commit atômico** busca uma decisão integrada para um conjunto de transações locais e, em geral, leva em conta votos sobre a capacidade de confirmação. Apesar de se relacionarem, não são sinônimos. Um grupo que replica a decisão do coordenador por consenso pode melhorar sua disponibilidade, mas não torna automaticamente participantes externos compatíveis com commit distribuído.\n\n## 6. Quadro verbal de confronto para prova\n\nNo **2PC**, as fases são `Prepare/Vote` e `Commit/Abort`; sua vantagem é o acordo sobre desfecho, mas existe estado preparado que pode **bloquear** por decisão desconhecida. No **3PC**, as fases usuais são `CanCommit`, `PreCommit`, `DoCommit`; a etapa intermediária ajuda a recuperação não bloqueante em ambiente com temporização e falhas limitadas, ao preço de mais comunicação e persistência. Ambos necessitam disciplina de estado e tratamento de panes. Ambos não são substitutos naturais para APIs que executam efeitos irreversíveis sem suporte transacional.\n\n**Pegadinhas de alta incidência:** (i) o algarismo indica quantidade de fases, não de participantes; (ii) o `PreCommit` não é uma confirmação final; (iii) falha de coordenador não é sinônimo de aborto imediato seguro em 2PC; (iv) 3PC depende de premissas de temporização; (v) 3PC não garante tolerância arbitrária a partições."
+    },
+    {
+      "title": "Persistência, logs, checkpoint e recuperação",
+      "markdown": "## 1. Para que serve recuperação\n\nUm subsistema de recuperação deve restabelecer um estado compatível com os compromissos duráveis e com a semântica de transação após falhas de processo, sistema ou comunicação. O **log de transações** registra informações sobre alterações e decisões; a ordem de gravação é tão importante quanto a existência do arquivo. A técnica **Write-Ahead Logging (WAL)** determina, em essência, que os registros relevantes do log sejam persistidos antes de páginas de dados dependentes dessas alterações serem propagadas ao armazenamento, possibilitando reconstrução após falha. Em sistemas que garantem commit durável via WAL, o registro de commit precisa obedecer às regras de persistência necessárias antes de afirmar o sucesso.\n\n**REDO** reaplica mudanças que precisam aparecer no estado recuperado; **UNDO** desfaz efeitos de transações que não devem permanecer. Nem todos os motores de banco usam a mesma arquitetura física para UNDO, REDO e versões de dados, mas os conceitos são gerais. É errado declarar que um banco que usa WAL precisa escrever todas as páginas modificadas em disco antes de cada commit: uma vantagem do WAL é justamente permitir *flush* do log e posterior escrita das páginas. Para permitir recuperação até certo instante, pode ser necessária combinação de backup e segmentos de log arquivados.\n\n## 2. Checkpoint, ponto de retorno e durabilidade\n\n**Checkpoint** é um marco de coordenação entre estado de memória, armazenamento de dados e log para limitar ou orientar o trabalho de recuperação. Dependendo do SGBD, não é uma cópia integral do banco, nem prova de que toda transação da história foi confirmada. Após uma queda, o motor pode localizar um checkpoint e percorrer o log a partir de ponto de recuperação pertinente, refazendo o que for necessário. **Backup** preserva uma base recuperável; **log arquivado** pode permitir recuperação a ponto no tempo. O intervalo entre checkpoints envolve compromisso entre carga normal de E/S e tempo potencial de restauração.\n\n**RPO** (*Recovery Point Objective*) é a perda máxima de dados tolerável, expressa como intervalo; **RTO** (*Recovery Time Objective*) é o período desejado para recuperar a operação. Nenhum dos dois é automaticamente igual a zero por usar replicação ou WAL. Uma restauração de backup antigo pode atender ao RTO e falhar no RPO; replica com dados muito recentes pode reduzir RPO, mas a recuperação ainda demandar tempo. Deve-se testar cenários e medir latências de failover, replay e validação de integridade.\n\n## 3. Recuperação no 2PC e transações incertas\n\nPara 2PC, a recuperação abrange **estados de participantes**, **votos** e **decisão global registrada**. O participante que reinicia e encontra `PREPARED` pode precisar da decisão do coordenador; o coordenador deve retomar e reenviar uma decisão durável já tomada. Ferramentas de observabilidade devem diferenciar `in progress`, `prepared`, `committed`, `aborted` e `in-doubt`, além de identificar bloqueios mantidos e duração do estado incerto. A resolução manual por força maior pode existir em produtos, mas uma decisão heurística conflitante entre participantes cria risco de inconsistência e exige reconciliação cuidadosa.\n\nEm PostgreSQL, transações preparadas podem sobreviver a falhas e são finalizadas por comandos separados de confirmação ou rollback. Em Oracle, transações distribuídas **in-doubt** podem ser recuperadas por mecanismos automáticos de reconciliação e, em casos excepcionais, por intervenção administrativa. Esses exemplos não significam que toda API ou banco NoSQL implemente o mesmo protocolo, e tampouco autorizam concluir que qualquer participante de 2PC possa abortar sozinho por timeout.\n\n## 4. Fluxos duráveis e reprodução de histórico\n\nEm **workflows duráveis**, a execução do processo pode sobreviver à falha de um trabalhador por meio de estados persistidos, histórico de eventos e reexecução controlada. Uma abordagem registra eventos e decisões suficientes para reconstruir a posição do fluxo; na retomada, o motor reproduz o histórico, determina o próximo passo e evita tratar comandos já registrados como se fossem inéditos. Produtos como Temporal documentam recuperação de estado por **event history** e replay. Ainda assim, efeitos externos de atividades devem observar garantias próprias de retentativa e idempotência; reexecutar código orquestrador não cria, sozinho, transação ACID sobre terceiros.\n\n**Event sourcing** preserva eventos de domínio para reconstruir estado; **log de transações** do SGBD atende a necessidade interna de durabilidade e recuperação; **tracing distribuído** registra evidências observacionais. Os três podem ter registros cronológicos, mas com finalidades e garantias distintas. Um trace não deve ser a única fonte para reconstruir saldos; uma fila não equivale automaticamente a um log de auditoria imutável.\n\n## 5. Operação segura\n\nProcedimentos recomendáveis incluem testes de queda entre preparação e decisão, simulação de perda de ACK, observação de transações preparadas antigas, definição de responsável pela reconciliação, auditoria das compensações, métricas de backlog e proteção contra reprocessamento duplicado. **Retomada** é diferente de **reexecução cega**: o sistema deve primeiro identificar o ponto de consistência e a decisão que já ocorreu, especialmente quando usuários podem ter visto confirmação. Em questões de prova, procure o cenário de falha, o último registro durável, a fase transacional e a autoridade que pode decidir o desfecho."
+    },
+    {
+      "title": "Sagas, outbox, idempotência e tolerância a falhas",
+      "markdown": "## 1. Quando uma só transação global não é adequada\n\nEm uma arquitetura com microsserviços independentes, cada domínio pode possuir seu próprio banco e operar via APIs e mensagens, sem suporte comum a transações preparadas. Nesse cenário, a **Saga** organiza uma sequência de **transações locais** e ações de compensação, mantendo o processo recuperável e visando consistência de negócio ao final. Diferentemente do 2PC, a Saga não garante, por si só, isolamento e atomicidade global em cada instante: efeitos locais já confirmados podem ficar visíveis antes de o fluxo terminar. A decisão exige considerar se regras de negócio toleram estados intermediários, reservas temporárias e cancelamentos.\n\nUma Saga de compra pode executar `CriarPedido → ReservarEstoque → AutorizarPagamento → ConfirmarPedido`. Se a autorização falha, podem ocorrer `LiberarEstoque` e `CancelarPedido`. **Compensar** significa produzir uma ação de negócio corretiva; não necessariamente restaurar bit a bit o estado original: uma cobrança estornada deixa registro de pagamento e estorno. A ordem das compensações normalmente considera dependências entre as etapas e frequentemente segue o inverso das ações concluídas, mas a regra concreta depende do domínio. Cada compensação também pode falhar e requer retentativas e supervisão.\n\n## 2. Orquestração e coreografia\n\nNa **orquestração**, um coordenador do fluxo envia comandos e acompanha respostas; facilita identificar a etapa em andamento e políticas de falha, embora concentre conhecimento de processo. Na **coreografia**, serviços reagem a eventos e emitem eventos subsequentes; reduz a existência de um orquestrador central, mas pode dificultar visualizar causalidade e alterações transversais se muitos componentes se acoplam implicitamente. Nenhum estilo torna dispensáveis contratos, telemetria e tratamento de duplicação.\n\nTransações **compensáveis**, **pivotais** (etapas cuja conclusão altera o ponto sem retorno simples) e **retentáveis** são categorias de projeto úteis para pensar a sequência da Saga. A qualificação depende do efeito concreto: envio de mercadoria, repasse bancário e emissão de documento não têm a mesma reversibilidade que reservar uma unidade de estoque. Para evitar anomalias de leituras intermediárias, podem-se adotar **bloqueios semânticos**, estados de reserva e validação de versão.\n\n## 3. Outbox transacional e inbox idempotente\n\nO **transactional outbox** resolve a falha de duas escritas independentes: modificar uma tabela de negócio e publicar um evento. Na mesma transação **local**, grava-se o dado e um registro de outbox. Após o commit, um publicador confiável lê esse registro e o envia ao broker. Se o publicador cair após enviar, mas antes de marcar o envio, pode publicar novamente; portanto, outbox geralmente oferece publicação confiável com possibilidade de duplicação, e não entrega exatamente uma vez a qualquer consumidor externo.\n\nO padrão **inbox**, ou consumidor idempotente, registra de forma atômica com a alteração de negócio que determinado ID de operação/mensagem já foi processado. Ao receber cópia repetida, reconhece a ocorrência sem duplicar seu efeito. Uma restrição de unicidade ou operação condicional ajuda a eliminar corridas entre consumidores. **Correlation ID** rastreia um processo e pode aparecer em muitas mensagens legítimas; não substitui um ID específico de deduplicação. A confirmação da mensagem no broker deve ser coordenada com a persistência do processamento para evitar perda lógica ou repetição indevida.\n\n## 4. Garantias de entrega e efeito\n\nEm **at-most-once**, uma entrega pode perder mensagens, mas não há repetição pelo mecanismo descrito; em **at-least-once**, a entrega pode se repetir, exigindo deduplicação se o efeito não puder duplicar. **Exactly-once** é uma garantia que precisa ter **escopo** explícito: mecanismos transacionais de streams podem cobrir produção e consumo entre tópicos sob configurações determinadas, mas não tornam automaticamente idempotente a chamada a um banco externo, uma cobrança ou um e-mail. O desenho fim a fim considera produtor, broker, consumidor e side effects; promessa isolada de um componente não basta.\n\nPara mensagens **fora de ordem**, podem-se empregar versão sequencial de agregado, fila particionada por chave ou rejeição de eventos obsoletos. O sequenciamento de uma partição não garante ordem total entre todas as partições. O processamento concorrente requer transição condicional e detecção de conflitos. Backoff exponencial com aleatorização (*jitter*) e limite de tentativas reduz tempestades de retentativas; **circuit breaker** suspende temporariamente chamadas a dependência com falhas recorrentes, mas não confirma nem desfaz transações.\n\n## 5. Estudo de caso integrador\n\nUma API recebe `POST /pedidos` com chave idempotente. Uma transação local grava o pedido `PENDENTE` e sua outbox. O publicador emite `PedidoCriado` e pode repetir a entrega. O estoque consome de maneira idempotente, reserva itens e publica `EstoqueReservado`. O orquestrador autoriza pagamento e marca `CONFIRMADO` quando recebe resultados válidos. Se o pagamento é recusado, registra estado `COMPENSANDO`, pede liberação do estoque e encerra como `CANCELADO` após confirmação. Histórico de transições, IDs de negócio, mensagens e tentativas permitem auditar a recuperação. Se um passo expira sem resposta, consulta-se a operação pelo identificador antes de tentar de novo.\n\nEste caso **não é 2PC disfarçado**: cada etapa usa commit local, podem existir estados temporários visíveis, e compensações aplicam semântica de negócio. É também errado dizer que a outbox substitui o controle de idempotência do consumidor ou que o uso de Saga garante serializabilidade global. A arquitetura distribui responsabilidade e explicita seus limites em vez de fingir que uma chamada de rede é atômica."
+    }
+  ],
+  "summary": "**Visão de prova:** fluxo distribuído tem contratos, mensagens, estados de negócio e fronteiras transacionais. A existência de HTTP, JSON, broker ou evento não cria atomicidade global. **ACID** protege transações conforme o escopo do gerenciador; **2PC** usa *prepare/vote* e depois *commit/abort*, requer votos positivos de todos para confirmar e pode deixar participantes preparados bloqueados caso a decisão do coordenador fique inacessível. **3PC** intercala `CanCommit?`, `PreCommit` e `DoCommit`, procurando reduzir bloqueio sob hipóteses fortes de temporização e falhas, sem resolver universalmente partições assíncronas. **WAL** preserva registros necessários antes das páginas de dados; **REDO** refaz mudanças, e **checkpoint** orienta recuperação, sem equivaler a backup. Em microsserviços sem coordenação comum, **Saga** emprega transações locais e compensações; **outbox** resolve a dupla gravação entre dados e intenção de publicação, mas não impede reentrega, motivo pelo qual se usa **inbox/idempotência**. *Timeout* significa resultado desconhecido para o chamador, não aborto. **RPO** corresponde à janela de perda tolerada de dados e **RTO** ao tempo-alvo de restauração.",
+  "flashcards": [
+    {
+      "front": "O que é interoperabilidade semântica?",
+      "back": "É a compreensão comum do significado de campos, estados e ações, além da compatibilidade de formato e transporte."
+    },
+    {
+      "front": "Qual a diferença entre comando e evento?",
+      "back": "Comando solicita uma ação; evento relata um fato ocorrido e pode interessar a diversos consumidores."
+    },
+    {
+      "front": "Por que timeout não equivale a rollback?",
+      "back": "Porque a resposta pode ter se perdido após execução bem-sucedida; o cliente não conhece necessariamente o desfecho."
+    },
+    {
+      "front": "O que distingue correlation ID de chave de idempotência?",
+      "back": "O primeiro agrupa mensagens do mesmo fluxo; a segunda identifica especificamente a operação cujo efeito não deve repetir."
+    },
+    {
+      "front": "Quais são as propriedades ACID?",
+      "back": "Atomicidade, consistência, isolamento e durabilidade."
+    },
+    {
+      "front": "O que caracteriza estado PREPARED?",
+      "back": "O participante afirmou estar apto a confirmar futuramente, mas ainda não recebeu necessariamente a decisão final."
+    },
+    {
+      "front": "O que é write skew?",
+      "back": "Anomalia de concorrência na qual transações leem condição compartilhada e alteram dados distintos, violando uma invariante."
+    },
+    {
+      "front": "O que é serializabilidade?",
+      "back": "Garantia de que o efeito das transações confirmadas seja equivalente ao de alguma execução serial."
+    },
+    {
+      "front": "Quais fases compõem o 2PC?",
+      "back": "Preparação/votação; em seguida, decisão e difusão de commit ou abort."
+    },
+    {
+      "front": "Quando ocorre commit global no 2PC?",
+      "back": "Após votos positivos de todos os participantes exigidos e decisão global de commit registrada conforme o protocolo."
+    },
+    {
+      "front": "Por que o 2PC pode bloquear?",
+      "back": "Um participante preparado pode desconhecer a decisão do coordenador após uma falha e precisar esperar pela recuperação."
+    },
+    {
+      "front": "O que fazer com decisão COMMIT já persistida após pane?",
+      "back": "Recuperar a decisão e reenviar aos participantes que ainda não a aplicaram."
+    },
+    {
+      "front": "Quais são as fases clássicas do 3PC?",
+      "back": "CanCommit?, PreCommit e DoCommit."
+    },
+    {
+      "front": "Qual a finalidade de PreCommit no 3PC?",
+      "back": "Criar estágio intermediário após votos positivos, diferenciando espera inicial de pré-confirmação."
+    },
+    {
+      "front": "Sob quais hipóteses o 3PC clássico reduz bloqueios?",
+      "back": "Sob condições fortes de sincronismo, limites de atraso e detecção de falhas; não há garantia universal com partições arbitrárias."
+    },
+    {
+      "front": "2PC e 3PC são sinônimos de consenso?",
+      "back": "Não. Commit atômico coordena decisões de transações; consenso resolve acordo sobre valores/logs sob seus próprios modelos."
+    },
+    {
+      "front": "O que é WAL?",
+      "back": "Escrita antecipada de log persistente antes das páginas de dados relevantes, viabilizando recuperação após falha."
+    },
+    {
+      "front": "Qual a diferença entre REDO e UNDO?",
+      "back": "REDO reaplica alterações que devem sobreviver; UNDO desfaz efeitos que não devem integrar o estado recuperado."
+    },
+    {
+      "front": "Checkpoint é sinônimo de backup completo?",
+      "back": "Não. Checkpoint coordena um ponto de recuperação; backup preserva dados recuperáveis segundo outra estratégia."
+    },
+    {
+      "front": "Qual a diferença entre RPO e RTO?",
+      "back": "RPO mede perda de dados tolerável; RTO mede tempo-alvo para restabelecer a operação."
+    },
+    {
+      "front": "O que distingue Saga de 2PC?",
+      "back": "Saga coordena commits locais e compensações; 2PC coordena uma decisão atômica global para recursos compatíveis."
+    },
+    {
+      "front": "O que resolve o transactional outbox?",
+      "back": "A lacuna entre gravar dados e registrar a intenção de publicar um evento, usando uma única transação local."
+    },
+    {
+      "front": "Por que outbox não elimina duplicatas?",
+      "back": "Porque o publicador pode cair após enviar e antes de registrar o envio, repetindo a transmissão ao reiniciar."
+    },
+    {
+      "front": "Qual é a função de inbox idempotente?",
+      "back": "Persistir deduplicação e efeito de negócio de forma atômica no consumidor."
+    },
+    {
+      "front": "O que significa at-least-once?",
+      "back": "Entrega com possibilidade de repetição; consumidor deve tolerar duplicatas."
+    },
+    {
+      "front": "Por que exactly-once de broker não basta para gateway externo?",
+      "back": "Porque a garantia pode se restringir às transações internas do broker e não cobrir efeitos no gateway."
+    },
+    {
+      "front": "Qual a diferença entre orquestração e coreografia de Saga?",
+      "back": "Na orquestração, coordenador dirige etapas; na coreografia, serviços reagem a eventos sem controlador central único."
+    },
+    {
+      "front": "O que é circuit breaker?",
+      "back": "Padrão que evita continuar chamando temporariamente uma dependência com falhas recorrentes; não decide commit ou rollback."
+    }
+  ],
+  "tips": [
+    "Na leitura do enunciado, identifique se o compromisso é local (um banco) ou global (vários participantes compatíveis); ACID local não implica atomicidade entre serviços.",
+    "Decore o 2PC pela ordem: solicitar PREPARE, colher TODOS os votos, registrar COMMIT/ABORT, difundir a decisão e liberar recursos.",
+    "Associe o bloqueio do 2PC ao voto YES já persistido e à impossibilidade de conhecer o resultado global após falha do coordenador.",
+    "No 3PC, memorize CanCommit? → PreCommit → DoCommit e sempre verifique se a prova declara rede síncrona ou ausência de partições.",
+    "Diferencie confirmação transacional de ACK de transporte: o segundo apenas confirma uma etapa de comunicação, não todo o negócio.",
+    "Para falha após timeout, use ID de operação e consulta/reconciliação antes de repetir um efeito potencialmente irreversível.",
+    "Em recuperação, separe WAL, REDO, checkpoint, backup, RPO e RTO; cada termo resolve um aspecto diferente.",
+    "Para fluxos com outbox e fila at-least-once, pressuponha possibilidade de duplicata e cobre consumidor idempotente."
+  ],
+  "traps": [
+    "“O 2PC significa dois participantes.” Falso: refere-se às fases de votação e decisão; pode coordenar mais recursos.",
+    "“Votou YES, então já confirmou.” Falso: o estado preparado antecede COMMIT global.",
+    "“Timeout no 2PC autoriza rollback unilateral.” Falso para participante preparado sem decisão conhecida.",
+    "“3PC é sempre não bloqueante em qualquer partição.” Falso: o 3PC clássico depende do modelo de sincronismo e falhas.",
+    "“Checkpoint é um backup integral do banco.” Falso: é marco relacionado à persistência e à recuperação.",
+    "“Saga desfaz tudo com rollback de banco.” Falso: normalmente aplica novas transações de compensação.",
+    "“Outbox garante envio sem duplicação.” Falso: pode haver republicação após falha do publicador.",
+    "“Exactly-once interno do broker evita cobrança externa repetida.” Falso sem idempotência fim a fim."
+  ],
+  "activeRecall": [
+    {
+      "question": "Desenhe verbalmente o 2PC bem-sucedido e identifique o momento da decisão durável.",
+      "answer": "O coordenador solicita prepare; todos os participantes registram prontidão e votam YES; o coordenador persiste COMMIT; difunde a decisão; participantes confirmam, liberam recursos e respondem."
+    },
+    {
+      "question": "Um participante preparou e perdeu contato com o coordenador. Pode abortar por timeout?",
+      "answer": "Não como regra geral do 2PC: a decisão global pode já ter sido COMMIT. Deve recuperar ou obter a decisão válida, preservando atomicidade."
+    },
+    {
+      "question": "Explique CanCommit, PreCommit e DoCommit e por que 3PC não é solução universal para partições.",
+      "answer": "CanCommit coleta votos, PreCommit informa o avanço intermediário e DoCommit conclui. A redução de bloqueio pressupõe sincronismo e detecção de falhas limitada; partições podem tornar timeouts ambíguos."
+    },
+    {
+      "question": "Por que atualização de banco seguida de publicação em fila constitui uma dupla gravação arriscada?",
+      "answer": "A confirmação local pode ocorrer sem o envio externo, ou vice-versa. Outbox grava intenção de publicação na mesma transação local; publicador posterior exige consumidor idempotente."
+    },
+    {
+      "question": "Diferencie rollback local e compensação de Saga com um exemplo.",
+      "answer": "Rollback desfaz operação local não confirmada; Saga pode registrar estorno de cobrança confirmada ou liberar reserva, mantendo trilha de eventos e novos commits."
+    },
+    {
+      "question": "Se o cliente recebeu timeout do serviço de pagamento, qual procedimento é seguro antes de reenviar a cobrança?",
+      "answer": "Consultar o estado pelo identificador da operação, aplicar chave idempotente nas retentativas e reconciliar estados incertos; timeout não informa o resultado final."
+    },
+    {
+      "question": "Descreva como WAL, REDO e checkpoint cooperam na recuperação.",
+      "answer": "Log durável antecede páginas de dados; REDO refaz alterações necessárias após pane; checkpoint orienta o ponto a partir do qual ocorre o replay, não sendo backup integral."
+    },
+    {
+      "question": "Por que serializable e consistent eventual não são conceitos substituíveis?",
+      "answer": "Serializable é propriedade do resultado de transações concorrentes; consistência eventual é modelo de convergência entre réplicas ou componentes ao longo do tempo."
+    },
+    {
+      "question": "Diferencie RPO e RTO em uma restauração de dados.",
+      "answer": "RPO é a janela máxima aceitável de perda; RTO é o tempo-alvo de retorno ao serviço. Um mecanismo pode melhorar uma métrica sem garantir a outra."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Interoperabilidade confundida com transporte",
+      "summary": "Trocar JSON, HTTP ou mensagens não garante semântica compartilhada, atomicidade global nem conhecimento do efeito após timeout; diferencie mensagem, operação e correlação."
+    },
+    {
+      "key": "e2",
+      "title": "ACID local e estado distribuído confundidos",
+      "summary": "Uma transação ACID local não incorpora outros serviços automaticamente; PREPARED não é COMMITTED, e níveis de isolamento não são idênticos em todas as implementações."
+    },
+    {
+      "key": "e3",
+      "title": "Voto YES interpretado como commit do 2PC",
+      "summary": "Preparação não é decisão final; exige unanimidade para commit e o participante preparado não pode escolher aborto unilateralmente em caso de timeout."
+    },
+    {
+      "key": "e4",
+      "title": "3PC considerado infalível sob partições",
+      "summary": "O 3PC clássico agrega PreCommit e reduz bloqueio apenas sob condições controladas de temporização e falhas. Em redes arbitrariamente particionadas, não há promessa geral de segurança e progresso."
+    },
+    {
+      "key": "e5",
+      "title": "Log, checkpoint e recuperação tratados como sinônimos",
+      "summary": "WAL é registro antecipado, REDO recompõe alterações, checkpoint orienta replay e backup restaura base. RPO e RTO medem objetivos distintos; trace não substitui log transacional."
+    },
+    {
+      "key": "e6",
+      "title": "Saga e outbox confundidos com exactly-once fim a fim",
+      "summary": "Saga utiliza commits locais e compensações; outbox resolve dupla gravação, mas admite duplicatas. Consumidor idempotente e reconciliação protegem efeitos externos fora do broker."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Dois serviços podem trocar documentos JSON válidos e, ainda assim, não ser semanticamente interoperáveis caso atribuam significados diferentes ao mesmo campo de estado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A interoperabilidade semântica exige significado compartilhado, não apenas sintaxe compatível. Aceitar o mesmo JSON comprova troca estruturada, mas não impede interpretações distintas de aprovação, liquidação ou cancelamento.",
+      "section": "Fluxos de integração e interoperabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada HTTP síncrona faz com que o banco de dados do cliente e o do servidor participem automaticamente da mesma transação ACID.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A comunicação síncrona fornece um mecanismo de requisição e resposta, não um gerenciador de commit global. Cada banco mantém seu próprio contexto, salvo coordenação transacional explicitamente suportada.",
+      "section": "Fluxos de integração e interoperabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um tempo esgotado após o envio de um comando remoto prova que a operação foi desfeita pelo destinatário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O timeout informa que a resposta não chegou dentro do prazo, não o desfecho do comando. O destinatário pode ter concluído, falhado ou continuar processando; consulta de estado e idempotência evitam duplicações.",
+      "section": "Fluxos de integração e interoperabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um identificador de correlação pode acompanhar mensagens distintas do mesmo pedido sem necessariamente servir como chave adequada para deduplicar todas as operações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O correlation ID agrupa rastros relacionados, enquanto a chave de idempotência distingue a operação lógica cujo efeito não deve se repetir. Reutilizá-lo indiscriminadamente pode eliminar mensagens legítimas.",
+      "section": "Fluxos de integração e interoperabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API registra um pedido e publica um evento. A prova solicita o elemento que torna dois sistemas realmente interoperáveis quanto à situação de pagamento. Qual é o elemento decisivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acordo sobre a semântica dos estados e dos campos trocados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uso obrigatório do mesmo sistema operacional nos dois servidores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adoção de JSON sem documentação de status e transições.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Existência de conexão TCP, mesmo sem contrato de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Compartilhamento da mesma linguagem de programação entre as equipes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Estados semanticamente acordados permitem agir sobre o evento sem ambiguidade. Mesmo formato, rede, sistema operacional ou linguagem podem facilitar integração, mas não substituem contrato de significado.",
+      "section": "Fluxos de integração e interoperabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço emite “PedidoCriado” para diversos consumidores, que reagem independentemente. Que padrão descreve melhor a interação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Chamada local de função sem atravessar processos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Publicação/assinatura baseada em eventos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Transação ACID global obtida apenas pela publicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Bloqueio exclusivo de todos os bancos até o último consumidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Leitura exclusivamente síncrona do mesmo registro por todos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O padrão de publicação e assinatura distribui o fato ocorrido a interessados independentes. Ele não cria transação global nem implica bloqueio conjunto dos bancos ou chamada local.",
+      "section": "Fluxos de integração e interoperabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O serviço de pagamentos processa três tentativas distintas de cobrança do mesmo pedido. Qual identificador é o mais adequado para impedir que a repetição de uma tentativa gere nova cobrança sem suprimir as outras?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Endereço IP do consumidor, compartilhado por várias transações.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Identificador de correlação único do pedido para todas as cobranças.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Identificador idempotente específico de cada operação lógica de cobrança.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Timestamp da chegada da requisição, alterado a cada repetição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Nome do tópico de mensagens em que o comando chegou.",
+          "correct": false
+        }
+      ],
+      "explanation": "A deduplicação deve distinguir uma operação de cobrança das demais, mas reconhecer sua repetição. IP, tópico, instante de chegada e correlação geral não preservam simultaneamente esses requisitos.",
+      "section": "Fluxos de integração e interoperabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de publicar uma mensagem, a aplicação precisa acompanhar o encadeamento causal entre serviços sem confundir mensagens diferentes. Que conjunto é o mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um único campo de status livre, sem identificadores persistentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente a hora de execução do processo do consumidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um contador local que reinicia a cada implantação, sem contexto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "IDs de mensagem, de correlação e, quando útil, de causalidade.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Exclusivamente a porta TCP usada na primeira chamada.",
+          "correct": false
+        }
+      ],
+      "explanation": "IDs específicos distinguem envelopes e rastreiam o fluxo; um causation ID pode ligar evento à causa. Tempo isolado, porta e status livre não identificam com segurança operações distribuídas.",
+      "section": "Fluxos de integração e interoperabilidade",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A propriedade de consistência de ACID garante, mesmo sem validação de regras, que toda operação preserve automaticamente qualquer invariante de negócio imaginável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Consistência depende de restrições e regras que a aplicação ou o banco efetivamente implementa. ACID não corrige, por si só, modelagem incorreta ou ausência de validação de uma invariante.",
+      "section": "Transações, isolamento e modelos de estado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação de banco já confirmada pode ser parte de uma Saga ainda em andamento, sem que o processo inteiro esteja concluído.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A Saga encadeia commits locais; a confirmação de uma etapa não implica conclusão global de negócio. É possível que ações seguintes falhem e provoquem compensações, mantendo visíveis resultados intermediários.",
+      "section": "Transações, isolamento e modelos de estado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma transação distribuída, o estado preparado significa que o participante já confirmou irreversivelmente seu resultado local perante todos os demais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "PREPARED é um compromisso de estar apto a concluir depois, não a decisão final COMMIT. O participante pode necessitar aguardar o coordenador e conservar recursos até receber commit ou rollback.",
+      "section": "Transações, isolamento e modelos de estado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O isolamento serializável pode exigir que a aplicação refaça uma transação após detectar conflito entre operações concorrentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Serializable visa efeito equivalente a alguma ordem serial; um gerenciador pode abortar transações que criariam anomalia. O tratamento correto inclui refazer a transação completa quando indicado.",
+      "section": "Transações, isolamento e modelos de estado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas transações leem a mesma regra sobre cobertura mínima e, em seguida, alteram registros diferentes, deixando a regra violada apesar de cada alteração isolada parecer válida. Que fenômeno descreve a situação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Leitura suja, necessariamente observando valores não confirmados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Checkpoint de recuperação disparado durante uma consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Publicação garantida de exatamente uma mensagem no broker.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Commit atômico global concluído por um coordenador externo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Write skew sob controle de concorrência insuficiente para a invariante.",
+          "correct": true
+        }
+      ],
+      "explanation": "Write skew resulta de decisões concorrentes sobre uma condição comum com escritas distintas. Não exige leitura suja; checkpoint, mensageria e coordenação global são mecanismos de outra natureza.",
+      "section": "Transações, isolamento e modelos de estado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O sistema exige que transações confirmadas concorrentes produzam resultado equivalente a alguma ordem de execução uma após a outra. Qual nível de isolamento corresponde à exigência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Serializable.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Read Uncommitted.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Read Committed.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Read Repeatable sem análise da implementação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Leitura eventual de uma réplica assíncrona.",
+          "correct": false
+        }
+      ],
+      "explanation": "Serializabilidade equivale, quanto aos efeitos das transações confirmadas, a uma ordem serial. Os níveis inferiores e a leitura de réplica não prometem essa propriedade para qualquer execução.",
+      "section": "Transações, isolamento e modelos de estado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pedido no estado ENTREGUE recebe novamente o evento antigo PedidoCriado. Qual defesa de modelagem é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aceitar o evento e sempre sobrescrever o estado com NOVO.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar máquina de estados com transições válidas e controle de versão.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apagar todo o histórico para esconder a duplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Adotar somente um timestamp do cliente como autorização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Confundir o ACK do broker com validação da transição de domínio.",
+          "correct": false
+        }
+      ],
+      "explanation": "O processamento deve respeitar o estado atual e a ordem lógica das transições; versão evita sobrescritas por concorrência. Ack, horário do cliente e remoção do histórico não validam a regra de domínio.",
+      "section": "Transações, isolamento e modelos de estado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação atualiza seu banco e depois tenta postar uma mensagem externa. O banco confirma, mas o envio falha. Qual diagnóstico é preciso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A atomicidade da transação local foi necessariamente violada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O banco confirmou também a mensagem remota por força de ACID.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Houve uma falha na dupla gravação entre estado local e publicação externa.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O isolamento serializável garante publicação futura automática.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O protocolo 3PC começou implicitamente com a falha de rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "A transação local pode ter sido ACID e mesmo assim a publicação independente falhar. Sem coordenação ou padrão de outbox, não há atomicidade conjunta entre persistência local e envio externo.",
+      "section": "Transações, isolamento e modelos de estado",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No 2PC, todos os participantes devem votar favoravelmente à preparação para que o coordenador possa decidir pelo commit global no fluxo normal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A unanimidade dos votos exigidos é condição para a decisão positiva. Voto negativo ou impossibilidade de preparar impede o commit global, conduzindo à decisão de abortar conforme o protocolo.",
+      "section": "Commit em duas fases (2PC): protocolo, falhas e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No 2PC, um participante que votou YES e ficou sem contato com o coordenador pode sempre decidir ABORT após um timeout, sem afetar a atomicidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Depois do voto YES, o participante pode desconhecer se o coordenador já registrou COMMIT. Abortar unilateralmente pode conflitar com a decisão global e violar atomicidade; a recuperação deve consultar decisão durável.",
+      "section": "Commit em duas fases (2PC): protocolo, falhas e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A decisão global de commit, uma vez registrada duravelmente pelo coordenador do 2PC, pode ser substituída por abort porque um ACK da segunda fase demorou.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma decisão de commit irrevogável precisa ser completada e propagada, não trocada arbitrariamente diante de lentidão. A falta de confirmação de recebimento exige reenvio e recuperação, não outra decisão final.",
+      "section": "Commit em duas fases (2PC): protocolo, falhas e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No 2PC, a necessidade de manter transações preparadas pendentes pode aumentar a contenção por bloqueios.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O participante preparado pode reter bloqueios e outros recursos enquanto aguarda decisão global. O protocolo mantém atomicidade, mas a espera em falhas pode prejudicar a disponibilidade e o processamento concorrente.",
+      "section": "Commit em duas fases (2PC): protocolo, falhas e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema com três bancos participa de 2PC. Dois votam YES e um vota NO na etapa de preparação. Qual decisão global deve resultar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar somente os dois participantes favoráveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Confirmar todos, pois a maioria votou favoravelmente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter automaticamente para 3PC e confirmar os dois primeiros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Abortar a transação distribuída.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Considerar que a fase de votação já realizou o commit global.",
+          "correct": false
+        }
+      ],
+      "explanation": "O commit global em 2PC requer voto positivo de todos os participantes pertinentes. Maioria não basta; commit parcial romperá a atomicidade e votação não significa confirmação.",
+      "section": "Commit em duas fases (2PC): protocolo, falhas e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um banco recebeu PREPARE TRANSACTION e ficou indefinidamente aguardando comando do gerenciador externo. Qual consequência é esperada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Commit automático imediato por ter aceitado o PREPARE.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Liberação garantida de todos os bloqueios independentemente da decisão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conversão obrigatória da transação local em evento de Saga.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Restauração ao último checkpoint em cada espera de rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manutenção de estado preparado, potencialmente com recursos e bloqueios retidos.",
+          "correct": true
+        }
+      ],
+      "explanation": "PREPARE registra a capacidade de concluir depois, sem encerrar a transação. A pendência pode reter recursos até COMMIT PREPARED ou ROLLBACK PREPARED emitido segundo a decisão global.",
+      "section": "Commit em duas fases (2PC): protocolo, falhas e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pane ocorre logo após o coordenador do 2PC persistir COMMIT, mas antes de informar um participante. Qual ação condiz com o protocolo ao retomar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Recuperar a decisão durável e reenviá-la aos participantes pendentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Pedir nova votação e ignorar o commit que já foi registrado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Determinar que cada participante escolha livremente seu desfecho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reverter necessariamente todos porque houve indisponibilidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apagar o log para evitar conflito entre decisões da transação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A decisão de COMMIT registrada deve ser preservada na recuperação. Reenvio permite que participantes incertos concluam em conformidade; rediscutir ou apagar o desfecho pode gerar inconsistência.",
+      "section": "Commit em duas fases (2PC): protocolo, falhas e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma prova, afirma-se que 2PC garante disponibilidade contínua mesmo se o coordenador cair depois dos votos YES. Qual é a objeção técnica central?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "2PC não dispõe de fase de votação dos participantes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O 2PC pode bloquear participantes preparados que desconhecem a decisão global.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "2PC requer exatamente dois participantes e falha com três.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "2PC é um algoritmo de compressão de logs, não de commit.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "2PC transforma qualquer serviço HTTP em recurso transacional XA.",
+          "correct": false
+        }
+      ],
+      "explanation": "A característica problemática é o bloqueio em estado incerto após preparação. O protocolo tem votação e aceita múltiplos participantes; não torna HTTP transacional por si só.",
+      "section": "Commit em duas fases (2PC): protocolo, falhas e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo clássico de 3PC, as fases costumam ser descritas como CanCommit?, PreCommit e DoCommit.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A sondagem pergunta se os participantes podem confirmar, a pré-confirmação registra progresso intermediário e a etapa final efetiva o commit. Esses nomes distinguem as três fases e a função de cada uma.",
+      "section": "Commit em três fases (3PC): estados, temporização e limites",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O estado PreCommit do 3PC corresponde, por definição, a um commit final já visível e irreversível aos clientes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "PreCommit é estado intermediário de pré-confirmação, anterior a DoCommit. Ele sinaliza avanço do protocolo, mas não deve ser confundido com conclusão definitiva da transação distribuída.",
+      "section": "Commit em três fases (3PC): estados, temporização e limites",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O 3PC clássico elimina a possibilidade de decisões conflitantes em qualquer rede particionada e totalmente assíncrona, sem depender de hipóteses de temporização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "As propriedades não bloqueantes do 3PC clássico pressupõem um modelo de falhas limitado, como comunicação com atrasos limitados. Em partições e assincronia, timeouts podem provocar decisões incompatíveis.",
+      "section": "Commit em três fases (3PC): estados, temporização e limites",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma motivação do 3PC é separar o estado de espera pelo resultado da votação do estado em que a pré-confirmação já foi comunicada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O estágio intermediário reduz a ambiguidade presente no estado preparado do 2PC sob suas premissas de funcionamento. A distinção entre WAIT e PRECOMMIT orienta o procedimento de conclusão após falhas.",
+      "section": "Commit em três fases (3PC): estados, temporização e limites",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um candidato apresenta a ordem de mensagens do 3PC clássico. Qual sequência descreve corretamente as fases principais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "DoCommit → CanCommit? → PreCommit.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "PreCommit → DoCommit → CanCommit?.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "CanCommit? → PreCommit → DoCommit.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Rollback → Checkpoint → Leitura suja.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Prepare → Commit, sem qualquer estágio intermediário.",
+          "correct": false
+        }
+      ],
+      "explanation": "O desenho clássico primeiro coleta a possibilidade de confirmação, depois informa pré-confirmação e finalmente executa commit. As outras sequências invertem causalidade ou descrevem conceitos estranhos ao 3PC.",
+      "section": "Commit em três fases (3PC): estados, temporização e limites",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede assíncrona apresenta partição prolongada. Por que a alegação de que o 3PC sempre terminará corretamente é inadequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque o 3PC se destina apenas a sistemas sem mais de dois participantes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque 3PC dispensa qualquer troca de mensagem entre os serviços.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque a etapa PreCommit é idêntica a um ACK de aplicação HTTP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Timeouts podem confundir atraso/partição com falha, rompendo premissas do modelo clássico.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Porque o protocolo 3PC não possui mecanismos de recuperação de estado.",
+          "correct": false
+        }
+      ],
+      "explanation": "As garantias do 3PC dependem de temporização e detecção de falhas apropriadas. Partições podem tornar decisões por timeout inseguras; quantidade de nós ou ausência de mensagens não é a causa apontada.",
+      "section": "Commit em três fases (3PC): estados, temporização e limites",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após todos os votos positivos do CanCommit? em um 3PC clássico, o coordenador envia mensagem adicional antes do commit definitivo. Qual é essa mensagem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DoCommit, que torna desnecessária qualquer fase adicional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ReadUncommitted, que modifica o nível SQL de isolamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DeadLetter, que rejeita todo o fluxo como mensagem inválida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RedoCheckpoint, que restaura imediatamente o banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PreCommit, que informa a passagem ao estágio intermediário.",
+          "correct": true
+        }
+      ],
+      "explanation": "PreCommit é o estágio extra que separa a votação positiva da confirmação final. DoCommit é a última etapa; isolamento SQL, DLQ e checkpoint pertencem a outros mecanismos.",
+      "section": "Commit em três fases (3PC): estados, temporização e limites",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um enunciado compara 2PC e 3PC quanto a custo e modelo de falhas. Qual conclusão é tecnicamente defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "3PC acrescenta fase de comunicação para reduzir bloqueio sob hipóteses de falha mais restritivas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "3PC sempre oferece mais disponibilidade sem qualquer requisito de temporização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "2PC e 3PC são técnicas equivalentes de repetição de leituras em SQL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "2PC opera com três fases, enquanto 3PC opera com duas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Qualquer banco ACID participa automaticamente de ambos sobre a internet.",
+          "correct": false
+        }
+      ],
+      "explanation": "O ganho do 3PC é condicionado pelo ambiente e vem com fase adicional. A garantia não é universal, e suporte local a ACID não implica participação em um protocolo distribuído.",
+      "section": "Commit em três fases (3PC): estados, temporização e limites",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O WAL permite recuperar alterações confirmadas sem exigir que cada página de dados modificada tenha sido gravada em disco antes do commit.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O log persistido pode servir para refazer alterações ainda não aplicadas aos arquivos de dados. Sua ordenação de escrita protege a recuperação e evita obrigar flush de todas as páginas no commit.",
+      "section": "Persistência, logs, checkpoint e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Checkpoint e backup completo são termos equivalentes: toda execução de checkpoint guarda uma cópia integral dos dados do sistema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Checkpoint é marco usado para coordenar log e estado persistente, limitando ou orientando a recuperação. Backup é cópia recuperável sob estratégia própria; checkpoint não implica cópia integral do banco.",
+      "section": "Persistência, logs, checkpoint e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "RPO expressa a perda máxima tolerável de dados, enquanto RTO expressa o tempo-alvo de recuperação do serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "As duas métricas medem objetivos diferentes: quanto dado se pode perder e quanto tempo pode durar a indisponibilidade. Replicação, logs e backups afetam ambos, mas não os tornam automaticamente nulos.",
+      "section": "Persistência, logs, checkpoint e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em sistemas com histórico de execução durável, a reexecução do código de um workflow elimina automaticamente a necessidade de idempotência das ações externas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O replay reconstrói o estado lógico do workflow, mas serviços terceiros não participam automaticamente dessa recuperação. Atividades externas podem ser retentadas e precisam de proteção contra efeitos duplicados.",
+      "section": "Persistência, logs, checkpoint e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um banco cai após persistir o WAL de uma transação confirmada, mas antes de descarregar todas as páginas alteradas. Qual mecanismo permite recuperar o efeito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Exclusão de todos os registros de commit persistidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "REDO a partir dos registros duráveis do log.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desativação de logs para acelerar reinicialização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Execução de um novo HTTP POST para cada linha do banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cancelamento obrigatório de todas as transações já confirmadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "REDO refaz mudanças confirmadas representadas no log durável que ainda não alcançaram os arquivos de dados. Apagar log ou desfazer commits contraria o objetivo de recuperação.",
+      "section": "Persistência, logs, checkpoint e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa suporta perda de até cinco minutos de dados e deseja restabelecer o sistema em até meia hora. Como classificar as metas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "RTO de cinco minutos e RPO de trinta minutos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Dois valores de throughput, sem relação com recuperação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RPO de cinco minutos e RTO de trinta minutos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Dois indicadores de serializabilidade de transações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A mesma métrica, pois prazo de restauração é perda de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "RPO quantifica a janela tolerável de perda de dados; RTO mede o tempo desejado de restabelecimento. Inverter conceitos confunde volume temporal de dados com indisponibilidade.",
+      "section": "Persistência, logs, checkpoint e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma pane, o participante de 2PC retorna com transação em estado PREPARED. Qual informação é crucial para encerrá-la corretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A linguagem de programação de quem solicitou a operação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A quantidade de usuários conectados ao painel da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A porta TCP utilizada no primeiro acesso ao serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A decisão global registrada de COMMIT ou ABORT.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O número de consultas de leitura executadas no dia anterior.",
+          "correct": false
+        }
+      ],
+      "explanation": "A transação preparada depende da decisão global para terminar. O log do coordenador ou mecanismo autorizado de recuperação identifica o desfecho; metadados de interface não suprem essa informação.",
+      "section": "Persistência, logs, checkpoint e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual distinção entre log de transações, event sourcing e tracing distribuído é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todos são apenas apelidos para cópia completa de backup.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tracing substitui a persistência de dados de negócio após commit.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Event sourcing exige que cada evento corresponda a um checkpoint de disco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O WAL existe exclusivamente para correlacionar latência entre APIs.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Log sustenta recuperação física/lógica do banco; eventos de domínio reconstroem estado de negócio; traces apoiam observabilidade.",
+          "correct": true
+        }
+      ],
+      "explanation": "Os registros possuem finalidades distintas, embora possam representar sequências no tempo. Traces não são fonte transacional, eventos de domínio não são automaticamente WAL, e checkpoints não equivalem a todos eles.",
+      "section": "Persistência, logs, checkpoint e recuperação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na Saga, uma compensação de pagamento pode produzir um estorno registrável, em vez de apagar qualquer vestígio da cobrança anterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Compensações são ações de negócio que corrigem efeitos locais já confirmados. Um estorno pode preservar trilha contábil e não reconstituir literalmente cada bit do estado anterior; isso difere do rollback local.",
+      "section": "Sagas, outbox, idempotência e tolerância a falhas",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O padrão transactional outbox exige que a gravação do registro de evento ocorra na mesma transação local que a alteração de negócio correspondente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "É essa gravação atômica que elimina a janela entre confirmar dados e registrar intenção de publicar. Um processo separado transmite posteriormente; duplicações de envio continuam possíveis.",
+      "section": "Sagas, outbox, idempotência e tolerância a falhas",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila com entrega pelo menos uma vez garante, sem outros mecanismos, que cada efeito de negócio ocorrerá no máximo uma vez.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "At-least-once admite reentregas, que podem repetir cobranças ou atualizações sem controle. Consumidor idempotente, chave adequada e persistência de deduplicação evitam efeitos duplicados.",
+      "section": "Sagas, outbox, idempotência e tolerância a falhas",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O circuit breaker pode reduzir chamadas a uma dependência degradada, mas não substitui por si só o commit ou rollback de operações já iniciadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O disjuntor administra tentativas de comunicação e recuperação de dependência. Decisões transacionais, idempotência e compensações têm responsabilidades próprias e continuam necessárias.",
+      "section": "Sagas, outbox, idempotência e tolerância a falhas",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação atualiza dados de pedido e registra, na mesma transação local, o evento destinado à publicação posterior. Qual padrão foi adotado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Transactional outbox.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Three-phase commit aplicado automaticamente ao broker.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cache aside exclusivamente para leituras.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Circuit breaker sem persistência de eventos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Leitura suja intencional como mecanismo de integração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Outbox grava estado de negócio e intenção de publicação atomicamente no mesmo banco. O publicador posterior separa comunicação externa; os demais padrões não resolvem a dupla gravação desse modo.",
+      "section": "Sagas, outbox, idempotência e tolerância a falhas",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um consumidor recebe novamente a mesma mensagem após cair antes de confirmar o recebimento no broker. Como preservar o efeito único?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confiar apenas na ordem temporal de chegada de cada mensagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Registrar chave de deduplicação e alteração de negócio de modo atômico.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desconsiderar qualquer evento com o mesmo correlation ID do pedido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Enviar a mensagem repetida a todos os serviços sem validação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar indefinidamente a quantidade de retentativas do produtor.",
+          "correct": false
+        }
+      ],
+      "explanation": "O consumidor idempotente reconhece a operação já aplicada por chave apropriada e não repete o efeito. A persistência atômica evita corrida; só timestamp ou correlação ampla não garantem isso.",
+      "section": "Sagas, outbox, idempotência e tolerância a falhas",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na compra distribuída, estoque foi reservado e pagamento recusado. O sistema executa liberação do estoque por ação de negócio. Que mecanismo descreve a solução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Rollback físico de todas as bases como se fossem uma só transação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Commit global 2PC obrigatório porque houve duas etapas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Compensação de Saga após transações locais.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Checkpoint automático de WAL, sem evento compensatório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exclusão da rastreabilidade para manter aparência de sucesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "A Saga reverte semanticamente efeitos com novas transações, como liberar reserva já confirmada. Não é rollback físico global nem depende necessariamente de 2PC; auditoria das ações permanece importante.",
+      "section": "Sagas, outbox, idempotência e tolerância a falhas",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um broker oferece transações exatamente uma vez dentro de seus tópicos, mas o consumidor chama gateway externo de pagamentos. Qual cautela permanece necessária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Presumir que o gateway participa da transação interna dos tópicos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Eliminar identificadores de operação, pois o broker já os substitui.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Concluir que uma falha HTTP garante estorno automático da cobrança.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir idempotência e reconciliação para o efeito externo, fora do escopo do broker.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desativar histórico porque a entrega da mensagem é infalível.",
+          "correct": false
+        }
+      ],
+      "explanation": "Garantias exatamente uma vez têm fronteiras tecnológicas específicas. O efeito no gateway pode ocorrer mesmo com timeout; deve ser identificado, consultado e deduplicado independentemente do broker.",
+      "section": "Sagas, outbox, idempotência e tolerância a falhas",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Two-Phase Transactions — PostgreSQL 18",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Documentação PostgreSQL 18, seção 67.4",
+      "url": "https://www.postgresql.org/docs/18/two-phase.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PREPARE TRANSACTION — PostgreSQL 18",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Comando SQL PREPARE TRANSACTION",
+      "url": "https://www.postgresql.org/docs/18/sql-prepare-transaction.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Transaction Isolation",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Documentação PostgreSQL 18, seção 13.2",
+      "url": "https://www.postgresql.org/docs/current/transaction-iso.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Write-Ahead Logging (WAL)",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Documentação PostgreSQL 18, seção 28.3",
+      "url": "https://www.postgresql.org/docs/current/wal-intro.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Managing Distributed Transactions",
+      "publisher": "Oracle",
+      "reference": "Oracle Database 19c Administrator’s Guide; transações in-doubt e RECO",
+      "url": "https://docs.oracle.com/en/database/oracle/oracle-database/19/admin/managing-distributed-transactions.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Distributed Transactions — 2PC e 3PC",
+      "publisher": "Rutgers University, Department of Computer Science",
+      "reference": "Notas didáticas de sistemas distribuídos sobre Two-Phase Commit e Three-Phase Commit",
+      "url": "https://people.cs.rutgers.edu/pxk/classes/417/notes/transactions.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Three-phase commit protocol (3PC)",
+      "publisher": "JBoss Community",
+      "reference": "Documentação técnica da comunidade JBoss sobre protocolo, estados e hipóteses",
+      "url": "https://developer.jboss.org/docs/DOC-56051",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Saga Design Pattern",
+      "publisher": "Microsoft Learn — Azure Architecture Center",
+      "reference": "Padrão Saga, orquestração, coreografia e compensações",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/patterns/saga",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Transactional outbox pattern",
+      "publisher": "Amazon Web Services — AWS Prescriptive Guidance",
+      "reference": "Padrão de outbox, dual write e reentrega",
+      "url": "https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Idempotent Consumer Pattern",
+      "publisher": "Microsoft Learn — Azure Architecture Center",
+      "reference": "Consumo idempotente e tratamento de duplicatas",
+      "url": "https://learn.microsoft.com/pt-br/azure/architecture/patterns/idempotent-consumer",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Design — Apache Kafka",
+      "publisher": "Apache Software Foundation",
+      "reference": "Transações de mensagens e limites de exactly-once",
+      "url": "https://kafka.apache.org/design/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Event History",
+      "publisher": "Temporal Technologies — Documentation",
+      "reference": "Histórico durável e replay de workflow",
+      "url": "https://docs.temporal.io/encyclopedia/event-history",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

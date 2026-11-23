@@ -1,0 +1,1853 @@
+{
+  "id": "informatica.gerencia-memoria-sistemas-operacionais",
+  "subject": "Informática — Sistemas Operacionais",
+  "title": "Gerência de memória: endereçamento, paginação, segmentação e memória virtual",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Gerência de memória: endereçamento, paginação, segmentação e memória virtual",
+    "Gerência de memória: endereçamento, paginação, segmentação e memória virtual (versão nova e completa; inclua também: Swapping de processos inteiros)"
+  ],
+  "scope": {
+    "covers": "Endereços lógicos, virtuais e físicos; MMU, proteção, realocação, base-limite; alocação contígua e fragmentações; compactação e first/best/worst fit; swapping clássico de processos inteiros; paginação e quadros, tabelas, TLB; segmentação e segmentação paginada; memória virtual por demanda; faltas, substituição e thrashing; memória anônima, arquivos mapeados, COW, pagefile, huge pages e NUMA.",
+    "excludes": "Programação de alocadores em linguagens específicas; administração aprofundada de sistemas de arquivos; projeto de circuitos DRAM; comandos específicos de tunning por distribuição Linux ou versão de Windows; algoritmos proprietários não documentados."
+  },
+  "theoryTitle": "Gerência de memória em sistemas operacionais: teoria, cálculos, swapping e prática",
+  "chapters": [
+    {
+      "title": "Fundamentos do endereçamento e da proteção",
+      "markdown": "# Endereços, espaços e objetivos da gerência de memória\n\nA **gerência de memória** articula execução de processos, isolamento, aproveitamento da RAM e desempenho. Um programa referencia posições segundo uma visão lógica ou virtual; os circuitos de memória atendem, em última instância, a **endereços físicos**. A aplicação não precisa conhecer o local físico em que estão seus dados. O sistema operacional prepara os mapeamentos e as permissões, enquanto a unidade de gerenciamento de memória (**MMU**) participa da tradução em hardware. A distinção entre endereço virtual e físico é essencial: dois processos podem usar o mesmo valor de endereço virtual e atingir quadros físicos distintos; um mapeamento compartilhado também pode fazer endereços virtuais distintos chegarem ao mesmo quadro. \n\nUm **espaço de endereçamento** é o conjunto de endereços que o processo pode expressar, e não uma promessa de RAM residente na mesma quantidade. Endereços possíveis, regiões efetivamente mapeadas, páginas comprometidas e páginas residentes são grandezas diferentes. A proteção impede que referências arbitrárias de um processo leiam ou alterem a memória privada de outro; uma exceção ocorre quando o sistema autoriza compartilhamento explícito. A visão de endereços virtuais praticamente contíguos facilita a programação mesmo quando a RAM correspondente está fragmentada.\n\n## Vinculação, relocação e momento da tradução\n\nA associação entre nomes simbólicos de variáveis, endereços e armazenamento pode ser realizada em momentos diferentes. Em **tempo de compilação**, o código poderia conter endereços absolutos caso a posição final seja conhecida e fixa. Em **tempo de carga**, o carregador pode ajustar endereços relocáveis quando seleciona a região de execução. Em **tempo de execução**, tradução dinâmica permite que o processo use endereços lógicos enquanto a MMU resolve seus correspondentes físicos a cada acesso relevante, com aceleração por caches de tradução. Isso viabiliza execução independente da posição física e mudanças de mapeamento sem editar as instruções da aplicação.\n\nNo modelo didático de **registrador-base e registrador-limite**, um deslocamento lógico válido deve ser menor que o limite configurado. Se o limite representa o tamanho da região, a MMU calcula `endereço físico = base + deslocamento` somente após validar `0 ≤ deslocamento < limite`. Exemplo: base 8.000, limite 1.000 e deslocamento 325 resultam no endereço físico 8.325; o deslocamento 1.000 é inválido. Esse mecanismo protege um intervalo contíguo simples, mas não substitui toda a sofisticação de paginação e segmentação contemporâneas.\n\n## Organização típica do espaço virtual\n\nÉ comum descrever as regiões de **código/texto**, dados estáticos, heap, pilha e áreas mapeadas. Código pode ser mapeado como executável e não gravável; dados mutáveis exigem gravação; a pilha costuma acompanhar chamadas de funções e variáveis automáticas; o heap atende alocações dinâmicas. A localização e a direção de crescimento dessas regiões dependem da plataforma, do formato executável e da implementação, não sendo uma regra universal que toda pilha cresça para endereços menores.\n\n**Permissões** de leitura, escrita e execução integram o mapeamento; violá-las pode provocar uma exceção de proteção. Falta de página, portanto, não é sinônimo de erro: certas faltas são recuperáveis, pois desencadeiam alocação ou carregamento legítimo, enquanto outras denunciam acesso proibido. Mecanismos como randomização de endereços dificultam previsões sobre a localização de regiões, mas não transformam endereços virtuais em físicos. Em prova, identifique sempre se a questão trata de tamanho do espaço, endereço produzido pela CPU, quadro real ou posição em armazenamento secundário.\n\n## Unidades e contas usuais\n\nPara endereçamento por byte com `n` bits, o conjunto teórico de endereços contém `2^n` posições, se todos os valores forem utilizáveis. Assim, 16 bits expressam 65.536 posições, isto é, 64 KiB, e 20 bits expressam 1 MiB. A unidade **KiB** corresponde a 1.024 bytes; **MiB**, a 1.024 KiB. É incorreto converter indiscriminadamente bits de endereço em tamanho de RAM instalada, porque arquitetura, regiões reservadas e limites do sistema interferem na disponibilidade prática. Em um sistema com MMU, a CPU em modo usuário normalmente emite endereço virtual; a MMU traduz e aplica atributos de acesso. A validação de proteção integra a tradução, não é etapa meramente administrativa opcional."
+    },
+    {
+      "title": "Alocação contígua, fragmentação e swapping de processos",
+      "markdown": "# Alocação contígua e partições\n\nNos esquemas clássicos, o sistema coloca cada processo em **uma região contígua da RAM**. Partições fixas simplificam organização, mas um processo menor que a partição desperdiça o espaço interno remanescente; esse desperdício é **fragmentação interna**. Em **partições variáveis**, blocos livres de tamanhos diferentes são criados e consumidos conforme processos entram e saem. Mesmo que a soma das áreas livres seja suficiente, pode faltar um único bloco consecutivo de tamanho adequado: essa é a **fragmentação externa**. Portanto, capacidade total livre e maior bloco livre são informações diferentes. O problema da fragmentação externa nasce da exigência de contiguidade, não da existência de páginas lógicas em si.\n\nA **compactação** move regiões ocupadas para agrupar espaços livres, podendo reduzir fragmentação externa; em contrapartida, demanda movimentação de dados e capacidade de ajustar endereços. Não transforma desperdício dentro de blocos já concedidos em memória automaticamente reutilizável. A realocação dinâmica facilita a compactação, mas sua aplicação precisa respeitar restrições práticas de execução e dispositivos.\n\n## Estratégias de escolha de lacunas\n\n**First fit** escolhe a primeira lacuna suficiente encontrada na ordem de busca. **Best fit** seleciona a menor lacuna com capacidade de acomodar o pedido. **Worst fit** escolhe a maior lacuna existente. São políticas de seleção, não garantias matemáticas de melhor aproveitamento futuro; a distribuição e a sequência de pedidos importam. Suponha lacunas, nessa ordem: 100, 500, 200 e 300 KiB, e um pedido de 180 KiB. First fit usa 500 KiB, best fit usa 200 KiB e worst fit usa 500 KiB. A política não altera o tamanho solicitado: reserva-se o bloco exigido e, quando possível, a parte excedente pode virar nova lacuna.\n\nEm partições fixas, a ocupação de uma partição de 256 KiB por um programa de 190 KiB deixa 66 KiB ociosos nessa partição, exemplo de fragmentação interna. Em partições variáveis, quatro lacunas de 20 KiB não atendem a uma solicitação contígua de 60 KiB sem reorganização, embora a soma livre seja 80 KiB.\n\n# Swapping de processos inteiros: a cobrança específica\n\nNo **swapping clássico de processos inteiros**, o sistema transfere a imagem de memória de um processo da RAM para armazenamento secundário (*swap out*) e posteriormente a traz de volta (*swap in*) para possibilitar a retomada. Esse processo pode ficar temporariamente fora da RAM e não executar enquanto sua imagem indispensável não retornar. Ao liberar espaço, o sistema permite que outro processo seja admitido. Essa técnica foi importante em sistemas com alocação contígua e é distinta da **paginação sob demanda**, que pode movimentar **páginas individuais** sem retirar a imagem inteira do processo. Em textos e utilitários modernos, “swap” também designa o armazenamento de páginas expulsas; o contexto do enunciado decide qual sentido está em jogo.\n\nA ida e volta do processo têm custo de **transferência de dados**, além de latência e administração de estado. Modelo simplificado: processo de 256 MiB, banda útil de 64 MiB/s e desprezo das demais latências implica cerca de 4 segundos apenas para uma transferência completa; uma ida e uma volta, nas mesmas condições, somariam cerca de 8 segundos. Esse valor é didático, não um prazo garantido de um sistema real. Swapping excessivo destrói responsividade, pois o disco ou SSD é normalmente muito mais lento do que a RAM em acessos repetidos.\n\n## Swapping, I/O e segurança da realocação\n\nA escolha do processo a retirar envolve estado (bloqueado, pronto ou em execução), prioridade, tamanho, frequência de uso e custo de retorno. É necessário preservar informações de controle para retomada coerente. **I/O por DMA** merece atenção: um dispositivo não deve transferir dados para um endereço físico que passou a pertencer a outro processo. Sistemas podem fixar temporariamente páginas/áreas, usar buffers controlados ou esperar a conclusão da operação antes de permitir movimentação insegura.\n\nEm sistemas com tradução dinâmica, a volta de um processo não exige necessariamente a mesma posição física anterior, desde que mapeamentos, referências e restrições sejam atualizados corretamente. Em esquemas com endereços absolutos imutáveis, a relocação é muito mais difícil. Assim, “swapping” não equivale a desalocar o processo definitivamente nem a trocar a CPU entre processos: **troca de contexto** salva e restaura estado de execução; **swapping** movimenta conteúdo de memória entre níveis de armazenamento. Processos podem sofrer troca de contexto sem qualquer operação de swap."
+    },
+    {
+      "title": "Paginação, quadros, tabelas de páginas e TLB",
+      "markdown": "# Página e quadro: tradução por blocos\n\nNa **paginação**, o espaço virtual é dividido em páginas de tamanho fixo e a RAM, em quadros (*frames*) do mesmo tamanho. Uma página virtual pode ocupar qualquer quadro disponível, sem exigir que os vários quadros do processo sejam adjacentes. O endereço virtual separa-se em **número de página** e **deslocamento**; a tabela de páginas relaciona número de página virtual a número de quadro físico, juntamente com atributos. O deslocamento é preservado na tradução, pois página e quadro têm extensão igual. Fórmula: `endereço físico = (número do quadro × tamanho da página) + deslocamento`. A paginação elimina a fragmentação **externa associada à alocação física de páginas independentes**, mas pode gerar **fragmentação interna** na última página parcialmente preenchida, além de custo de tabelas e traduções.\n\nCom páginas de 4 KiB, o deslocamento ocupa 12 bits (`2^12 = 4096`). Num endereço virtual de 32 bits com páginas de 4 KiB, sob esquema simples, sobram 20 bits para o número de página. O endereço decimal 9.000 tem página virtual `⌊9000/4096⌋ = 2` e deslocamento 808. Se a página 2 estiver no quadro 7, o endereço físico será `7 × 4096 + 808 = 29.480`. Não se deve multiplicar o número da página virtual pelo tamanho do quadro depois da tradução: usa-se o **quadro indicado pelo mapeamento**.\n\n## Tabelas de páginas e bits de controle\n\nCada entrada de tabela de páginas pode identificar quadro ou condição especial e armazenar **presença/validade**, permissões, indicação de acesso (referência) e modificação (*dirty*). O conjunto exato de bits e níveis depende da arquitetura. Um bit dirty informa que a página foi alterada; isso ajuda a decidir se uma vítima precisa ter conteúdo gravado antes de o quadro ser reaproveitado. Uma página sem mapeamento autorizado não deve ser tratada como simples candidata a carregamento, pois o acesso pode ser inválido. Quando uma entrada aponta para conteúdo deslocado ao swap, o tratamento da falta pode trazê-lo de volta.\n\n**Tabelas multinível** evitam alocar, de uma vez, entradas de tabela para vastas regiões virtuais não utilizadas. A desvantagem potencial é exigir mais leituras de estruturas de tradução, mitigadas por cache e otimizações de hardware. Uma tabela invertida, conceito alternativo em alguns projetos, é organizada em torno de quadros físicos e requer mecanismos de busca ou de associação para localizar o mapeamento virtual. Não confunda a tabela de páginas com o armazenamento das próprias páginas: a tabela contém **metadados e referências**, não precisa armazenar todo o conteúdo de cada página.\n\n# TLB e custo da tradução\n\nA **TLB (Translation Lookaside Buffer)** armazena traduções recentes. Em um **TLB hit**, a MMU encontra rapidamente mapeamento apropriado; em um **TLB miss**, precisa de outra forma de localizar tradução, por exemplo percorrer tabelas. **TLB miss não é, por si só, page fault**: a página pode estar na RAM e apenas sua tradução não estar no cache. Já uma falta de página pode ocorrer porque o acesso a uma página não residente exige intervenção, ou porque há violação de proteção. É importante distinguir o custo nanoscópico de uma pesquisa de tradução do custo potencialmente alto de I/O para trazer dados.\n\nExemplo simplificado, sem sobreposição: consultar TLB custa 10 ns; acesso à RAM custa 100 ns; um hit requer 10+100 = 110 ns; um miss em tabela de um nível requer 10+100 (tabela)+100 (dados) = 210 ns. Com 80% de hits, o tempo efetivo médio é `0,8 × 110 + 0,2 × 210 = 130 ns`. Esse cálculo depende expressamente das premissas do enunciado e não se aplica automaticamente a caches ou tabelas multinível de hardware real. Alterar o espaço de endereçamento pode demandar invalidação, troca de contexto de tradução ou associação de tags à TLB, conforme a arquitetura.\n\n## Páginas grandes e trade-offs\n\n**Páginas grandes** permitem cobrir mais bytes com cada entrada de tradução, reduzindo pressão sobre TLB e tabelas. Em contrapartida, um mapeamento grande pode desperdiçar memória quando o uso real é pequeno ou enfrentar maior dificuldade para obter quadros físicos adequados. Na documentação do Linux, aparecem, entre outros, **HugeTLB** e **Transparent HugePages (THP)** como mecanismos diferentes de utilização de páginas maiores. THP busca transparência para certas aplicações; HugeTLB depende mais de reservas e configurações específicas. Não atribua tamanho único a todas as arquiteturas: 4 KiB é exemplo clássico, não definição universal. Também não se deduz que páginas grandes sejam sempre melhores; padrão de acesso, pressão de memória, granularidade e implementação são determinantes."
+    },
+    {
+      "title": "Segmentação, limites e combinação de mecanismos",
+      "markdown": "# Segmentos lógicos e espaços não uniformes\n\nA **segmentação** enxerga a memória de acordo com unidades lógicas de extensão variável, como código, pilha, dados ou módulos, conforme o modelo arquitetural. Um endereço segmentado é representado por `(número do segmento, deslocamento)`. A **tabela de segmentos** indica base física, comprimento ou limite e proteções. A tradução didática valida primeiro o deslocamento e, em seguida, soma base e deslocamento. Segmentos possuem tamanhos diferentes, diferentemente das páginas de extensão fixa. Por isso, a segmentação tradicional pode apresentar **fragmentação externa na RAM**, pois cada segmento necessita de região contígua adequada, mesmo que segmentos diferentes não estejam próximos entre si.\n\nExemplo: segmento 3 com base 12.000 e comprimento 700 aceita deslocamento 699, resultando em endereço físico 12.699; deslocamento 700 fica fora do segmento. Ao distinguir base e limite, observe se o enunciado define limite como **comprimento** ou **último deslocamento válido**. Para limite entendido como comprimento, o teste é `deslocamento < comprimento`, não `≤`. Esse detalhe é uma armadilha de prova bastante recorrente.\n\n## Proteção, compartilhamento e crescimento\n\nA segmentação facilita modelar limites e permissões por região conceitual. O código compartilhado por vários processos pode ser mapeado sob permissões apropriadas, e um segmento de dados privado pode continuar isolado. Não se deve concluir que compartilhar um segmento autoriza escrita irrestrita nem que todos os processos passam a ter endereços virtuais idênticos. Há modelos em que segmentos crescem de modo independente, mas o crescimento demanda espaço e atualização de metadados; por isso, sua vantagem organizacional não remove automaticamente a fragmentação externa.\n\nA **proteção por segmento** verifica se o endereço está dentro dos limites e se a operação é permitida. A **proteção por página** usa atributos por entrada de tabela; as duas granularidades podem coexistir. Um erro em acesso a memória pode decorrer de limite, ausência de mapeamento, privilégio insuficiente ou proibição de escrita/execução. Em linguagens de baixo nível, um endereço numericamente bem formado continua inválido se não corresponder a região permitida. Distinga isolamento de processo de correção lógica do programa: a MMU limita acessos, mas não detecta todos os erros semânticos de código.\n\n# Segmentação com paginação\n\nNa **segmentação paginada**, o programa seleciona um segmento e um deslocamento; após verificar o limite, o sistema encontra a página correspondente **dentro do segmento** e então obtém o quadro físico. Uma representação didática é `(segmento, página, deslocamento na página)`. O mapeamento final pode dispensar continuidade física das páginas de cada segmento. A abordagem preserva unidades lógicas e reduz o problema de exigir blocos físicos longos e contíguos. Em troca, podem existir mais níveis de tradução e metadados; páginas finais de segmentos podem apresentar fragmentação interna.\n\nSegmentação pura, paginação pura e combinação são **modelos de organização**, e não garantias de que um sistema operacional atual utilize uma delas exatamente como descrito nos livros. Em arquiteturas modernas de modo plano, mecanismos históricos de segmentação podem ter papel mais restrito, enquanto a proteção e o isolamento efetivos se apoiam amplamente em páginas. Quando a prova disser que segmentação e paginação são mutuamente excludentes, desconfie: há implementações e modelos que as combinam.\n\n## Comparativo orientado a questões\n\nA **paginação** trabalha com blocos de tamanho fixo e páginas espalhadas por quadros não contíguos; o problema de desperdício predominante ensinado é a **fragmentação interna** em páginas parcialmente usadas. A **segmentação** organiza unidades lógicas de tamanho variável e permite limites por segmento; em sua forma física contígua, sofre com **fragmentação externa**. A **alocação contígua de processos inteiros** exige um grande bloco por processo, e a retirada/retorno da imagem completa caracteriza swapping clássico. Na **memória virtual paginada**, só um subconjunto das páginas precisa estar residente em cada momento, de acordo com a política e o comportamento do sistema.\n\nA palavra **lógico** pode designar endereços vistos pelo programa tanto em modelos segmentados quanto paginados. Já *físico* descreve a posição efetiva no dispositivo RAM. A expressão “segmento” também aparece em outros assuntos de computação (por exemplo, redes); no edital de gerência de memória, o significado depende da tabela de segmentos, base, deslocamento, limite e permissões."
+    },
+    {
+      "title": "Memória virtual, faltas de página e substituição",
+      "markdown": "# Memória virtual e paginação por demanda\n\nA **memória virtual** desacopla a quantidade e a organização dos endereços que um processo percebe da quantidade de páginas atualmente residentes na RAM. No modelo de **paginação por demanda**, a página é trazida ou preparada quando um acesso efetivamente a requer; a aplicação não precisa ter todas as páginas residentes no início. Essa decisão aproveita a **localidade temporal** (dados recentes tendem a ser reutilizados) e a **localidade espacial** (endereços próximos tendem a ser usados em conjunto). O princípio de localidade é tendência estatística de cargas de trabalho, não garantia para qualquer algoritmo.\n\nUma **falta de página (page fault)** é exceção gerada quando a MMU não consegue concluir o acesso como solicitado com o mapeamento atual. O sistema avalia se a referência é legítima e recuperável: pode alocar uma página zerada, carregar uma página de arquivo, recuperar página da área de swap ou sinalizar acesso inválido. A falta pode ser **soft/minor** quando resolvida sem buscar dados no armazenamento secundário, ou **hard/major** quando demanda I/O de leitura, conforme as classificações do sistema. Portanto, é falso que toda falta de página representa erro do programa ou exige leitura do disco.\n\n## Fluxo de tratamento e página vítima\n\nEm caso típico recuperável, o hardware sinaliza a falta, o kernel verifica a região e a permissão, obtém um quadro livre ou seleciona uma **vítima**, preserva seu conteúdo quando necessário, prepara o conteúdo requerido, atualiza a tabela de páginas e informações de tradução e **retoma a instrução**. A estratégia de escrita depende da origem da página: página limpa respaldada por arquivo pode, em princípio, ser descartada e relida; página privada modificada pode exigir preservação em backing store, compressão, outro meio ou procedimento equivalente conforme o sistema. Não se deve afirmar que todas as vítimas são escritas em swap.\n\n**Substituição local** seleciona vítimas dentro do conjunto de quadros atribuídos ao processo; **global** admite que um processo influencie a quantidade de quadros disponível a outros. O grau de multiprogramação, a frequência de faltas e a distribuição dos conjuntos residentes afetam o desempenho. Algoritmos de substituição são modelos de decisão e devem ser separados de políticas de escalonamento de CPU ou de ordem de leitura de páginas de arquivo.\n\n# FIFO, LRU, ótimo e aproximações\n\n**FIFO** remove a página que há mais tempo ingressou no conjunto controlado, sem considerar diretamente o uso mais recente. Pode sofrer a **anomalia de Belady**: em certas sequências, aumentar o número de quadros eleva o total de faltas. **LRU** escolhe a página menos recentemente utilizada; capta localidade temporal, mas sua implementação exata pode ser custosa. **Ótimo (OPT/MIN)** remove a página cujo próximo uso ocorrerá mais distante no futuro; estabelece referência teórica, mas requer conhecer referências futuras e não é política geral implementável exatamente em tempo real.\n\n**Clock/segunda chance** usa informação de referência para aproximar LRU: páginas referenciadas podem receber uma nova oportunidade antes de serem removidas. Bits de referência e modificação não são intercambiáveis: o primeiro relaciona-se a acesso, o segundo a escrita. Modelos de algoritmo exigem especificar número de quadros, sequência de referências, situação inicial e regra de desempate. Uma afirmação universal de que FIFO é sempre pior que LRU ou de que aumentar quadros reduz faltas em qualquer algoritmo é incorreta; resultados dependem da sequência e da política.\n\n## Conjunto de trabalho, thrashing e tempo efetivo\n\nO **working set (conjunto de trabalho)** de um processo é, no modelo clássico, o conjunto de páginas referenciadas em uma janela recente; aproxima o volume necessário para manter localidade ativa. Quando a soma dos conjuntos ativos supera os quadros disponíveis, o sistema pode sofrer **thrashing**: faltas e I/O dominam a atividade, enquanto a CPU executa pouco trabalho útil. Aumentar indiscriminadamente a multiprogramação pode piorar o fenômeno, porque mais processos competem pelos mesmos quadros. Possíveis respostas incluem reduzir o grau de multiprogramação, ajustar alocação e melhorar localidade das aplicações.\n\nPara calcular **tempo efetivo de acesso**, declare a penalidade de falta e sua probabilidade. Se um acesso normal custa 100 ns e uma falta adiciona 8 ms, com probabilidade de 0,001, uma aproximação é `100 ns + 0,001 × 8.000.000 ns = 8.100 ns`. Isso mostra como uma probabilidade pequena pode ser cara. Modelos diferem quanto ao que está incluso na penalidade; siga as hipóteses explícitas. Não confunda falta de página com falta na TLB: a segunda costuma ter custo muito menor quando não requer I/O."
+    },
+    {
+      "title": "Aplicações práticas, Linux e Windows: desempenho e diagnóstico",
+      "markdown": "# Mapeamentos, memória anônima e arquivos\n\nNos sistemas operacionais modernos, a memória virtual é usada tanto para dados privados quanto para **mapeamentos de arquivos**. No Linux, estruturas de gerenciamento descrevem regiões de endereços e tabelas traduzem páginas. Um mapeamento **anônimo** não é respaldado diretamente por um arquivo comum; pilha e heap são exemplos usuais. Um mapeamento **file-backed** associa um intervalo virtual a conteúdo de arquivo, podendo favorecer leitura sob demanda e compartilhamento. Não é correto afirmar que todo byte reservado virtualmente já ocupa uma página física nem que todo mapeamento reside no swap.\n\nA chamada **mmap** permite criar mapeamentos com permissões e modos de compartilhamento; **mprotect** ajusta proteções de uma região em interfaces POSIX/Linux. Mapeamentos compartilhados e privados têm semânticas distintas: alterações privadas não representam necessariamente escrita direta no arquivo original. Os mecanismos são suportados por páginas e mapeamentos, e não exigem que a aplicação conheça quadros físicos. Conceitos de memória reservada, comprometida e residente precisam ser lidos conforme as definições de cada plataforma, em vez de interpretados como sinônimos.\n\n## Copy-on-write, compartilhamento e cache\n\n**Copy-on-write (COW)** permite que processos inicialmente compartilhem páginas sob condições controladas e que uma **cópia privada** seja materializada quando ocorre uma escrita que precisa separar os conteúdos. Assim, criar um processo por clonagem não implica necessariamente copiar, naquele instante, todo o conteúdo de suas páginas. A cópia por escrita é compatível com isolamento lógico e evita custos de cópia desnecessários quando muitas páginas jamais são modificadas. Na versão simplificada da técnica, após a cópia, a escrita de um processo não altera a página privada do outro.\n\nO **page cache** mantém em RAM dados de arquivos que podem ser reutilizados e serve para diminuir acessos repetidos a armazenamento mais lento. Páginas de arquivo limpas são candidatas naturais a descarte e posterior releitura; páginas sujas demandam cuidados para persistir alterações. O sistema também gerencia páginas anônimas modificadas, com política de swap ou mecanismos de recuperação. Espaço livre de RAM não é o único sinal de saúde: memória usada como cache pode ser reaproveitável, e é preciso avaliar pressão, taxa de faltas, latência e atividade de I/O.\n\n# Swapping moderno e sua diferença do modelo clássico\n\nNo Linux e no Windows, a noção operacional de **swap/pagefile** geralmente se relaciona a **páginas** que deixam conjuntos residentes, não a uma transferência indivisível de todo o processo sempre que há pressão de memória. O Linux usa partições ou arquivos de swap para apoiar determinadas páginas; o Windows documenta o **pagefile** como recurso que pode ampliar o limite de memória comprometida e também apoiar despejos de memória. Arquivo de paginação não é equivalente ao conjunto inteiro de endereços virtuais de um processo, tampouco prova que todas as páginas do processo foram gravadas nele. Arquivos mapeados também podem funcionar como origem dos dados para resolver faltas.\n\nSeparar três fenômenos evita erros: **troca de contexto** é alternância de execução entre processos ou threads; **swapping clássico** move a imagem de memória de um processo inteiro para fora e para dentro; **page-out/page-in** move páginas específicas. O termo histórico pode ser usado de maneira mais ampla em ferramentas atuais, mas uma questão que menciona explicitamente “processos inteiros” exige a definição clássica. Não conclua que ter swap configurado faz o sistema usá-lo continuamente ou que qualquer uso do swap implica thrashing.\n\n## Métricas, TLB, huge pages e NUMA\n\nNo diagnóstico, observe **faltas maiores e menores**, leituras e gravações de memória secundária, pressão por quadros, conjunto residente, taxa de swap e atividade de CPU. Muitas faltas recuperadas sem I/O podem ter impacto diferente de poucas faltas que demandam leitura lenta. A documentação da Microsoft diferencia faltas **hard** (com leitura de backing store) das **soft** (recuperadas sem tal leitura) ao descrever working set. O Linux mantém instrumentos como estatísticas e interfaces de memória e diferencia páginas anônimas, cache de arquivos e recuperação de páginas.\n\n**Huge pages** podem diminuir a quantidade de traduções e o tamanho efetivo das estruturas necessárias, mas aumentam a granularidade da alocação; a documentação do Linux descreve HugeTLB e THP. Em sistemas **NUMA**, o tempo de acesso à RAM depende da relação entre CPU e nó de memória. Assim, a avaliação de desempenho pode precisar considerar localidade física entre nós, além de faltas e TLB. Nenhuma dessas técnicas invalida o princípio central: um endereço virtual não é sinônimo de posição física fixa, e políticas de gerência sempre negociam rapidez, ocupação, proteção e custo de manutenção."
+    }
+  ],
+  "summary": "A gerência de memória apresenta ao processo um espaço lógico ou virtual e o associa, com proteção, aos quadros reais de RAM. A MMU realiza traduções e verifica permissões. A alocação contígua pode sofrer fragmentação interna, quando sobra espaço dentro do bloco reservado, ou externa, quando o espaço livre se encontra em lacunas isoladas. **Swapping clássico de processos inteiros** é a transferência da imagem do processo da RAM para armazenamento secundário e seu retorno; não se confunde com troca de contexto nem com a movimentação seletiva de páginas. A **paginação** separa páginas virtuais e quadros físicos de tamanho fixo, mantendo o deslocamento e usando tabela de páginas; a TLB acelera traduções, mas seu miss não significa ausência do conteúdo na RAM. A **segmentação** adota regiões lógicas variáveis, base e limites, e pode ser combinada com paginação. A **memória virtual sob demanda** admite faltas recuperáveis e substituição por algoritmos como FIFO, LRU e Ótimo; FIFO pode ter anomalia de Belady. Sob pressão e localidade ruim, há risco de **thrashing**. Nos sistemas atuais, COW, memória anônima, mapeamentos de arquivos, cache, pagefile e páginas grandes exigem atenção às diferenças entre endereço possível, residência e armazenamento de apoio.",
+  "flashcards": [
+    {
+      "front": "Endereço virtual x físico",
+      "back": "Virtual é o endereço visto pelo processo; físico é a localização na RAM após a tradução pertinente."
+    },
+    {
+      "front": "Qual é o papel da MMU?",
+      "back": "Traduz endereços virtuais em físicos e verifica permissões, com apoio de estruturas e caches."
+    },
+    {
+      "front": "O que permite o isolamento de processos?",
+      "back": "Espaços de mapeamento e proteções que impedem acesso não autorizado a quadros de terceiros."
+    },
+    {
+      "front": "Base e limite: como validar?",
+      "back": "Se o limite é comprimento L, exige-se 0 ≤ deslocamento < L antes de somar a base."
+    },
+    {
+      "front": "Fragmentação interna",
+      "back": "Espaço desperdiçado dentro de bloco ou partição já concedida ao processo."
+    },
+    {
+      "front": "Fragmentação externa",
+      "back": "Memória livre separada em lacunas que dificultam atender a pedido contíguo."
+    },
+    {
+      "front": "First fit, best fit e worst fit",
+      "back": "Primeira lacuna suficiente; menor lacuna suficiente; maior lacuna, respectivamente."
+    },
+    {
+      "front": "O que é compactação?",
+      "back": "Reorganização de regiões para reunir lacunas, com custo de realocação e cópia."
+    },
+    {
+      "front": "Swapping clássico de processos inteiros",
+      "back": "Transferir imagem de memória do processo para fora da RAM e recuperá-la posteriormente."
+    },
+    {
+      "front": "Swapping x troca de contexto",
+      "back": "Swapping movimenta imagem de memória; troca de contexto alterna estado de execução da CPU."
+    },
+    {
+      "front": "Página x quadro",
+      "back": "Página é bloco virtual; quadro é bloco físico de RAM com o mesmo tamanho de página."
+    },
+    {
+      "front": "Como traduzir um endereço paginado?",
+      "back": "Localize o quadro da página virtual na tabela e preserve o offset; físico = quadro × tamanho + offset."
+    },
+    {
+      "front": "Bits de offset em páginas de 4 KiB",
+      "back": "12 bits, pois 4.096 = 2^12 posições de byte."
+    },
+    {
+      "front": "O que a TLB armazena?",
+      "back": "Traduções recentes de endereços virtuais para físicos, e não o conteúdo completo das páginas."
+    },
+    {
+      "front": "TLB miss equivale a page fault?",
+      "back": "Não. A tradução pode estar ausente da TLB enquanto a página segue residente."
+    },
+    {
+      "front": "Segmentação simples",
+      "back": "Endereço como par segmento-deslocamento; base, comprimento e permissões vêm da tabela de segmentos."
+    },
+    {
+      "front": "Principal fragmentação da segmentação contígua",
+      "back": "Fragmentação externa, pelo tamanho variável e necessidade de região contínua para cada segmento."
+    },
+    {
+      "front": "Segmentação paginada",
+      "back": "Cada segmento tem limites próprios, mas suas páginas podem ocupar quadros não adjacentes."
+    },
+    {
+      "front": "Page fault legítimo",
+      "back": "Exceção recuperável que pode preparar, carregar ou restaurar uma página e retomar a instrução."
+    },
+    {
+      "front": "FIFO, LRU e Ótimo",
+      "back": "FIFO: mais antiga residente; LRU: menos usada recentemente; Ótimo: próximo uso mais distante no futuro."
+    },
+    {
+      "front": "Anomalia de Belady",
+      "back": "No FIFO, certas sequências produzem mais faltas quando a quantidade de quadros aumenta."
+    },
+    {
+      "front": "Thrashing",
+      "back": "Sobrecarga de faltas e transferências de páginas que reduz o trabalho útil da CPU."
+    },
+    {
+      "front": "Copy-on-write",
+      "back": "Páginas podem ser compartilhadas até que uma escrita demande cópia privada."
+    },
+    {
+      "front": "Huge pages e sua desvantagem",
+      "back": "Reduzem pressão da TLB/tabelas, mas podem causar desperdício por granularidade e desafios de alocação."
+    }
+  ],
+  "tips": [
+    "Em exercícios numéricos, determine antes se o limite é comprimento ou último deslocamento permitido; a desigualdade muda.",
+    "Para página de 2^k bytes, reserve k bits para o deslocamento; o resto participa do número da página virtual.",
+    "Quando o enunciado disser “processo inteiro”, interprete swapping clássico, não page-out de páginas isoladas.",
+    "Marque se o problema envolve fragmentação interna (dentro do bloco) ou externa (lacunas entre blocos).",
+    "Em tempos médios de acesso, converta milissegundos para nanossegundos antes de ponderar probabilidades.",
+    "Diferencie hit/miss de TLB, falta soft e falta hard antes de inferir leitura em armazenamento."
+  ],
+  "traps": [
+    "Virtual não significa necessariamente residente; tamanho do espaço de endereçamento não é RAM efetivamente alocada.",
+    "Troca de contexto não é swapping: o escalonador pode alternar processos sem mover sua imagem ao disco.",
+    "Paginação elimina a necessidade de contiguidade entre páginas do processo, não todo tipo de desperdício.",
+    "Na segmentação, deslocamento igual ao comprimento é inválido quando os índices começam em zero.",
+    "Um TLB miss não exige, por si, page-in: pode bastar percorrer tabela de páginas já na RAM.",
+    "Falta de página não é automaticamente falha de proteção: alocação sob demanda é caso legítimo.",
+    "FIFO pode sofrer anomalia de Belady; “mais quadros sempre implica menos faltas” é generalização falsa.",
+    "Swap configurado e uso de pagefile não provam swapping integral nem thrashing."
+  ],
+  "activeRecall": [
+    {
+      "question": "Por que dois processos podem usar o mesmo endereço virtual sem compartilhar dados?",
+      "answer": "Porque seus mapeamentos são individualizados, permitindo encaminhar o mesmo valor virtual a quadros distintos e protegidos."
+    },
+    {
+      "question": "Em base=4.000 e comprimento=600, qual o maior deslocamento válido?",
+      "answer": "599, pois o intervalo válido é de 0 a 599 inclusive; 600 extrapola a região."
+    },
+    {
+      "question": "Como se distinguem fragmentação interna e externa?",
+      "answer": "Interna é sobra não utilizável dentro de bloco reservado; externa é espaço livre dividido em lacunas separadas."
+    },
+    {
+      "question": "Qual é a operação central do swapping de processos inteiros?",
+      "answer": "Retirar a imagem de memória de um processo para armazenamento e depois recuperá-la, em vez de mover páginas individuais."
+    },
+    {
+      "question": "Com página de 8 KiB, quantos bits formam o offset?",
+      "answer": "13 bits, pois 8 KiB = 8.192 = 2^13 bytes."
+    },
+    {
+      "question": "Por que um TLB miss pode não causar leitura de disco?",
+      "answer": "Porque a página pode continuar residente e faltar apenas a tradução em cache, recuperável na tabela."
+    },
+    {
+      "question": "O que muda ao combinar segmentação e paginação?",
+      "answer": "Verifica-se o segmento e seu limite, mas cada página interna pode ser mapeada para um quadro físico independente."
+    },
+    {
+      "question": "Qual relação há entre conjunto de trabalho e thrashing?",
+      "answer": "Se a demanda agregada dos conjuntos ativos ultrapassa quadros disponíveis, faltas e movimentação de páginas podem dominar."
+    },
+    {
+      "question": "O que o copy-on-write economiza?",
+      "answer": "Adia cópias de páginas que podem continuar compartilhadas até uma escrita exigir isolamento."
+    },
+    {
+      "question": "Uma falta hard e uma soft se diferenciam por quê?",
+      "answer": "A hard requer leitura de armazenamento de apoio; a soft pode ser resolvida sem essa leitura, como com página já na RAM."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre endereços virtuais, físicos e proteção",
+      "summary": "Erro de equiparar o valor gerado pela aplicação à posição física, ou de considerar o limite como endereço máximo inclusivo. Revisar MMU, mapeamentos por processo e teste base-limite."
+    },
+    {
+      "key": "e2",
+      "title": "Fragmentação e swapping clássico",
+      "summary": "Erro de tratar lacunas externas como sobras internas, ou de confundir swapping de imagens inteiras com troca de contexto e paginação por páginas. Revisar políticas de lacunas e custos de transferência."
+    },
+    {
+      "key": "e3",
+      "title": "Página, quadro, TLB e tabela",
+      "summary": "Erro de usar número da página onde se exige quadro, errar bits de offset ou considerar TLB miss igual a page fault. Revisar fórmula de tradução e níveis das tabelas."
+    },
+    {
+      "key": "e4",
+      "title": "Segmentação e combinação de técnicas",
+      "summary": "Erro de esquecer a validação do deslocamento, atribuir tamanho fixo a segmentos ou negar a possibilidade de segmentação paginada. Revisar base, limite, extensão variável e quadros."
+    },
+    {
+      "key": "e5",
+      "title": "Faltas, substituição e thrashing",
+      "summary": "Erro de afirmar que toda falta envolve disco, que FIFO é monotônico ou que mais multiprogramação sempre aumenta rendimento. Revisar algoritmos, localidade, working set e anomalia de Belady."
+    },
+    {
+      "key": "e6",
+      "title": "Métricas, COW e implementação",
+      "summary": "Erro de supor que swap exige retirada integral, que uma falta soft lê disco ou que COW duplica imediatamente todas as páginas. Revisar backing store, memória anônima, cache e métricas."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Dois processos utilizam o endereço virtual 0x2000 para dados privados. Em um sistema com memória virtual, a conclusão correta é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cada processo pode mapear esse endereço para um quadro físico diferente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O endereço virtual corresponde sempre ao deslocamento no disco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O isolamento entre processos impede o uso de endereços virtuais iguais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eles precisam acessar obrigatoriamente o mesmo quadro de RAM.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A identidade do endereço virtual exige uma tabela de páginas global única.",
+          "correct": false
+        }
+      ],
+      "explanation": "Endereços virtuais são interpretados no contexto de mapeamento de cada processo. A igualdade numérica do endereço não determina a igualdade do quadro físico nem autoriza compartilhamento; os outros enunciados confundem espaço virtual com destino real.",
+      "section": "Fundamentos do endereçamento e da proteção",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois processos podem apresentar o mesmo endereço virtual numérico e, ainda assim, acessar quadros físicos diferentes, em razão de seus mapeamentos individuais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O espaço virtual é interpretado no contexto de cada processo. A MMU e as estruturas de tradução realizam o mapeamento para quadros físicos, preservando isolamento salvo compartilhamento explicitamente permitido.",
+      "section": "Fundamentos do endereçamento e da proteção",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um modelo com registrador-base igual a 8.000 e limite igual a 1.000 bytes, um processo emite o deslocamento lógico 325. O endereço físico resultante é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "8.000.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "8.325.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "7.675.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "1.325.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "9.325.",
+          "correct": false
+        }
+      ],
+      "explanation": "O deslocamento é válido porque está abaixo de 1.000; após a verificação do limite, soma-se 8.000 a 325, obtendo-se 8.325. As demais respostas alteram a operação ou misturam comprimento com endereço físico.",
+      "section": "Fundamentos do endereçamento e da proteção",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em sistemas com MMU, todo endereço emitido pela aplicação em modo usuário é, por definição, um endereço físico que dispensa tradução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A aplicação normalmente emite endereços virtuais; a MMU participa da tradução e valida atributos de acesso. Confundir o endereço visto pelo programa com posição física ignora a abstração central do gerenciamento moderno.",
+      "section": "Fundamentos do endereçamento e da proteção",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um modelo didático com endereçamento por byte de 16 bits e sem exclusões, quantas posições distintas podem ser expressas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "32.768 posições.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "1.024 posições.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "65.536 posições.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "16.384 posições.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "16.000 posições.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com 16 bits há 2^16 combinações, totalizando 65.536 endereços ou 64 KiB endereçáveis por byte no modelo. Bits de endereço não especificam, sozinhos, a quantidade de memória física instalada.",
+      "section": "Fundamentos do endereçamento e da proteção",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o registrador-limite guarda o comprimento 500, o deslocamento lógico 500 permanece válido, desde que a base física seja positiva.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Quando o limite representa comprimento, os deslocamentos admissíveis são de 0 a 499. O valor exatamente igual ao comprimento ultrapassa a região, mesmo que a soma aritmética com a base produza um número físico.",
+      "section": "Fundamentos do endereçamento e da proteção",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A relocação de um processo em tempo de execução depende, sobretudo, de qual capacidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar as verificações de acesso a regiões protegidas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Fixar o processo na posição física escolhida na compilação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fazer a pilha crescer necessariamente em endereços crescentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Traduzir dinamicamente endereços usados pelo processo para posições físicas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Gravar permanentemente endereços físicos em todas as instruções.",
+          "correct": false
+        }
+      ],
+      "explanation": "A tradução dinâmica permite que a posição física seja diferente daquela suposta pelo código, com validação de acesso. Endereços absolutos imutáveis, ausência de proteção ou convenções da pilha não viabilizam relocação segura.",
+      "section": "Fundamentos do endereçamento e da proteção",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A soma entre base e deslocamento em um esquema contíguo com proteção só deve ocorrer depois de validado o deslocamento contra o limite.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A verificação de limites impede que offsets externos ao intervalo autorizado alcancem memória de terceiros. A base define a posição física inicial, mas não torna válido qualquer deslocamento apresentado pelo processo.",
+      "section": "Fundamentos do endereçamento e da proteção",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma partição fixa de 256 KiB recebe um processo de 190 KiB. O desperdício de 66 KiB no interior da partição exemplifica:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fragmentação externa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Falha de TLB.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Thrashing.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Compactação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fragmentação interna.",
+          "correct": true
+        }
+      ],
+      "explanation": "O espaço concedido excede o efetivamente usado pelo processo, mas permanece dentro da mesma partição: é fragmentação interna. A externa decorre de lacunas separadas; os demais conceitos tratam de tradução, faltas e reorganização.",
+      "section": "Alocação contígua, fragmentação e swapping de processos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A fragmentação externa ocorre quando o espaço livre total está distribuído em lacunas que podem não comportar uma solicitação contígua grande.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Na alocação contígua variável, os blocos livres podem ficar separados, embora sua soma seja suficiente. O problema é a falta de um único intervalo adequado, diferentemente do desperdício interno a blocos concedidos.",
+      "section": "Alocação contígua, fragmentação e swapping de processos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As lacunas de memória, na ordem de varredura, possuem 100, 500, 200 e 300 KiB. Um pedido de 180 KiB será destinado pelo best fit à lacuna de:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "200 KiB.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Qualquer tamanho, pois a escolha é aleatória.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "100 KiB.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "500 KiB.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "300 KiB.",
+          "correct": false
+        }
+      ],
+      "explanation": "Best fit seleciona a menor lacuna que acomoda os 180 KiB, portanto 200 KiB. A lacuna de 100 KiB não serve, e as maiores não são as menores suficientes; a ordem interessa especialmente ao first fit.",
+      "section": "Alocação contígua, fragmentação e swapping de processos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A compactação reduz a fragmentação externa ao reorganizar regiões ocupadas, mas pode exigir relocação e movimentação de dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Reunir áreas livres dispersas amplia a chance de formar um bloco contíguo aproveitável. Em troca, é necessário mover conteúdo e atualizar ou resolver referências, com custos e restrições operacionais.",
+      "section": "Alocação contígua, fragmentação e swapping de processos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo de 256 MiB é integralmente copiado para armazenamento a uma taxa útil constante de 64 MiB/s. Ignorando outras latências, a cópia de saída consome:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "2 segundos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "4 segundos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "8 segundos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "16 segundos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "1 segundo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A duração de transferência, neste modelo, é volume dividido pela vazão: 256/64 = 4 segundos para uma única direção. A volta demandaria outra transferência; não se deve confundir swap out com ida e volta.",
+      "section": "Alocação contígua, fragmentação e swapping de processos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na modalidade clássica de swapping de processos inteiros, somente as páginas que sofreram falta são transferidas para o disco, enquanto o restante da imagem permanece obrigatoriamente residente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Essa descrição corresponde à granulação de paginação e de page-out seletivo, não ao swapping clássico de imagem inteira. O processo pode ser retirado da RAM como unidade, preservando dados necessários ao retorno.",
+      "section": "Alocação contígua, fragmentação e swapping de processos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma característica que distingue o swapping clássico de processos inteiros da paginação sob demanda é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A troca obrigatória de toda a RAM física de uma só vez.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A identidade conceitual entre troca de contexto e swap.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A possibilidade de retirar e recuperar a imagem de memória de um processo como unidade.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A inexistência de armazenamento secundário no swapping clássico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A proibição de retomar um processo após sua saída da RAM.",
+          "correct": false
+        }
+      ],
+      "explanation": "O swapping clássico transfere a imagem de memória de um processo, ao passo que a paginação pode deslocar páginas individualmente. Nem toda troca de contexto envolve disco, e a técnica não implica remover todos os processos.",
+      "section": "Alocação contígua, fragmentação e swapping de processos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Troca de contexto e swapping são sinônimos, pois qualquer alternância de CPU exige copiar todo o processo da RAM para o armazenamento secundário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Troca de contexto altera o processo ou thread em execução, salvando e restaurando estado de CPU. Swapping trata de mover conteúdo de memória para outro nível de armazenamento; context switches geralmente não exigem isso.",
+      "section": "Alocação contígua, fragmentação e swapping de processos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em paginação com páginas de 4 KiB, quantos bits do endereço virtual identificam o deslocamento dentro da página?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "20 bits.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "32 bits.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "10 bits.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "12 bits.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "16 bits.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quatro KiB equivalem a 4.096 bytes, ou 2^12 posições; por isso o deslocamento ocupa 12 bits. As demais quantidades não correspondem ao logaritmo de base 2 do tamanho da página.",
+      "section": "Paginação, quadros, tabelas de páginas e TLB",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na paginação, os quadros físicos associados a páginas sucessivas de um processo não precisam ocupar posições contíguas da RAM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A tabela de páginas mapeia separadamente cada página virtual para um quadro disponível. Essa flexibilidade evita a exigência de um grande bloco físico contínuo, embora preserve o deslocamento dentro da página.",
+      "section": "Paginação, quadros, tabelas de páginas e TLB",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma página virtual 2 tem deslocamento 808 bytes e está mapeada no quadro físico 7. Para páginas de 4.096 bytes, o endereço físico é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "33.576.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "9.000.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "28.672.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "8.192.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "29.480.",
+          "correct": true
+        }
+      ],
+      "explanation": "Multiplica-se o número do quadro 7 por 4.096 e soma-se o deslocamento 808, obtendo 29.480. O número da página virtual não deve substituir o quadro indicado pela tabela de mapeamento.",
+      "section": "Paginação, quadros, tabelas de páginas e TLB",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando ocorre miss na TLB, fica comprovado que a página requisitada está ausente da RAM e será necessário buscá-la em disco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A TLB guarda traduções, não é a lista completa de páginas residentes. Uma tradução ausente desse cache pode ser encontrada nas tabelas de páginas para um quadro já presente, sem page fault com leitura do disco.",
+      "section": "Paginação, quadros, tabelas de páginas e TLB",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Considere uma TLB de consulta em 10 ns, RAM em 100 ns, hit de 80% e tabela de páginas de um nível. Sem sobreposição, o tempo médio efetivo para acessar dados é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "130 ns.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "210 ns.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "100 ns.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "110 ns.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "120 ns.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um hit custa 110 ns; um miss precisa de mais um acesso à RAM para a tabela e custa 210 ns. A média ponderada é 0,8×110 + 0,2×210 = 130 ns. Não se deve tratar todo miss da TLB como falta de página em disco.",
+      "section": "Paginação, quadros, tabelas de páginas e TLB",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o tamanho da página é 8 KiB, o deslocamento dentro dela demanda 13 bits em um endereço por byte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Oito KiB equivalem a 8.192 bytes, ou 2^13 posições. Consequentemente, 13 bits distinguem todos os offsets internos; os bits restantes identificam a página virtual no modelo simples.",
+      "section": "Paginação, quadros, tabelas de páginas e TLB",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de tabelas de páginas hierárquicas é particularmente vantajoso porque:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Obriga todas as páginas virtuais a permanecerem residentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Evita materializar tabelas de nível inferior para vastas regiões não mapeadas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Elimina toda possibilidade de fragmentação interna.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Dispensa completamente o uso de TLB.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Garante apenas um acesso físico por tradução em qualquer cenário.",
+          "correct": false
+        }
+      ],
+      "explanation": "A hierarquia permite representar áreas não utilizadas sem reservar uma tabela plana completa para todos os endereços. Ainda podem ocorrer fragmentação interna e múltiplos passos de tradução, atenuados por caches.",
+      "section": "Paginação, quadros, tabelas de páginas e TLB",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Tabelas de páginas multinível dispensam sempre qualquer acesso à memória para consultar tabelas quando ocorre miss na TLB.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A hierarquia evita materialização excessiva de estruturas em regiões não mapeadas, mas um TLB miss ainda pode exigir percurso de tabelas em memória. Os custos concretos variam com caches e hardware.",
+      "section": "Paginação, quadros, tabelas de páginas e TLB",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na segmentação clássica, um endereço lógico normalmente contém:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Número do bloco livre e tamanho da TLB.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Número da página física e PID.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Número do segmento e deslocamento.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Número do quadro e bit dirty.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Endereço do disco e setor.",
+          "correct": false
+        }
+      ],
+      "explanation": "A tabela de segmentos utiliza o identificador do segmento para obter sua base e limites, aplicando o deslocamento validado. Quadro, bit dirty e TLB são elementos próprios de tradução paginada ou de mecanismos distintos.",
+      "section": "Segmentação, limites e combinação de mecanismos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Segmentos podem ter comprimentos distintos e representar unidades lógicas, como código e dados, conforme o modelo de segmentação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A segmentação usa unidades de extensão variável e pode atribuir limites e permissões específicos. Essa organização aproxima a memória de regiões conceituais do programa, ao contrário das páginas de tamanho fixo.",
+      "section": "Segmentação, limites e combinação de mecanismos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O segmento 3 possui base física 12.000 e comprimento 700 bytes. Qual deslocamento é inválido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "20.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "699.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "350.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "700.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "0.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com comprimento 700, os deslocamentos válidos vão de 0 a 699. O valor 700 atinge exatamente o limite e deve falhar, mesmo antes da soma à base; as outras opções permanecem dentro do segmento.",
+      "section": "Segmentação, limites e combinação de mecanismos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na segmentação tradicional, o sistema considera válido qualquer deslocamento positivo, pois o registrador-base impede extrapolações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A base somente indica onde começa a região física; não substitui teste de comprimento e permissões. Um deslocamento pode ser positivo e, ainda assim, ultrapassar o segmento, exigindo rejeição do acesso.",
+      "section": "Segmentação, limites e combinação de mecanismos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em sua forma tradicional, a segmentação com segmentos de tamanhos variáveis e alocação contígua tende a apresentar:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ausência total de fragmentação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente misses de TLB.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Anomalia de Belady obrigatória.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituição por FIFO automática.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fragmentação externa.",
+          "correct": true
+        }
+      ],
+      "explanation": "Como cada segmento pede uma região contígua, liberações podem produzir lacunas dispersas incapazes de acomodar novo segmento grande. Esse é o mecanismo da fragmentação externa, não uma propriedade dos algoritmos de troca de páginas.",
+      "section": "Segmentação, limites e combinação de mecanismos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A segmentação paginada pode mapear páginas de um mesmo segmento em quadros físicos não contíguos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A combinação preserva a unidade lógica do segmento, mas usa paginação para localizar seus blocos em quadros independentes. Essa característica reduz a necessidade de um bloco físico contínuo por segmento.",
+      "section": "Segmentação, limites e combinação de mecanismos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na segmentação paginada, após validar o deslocamento no segmento, a localização efetiva dos dados ocorre mediante:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A identificação da página do segmento e do quadro correspondente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A seleção do processo de menor tempo de CPU restante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A compactação obrigatória de todos os segmentos em RAM.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A soma direta de base física de segmento com todo o deslocamento, sem consulta adicional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A escrita de toda a imagem do processo em swap.",
+          "correct": false
+        }
+      ],
+      "explanation": "O segmento define unidade lógica e limites; sua paginação identifica a página interna e o quadro físico, sem exigir contiguidade de todas as páginas na RAM. Soma direta sem paginação caracteriza o modelo segmentado simples.",
+      "section": "Segmentação, limites e combinação de mecanismos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Segmentação e paginação são técnicas conceitualmente incompatíveis e jamais podem integrar um mesmo esquema de tradução de endereços.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Modelos de segmentação paginada combinam verificação de segmento com tradução das páginas internas a quadros físicos. A existência dessa combinação contradiz a ideia de exclusão mútua das técnicas.",
+      "section": "Segmentação, limites e combinação de mecanismos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A principal característica da paginação por demanda é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover a proteção de escrita das páginas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trazer ou preparar páginas conforme acessos legítimos as exigem.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituir obrigatoriamente a RAM por armazenamento secundário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Carregar todas as páginas antes de iniciar qualquer instrução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Obrigar cada processo a possuir RAM fisicamente contígua.",
+          "correct": false
+        }
+      ],
+      "explanation": "A estratégia adia a materialização das páginas até a necessidade efetiva e permite conjunto residente menor que o espaço virtual. Ela não dispensa proteção, não exige contiguidade nem pressupõe carregar o processo inteiro.",
+      "section": "Memória virtual, faltas de página e substituição",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na paginação por demanda, o acesso legítimo a uma página não residente pode provocar uma falta que o sistema operacional trata e após a qual a instrução é retomada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma falta recuperável pode gerar alocação, leitura de arquivo ou recuperação de conteúdo e atualização do mapeamento. Nem toda falta significa endereço ilegal; algumas implementam a própria política de demanda.",
+      "section": "Memória virtual, faltas de página e substituição",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual algoritmo de substituição de páginas possui a possibilidade clássica de sofrer a anomalia de Belady?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "LRU de pilha.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Nenhum algoritmo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "FIFO.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ótimo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "LRU.",
+          "correct": false
+        }
+      ],
+      "explanation": "FIFO pode apresentar mais faltas com mais quadros em determinadas sequências, fenômeno conhecido como anomalia de Belady. Algoritmos de pilha como LRU e Ótimo não apresentam essa anomalia em seus modelos clássicos.",
+      "section": "Memória virtual, faltas de página e substituição",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O algoritmo Ótimo substitui a página cujo próximo uso está mais distante no futuro e serve como referência teórica para comparações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O algoritmo minimiza faltas dentro das hipóteses do modelo ao usar conhecimento de referências futuras. Essa informação não está disponível em geral em execução real, impedindo implementação exata universal.",
+      "section": "Memória virtual, faltas de página e substituição",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um acesso sem falta dura 100 ns, e cada falta acrescenta 8 ms de penalidade. Se a probabilidade de falta é 0,001, o tempo efetivo médio aproximado é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "8.000.100 ns.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "108 ns.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "900 ns.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "8.100 ns.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "80.100 ns.",
+          "correct": false
+        }
+      ],
+      "explanation": "A penalidade de 8 ms corresponde a 8.000.000 ns. Sua contribuição média é 0,001×8.000.000 = 8.000 ns, somada aos 100 ns normais. A conta mostra por que mesmo poucas faltas caras degradam o desempenho.",
+      "section": "Memória virtual, faltas de página e substituição",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O thrashing pode ser agravado por aumento do grau de multiprogramação quando a RAM não acomoda os conjuntos ativos de páginas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Mais processos disputando os mesmos quadros podem provocar substituições e faltas repetidas. A CPU passa a aguardar transferências de páginas e o trabalho útil diminui, contrariando a intuição de maior paralelismo.",
+      "section": "Memória virtual, faltas de página e substituição",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O thrashing é melhor caracterizado por:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Queda de misses da TLB até zero.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumento inevitável da frequência de clock.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Execução de todos os processos apenas em cache L1.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eliminação completa da memória secundária.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Frequentes faltas e atividade de movimentação de páginas, com pouco trabalho útil da CPU.",
+          "correct": true
+        }
+      ],
+      "explanation": "Quando os conjuntos de trabalho ativos competem por poucos quadros, o sistema pode gastar muito tempo atendendo faltas em vez de executar aplicações. Aumentar o grau de multiprogramação sem quadros suficientes tende a agravar isso.",
+      "section": "Memória virtual, faltas de página e substituição",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O algoritmo FIFO garante que aumentar a quantidade de quadros físicos jamais elevará o número de faltas de página.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Existem sequências de referência que produzem anomalia de Belady para FIFO: mais quadros podem gerar mais faltas. A monotonicidade é propriedade de certos algoritmos de pilha, não garantia universal.",
+      "section": "Memória virtual, faltas de página e substituição",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema que implementa copy-on-write, a criação de um processo a partir de outro pode inicialmente:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Compartilhar páginas sob proteção, realizando cópia privada quando necessária para escrita.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Obrigar a cópia imediata de todas as páginas físicas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fazer ambos escreverem sempre na mesma página privada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar a MMU para reduzir custo de tradução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exigir que todo o conteúdo seja salvo em arquivo texto.",
+          "correct": false
+        }
+      ],
+      "explanation": "O copy-on-write adia a duplicação até a escrita que necessita separar conteúdos. O compartilhamento inicial é controlado e pode economizar memória; não autoriza escrita privada visível indistintamente ao outro processo.",
+      "section": "Aplicações práticas, Linux e Windows: desempenho e diagnóstico",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Copy-on-write pode manter compartilhadas páginas inicialmente não modificadas e criar cópia privada quando uma escrita exige separação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O compartilhamento controlado adia custos de duplicação, mantendo isolamento lógico quando uma parte modifica seu conteúdo. O mecanismo é útil, por exemplo, na criação de processos com páginas comuns.",
+      "section": "Aplicações práticas, Linux e Windows: desempenho e diagnóstico",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação descreve, de modo correto, uma falta de página hard no sentido empregado na documentação do Windows?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma referência resolvida por página compartilhada residente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma falta que exige buscar conteúdo no armazenamento de apoio.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma tradução não encontrada na TLB, mas já presente na RAM.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma página zerada materializada sem leitura de arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma página em transição recuperada na RAM.",
+          "correct": false
+        }
+      ],
+      "explanation": "A falta hard requer leitura de backing store, como arquivo mapeado ou arquivo de paginação. As situações resolvidas integralmente na RAM podem ser faltas soft; confundir hard com miss de TLB distorce as métricas.",
+      "section": "Aplicações práticas, Linux e Windows: desempenho e diagnóstico",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma falta de página soft requer, por definição, leitura do arquivo de paginação, enquanto uma falta hard pode ser resolvida inteiramente na RAM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A classificação usual é inversa quanto à necessidade de leitura: faltas hard exigem acesso ao armazenamento de apoio, enquanto faltas soft podem ser solucionadas com conteúdo já residente ou página inicial zerada.",
+      "section": "Aplicações práticas, Linux e Windows: desempenho e diagnóstico",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao monitorar um servidor, a mera existência de uma área de swap configurada permite concluir que:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todo acesso virtual consulta obrigatoriamente o SSD.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Todos os processos são retirados integralmente da RAM a cada troca de contexto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O sistema dispõe de recurso para apoiar certas páginas quando necessário, sem provar uso intenso.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Não existem páginas de arquivos mapeadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O working set de todos os processos é nulo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Swap configurado é recurso potencial para determinadas páginas, não evidência de troca integral de processos ou atividade intensa. A avaliação requer métricas de page-in, page-out, residência e latência efetiva.",
+      "section": "Aplicações práticas, Linux e Windows: desempenho e diagnóstico",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Linux, páginas anônimas e páginas respaldadas por arquivos apresentam necessariamente a mesma origem de conteúdo e o mesmo procedimento de recuperação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Páginas de arquivos podem ser relidas de seu arquivo de origem; páginas anônimas não têm esse backing comum e podem demandar swap ou outra estratégia. A política depende de conteúdo, estado e proteção.",
+      "section": "Aplicações práticas, Linux e Windows: desempenho e diagnóstico",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A adoção de huge pages pode melhorar determinados sistemas principalmente porque:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dispensa proteção de leitura e execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Elimina definitivamente os efeitos da localidade NUMA.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garante ausência de qualquer página suja.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reduz pressão na TLB e overhead de tabelas, com custos de granularidade e alocação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Transforma todos os endereços virtuais em físicos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Páginas maiores cobrem mais memória por tradução e podem reduzir trabalho da TLB e tabelas; em contrapartida, podem aumentar desperdício e dificuldades de alocação. Não removem proteção, virtualização nem custos NUMA.",
+      "section": "Aplicações práticas, Linux e Windows: desempenho e diagnóstico",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A adoção de huge pages pode reduzir pressão sobre a TLB, mas não assegura economia de RAM em todos os padrões de uso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma tradução maior cobre mais bytes e pode diminuir overhead, porém granularidade elevada pode desperdiçar espaço ou dificultar alocação. O benefício deve ser avaliado frente ao perfil de acesso da aplicação.",
+      "section": "Aplicações práticas, Linux e Windows: desempenho e diagnóstico",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Page Tables — Linux Kernel documentation",
+      "publisher": "Projeto Linux Kernel",
+      "reference": "MMU, TLB, page faults, tabelas e huge pages",
+      "url": "https://docs.kernel.org/mm/page_tables.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Concepts overview — Linux Kernel Memory Management",
+      "publisher": "Projeto Linux Kernel",
+      "reference": "Conceitos de memória virtual, zonas, cache de páginas, páginas anônimas e reclaim",
+      "url": "https://docs.kernel.org/admin-guide/mm/concepts.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Process Addresses — Linux Kernel documentation",
+      "publisher": "Projeto Linux Kernel",
+      "reference": "Espaços virtuais e estruturas de mapeamento por processo",
+      "url": "https://docs.kernel.org/mm/process_addrs.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Working Set — Win32 apps",
+      "publisher": "Microsoft Learn",
+      "reference": "Working set; faltas hard e soft; páginas de transição",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/memory/working-set",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Introduction to page files",
+      "publisher": "Microsoft Learn",
+      "reference": "Funções do pagefile e limite de memória comprometida",
+      "url": "https://learn.microsoft.com/en-us/troubleshoot/windows-client/performance/introduction-to-the-page-file",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OS 202 Class Notes",
+      "publisher": "New York University — Computer Science",
+      "reference": "Modelos didáticos: alocação, swapping de processos inteiros, paginação e substituição",
+      "url": "https://cs.nyu.edu/~gottlieb/courses/os/class-notes.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "mmap(2) — Linux manual page",
+      "publisher": "Linux man-pages project",
+      "reference": "Mapeamento de memória, permissões, compartilhamento e backing de arquivos",
+      "url": "https://man7.org/linux/man-pages/man2/mmap.2.html",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

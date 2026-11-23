@@ -1,0 +1,1993 @@
+{
+  "id": "informatica.amqp-aop-jbpm-bizagi-bpms",
+  "subject": "Informática — Integração de Sistemas, AOP e Gestão de Processos de Negócio",
+  "title": "AMQP, AOP, jBPM e Bizagi BPMS",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "AMQP, AOP, jBPM e Bizagi BPMS",
+    "AMQP, AOP, jBPM e Bizagi BPMS"
+  ],
+  "scope": {
+    "covers": "AMQP 0-9-1 e 1.0, roteamento e confiabilidade de mensagens; programação orientada a aspectos com Spring AOP; jBPM e tarefas humanas; BPMN 2.0; prática no Bizagi Modeler, simulação e distinção entre Modeler, Studio e Automation Services.",
+    "excludes": "Instalação produtiva passo a passo dependente de versão, licenciamento comercial, tuning específico de cluster e APIs ou integrações não documentadas."
+  },
+  "theoryTitle": "Integração por mensagens, orientação a aspectos e automação BPMN: teoria e prática",
+  "chapters": [
+    {
+      "title": "AMQP 0-9-1: arquitetura, exchanges e roteamento",
+      "markdown": "## Para que serve AMQP\nO Advanced Message Queuing Protocol (AMQP) integra aplicações por mensagens e reduz o acoplamento temporal: produtor e consumidor não precisam estar executando simultaneamente nem compartilhar a mesma linguagem. O protocolo descreve a comunicação, ao passo que RabbitMQ é uma implementação de broker que suporta, entre outros, AMQP 0-9-1 e AMQP 1.0. **AMQP 0-9-1 e AMQP 1.0 não são versões intercambiáveis de uma mesma topologia**: apresentam modelos e terminologias distintos. Em prova, não transfira automaticamente a ideia de *exchange* do modelo 0-9-1 para a especificação 1.0.\n\n## Fluxo de uma mensagem no AMQP 0-9-1\nO produtor publica em uma **exchange**, não diretamente em uma fila como regra geral. A exchange avalia suas **bindings** (vínculos) e encaminha a mensagem a uma ou mais **queues**, com base em regras e na *routing key* da publicação. Consumidores recebem entregas da fila; múltiplos consumidores da mesma fila disputam as mensagens, enquanto filas diferentes vinculadas ao mesmo exchange podem receber cópias independentes. Em uma fila convencional, a entrega a consumidores não equivale a transmissão automática da mesma mensagem a todos eles.\n\nConexão TCP transporta canais AMQP; **channel** é uma unidade lógica multiplexada, útil para operações de publicação e consumo sem abrir uma conexão TCP por operação. A declaração de exchange, fila e binding estabelece a topologia. Os atributos *durable* (sobrevivência da definição à reinicialização) e *exclusive* (uso exclusivo da fila pela conexão, conforme semântica do broker) não são sinônimos. A persistência do conteúdo exige cuidados próprios: declarar fila durável, por si, não torna persistentes todas as mensagens.\n\n## Tipos de exchange: decore pelo critério de distribuição\n- **Direct:** encaminha quando a chave publicada coincide exatamente com a binding key. Excelente para roteamento por classe de evento ou destino conhecido.\n- **Fanout:** replica para as filas vinculadas, ignorando a routing key como critério de seleção. É a solução clássica para difusão a múltiplos assinantes representados por filas separadas.\n- **Topic:** compara padrões com palavras separadas por pontos. Nos bindings, `*` representa exatamente uma palavra e `#` representa zero ou mais palavras. Assim, `pedido.*` cobre `pedido.criado`, mas não `pedido.pago.aprovado`; `pedido.#` cobre ambos e também `pedido`.\n- **Headers:** aplica critérios a cabeçalhos da mensagem, em vez de depender da routing key para decidir o encaminhamento.\n\nA **exchange padrão** do AMQP 0-9-1 no RabbitMQ é uma exchange direct sem nome (string vazia). Ao declarar uma fila, forma-se o vínculo correspondente com seu próprio nome; publicar na exchange padrão usando a chave igual ao nome da fila proporciona a conveniência de enviar àquela fila. Isso não elimina a exchange intermediária da arquitetura.\n\n## Publicação, consumo e erros de roteamento\nQuando não há vínculo compatível, uma publicação pode ficar sem destino. O comportamento depende de propriedades da publicação e recursos configurados: por exemplo, com `mandatory` e mecanismo de retorno o produtor pode ser informado de publicação não roteável; uma *alternate exchange*, se configurada, pode tratar o desvio. **Mensagem publicada não é necessariamente mensagem processada.** A aceitação pelo broker, o roteamento a uma fila, a entrega a um consumidor e a conclusão da regra de negócio são eventos distintos.\n\n**Exemplo operacional:** um serviço publica `pedido.criado` em exchange topic `eventos`. A fila `auditoria` está vinculada por `pedido.#`, e `email` por `pedido.criado`. As duas recebem cópias para seus respectivos consumidores. Se dois trabalhadores forem registrados apenas na fila `email`, as entregas dessa fila serão distribuídas entre eles, em vez de cada um receber toda publicação. Faça sempre a pergunta: **quantas filas foram vinculadas e qual é a chave/padrão?**\n\n## Pegadinhas de concurso\nConfundir fila com exchange; supor que fanout respeita a chave; trocar `*` por `#`; pensar que broker, cliente e protocolo são o mesmo produto; afirmar que consumidores de uma fila recebem todos a mesma entrega; inferir que canal é sempre uma conexão TCP independente."
+    },
+    {
+      "title": "AMQP 1.0, confirmações e padrões de confiabilidade",
+      "markdown": "## A especificação AMQP 1.0\nO AMQP 1.0 é um protocolo padronizado pela OASIS, com foco explícito na transferência interoperável de mensagens. A especificação modela **containers**, **nodes**, **connections**, **sessions** e **links** entre fontes e destinos. Uma conexão pode conter sessões; dentro delas são estabelecidos links unidirecionais de envio ou recebimento. É conceitualmente impróprio afirmar que a especificação AMQP 1.0 exige as exchanges *direct*, *fanout* e *topic* do AMQP 0-9-1: essas categorias pertencem ao conhecido modelo de roteamento 0-9-1, e implementações 1.0 podem ter mecanismos próprios de endereçamento.\n\nNo transporte 1.0, **link credit** integra o controle de fluxo, permitindo ao receptor indicar capacidade de recebimento. Transferências têm identificadores e podem percorrer estados de liquidação (*settlement*), em que partes coordenam a conclusão da responsabilidade por uma entrega. É preciso separar **transferir uma mensagem pelo protocolo**, **aceitá-la no destino** e **executar com êxito uma ação de negócio**. A última depende da aplicação e de controles externos à mera entrega.\n\n## Garantias e confirmações no RabbitMQ\nNo AMQP 0-9-1, o **acknowledgement do consumidor** sinaliza ao broker que uma entrega foi tratada e pode ser liberada segundo a política aplicada. Sem confirmação manual, uma interrupção do consumidor pode provocar nova entrega. Essa possibilidade protege contra perda em certas falhas, mas também expõe o risco de **duplicidade**: o consumidor pode ter efetuado uma alteração no banco e cair antes de reconhecer a mensagem.\n\nJá **publisher confirms** informam ao publicador a aceitação da publicação pelo broker conforme a semântica do recurso. Não atestam que o consumidor processou a mensagem, nem substituem o ack do consumidor. O parâmetro **prefetch** limita a quantidade de entregas em trânsito ou pendentes de reconhecimento, contribuindo para conter sobrecarga. A escolha de prefetch exige medir vazão, duração das tarefas e equidade de distribuição, em vez de aumentar indefinidamente o valor.\n\nNo RabbitMQ, rejeição com `requeue` pode devolver uma mensagem à fila; falhas repetidas e reentregas imediatas sem estratégia podem criar ciclos custosos. Com políticas e infraestrutura adequadas, uma **dead-letter exchange (DLX)** recebe mensagens rejeitadas sem recolocação na fila original, expiradas ou tratadas por outras condições previstas pelo broker. Uma DLX não é um padrão universal compulsório de todo broker AMQP nem substitui observabilidade e tratamento do erro.\n\n## Idempotência, ordem e consistência\n**At-least-once** prioriza não perder a tentativa de entrega, admitindo repetições. **At-most-once** reduz repetições sob determinadas condições, mas pode perder mensagens em falhas. A alegação de *exactly-once end-to-end* requer mecanismos adicionais no conjunto aplicação–broker–banco–serviços; não nasce apenas da existência do protocolo. Para operações financeiras, atribua identificador único ao evento e persista registro de processamento em operação atômica com o efeito de negócio quando possível. Esse padrão é chamado frequentemente de **consumidor idempotente**.\n\nOrdenação também requer qualificação: concorrência de consumidores, reentrega, prioridades e falhas podem alterar a ordem observada no processamento. Uma fila não equivale automaticamente a processamento serial e imutavelmente ordenado. Para integração com banco, **outbox transacional** grava evento e mudança de negócio na mesma transação local; um publicador posterior envia os eventos com repetição segura. Já a **inbox** registra ids recebidos e ajuda a descartar duplicatas.\n\n## Cenário completo\nUma API registra venda e evento na outbox. Um publicador envia o evento ao broker e acompanha confirms; um consumidor recebe com ack manual, verifica idempotência e executa a operação. Se a operação falhar transitoriamente, há política de tentativas com espera e rota de falhas; se o efeito foi aplicado, o consumidor evita duplicá-lo numa reentrega. **Confirmação de publicador, confirmação de consumidor e idempotência resolvem riscos diferentes.**"
+    },
+    {
+      "title": "AOP: aspectos, pointcuts, advices e proxies",
+      "markdown": "## Separação de interesses transversais\nA **programação orientada a aspectos (AOP)** complementa a orientação a objetos ao modularizar responsabilidades que atravessam vários componentes: auditoria, métricas, logging, controle transacional e segurança. Em vez de reproduzir verificação em cada método de negócio, define-se um **aspecto** que descreve onde e quando o comportamento complementar será aplicado. Isso não deve ocultar regras fundamentais de negócio nem justificar interceptações indiscriminadas.\n\nTermos frequentes: **concern** é uma preocupação funcional ou transversal; **aspect** encapsula a preocupação transversal; **join point** é um ponto identificável na execução; **pointcut** é a expressão ou predicado que seleciona um conjunto de join points; **advice** é a ação aplicada; **weaving** é o processo de combinar lógica do aspecto com a aplicação; **target** é o objeto interceptado. Uma diferença clássica de prova: pointcut **seleciona** onde atuar; advice **realiza** a ação.\n\n## Tipos de advice\n- **Before:** ocorre antes da execução do método alcançado pelo ponto de interceptação.\n- **After returning:** ocorre no retorno normal, não simplesmente em qualquer finalização.\n- **After throwing:** é aplicado quando a execução termina lançando exceção que se enquadre na seleção.\n- **After (finally):** é usado após a execução, seja com retorno normal, seja com exceção, respeitadas as particularidades do mecanismo.\n- **Around:** envolve a chamada, pode decidir prosseguir, transformar resultados e tratar exceções; em Spring utiliza-se frequentemente `ProceedingJoinPoint` e a chamada `proceed()` para executar o método-alvo. Não chamar `proceed()` pode impedir a invocação do alvo.\n\nPense no pseudocódigo: `@Around(\"execution(* com.exemplo.servico.*.*(..))\")` seguido de medição de tempo antes e depois de `proceed()`. O padrão `execution` seleciona execuções de métodos por assinatura; a sintaxe completa depende da expressão empregada. Para medir inclusive exceções, a finalização da medição deve estar em mecanismo semelhante a `finally`.\n\n## Spring AOP e AspectJ: contexto importa\nA **Spring AOP** trabalha, em sua abordagem usual, com **proxies de beans gerenciados pelo Spring**, interceptando execução de métodos que passam pelo proxy. O **AspectJ** oferece recursos de weaving mais amplos, incluindo união por bytecode, e não deve ser equiparado a Spring AOP. Em Spring, a seleção das expressões lembra a linguagem de pointcuts do AspectJ, mas isso não concede automaticamente suporte a todas as categorias de join point que um AspectJ completo oferece.\n\nNos mecanismos usuais de proxying, Spring pode usar proxy dinâmico baseado em interface (JDK) ou baseado em subclasse (CGLIB). Restrições de métodos que não podem ser sobrescritos e a natureza do objeto exigem atenção. O erro recorrente é acreditar que uma chamada interna por `this.metodo()` atravessa o proxy. **Self-invocation** tende a contornar o advice baseado em proxy, pois a chamada ocorre dentro do objeto-alvo. As soluções envolvem refatorar para serviço separado acessado pelo proxy ou aplicar alternativa conscientemente arquitetada, em vez de presumir interceptação universal.\n\n## Segurança, transações e testes\nUma anotação declarativa ligada a AOP, como a que expressa regra transacional em frameworks de aplicação, depende de ativação, configuração e caminho de chamada adequados. Não é correto dizer que toda anotação causa interceptação de qualquer método privado ou que qualquer chamada interna inicia nova transação automaticamente. Testes de unidade do componente-alvo podem não ativar aspectos; testes de integração com contexto configurado verificam a efetiva aplicação do advice.\n\nO aspecto pode alterar comportamento observável: latência, tratamento de exceções, propagação de contexto e logs. Deve preservar semântica de segurança e evitar vazamento de dados sensíveis. Aspectos não são o mesmo que filtros HTTP, interceptadores de mensageria ou middlewares, embora todos possam tratar preocupações transversais em diferentes camadas.\n\n## Estudo comparativo\n**OOP** organiza entidades e comportamentos por classes e interfaces; **AOP** encapsula lógica transversal vinculada a pontos de execução. **Before** não intercepta retornos; **After returning** não é sinônimo de *finally*; **Around** pode controlar a invocação inteira. **Proxy** é a chave para entender limitações práticas de Spring AOP."
+    },
+    {
+      "title": "jBPM: motor BPMN, tarefas humanas e execução",
+      "markdown": "## Conceito e componentes\n**jBPM** é uma solução de automação e execução de processos de negócio associada ao ecossistema Java e à modelagem BPMN 2.0. Diferentemente de um editor de diagramas isolado, um **process engine** mantém o estado de instâncias, acompanha transições e coordena serviços e tarefas humanas. Um desenho BPMN compreensível não é, por si só, um processo executável correto: dados, participantes, integrações, implantação e políticas de erro precisam estar definidos.\n\nNa linha documentada do **jBPM 7**, **Business Central** fornece recursos de autoria, colaboração e administração; projetos podem reunir processos, formulários, modelos de dados e outros artefatos. O **KIE Server** pode disponibilizar execução e serviços relacionados após implantação do projeto. A estrutura específica e nomes de componentes variam entre linhas de produto e versões; para questões de concurso, associe sempre as ferramentas ao contexto de versão mencionado.\n\n## Definição, instância e nós\nUma **definição de processo** é o modelo reutilizável do fluxo; uma **instância** é uma ocorrência em execução com estado e variáveis próprios. Um evento de início cria ou desencadeia a instância, conforme o mecanismo; um evento de fim encerra um caminho ou a instância de acordo com sua semântica BPMN. **Gateways** orientam decisões ou sincronização; não são, sozinhos, locais adequados para executar lógica de negócio arbitrária. Variáveis podem guardar dados usados em condições de fluxo, mapeamentos e expressões.\n\n**Script task** executa lógica de script conforme suporte do ambiente. **Service task** representa atividade automatizada realizada por um serviço ou implementação configurada. **User task** expressa trabalho que aguarda ação humana: o motor cria a tarefa associada, atribui ou disponibiliza a usuários/grupos conforme regras, aguarda sua conclusão e retoma o fluxo quando a tarefa e a transição forem concluídas. A mera presença de user task num diagrama não equivale à realização automática da tarefa por um robô.\n\n## Ciclo de vida de tarefas humanas\nO serviço de tarefas humanas gerencia estados e operações como disponibilização, reserva (*claim*), início, conclusão e delegação quando suportadas e configuradas. Em um cenário de aprovação, a instância entra em `Revisar solicitação`, os dados são exibidos ao analista, a tarefa recebe o resultado e o fluxo continua pelo gateway correspondente. Um processo pode permanecer aguardando horas ou dias: essa espera é **estado de processo**, não uma thread Java permanentemente bloqueado para cada tarefa.\n\nOs fluxos podem incluir **eventos temporais**, mensagens, tratamento de exceções e subprocessos. Um evento de borda anexado a uma tarefa representa reação a ocorrência enquanto a atividade está em curso; sua natureza interruptiva ou não interruptiva altera o destino do trabalho original. A implementação real depende de persistência, suporte do mecanismo, parâmetros e integração com temporizadores ou serviços.\n\n## Persistência, auditoria e integração\nAmbientes de workflow precisam registrar estado, identidade de instâncias e histórico conforme configuração para reinício e acompanhamento. Diferencie o **estado operacional da instância** de relatórios de auditoria ou análise histórica: métricas ajudam a diagnosticar gargalos, mas não substituem dados transacionais do motor. Podem existir interfaces de serviços e APIs para iniciar instâncias, consultar tarefas e sinalizar eventos, respeitando autenticação e autorização.\n\n**Caso prático:** processo de reembolso começa com recebimento da solicitação; uma tarefa de serviço calcula a política aplicável; uma tarefa humana exige aprovação; um gateway exclusivo escolhe `aprovar` ou `recusar`; tarefa de serviço aciona pagamento se aprovado; o evento final encerra. Para produção, especifique variáveis, exceções, prazos, permissões, estratégia de repetição e compensações. Se o pagamento ocorrer duas vezes por reprocessamento de evento, a modelagem do fluxo não evita duplicação sem proteção idempotente no serviço externo.\n\n## Armadilhas\nConfundir Business Central com KIE Server; identificar process definition como instância; afirmar que user task executa automaticamente; crer que todo BPMN desenhado é imediatamente operacional; ignorar persistência e permissão ao falar em implantação."
+    },
+    {
+      "title": "BPMN 2.0: notação, gateways, eventos e colaboração",
+      "markdown": "## BPM, BPMN e BPMS\n**BPM** é a disciplina gerencial de descobrir, modelar, analisar, executar, monitorar e melhorar processos. **BPMN** (Business Process Model and Notation) é a linguagem gráfica padronizada de representação. **BPMS** designa plataformas e recursos tecnológicos que apoiam o ciclo de vida dos processos, podendo incorporar execução, regras, formulários, integração e monitoramento. Portanto, notação não é software e software não se confunde com metodologia.\n\n## Elementos fundamentais\nO **evento de início** marca o ponto inicial do fluxo; o **evento intermediário** ocorre durante o fluxo; o **evento de fim** representa encerramento de um caminho ou do processo conforme seu tipo. **Tarefas** representam unidade de trabalho; **subprocessos** agrupam atividades e podem esconder detalhes de um fluxo mais amplo. **Gateway** controla bifurcação, seleção e/ou sincronização de caminhos, não executa por si uma tarefa que substitui uma atividade humana ou automatizada.\n\nA **sequência (sequence flow)** conecta elementos do fluxo **dentro de um pool** e pode atravessar fronteiras entre **lanes do mesmo pool**. **Mensagem (message flow)** representa comunicação **entre participantes/pools distintos** e não substitui sequence flow dentro do processo. A **association** conecta anotações ou artefatos informativos, sem representar obrigatoriamente a progressão de execução. **Pool** representa participante; **lane** organiza responsabilidades internas do processo. Separar dois departamentos de uma mesma organização em lanes pode ser apropriado, mas enviar informação a um fornecedor externo representado em outro pool exige message flow para expressar a interação.\n\n## Decisões e paralelismo\n**Exclusive Gateway (XOR):** em uma divergência escolhe um fluxo de saída segundo as condições ou o fluxo padrão; não dispara todos os caminhos. **Parallel Gateway (AND):** na divergência abre caminhos concorrentes; na convergência espera os fluxos relevantes de entrada para sincronizar. **Inclusive Gateway (OR):** pode ativar um ou mais caminhos condicionais e sua convergência depende dos caminhos efetivamente ativados. O comportamento de junção é mais complexo do que simplesmente esperar sempre todos os ramos desenhados. **Event-based Gateway:** a escolha decorre do evento ocorrido primeiro entre alternativas admissíveis, não da avaliação de uma condição booleana comum.\n\n**Exemplo:** após receber pedido, duas verificações obrigatórias (`validar estoque` e `validar pagamento`) exigem um AND de abertura e outro de reunião. Se o valor ultrapassa um limite, apenas uma aprovação especial deve ser exigida; uma XOR representa uma escolha exclusiva. Se há possibilidade de incluir verificação documental e tributária simultaneamente dependendo de características independentes, o OR é candidato. Não escolha gateway por preferência estética: derive-o da regra do processo.\n\n## Eventos temporais e de exceção\nUm **timer** pode iniciar ou interromper/aguardar em ponto específico, de acordo com o elemento utilizado. Um **boundary event** está associado à borda de uma atividade e se relaciona com uma ocorrência enquanto aquela atividade transcorre. Em um evento interruptivo, o fluxo associado à atividade pode ser interrompido; em um não interruptivo, segue o tratamento paralelo previsto. Eventos de mensagem, erro, sinal e escalonamento têm semânticas distintas: não trate todos como uma seta genérica de notificação.\n\n## Qualidade do desenho\nDefina finalidade, início, término e dono do processo; nomeie atividades com **verbo no infinitivo + objeto** (`Validar cadastro`), nomeie gateways por pergunta ou regra legível, e nomeie saídas condicionais (`Sim`, `Não`). Evite elementos desconectados, ramos sem destino compreensível e sequência atravessando pools. Agrupe informações necessárias em objetos de dados, documentos ou anotações quando agregarem valor, sem confundir presença de dado com comando de execução.\n\n**Conferência de prova:** se a ligação cruza pools, pense em message flow; se cruzar apenas lanes, o sequence flow é possível. Se duas tarefas devem ocorrer em paralelo, não use XOR. Se são duas possibilidades independentes que podem ocorrer ambas, não use XOR para selecioná-las."
+    },
+    {
+      "title": "Bizagi Modeler na prática: diagrama, simulação e BPMS",
+      "markdown": "## Ecossistema Bizagi sem confusão entre produtos\n**Bizagi Modeler** é ferramenta de modelagem gráfica e documentação de processos, com recursos de simulação em contextos previstos pela solução. **Bizagi Studio** constitui ambiente de construção/automação: complementa modelos com dados, formulários, regras e integração. **Bizagi Automation Services** é camada de execução e controle de processos automatizados na arquitetura indicada pela documentação da plataforma. Assim, clicar para desenhar um evento de início no Modeler **não publica automaticamente** uma aplicação de produção. Também não se pode afirmar que toda forma e evento BPMN desenhado no Modeler está implementável sem ajustes na automação.\n\n## Passo a passo: construir um fluxo de compras no Modeler\n**1. Delimite o processo.** Escolha `Atender solicitação de compra`, estabeleça entrada (pedido interno recebido), saída (pedido aprovado ou recusado) e atores. Abra um novo diagrama; o Modeler costuma apresentar um pool pronto. Dê ao pool o nome do processo ou do participante que está sendo modelado.\n\n**2. Acrescente lanes.** Coloque `Solicitante`, `Compras` e `Gestor` como subdivisões do pool, e não como pools separados quando todos participam de um mesmo processo interno. A documentação do Modeler orienta inserir a lane na área apropriada do pool. Ajuste tamanho e posição de acordo com a legibilidade.\n\n**3. Inclua evento de início e tarefas.** Na lane `Solicitante`, insira evento de início sem gatilho especial, seguido de `Registrar solicitação`. Na lane `Compras`, acrescente `Conferir dados`. A conexão entre essas tarefas, mesmo cruzando lanes, é **sequence flow**, porque permanecem no mesmo pool. Use a paleta e o menu contextual (*Pie Menu*) para adicionar e conectar elementos.\n\n**4. Modele decisão inequívoca.** Se faltarem informações, uma XOR `Solicitação completa?` envia o ramo `Não` para `Solicitar complementação`, com caminho de retorno à conferência; `Sim` segue para `Avaliar necessidade`. Evite criar ciclo sem condição de saída ou sem prazo previsto. Se a regra for `Até limite predefinido?`, uma XOR pode enviar para aprovação do gestor apenas quando necessário; quando todos os pedidos exigirem duas análises simultâneas, use gateway paralelo e sincronize antes de concluir.\n\n**5. Registre interação externa.** Se o fornecedor participar como entidade distinta, acrescente outro pool e conecte a atividade de solicitação a uma atividade ou evento de recebimento nesse segundo participante por **message flow**, quando esse for o relacionamento correto. Não ligue as atividades dos dois pools diretamente com sequence flow.\n\n**6. Encerre e documente.** Acrescente eventos de fim explícitos para resultados relevantes (`Compra autorizada`, `Solicitação rejeitada`) e confira se cada caminho chega a término consistente. Nas propriedades, descreva responsáveis, entradas, saídas, regras e exceções; anexe documentos ou observações conforme os recursos disponíveis. Nomes de atividades devem retratar ações, não departamentos.\n\n## Simulação e validação\nA simulação no Bizagi pode representar a circulação de **tokens** pelos caminhos e, conforme os parâmetros definidos no recurso, avaliar aspectos como duração, recursos e comportamento do modelo. Uma simulação pressupõe configuração adequada de cenários e possui limitações quanto aos elementos BPMN suportados. Não confunda animação do fluxo com comprovação de integração real a banco de dados, execução de serviços externos ou homologação de um sistema. Antes de simular, revise gateways, probabilidades/condições conforme o caso, tempos de atividades e caminhos sem saída.\n\n## Publicação, automação e evolução\nO Modeler viabiliza documentação e colaboração; recursos e capacidades dependem da modalidade/edição. A documentação oficial descreve o encaminhamento/exportação de modelos para Bizagi Studio, onde são acrescentados os detalhes necessários à execução, e posterior operação em Automation Services. O modelo conceitual deve ser confrontado com o **subconjunto de BPMN aceito no ambiente de automação** antes de prometer execução fiel de qualquer símbolo.\n\n**Checklist prático:** os pools representam participantes? As lanes representam papéis? Há eventos de início e fim? A XOR tem saídas rotuladas? As tarefas obrigatoriamente concorrentes são sincronizadas por AND? As mensagens entre participantes usam message flow? Há responsáveis, variáveis e exceções documentados? Existe rastreabilidade entre versão modelada, versão automatizada e testes? Esse roteiro distingue modelagem didática de implementação real e evita as pegadinhas que aproximam o nome comercial `Bizagi BPMS` da função específica do `Bizagi Modeler`."
+    }
+  ],
+  "summary": "**Visão integrada.** AMQP viabiliza intercâmbio assíncrono de mensagens. Em AMQP 0-9-1, produtor publica na exchange, bindings selecionam filas e consumidores processam entregas. Direct faz correspondência exata; fanout difunde; topic aplica `*` (uma palavra) e `#` (zero ou mais); headers avalia cabeçalhos. AMQP 1.0 possui modelo de conexões, sessões e links, e não exige os mesmos tipos de exchange. Publisher confirm, ack, prefetch e persistência são mecanismos diferentes. Reentrega exige idempotência, e outbox mitiga falhas entre banco e publicação. **AOP** modulariza auditoria, transação e métricas: pointcut seleciona pontos; advice executa ação. Spring AOP depende de chamadas que atravessam o proxy, o que explica a armadilha da autoinvocação. **jBPM** executa definições BPMN com instâncias, tarefas humanas, serviços, variáveis e persistência. **BPMN** diferencia pools, lanes e gateways; sequence flow fica no pool e message flow comunica pools. **Bizagi Modeler** desenha, documenta e simula; **Bizagi Studio** constrói automação; **Automation Services** executa o fluxo conforme a configuração. Para treino, modele no Bizagi compras com início, três lanes, XOR, AND, mensagem a fornecedor e fins explícitos; revise se cada conexão respeita a semântica BPMN.",
+  "flashcards": [
+    {
+      "front": "AMQP 0-9-1: qual componente recebe a publicação?",
+      "back": "A exchange recebe a mensagem e aplica bindings para selecionar filas; não se presume publicação direta à fila."
+    },
+    {
+      "front": "O que é binding no AMQP 0-9-1?",
+      "back": "É o vínculo de roteamento entre exchange e fila, com critérios como chave ou padrão."
+    },
+    {
+      "front": "Diferença entre exchange direct e fanout?",
+      "back": "Direct usa correspondência exata da chave; fanout replica para todas as filas vinculadas."
+    },
+    {
+      "front": "Em exchange topic, o que significam `*` e `#`?",
+      "back": "`*` corresponde a exatamente uma palavra; `#` corresponde a zero ou mais palavras."
+    },
+    {
+      "front": "O que a exchange padrão do RabbitMQ realiza?",
+      "back": "Roteamento direct por nome de fila usando exchange sem nome e vínculo automático com a fila."
+    },
+    {
+      "front": "Qual diferença entre channel e conexão TCP?",
+      "back": "Channel multiplexa operações AMQP sobre uma conexão; não implica um TCP separado para cada operação."
+    },
+    {
+      "front": "Como o AMQP 1.0 estrutura o transporte?",
+      "back": "Com conexões, sessões, links, fontes e destinos; não exige a topologia de exchanges 0-9-1."
+    },
+    {
+      "front": "Publisher confirm prova processamento de negócio?",
+      "back": "Não. Confirma aceite de publicação conforme a semântica do broker, não conclusão pelo consumidor."
+    },
+    {
+      "front": "O que é ack manual do consumidor?",
+      "back": "Confirma tratamento de uma entrega; sem ack, falhas podem provocar reentrega."
+    },
+    {
+      "front": "Por que consumidor precisa ser idempotente?",
+      "back": "Para não duplicar efeitos quando uma mensagem é processada e depois reentregue."
+    },
+    {
+      "front": "O que faz prefetch em consumo com ack?",
+      "back": "Limita entregas simultaneamente pendentes de confirmação, ajudando no controle de carga."
+    },
+    {
+      "front": "Para que serve outbox transacional?",
+      "back": "Registrar mudança de negócio e intenção de publicar evento numa transação local, com envio posterior."
+    },
+    {
+      "front": "O que é aspecto em AOP?",
+      "back": "Módulo de lógica transversal aplicada a pontos de execução selecionados."
+    },
+    {
+      "front": "Pointcut e advice são a mesma coisa?",
+      "back": "Não. Pointcut seleciona join points; advice executa o comportamento transversal."
+    },
+    {
+      "front": "Diferença entre After returning e After throwing?",
+      "back": "O primeiro reage a retorno normal; o segundo, a exceção compatível."
+    },
+    {
+      "front": "O que faz `proceed()` em advice Around?",
+      "back": "Prossegue para a invocação interceptada, salvo particularidades do encadeamento de advices."
+    },
+    {
+      "front": "Por que self-invocation pode escapar do Spring AOP?",
+      "back": "Porque a chamada direta por `this` pode contornar o proxy que aplica os advices."
+    },
+    {
+      "front": "O que distingue definição e instância no jBPM?",
+      "back": "Definição é modelo; instância é execução individual com dados e estado próprios."
+    },
+    {
+      "front": "Que tipo de tarefa BPMN aguarda pessoa no jBPM?",
+      "back": "User task, com atribuição e conclusão gerenciadas conforme configuração do serviço de tarefas."
+    },
+    {
+      "front": "jBPM 7: para que servem Business Central e KIE Server?",
+      "back": "Business Central apoia autoria/gestão e o KIE Server pode prover serviços de execução."
+    },
+    {
+      "front": "Sequence flow pode cruzar pools?",
+      "back": "Não. Pode atravessar lanes de um mesmo pool; comunicação entre pools é message flow."
+    },
+    {
+      "front": "XOR, AND e OR na BPMN: diferenças?",
+      "back": "XOR seleciona um ramo; AND cria/sincroniza caminhos paralelos; OR pode ativar um ou mais ramos."
+    },
+    {
+      "front": "Quando usar event-based gateway?",
+      "back": "Quando o prosseguimento depende do evento que ocorrer primeiro entre alternativas."
+    },
+    {
+      "front": "Para que servem pools e lanes?",
+      "back": "Pool identifica participante; lane subdivide responsabilidades internas do processo."
+    },
+    {
+      "front": "Bizagi Modeler e Bizagi Studio: diferença?",
+      "back": "Modeler diagrama, documenta e pode simular; Studio desenvolve os dados, formulários e regras para automação."
+    },
+    {
+      "front": "O que uma simulação no Bizagi não garante?",
+      "back": "Não comprova implantação nem execução real de integrações, e está sujeita a parâmetros e limitações."
+    }
+  ],
+  "tips": [
+    "Faça o desenho produtor → exchange → binding → fila → consumidor; use-o para distinguir publicação, roteamento, entrega e processamento.",
+    "Memorize direct = exato, fanout = difusão, topic = curingas e headers = cabeçalhos; teste padrões com palavras separadas por ponto.",
+    "Compare AMQP 0-9-1 com AMQP 1.0 em duas colunas: exchanges/filas versus conexões/sessões/links.",
+    "Para confiabilidade, separe publisher confirm, ack do consumidor, prefetch, idempotência e outbox: cada mecanismo resolve um risco diferente.",
+    "Em AOP, pergunte sucessivamente onde (pointcut), o quê (advice), quando (before/after/around) e como intercepta (proxy/weaving).",
+    "Em jBPM, diferencie definição, instância, tarefa humana, tarefa de serviço e servidor de execução.",
+    "No Bizagi, desenhe pelo menos um processo com 3 lanes, XOR com ramos Sim/Não, AND, participante externo e eventos de fim.",
+    "Confira cada diagrama com a regra: sequence flow dentro de pool; message flow entre pools; association para informação."
+  ],
+  "traps": [
+    "Confundir AMQP 1.0 com 0-9-1 e atribuir ao primeiro a obrigatoriedade dos tipos de exchange do segundo.",
+    "Tomar durabilidade da fila como garantia universal da persistência e do processamento exatamente uma vez.",
+    "Afirmar que publisher confirm é o mesmo que ack do consumidor ou prova sucesso da regra de negócio.",
+    "Trocar pointcut (seleção) por advice (ação), e equiparar retorno normal a lançamento de exceção.",
+    "Assumir que chamada interna por `this` atravessa o proxy do Spring AOP.",
+    "Imaginar que user task no jBPM dispensa usuário, atribuição e conclusão, ou que a tarefa implica thread permanentemente bloqueada.",
+    "Fazer sequence flow entre pools ou usar XOR quando todos os caminhos devem ocorrer em paralelo.",
+    "Confundir simulação e desenho no Bizagi Modeler com automação implantada e executada em produção."
+  ],
+  "activeRecall": [
+    {
+      "question": "Uma exchange topic tem binding `alerta.#`. Quais chaves `alerta`, `alerta.critico` e `alerta.critico.email` combinam?",
+      "answer": "Todas: `#` representa zero ou mais palavras após o prefixo."
+    },
+    {
+      "question": "Por que duas filas vinculadas a uma exchange fanout não se comportam como dois consumidores de uma mesma fila?",
+      "answer": "Cada fila vinculada pode receber sua cópia; consumidores da mesma fila disputam entregas dessa fila."
+    },
+    {
+      "question": "Descreva o problema resolvido pelo ack manual e por que ainda pode haver duplicatas.",
+      "answer": "O ack evita liberar prematuramente entrega não concluída; cair após aplicar o efeito mas antes do ack permite reentrega."
+    },
+    {
+      "question": "Explique em uma frase a diferença conceitual entre AMQP 1.0 e AMQP 0-9-1.",
+      "answer": "O primeiro define transporte interoperável por links/sessões; o segundo é conhecido por exchanges, bindings e filas."
+    },
+    {
+      "question": "Diferencie aspect, join point, pointcut e advice.",
+      "answer": "Aspect reúne a lógica transversal; join point é ponto de execução; pointcut o seleciona; advice executa a ação."
+    },
+    {
+      "question": "Por que uma chamada `this.atualizar()` pode não ser interceptada no Spring AOP?",
+      "answer": "Porque a invocação direta contorna o proxy que normalmente aplica os aspectos."
+    },
+    {
+      "question": "Uma instância jBPM aguarda aprovação. O que a faz avançar?",
+      "answer": "A ação autorizada que conclui a user task e fornece dados/resultado necessários às transições configuradas."
+    },
+    {
+      "question": "Quando um gateway OR é preferível a um XOR?",
+      "answer": "Quando duas ou mais condições podem ser verdadeiras ao mesmo tempo e mais de um caminho pode ser ativado."
+    },
+    {
+      "question": "Quais passos mínimos permitem modelar um fluxo de compras no Bizagi Modeler?",
+      "answer": "Criar e nomear pool, incluir lanes, início, tarefas, conexões, gateway(s), saídas identificadas, fim e documentação."
+    },
+    {
+      "question": "Por que não afirmar que um processo está automatizado após rodar simulação no Bizagi?",
+      "answer": "A simulação modela cenários e tokens; integração, regras operacionais, implantação e testes reais são etapas adicionais."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "AMQP 0-9-1 e exchanges",
+      "summary": "Roteamento por exchange, bindings e queues; tipos direct, fanout, topic e headers; distinção entre múltiplas filas e múltiplos consumidores."
+    },
+    {
+      "key": "e2",
+      "title": "Entrega e persistência de mensagens",
+      "summary": "Publisher confirms, acks, prefetch, reentrega, dead-lettering, idempotência e outbox não são mecanismos equivalentes."
+    },
+    {
+      "key": "e3",
+      "title": "AOP e limites de proxies",
+      "summary": "Pointcut seleciona; advice age; semântica dos advices, proceed e autoinvocação em Spring AOP."
+    },
+    {
+      "key": "e4",
+      "title": "jBPM e ciclo de vida",
+      "summary": "Definição versus instância; user task, service task, Business Central, KIE Server e persistência do estado."
+    },
+    {
+      "key": "e5",
+      "title": "Semântica BPMN",
+      "summary": "Sequence/message flow, pools/lanes, gateway exclusivo, paralelo, inclusivo e baseado em eventos."
+    },
+    {
+      "key": "e6",
+      "title": "Bizagi Modeler e automação",
+      "summary": "Modelagem prática, documentação, simulação com limites e diferenciação entre Modeler, Studio e Automation Services."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "No modelo AMQP 0-9-1, a exchange recebe publicações e pode encaminhá-las às filas por meio de vínculos de roteamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A exchange é ponto de publicação, enquanto a fila armazena entregas para consumidores. O vínculo determina destinos possíveis; atribuir à fila o papel de selecionar bindings inverte as funções da arquitetura.",
+      "section": "AMQP 0-9-1: arquitetura, exchanges e roteamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação deseja enviar cada evento a todas as filas cadastradas como assinantes, independentemente da routing key. Qual tipo de exchange atende diretamente a esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fanout",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Direct",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Topic",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Headers com correspondência exata",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exchange padrão sem nome",
+          "correct": false
+        }
+      ],
+      "explanation": "A fanout distribui cópias às filas vinculadas sem usar a routing key na escolha. Direct demanda igualdade de chave, topic usa padrões e headers considera cabeçalhos; a exchange padrão não equivale a broadcast.",
+      "section": "AMQP 0-9-1: arquitetura, exchanges e roteamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila está vinculada a uma exchange topic pelo padrão `nf.*`. Qual routing key satisfaz exatamente esse padrão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "financeiro.nf.emitida",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "nf.emitida",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "nf",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "nf.emitida.cancelada",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "nf.emitida.2026",
+          "correct": false
+        }
+      ],
+      "explanation": "O curinga `*` representa exatamente uma palavra delimitada por pontos. Apenas `nf.emitida` tem duas partes, com uma após `nf`; as outras opções têm nenhuma, duas extras ou prefixo incompatível.",
+      "section": "AMQP 0-9-1: arquitetura, exchanges e roteamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma exchange topic do AMQP 0-9-1, o caractere `#` na binding key representa obrigatoriamente uma única palavra.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "No roteamento topic, `#` representa zero ou mais palavras e `*` representa exatamente uma. A afirmação troca os curingas, confundindo um padrão flexível com a correspondência de um único segmento.",
+      "section": "AMQP 0-9-1: arquitetura, exchanges e roteamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um produtor publica na exchange padrão do RabbitMQ com routing key igual ao nome de uma fila existente. A interpretação mais adequada é que a publicação",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "usa obrigatoriamente uma exchange fanout criada pelo cliente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "requer um consumidor conectado antes de poder ser roteada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "é roteada por uma exchange direct padrão que possui vínculo com a fila pelo nome.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "dispensa completamente o componente exchange do broker.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "é replicada a todas as filas duráveis sem verificar o nome.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conveniência de publicar pelo nome da fila é implementada por uma exchange direct padrão e seu vínculo implícito. Isso não elimina exchanges, não implica difusão global nem depende de consumidor ativo.",
+      "section": "AMQP 0-9-1: arquitetura, exchanges e roteamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Há uma exchange topic com duas filas: `auditoria` ligada a `pedido.#` e `notificacao` ligada a `pedido.criado`. Publica-se `pedido.criado`. Qual é o resultado esperado do roteamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente a fila `notificacao` recebe, porque vínculos genéricos têm prioridade menor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Nenhuma fila recebe, porque topic exige pelo menos três palavras.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A mensagem é enviada aos consumidores sem passar por filas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As duas filas são destinos possíveis da publicação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Somente a fila `auditoria` recebe, pois `#` impede correspondência exata.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os dois bindings correspondem à chave; uma mensagem pode resultar em cópias para filas distintas. A correspondência topic não estabelece exclusividade por especificidade, e a troca com consumidores não ignora as filas.",
+      "section": "AMQP 0-9-1: arquitetura, exchanges e roteamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A declaração de fila durável, isoladamente, não garante que todas as mensagens publicadas sobreviverão necessariamente à reinicialização do broker.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Durabilidade da definição da fila não torna automaticamente todo conteúdo persistente e seguro contra qualquer falha. Propriedades da mensagem, confirmações e mecanismos de persistência também integram a análise.",
+      "section": "AMQP 0-9-1: arquitetura, exchanges e roteamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma exchange direct tem vínculos `fiscal` com duas filas distintas; o produtor publica com routing key `fiscal`. O que caracteriza esse arranjo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A exchange escolhe obrigatoriamente apenas uma fila, mesmo com dois bindings iguais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O broker converte automaticamente os vínculos em tópico com curingas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A routing key será ignorada porque direct opera sempre por broadcast.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O uso de duas filas obriga dois envios TCP separados pelo produtor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A mesma publicação pode ser roteada para ambas as filas por correspondência exata.",
+          "correct": true
+        }
+      ],
+      "explanation": "O roteamento direct compara chave e binding e pode encaminhar cópias a múltiplas filas com a mesma chave. A distribuição entre consumidores de uma única fila é conceito diferente de múltiplas filas destinatárias.",
+      "section": "AMQP 0-9-1: arquitetura, exchanges e roteamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No AMQP 1.0, os links compõem a arquitetura de transporte de mensagens entre fontes e destinos e estão associados a sessões.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A especificação 1.0 organiza conexões, sessões e links, que associam emissor e receptor para transferência. Tratar esses links como bindings de exchanges 0-9-1 mistura arquiteturas diferentes.",
+      "section": "AMQP 1.0, confirmações e padrões de confiabilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual mecanismo informa ao produtor que o broker aceitou uma publicação conforme a semântica de confirmação do RabbitMQ?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publisher confirms",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aviso de conclusão de tarefa humana no jBPM.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ack manual emitido por consumidor após processar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Redelivery automática ao segundo consumidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Evento de fim em diagrama BPMN.",
+          "correct": false
+        }
+      ],
+      "explanation": "Publisher confirms tratam a relação entre publicador e broker. Ack do consumidor informa tratamento de uma entrega, e os demais eventos pertencem a outros níveis de execução e não confirmam publicação.",
+      "section": "AMQP 1.0, confirmações e padrões de confiabilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mensagem já foi aplicada ao banco, mas o consumidor cai antes de enviar seu ack manual. Após a recuperação, qual cuidado é mais importante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir o ack do consumidor por publisher confirm no mesmo método.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Garantir idempotência para lidar com possível reentrega da mesma mensagem.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Afirmar processamento exatamente uma vez apenas por usar fila durável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Assumir que o broker jamais reenviará mensagem parcialmente processada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eliminar qualquer identificador de evento para evitar rastreamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma falha antes do ack pode provocar reentrega, mesmo após efeito no banco. Idempotência impede aplicar novamente o mesmo evento; publisher confirms e durabilidade não garantem ausência de duplicatas.",
+      "section": "AMQP 1.0, confirmações e padrões de confiabilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Publisher confirms e acknowledgements de consumidores são equivalentes, pois ambos certificam a conclusão de toda a regra de negócio pelo destinatário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Publisher confirms envolvem o aceite pelo broker da publicação, enquanto o ack do consumidor se refere à entrega que esse consumidor tratou. Nenhum deles prova isoladamente o resultado global de negócio.",
+      "section": "AMQP 1.0, confirmações e padrões de confiabilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao regular `prefetch` de um consumidor RabbitMQ que confirma manualmente, o operador controla principalmente",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "a quantidade de métodos Java interceptados por AOP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "a quantidade fixa de mensagens persistidas em disco por fila.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "a quantidade de entregas que podem permanecer pendentes de confirmação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "a capacidade de converter AMQP 0-9-1 automaticamente em 1.0.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "o total de exchanges que o broker pode criar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Prefetch limita entregas em voo ou sem reconhecimento e influencia a pressão sobre o consumidor. Não é limite de topologia, armazenamento total, interceptação de métodos nem mecanismo de tradução entre protocolos.",
+      "section": "AMQP 1.0, confirmações e padrões de confiabilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação grava uma compra e precisa publicar um evento sem perder coerência se o processo cair entre o commit e o envio. Qual estratégia mitiga esse intervalo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publicar o evento antes do commit e assumir sucesso definitivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar apenas uma exchange fanout para conferir atomicidade com o banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Esperar o ack do consumidor antes de iniciar a transação do banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gravar a mudança e um evento em outbox na mesma transação e publicar depois.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desativar o rastreamento de eventos para reduzir o número de operações.",
+          "correct": false
+        }
+      ],
+      "explanation": "A outbox registra dados e intenção de publicação em uma transação local, permitindo envio posterior com repetição controlada. Exchange, ack ou ordenação temporal isolados não criam atomicidade entre banco e broker.",
+      "section": "AMQP 1.0, confirmações e padrões de confiabilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A especificação AMQP 1.0 determina que toda implementação disponha obrigatoriamente de exchanges direct, fanout e topic iguais às do modelo AMQP 0-9-1.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Os modelos diferem: o AMQP 1.0 especifica nós, links e transferência, mas não impõe a topologia de exchanges do 0-9-1. Exigir identidade de recursos mistura versões incompatíveis em sua estrutura.",
+      "section": "AMQP 1.0, confirmações e padrões de confiabilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após falhas permanentes de processamento, deseja-se separar mensagens problemáticas para investigação, sem ciclos imediatos de reentrega na fila original. Que recurso pode apoiar essa política no RabbitMQ?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumento ilimitado do prefetch, para garantir correção das mensagens.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma exchange fanout obrigatória em toda conexão AMQP 1.0.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um evento intermediário de tempo desenhado apenas na documentação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Publisher confirms usados como substitutos de tratamento de falhas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dead-letter exchange configurada com roteamento de mensagens rejeitadas ou expiradas.",
+          "correct": true
+        }
+      ],
+      "explanation": "A dead-letter exchange permite encaminhar mensagens a destino de análise em condições configuradas. Não é requisito universal do protocolo e não se confunde com confirmações, desenho BPMN ou aumento indiscriminado de entregas.",
+      "section": "AMQP 1.0, confirmações e padrões de confiabilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em AOP, um pointcut define o conjunto de pontos de execução que podem receber a atuação de um advice.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Pointcut expressa onde a lógica transversal poderá ser aplicada; advice define o que fazer. O enunciado distingue corretamente seleção de comportamento e não confunde aspecto com o alvo interceptado.",
+      "section": "AOP: aspectos, pointcuts, advices e proxies",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma aplicação Spring, é necessário executar lógica adicional apenas quando um método interceptado retorna normalmente. Que advice melhor expressa essa intenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "After returning",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Before",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Around com supressão incondicional do alvo",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "After throwing",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "After (finally)",
+          "correct": false
+        }
+      ],
+      "explanation": "After returning reage ao retorno normal. After throwing trata exceções; finally contempla também término excepcional; before precede a chamada e around, sem prosseguir, sequer executaria o método.",
+      "section": "AOP: aspectos, pointcuts, advices e proxies",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma camada de serviços concentra auditoria transversal. No vocabulário de AOP, o bloco que contém a regra de auditoria executada nos pontos selecionados denomina-se",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "join point.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "advice.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "binding de mensageria.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "gateway de decisão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "pointcut.",
+          "correct": false
+        }
+      ],
+      "explanation": "Advice é a ação aplicada em um join point selecionado por pointcut. Join point é o local, pointcut o critério de seleção; binding e gateway pertencem a domínios de mensageria e processos.",
+      "section": "AOP: aspectos, pointcuts, advices e proxies",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Spring AOP usual baseado em proxy, uma chamada feita por `this.metodo()` dentro do próprio objeto-alvo atravessa necessariamente o proxy e dispara todos os advices aplicáveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A autoinvocação costuma contornar o proxy, pois o alvo chama seu próprio método diretamente. A aplicação dos advices depende de a chamada passar pelo mecanismo de interceptação, não só de existir anotação.",
+      "section": "AOP: aspectos, pointcuts, advices e proxies",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um advice `Around` em Spring recebe um `ProceedingJoinPoint`. Qual chamada é normalmente empregada para executar a operação interceptada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`commit()`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`ack()`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`proceed()`",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`completeTask()`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`route()`",
+          "correct": false
+        }
+      ],
+      "explanation": "O método `proceed()` dá continuidade ao join point no advice em torno. As outras operações dizem respeito a transação, mensageria, tarefas de workflow ou roteamento, e não são a invocação padrão do alvo.",
+      "section": "AOP: aspectos, pointcuts, advices e proxies",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um desenvolvedor quer interceptar a chamada externa ao bean `PagamentoService` e constata que a chamada interna a outro método anotado não recebe advice. Qual é a explicação mais compatível com Spring AOP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O Spring transforma toda chamada interna em requisição HTTP obrigatória.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O weaving do AspectJ proíbe qualquer invocação interna na JVM.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pointcuts são avaliados exclusivamente na compilação do programa Java.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A chamada interna pode não atravessar o proxy que aplica os aspectos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um método só pode receber advice quando publica mensagens AMQP.",
+          "correct": false
+        }
+      ],
+      "explanation": "A Spring AOP costuma interceptar chamadas que passam pelo proxy. A autoinvocação direta dentro do alvo não precisa passar por ele; as demais hipóteses atribuem restrições ou dependências inexistentes.",
+      "section": "AOP: aspectos, pointcuts, advices e proxies",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "After returning e after throwing reagem a condições distintas: retorno normal e lançamento de exceção compatível, respectivamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "After returning atua quando ocorre retorno normal, enquanto after throwing reage a execução que termina com exceção compatível. Unificar as condições de disparo apaga uma distinção essencial da interceptação.",
+      "section": "AOP: aspectos, pointcuts, advices e proxies",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aspecto precisa registrar tempo de execução mesmo quando o método lança exceção. Em um advice Around, qual organização atende melhor ao requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar exclusivamente pointcut, sem corpo de advice.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter cada chamada do serviço em um gateway paralelo BPMN.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Registrar apenas depois do retorno normal de `proceed()`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Omitir `proceed()` para impedir que o serviço execute.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Capturar o instante inicial, chamar `proceed()` e fazer o registro no bloco `finally`.",
+          "correct": true
+        }
+      ],
+      "explanation": "Com `finally`, o registro ocorre independentemente de retorno normal ou exceção, preservando a passagem pelo alvo via proceed. Registro só após sucesso falha nas exceções, e omissão de proceed altera a execução.",
+      "section": "AOP: aspectos, pointcuts, advices e proxies",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância de processo no jBPM corresponde a uma ocorrência concreta de execução de uma definição de processo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A definição é reutilizável e descreve o fluxo; a instância possui estado e dados próprios de uma execução. Confundi-las impediria explicar por que várias solicitações percorrem o mesmo modelo simultaneamente.",
+      "section": "jBPM: motor BPMN, tarefas humanas e execução",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um processo jBPM, uma aprovação depende de decisão de analista e deve aguardar resposta antes de seguir. Qual elemento BPMN é o mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "User task",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Gateway paralelo que executa aprovação sozinho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Evento final anterior à revisão do analista.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exchange direct como substituta integral da tarefa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Script task para simular obrigatoriamente a decisão humana.",
+          "correct": false
+        }
+      ],
+      "explanation": "User task modela interação humana e permite o gerenciamento do ciclo de vida da atividade. Script task e gateway não executam decisão de pessoa; evento final encerra, e exchange pertence à infraestrutura de mensageria.",
+      "section": "jBPM: motor BPMN, tarefas humanas e execução",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No contexto do jBPM 7 documentado, qual associação descreve corretamente responsabilidades dos componentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Business Central é somente uma fila AMQP de armazenamento persistente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Business Central apoia autoria e gestão; KIE Server pode disponibilizar execução após implantação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "KIE Server é exclusivamente um editor de pools do Bizagi Modeler.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Business Central apenas renderiza logs, sem recursos de autoria.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "KIE Server substitui o BPMN por configuração obrigatória de pointcuts AOP.",
+          "correct": false
+        }
+      ],
+      "explanation": "O ecossistema jBPM 7 separa funções de autoria e administração em Business Central e execução/serviços em KIE Server. As demais respostas confundem produtos e funções, ou negam recursos existentes.",
+      "section": "jBPM: motor BPMN, tarefas humanas e execução",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A inclusão de uma user task em um modelo jBPM garante que a ação humana será executada automaticamente, sem atribuição, usuário ou conclusão da atividade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "User task cria uma etapa de interação com pessoas, sujeita a atribuição e conclusão conforme integração e configuração. O motor pode aguardar seu término, mas não substitui a decisão humana pelo desenho do símbolo.",
+      "section": "jBPM: motor BPMN, tarefas humanas e execução",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância de reembolso está aguardando revisão humana durante dois dias. Qual é a interpretação adequada de sua execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O gateway de saída deve ser removido para a tarefa ficar persistente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O processo necessariamente finaliza assim que entra na tarefa humana.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O motor conserva o estado da instância, sem exigir uma thread ocupada continuamente para cada espera.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A tarefa precisa ser executada pelo publicador AMQP a cada segundo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma thread Java deve ficar bloqueada ininterruptamente por todo o período.",
+          "correct": false
+        }
+      ],
+      "explanation": "Motores de workflow gerenciam estados duradouros e retomam o fluxo após eventos de conclusão. Espera humana não exige bloquear uma thread continuamente, nem encerra automaticamente a instância.",
+      "section": "jBPM: motor BPMN, tarefas humanas e execução",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Foi definido um processo BPMN, mas a equipe quer iniciá-lo via serviços de runtime no ambiente jBPM 7. Antes, qual etapa é normalmente necessária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Eliminar as variáveis para evitar persistência e permitir execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Salvar somente uma imagem PNG do desenho e descartar o modelo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Transformar cada lane BPMN em uma exchange do RabbitMQ.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Implantar a aplicação/projeto de processo de forma acessível ao servidor de execução.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Trocar user task por um evento de fim em todo processo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O servidor de execução precisa de artefatos implantados e configurados para operar instâncias. Um desenho isolado não fornece definições executáveis nem dados, integração e serviços necessários ao workflow.",
+      "section": "jBPM: motor BPMN, tarefas humanas e execução",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O estado de uma instância de processo e os relatórios históricos de auditoria são exatamente a mesma informação, de forma que a ausência de persistência de execução não altera a retomada de uma tarefa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Estado operacional e registros históricos atendem a finalidades distintas. A recuperação do andamento exige persistência e mecanismos adequados; um relatório de auditoria isolado não substitui o estado do motor.",
+      "section": "jBPM: motor BPMN, tarefas humanas e execução",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em processo jBPM, uma tarefa de serviço aciona pagamento externo que pode receber novamente a mesma solicitação após falha. Qual precaução é especialmente relevante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Garantir que toda troca de mensagem jamais terá reentrega.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir o identificador da instância por valor aleatório em cada tentativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Considerar que o encerramento visual BPMN prova ausência de cobranças repetidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tratar gateway exclusivo como banco transacional automaticamente compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Implementar idempotência no serviço de pagamento para impedir efeitos duplicados.",
+          "correct": true
+        }
+      ],
+      "explanation": "A execução do fluxo não torna automaticamente idempotente um sistema externo. Identificadores estáveis e controle de repetições evitam duplicar pagamentos em retomadas; desenho e gateways não criam essa garantia.",
+      "section": "jBPM: motor BPMN, tarefas humanas e execução",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na BPMN, um sequence flow pode atravessar lanes de um mesmo pool, mas não deve cruzar a fronteira entre pools distintos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Lanes são subdivisões de um participante e admitem continuidade do fluxo sequencial. Pools representam participantes diferentes; a comunicação entre eles é expressa por message flow, não por sequência contínua.",
+      "section": "BPMN 2.0: notação, gateways, eventos e colaboração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois departamentos devem executar, em paralelo, verificações obrigatórias antes de liberar uma solicitação. Que gateway é o mais apropriado para abrir e sincronizar os caminhos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Parallel (AND)",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Exclusive (XOR)",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Event-based para selecionar o primeiro aviso",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gateway usado apenas para anotação",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Nenhum gateway, porque tarefas são sempre sequenciais",
+          "correct": false
+        }
+      ],
+      "explanation": "O paralelo AND permite abrir as duas verificações obrigatórias e reuni-las antes da liberação. XOR escolhe uma alternativa, enquanto event-based corresponde à competição de eventos, não ao paralelismo exigido.",
+      "section": "BPMN 2.0: notação, gateways, eventos e colaboração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instituição modela seu atendimento em um pool, com lanes de recepção e cadastro. A passagem do atendimento de uma lane à outra deve ser representada por",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "publisher confirm do RabbitMQ no lugar de conexão BPMN.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "sequence flow entre as atividades do mesmo pool.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "message flow obrigatoriamente, pois mudou a responsabilidade interna.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "association como única ligação capaz de avançar a instância.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "outro pool para cada funcionário sem exceção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma lane separa responsabilidades sem criar outro participante. O sequence flow representa a progressão interna do processo; message flow descreve comunicação entre pools e association não substitui fluxo de execução.",
+      "section": "BPMN 2.0: notação, gateways, eventos e colaboração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gateway exclusivo divergente determina a execução simultânea de todos os ramos de saída cujas condições forem verdadeiras.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O gateway exclusivo escolhe um caminho na divergência, conforme a regra; o inclusivo pode ativar mais de um e o paralelo abre caminhos concorrentes. A afirmação atribui ao XOR uma multiplicidade incompatível.",
+      "section": "BPMN 2.0: notação, gateways, eventos e colaboração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma solicitação exige verificação documental se houver anexo e verificação tributária se houver operação internacional; ambas podem ocorrer juntas. Que tipo de gateway representa melhor a ativação condicional de um ou mais ramos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Event-based, que seleciona o primeiro evento recebido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Evento final, que dispara todas as tarefas pendentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Inclusive (OR)",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Exclusive (XOR), que impede caminhos simultâneos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Parallel (AND), que ativa sempre todas as verificações.",
+          "correct": false
+        }
+      ],
+      "explanation": "O inclusivo permite escolher um ou vários caminhos conforme condições independentes. XOR admite escolha única, AND ativa todos sem considerar condições e event-based escolhe com base em eventos, não regras booleanas.",
+      "section": "BPMN 2.0: notação, gateways, eventos e colaboração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O fornecedor externo é representado em pool distinto do processo de compras. Qual conexão é adequada para mostrar a comunicação entre os participantes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma association como substituta obrigatória de toda mensagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um gateway paralelo desenhado sobre a fronteira dos pools.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um pointcut AOP conectando graficamente as atividades.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Message flow entre elementos compatíveis dos pools.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Sequence flow atravessando livremente o limite dos pools.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na colaboração BPMN, message flow representa comunicação entre participantes. Sequence flow permanece no interior de um pool; os demais mecanismos não documentam adequadamente troca de mensagens entre processos.",
+      "section": "BPMN 2.0: notação, gateways, eventos e colaboração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na convergência inclusiva BPMN, os caminhos efetivamente ativados orientam a sincronização, sem exigir indiscriminadamente todos os ramos desenhados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A junção inclusiva deve considerar os caminhos efetivamente ativados e alcançáveis, não aguardar cegamente cada ramo gráfico. A confusão com sincronização integral pode criar interpretação de bloqueio indevido.",
+      "section": "BPMN 2.0: notação, gateways, eventos e colaboração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em BPMN, um fluxo espera ou uma mensagem do cliente ou a expiração do prazo, avançando conforme o evento que ocorrer primeiro. Que elemento representa essa competição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Parallel gateway que dispara as duas alternativas sempre.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Exclusive gateway guiado apenas por condição sobre valor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Inclusive gateway que necessariamente ativa ambos os caminhos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Association de texto entre os símbolos de mensagem e tempo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Event-based gateway",
+          "correct": true
+        }
+      ],
+      "explanation": "O gateway baseado em eventos determina o caminho a partir do evento ocorrido primeiro. Gateways de condição avaliam dados e gateways paralelos/inclusivos não expressam diretamente a corrida entre ocorrências.",
+      "section": "BPMN 2.0: notação, gateways, eventos e colaboração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Bizagi Modeler é utilizado para diagramar e documentar processos em BPMN; isso não significa que o diagrama por si só seja um workflow automaticamente publicado para execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Modeler apoia desenho e documentação, enquanto a automação requer atividades adicionais em ferramentas como Bizagi Studio e execução em serviços apropriados. Diagramação e runtime são etapas distintas.",
+      "section": "Bizagi Modeler na prática: diagrama, simulação e BPMS",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao começar um processo no Bizagi Modeler, qual organização visual representa adequadamente áreas internas da mesma organização que atuam no fluxo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um pool para o participante, subdividido em lanes para os papéis internos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um gateway exclusivo para cada colaborador, independentemente de decisão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um pool isolado por tarefa, com sequence flow cruzando todos os pools.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma exchange fanout para cada atividade humana.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somente associations entre tarefas, sem sequência de execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pools representam participantes e lanes distinguem responsabilidades internas. Fragmentar o processo em pools e cruzá-los por sequence flow viola a semântica; exchanges e gateways têm funções diferentes.",
+      "section": "Bizagi Modeler na prática: diagrama, simulação e BPMS",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No roteiro de desenho de solicitação de compra no Bizagi Modeler, é preciso ligar `Registrar solicitação` em uma lane a `Conferir dados` em outra lane do mesmo pool. Que ligação usar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma ligação exclusiva de publisher confirms.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sequence flow",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apenas um evento de fim entre as tarefas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Message flow, porque qualquer mudança de lane exige mensagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Association sem progressão do fluxo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A passagem entre lanes do mesmo pool é fluxo sequencial interno do participante. Message flow se aplica entre pools, association é informativa e os demais recursos não ligam tarefas no processo.",
+      "section": "Bizagi Modeler na prática: diagrama, simulação e BPMS",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Simular um processo no Bizagi Modeler equivale a comprovar que todos os serviços externos e integrações de um workflow de produção já foram executados com sucesso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A simulação percorre o modelo sob condições e parâmetros definidos, mas não substitui implantação, testes de integração ou execução real. Uma animação de tokens não confirma transações em sistemas externos.",
+      "section": "Bizagi Modeler na prática: diagrama, simulação e BPMS",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após modelar um processo no Bizagi Modeler, a equipe quer desenvolver formulários, dados e regras para automatizá-lo. Qual produto do ecossistema atende principalmente à etapa de construção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma exchange headers do RabbitMQ.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O navegador de auditoria do jBPM como ferramenta Bizagi.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Bizagi Studio",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma planilha sem motor de execução ou configuração de fluxo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Bizagi Modeler isolado, sem etapa adicional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bizagi Studio integra o ambiente de construção da automação, com formulários, dados e regras. O Modeler concentra modelagem/documentação; recursos alheios não substituem a etapa de desenvolver o workflow.",
+      "section": "Bizagi Modeler na prática: diagrama, simulação e BPMS",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma analista modela atendimento em três lanes internas e coloca fornecedor em pool separado. Qual revisão corrige um erro típico antes da documentação final?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter todas as conexões internas entre lanes em message flow.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Eliminar o fornecedor e colocar suas atividades em um gateway.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar cada tarefa por um evento de fim para reduzir símbolos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir sequence flow que cruza pools por message flow apropriado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar apenas associations para estabelecer ordem de execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "A regra de fronteira é central: sequence flow fica em um pool, mesmo ao cruzar lanes; message flow indica comunicação com outro participante. As demais alterações pioram a semântica do modelo.",
+      "section": "Bizagi Modeler na prática: diagrama, simulação e BPMS",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por aceitar diagramas BPMN no Bizagi Modeler, o Bizagi Studio garante a automação integral e sem adaptações de qualquer elemento gráfico presente no desenho original.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A documentação ressalta que a plataforma de automação opera com subconjunto de elementos e requisitos adicionais. Modelar livremente não garante que qualquer símbolo seja executável sem ajustes e parametrização.",
+      "section": "Bizagi Modeler na prática: diagrama, simulação e BPMS",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Bizagi Modeler, a equipe quer comparar cenários com tempos de execução e fluxo de tokens, mas não executará integrações reais. Qual é o recurso adequado, com a ressalva correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas exportação de imagem, que calcula automaticamente os tempos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Publicação em produção, pois simulação implica execução definitiva.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Publisher confirms, porque tokens BPMN são mensagens AMQP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Advice Around, usado exclusivamente para animar modelos BPMN.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Simulação, observando parâmetros e limitações de elementos suportados.",
+          "correct": true
+        }
+      ],
+      "explanation": "A simulação analisa comportamento do modelo em cenários configurados e pode animar tokens, mas tem limites e não substitui execução de serviços reais. Publicação e mecanismos AOP/AMQP tratam outras responsabilidades.",
+      "section": "Bizagi Modeler na prática: diagrama, simulação e BPMS",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "OASIS Advanced Message Queuing Protocol (AMQP) Version 1.0",
+      "publisher": "OASIS Open",
+      "reference": "Especificação AMQP 1.0: modelo de nodes, sessions, links, transferências e liquidação.",
+      "url": "https://www.oasis-open.org/standard/amqp/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "AMQP 0-9-1 Model Explained",
+      "publisher": "RabbitMQ",
+      "reference": "Conceitos oficiais de exchanges, queues, bindings, routing keys e canais.",
+      "url": "https://www.rabbitmq.com/tutorials/amqp-concepts",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Exchanges",
+      "publisher": "RabbitMQ",
+      "reference": "Regras de roteamento e tipos de exchanges no RabbitMQ.",
+      "url": "https://www.rabbitmq.com/docs/exchanges",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Consumer Acknowledgements and Publisher Confirms",
+      "publisher": "RabbitMQ",
+      "reference": "Confirmações de consumo e publicação, prefetch e tratamento de entregas.",
+      "url": "https://www.rabbitmq.com/docs/confirms",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "AOP Concepts",
+      "publisher": "Spring Framework",
+      "reference": "Conceitos de advice, pointcut, join point, proxy e aspecto.",
+      "url": "https://docs.spring.io/spring-framework/reference/7.1/core/aop/introduction-defn.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Proxying Mechanisms",
+      "publisher": "Spring Framework",
+      "reference": "Proxies, autoinvocação e limitações de Spring AOP.",
+      "url": "https://docs.spring.io/spring-framework/reference/core/aop/proxying.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "jBPM Documentation 7.69.0.Final",
+      "publisher": "jBPM",
+      "reference": "Documentação oficial do motor, Business Central, KIE Server e tarefas humanas na linha 7.",
+      "url": "https://docs.jbpm.org/7.69.0.Final/jbpm-docs/html_single/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Business Process Model and Notation 2.0",
+      "publisher": "Object Management Group (OMG)",
+      "reference": "Página oficial da especificação de notação BPMN 2.0.",
+      "url": "https://www.omg.org/spec/BPMN/2.0/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Creating a process",
+      "publisher": "Bizagi",
+      "reference": "Etapas oficiais para criar pool, lanes, eventos e fluxos no Bizagi Modeler.",
+      "url": "https://help.bizagi.com/platform/en/creating_a_process.htm",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Simulation in Bizagi",
+      "publisher": "Bizagi",
+      "reference": "Simulação e limitações do recurso no Bizagi Modeler.",
+      "url": "https://help.bizagi.com/platform/en/simulation_in_bizagi.htm",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Process Execution",
+      "publisher": "Bizagi",
+      "reference": "Diferenças entre Modeler, Studio e Automation Services.",
+      "url": "https://help.bizagi.com/platform/en/process_execution.htm",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Guidance for automation",
+      "publisher": "Bizagi",
+      "reference": "Exportação de modelo para Studio e atenção ao subconjunto de elementos automatizáveis.",
+      "url": "https://help.bizagi.com/platform/en/guidance_for_automation.htm",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

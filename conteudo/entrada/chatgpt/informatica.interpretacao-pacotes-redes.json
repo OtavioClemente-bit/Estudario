@@ -1,0 +1,1798 @@
+{
+  "id": "informatica.interpretacao-pacotes-redes",
+  "subject": "Informática — Redes de computadores",
+  "title": "Interpretação de pacotes e tcpdump",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Interpretação de pacotes e tcpdump",
+    "Interpretação de pacotes em redes de computadores"
+  ],
+  "scope": {
+    "covers": "Camadas e encapsulamento; leitura de PCAP/PCAPNG; filtros de captura/exibição; Ethernet, VLAN, ARP, IPv4/IPv6, ICMP, TCP, UDP, DNS, TLS; tcpdump (opções, filtros, análise e arquivos); Wireshark; troubleshooting, offload, limites de inferência e privacidade.",
+    "excludes": "Exploração ofensiva, interceptação não autorizada de tráfego, descriptografia indevida, engenharia de protocolos proprietários não documentados e ferramentas externas sem relação com interpretação de pacotes."
+  },
+  "theoryTitle": "Interpretação de pacotes: fundamentos, protocolos, tcpdump e diagnóstico",
+  "chapters": [
+    {
+      "title": "Fundamentos de captura, encapsulamento e leitura de evidências",
+      "markdown": "\n## 1. O que significa interpretar um pacote\n\nInterpretar pacotes de rede é transformar bytes observados em hipóteses verificáveis sobre **comunicação, protocolo, falha e comportamento**. O ponto de partida não é o nome do aplicativo, e sim a cadeia de encapsulamento: quadro no enlace, datagrama no nível IP, segmento TCP ou datagrama UDP no transporte e mensagem na aplicação. Cada camada usa seu próprio identificador: endereços MAC identificam interfaces em um enlace; endereços IP identificam origens e destinos lógicos; portas distinguem serviços ou pontos de comunicação do transporte. Uma porta conhecida **sugere**, mas não prova, o protocolo de aplicação: pode haver serviços em portas não convencionais ou tráfego encapsulado.\n\nUm quadro Ethernet pode conter um pacote IP; este pode carregar TCP; e o TCP pode transportar bytes de uma sessão TLS, dentro da qual há dados de aplicação protegidos. A leitura correta responde: **onde a captura ocorreu?**; **qual interface, sentido e instante?**; **qual fluxo?**; **quais mensagens sustentam a conclusão?**. Capture no computador de origem, no servidor, em uma porta espelhada de switch ou em um ponto intermediário e você poderá observar conjuntos diferentes de pacotes. Um switch normalmente não entrega à interface de um host todo o tráfego unicast de outras portas. Interfaces virtuais, VPNs e túneis alteram também a visibilidade e podem apresentar cabeçalhos externos e internos.\n\n## 2. Metadados essenciais\n\nInspecione **timestamp**, tamanho no fio ou tamanho relatado, tamanho efetivamente capturado, interface, tipo de enlace, MACs, EtherType, endereços IP, protocolo, portas, flags e carga útil. Em analisadores gráficos, a lista resume os pacotes; a árvore de detalhes explicita campos; o painel hexadecimal mostra os bytes. Um campo interpretado por dissector é útil, mas a evidência primária continua sendo o conteúdo capturado. Os valores de múltiplos bytes dos cabeçalhos de rede geralmente seguem a ordem de bytes de rede (big-endian). Exemplo: `0x0050` corresponde ao valor decimal 80, não a 50; um campo de dois bytes deve ser interpretado segundo a especificação do protocolo.\n\nO **snaplen** é o limite de bytes coletados por pacote. Um pacote originalmente com 1.500 bytes pode ter só 96 bytes armazenados, impedindo a interpretação de camadas superiores; isso não significa que a aplicação transmitiu apenas 96 bytes. O relógio da máquina de captura, a sincronização por NTP e a precisão da marca temporal afetam as comparações entre arquivos. A captura pode perder quadros por saturação de buffers, limitações do sistema ou espelhamento incompleto; ausência de um pacote no arquivo **não prova** que ele nunca existiu na rede.\n\n## 3. Filtros e arquivos\n\nO formato de captura preserva pacotes e metadados; arquivos **pcap** e **pcapng** são comuns, mas não equivalem a relatórios textuais. Um filtro de **captura** decide quais pacotes entrarão no arquivo, por exemplo `host 192.0.2.10 and tcp port 443`, na sintaxe de filtro da libpcap/BPF; um filtro de **exibição** em Wireshark decide quais pacotes já coletados serão mostrados, por exemplo `ip.addr == 192.0.2.10 && tcp.port == 443`. A última operação pode ocultar temporariamente pacotes na tela, sem apagá-los do arquivo. No entanto, um pacote excluído na fase de captura não poderá ser recuperado aplicando novos filtros de exibição.\n\nAo comparar fluxos, use a **quíntupla** tradicional: protocolo de transporte, IP de origem, porta de origem, IP de destino e porta de destino. Em TCP, a quíntupla ajuda a acompanhar uma conexão; em redes com NAT, a tradução pode alterá-la ao atravessar um equipamento. Não confunda **número do pacote no arquivo** com número de sequência TCP, nem **porta de origem efêmera** com identificação permanente do usuário.\n\n## 4. Método de análise e cadeia de custódia\n\nAntes de concluir, estabeleça uma linha do tempo: descoberta de endereço (ARP/ND), resolução DNS, abertura de conexão, negociação de segurança, requisição e resposta, retransmissões ou encerramento. Depois isole uma hipótese falsificável. Por exemplo: “o cliente enviou SYN e não recebeu SYN-ACK neste ponto de observação” é mais sólido que “o servidor está fora do ar”. Compare captures nas duas pontas, estados de firewall e logs quando disponíveis. Em casos de investigação, documente interface, horário, filtros, versão da ferramenta, escopo, hash do arquivo e responsável pela coleta. Proteja PCAPs, pois podem expor endereços, nomes, consultas DNS, identificadores e dados em claro.\n\n### Miniestudo\n\nSe um arquivo contém `192.0.2.4:53000 > 198.51.100.20:443`, há um fluxo direcionado à porta 443, mas isso **não basta** para afirmar que um documento HTTPS foi transferido: pode tratar-se somente de tentativa de conexão, outro protocolo na porta ou tráfego TLS sem requisição concluída. A conclusão exige examinar flags, handshake, volume de dados e contexto. Em prova, cuidado com expressões absolutas como “sempre”, “necessariamente” e “prova”.\n"
+    },
+    {
+      "title": "Quadros Ethernet, ARP, IPv4, IPv6 e ICMP",
+      "markdown": "\n## 1. Enlace e Ethernet\n\nO quadro Ethernet II traz MAC de destino, MAC de origem, EtherType e carga útil, além de outros elementos associados à transmissão física e à integridade no enlace. O EtherType permite distinguir, por exemplo, conteúdo IPv4, IPv6 e ARP. Um identificador de VLAN IEEE 802.1Q, quando presente, acrescenta informações de marcação ao quadro; porém o sistema operacional e a interface podem tratar ou remover tags antes de entregar a captura. A ausência de uma tag no PCAP não é prova de que a rede não utilizou VLAN.\n\nUma armadilha típica: **MAC de destino não equivale necessariamente a IP de destino**. Ao enviar um pacote IP para outra sub-rede, a estação normalmente cria quadro endereçado ao próximo salto (como o roteador padrão), embora o cabeçalho IP mantenha o destino remoto, ressalvadas traduções e outros processamentos ao longo do trajeto. O roteador recria o cabeçalho de enlace no próximo segmento. Capturas em interfaces diferentes podem exibir MACs distintos para o mesmo destino IP.\n\n## 2. ARP e resolução local\n\nARP associa um endereço IPv4 a um endereço de enlace no domínio apropriado. Uma consulta ARP frequentemente usa broadcast na LAN e questiona qual equipamento responde por determinado IPv4; uma resposta usualmente informa o MAC correspondente. Exemplo narrativo: “Who has 192.0.2.1? Tell 192.0.2.10” solicita o endereço de enlace de 192.0.2.1. ARP **não consulta DNS**, não localiza aplicações por porta e não é o mecanismo de descoberta de vizinhos do IPv6. No IPv6, a descoberta de vizinhos utiliza mensagens ICMPv6, como Neighbor Solicitation e Neighbor Advertisement.\n\nUma sequência de ARPs sem resposta pode indicar ausência do destino no enlace, segmentação, filtragem, erro de VLAN ou falha de captura; não autoriza atribuir de imediato um defeito ao hardware. Respostas conflitantes ou alterações inesperadas de associação IP–MAC motivam investigação de duplicidade, movimentação ou envenenamento ARP, mas dependem de topologia e contexto.\n\n## 3. IPv4 e seus campos\n\nO cabeçalho IPv4 contém versão, IHL, comprimento total, identificação, flags, deslocamento de fragmento, TTL, protocolo, checksum do cabeçalho e endereços. **IHL** mede o comprimento do cabeçalho em palavras de 32 bits; com valor 5, o cabeçalho tem 20 bytes, sem opções. **Total Length** abrange cabeçalho IP e dados IP, mas não inclui o cabeçalho Ethernet externo. **TTL** é reduzido no encaminhamento; esgotado, pode produzir ICMP Time Exceeded. O campo **Protocol** discrimina cargas como TCP, UDP ou ICMP. O checksum do IPv4 verifica seu próprio cabeçalho, não integralmente os dados transportados.\n\nNa fragmentação IPv4, **DF** proíbe fragmentar no caminho quando respeitado; **MF** indica a existência de fragmentos subsequentes; o **Fragment Offset** indica a posição do fragmento em unidades de oito bytes. Em um fragmento não inicial, as portas TCP/UDP geralmente não estão presentes, de modo que um filtro dependente de portas pode não selecionar todos os fragmentos. A remontagem relaciona fragmentos por atributos do datagrama, e a análise de perda de fragmentos exige observar todos os segmentos envolvidos. Fragmentação e segmentação TCP são processos distintos.\n\n## 4. IPv6: sem transplantar regras de IPv4\n\nIPv6 utiliza endereços de 128 bits e cabeçalho básico de 40 bytes, com Version, Traffic Class, Flow Label, Payload Length, Next Header e Hop Limit, entre outros campos. **Hop Limit** tem função semelhante à do TTL para limitação de saltos. O cabeçalho base **não possui checksum IPv4 equivalente**; protocolos de transporte mantêm seus próprios mecanismos de verificação. O campo Next Header aponta para um cabeçalho de extensão ou para um protocolo de camada superior. Em IPv6, roteadores intermediários **não fragmentam** pacotes; a fragmentação, quando usada, é feita pela origem. Por isso, “sem campo de fragmentação no cabeçalho base” não significa que IPv6 nunca seja fragmentado.\n\n## 5. ICMP: diagnóstico com contexto\n\nICMPv4 e ICMPv6 transportam mensagens de controle e de erro. **Echo Request/Reply** fundamentam muitos testes de conectividade; **Destination Unreachable** aponta situações de impossibilidade de entrega; **Time Exceeded** pode aparecer quando o limite de saltos expira, como em traceroute. Um Echo sem resposta pode decorrer de política de filtragem ou de comportamento do destino, não necessariamente de ausência de conexão IP. Mensagens ICMP podem incluir trechos do pacote que provocou o erro, auxiliando correlação com o fluxo original. No IPv6, ICMPv6 também é essencial à descoberta de vizinhos, diferentemente da função do ARP no IPv4.\n\n### Exemplo de interpretação\n\nSe a captura mostra SYN TCP saindo do cliente, seguido de ICMP de destino inalcançável, avalie o código ICMP e o emissor da mensagem antes de concluir sobre o serviço. Se aparecem SYNs repetidos sem resposta, o indício é de tentativa sem confirmação **no ponto capturado**, e não diagnóstico definitivo de queda do servidor.\n"
+    },
+    {
+      "title": "TCP, UDP, DNS, TLS e análise dos fluxos",
+      "markdown": "\n## 1. TCP: conexão, estado e confirmação\n\nTCP oferece fluxo de bytes confiável e ordenado sobre IP, mediante numeração de sequência, confirmações, controle de fluxo e mecanismos de retransmissão. O cabeçalho inclui portas, número de sequência, número de reconhecimento (**ACK number**), deslocamento de dados, flags, janela, checksum e opções. O estabelecimento típico ocorre em três mensagens: **SYN → SYN/ACK → ACK**. A presença das três mensagens indica sincronização TCP observada, mas não prova sucesso da autenticação ou da aplicação. Na notação compacta comum do `tcpdump`, `[S]` representa SYN, `[S.]` SYN com ACK, `[.]` ACK e `[P.]` normalmente PSH com ACK.\n\nUm segmento com **ACK** reconhece até o byte anterior ao próximo número esperado. Em um fluxo sem outras complicações, se foram enviados bytes com sequência 1.001 a 1.100, ACK 1.101 indica recebimento cumulativo até 1.100. SYN e FIN consomem um espaço de sequência cada, mesmo sem transportar dados de aplicação. **RST** sinaliza reinicialização/aborto de uma conexão; não equivale a encerramento ordenado por FIN. Um RST pode originar-se de host ou equipamento intermediário, dependendo da topologia.\n\n## 2. Janela, MSS, RTT e retransmissão\n\n**Window** informa capacidade de recepção anunciada, sujeita à escala de janela quando negociada. **MSS** anuncia limite de carga TCP por segmento que o emissor da opção está disposto a receber; é diferente do **MTU**, que limita unidade transmitida em certo enlace. **RTT** mede tempo de ida e volta de uma troca correlacionada; não é igual à latência de transmissão em apenas um sentido. A presença de três ACKs duplicados em determinado cenário pode motivar retransmissão rápida, mas ferramentas modernas usam também outros sinais e algoritmos.\n\nUma retransmissão aparente pode indicar perda, reordenação, temporização ou captura incompleta. O diagnóstico requer ver sequências, ACKs, tempos e posição do sensor. Ferramentas como Wireshark assinalam `tcp.analysis.retransmission` mediante heurísticas; o rótulo não é prova isolada de perda de pacote no enlace ou defeito do servidor. Out-of-order representa observação de segmentos fora da sequência esperada e pode surgir por múltiplas causas.\n\n## 3. UDP e mensagem de aplicação\n\nUDP é orientado a datagramas e tem cabeçalho simples: porta de origem, porta de destino, comprimento e checksum. Não estabelece handshake TCP, não garante entrega, ordem ou retransmissão pela própria camada de transporte. Aplicações podem implementar confiabilidade por conta própria. Em UDP, **Length** inclui o cabeçalho UDP e sua carga. Ao examinar UDP, associe mensagens de aplicação por endereços, portas, identificadores e tempo, evitando supor “sessão TCP” onde não existe.\n\n## 4. DNS na captura\n\nUma consulta DNS apresenta cabeçalho com identificador de transação, flags e contadores de seções, além das perguntas e registros associados. **QR** diferencia consulta e resposta; **RCODE** sinaliza condição de resposta, como erro de nome inexistente; **QTYPE** especifica tipo solicitado, como A para IPv4 e AAAA para IPv6. Respostas podem carregar registros CNAME, cadeias de delegação e valores de TTL de cache. DNS tradicional é frequentemente observado em UDP/53, mas também opera sobre TCP/53; outras modalidades, como DoT e DoH, alteram a visibilidade da consulta em texto claro.\n\nUm tempo entre pergunta e resposta DNS é observado no ponto do sensor; a ausência de resposta pode refletir perda, filtro ou consulta respondida em outro caminho. O nome consultado não demonstra por si só acesso bem-sucedido ao endereço retornado. Um NXDOMAIN é diferente de um problema TCP com o servidor da aplicação.\n\n## 5. TLS e a fronteira da criptografia\n\nCom TLS, metadados de transporte (IP, portas e tempos) podem continuar visíveis, enquanto o conteúdo da aplicação fica criptografado. O handshake negocia parâmetros e mecanismos de autenticação; no TLS 1.3, porções do handshake também passam a ser protegidas após determinadas etapas. A análise sem material de descriptografia não revela automaticamente caminhos HTTP, senhas ou corpos de requisição. O nome do servidor, quando presente em campos visíveis, não deve ser confundido com total transparência da conversa; a visibilidade depende do protocolo e das extensões de privacidade adotadas.\n\n### Roteiro comparativo\n\n`SYN`, `SYN/ACK`, `ACK`, dados e `FIN` sugerem sessão TCP iniciada e encerrada ordenadamente; `SYN` repetidos sem resposta mostram tentativa não confirmada naquele ponto; `RST` mostra reset; DNS `NXDOMAIN` aponta resposta negativa de resolução; um fluxo TLS sem descriptografia revela padrão temporal e volume, **não** a semântica inteira da aplicação. Em concurso, examine o que os bytes efetivamente autorizam inferir.\n"
+    },
+    {
+      "title": "tcpdump: opções, filtros BPF e leitura prática do terminal",
+      "markdown": "\n## 1. Objetivo e postura operacional\n\nO **tcpdump** é analisador de pacotes por linha de comando: captura tráfego em interfaces, aplica filtros de captura e imprime resumos ou armazena registros para revisão. Em sistemas compatíveis, os privilégios necessários variam conforme configuração e permissões da interface; capturar pacotes não exige, por definição, executar toda a análise como administrador. Use apenas interfaces e sistemas para os quais há autorização, evite publicar material sensível e prefira ambientes de treinamento.\n\nComandos de referência:\n```bash\ntcpdump -D\ntcpdump -i eth0 -nn -c 20\ntcpdump -i eth0 -nn -s 0 -w coleta.pcap\ntcpdump -nn -r coleta.pcap\ntcpdump -i eth0 -nn -A 'tcp port 80'\ntcpdump -i eth0 -nn -X 'host 192.0.2.10'\n```\n`-D` lista interfaces disponíveis; `-i` escolhe a interface; `-c` limita a quantidade de pacotes **capturados** antes da parada; `-nn` desativa resolução de nomes de hosts e de números de portas; `-s 0` solicita captura integral conforme semântica da implementação; `-w` grava pacotes em arquivo; `-r` lê arquivo capturado; `-A` apresenta payload em ASCII; `-X` oferece hexadecimal e ASCII. Os comandos que exibem o payload podem expor informações privadas. Algumas interfaces de captura, como `any` em Linux, apresentam cabeçalhos de enlace “cooked”, de modo que o quadro não deve ser interpretado como Ethernet bruto em todos os cenários.\n\n## 2. Verbosidade, resolução e cabeçalho\n\n`-n` desabilita resolução de endereços para nomes; `-nn` amplia a desativação à tradução de portas em nomes de serviços. A opção `-e` solicita a exibição do cabeçalho de enlace disponível, enquanto `-v`, `-vv` e `-vvv` aumentam a verbosidade da saída, dentro do que cada decodificador oferece. `-tttt` permite mostrar timestamps com representação de data e hora. `-S` usa números de sequência TCP absolutos, em vez da apresentação relativa habitual em condições apropriadas. **Nenhuma dessas opções transforma conteúdo TLS cifrado em texto claro.**\n\nUma linha hipotética:\n```text\nIP 192.0.2.8.51000 > 198.51.100.7.443: Flags [S], seq 1000, win 64240, length 0\n```\nInterpretação: um TCP SYN com IP/porta de origem 192.0.2.8:51000 e destino 198.51.100.7:443; comprimento zero na indicação TCP é carga útil zero, não inexistência de cabeçalhos IP e TCP. `seq 1000` depende da forma de exibição e não tem relação com o número da linha no PCAP. A porta de destino 443 não prova que a sessão TLS foi completada.\n\n## 3. Sintaxe de filtros de captura\n\nFiltros libpcap combinam primitivas e operadores booleanos. Exemplos:\n```bash\ntcpdump -i eth0 -nn 'host 192.0.2.10'\ntcpdump -i eth0 -nn 'src host 192.0.2.10 and dst port 53'\ntcpdump -i eth0 -nn 'udp and port 53'\ntcpdump -i eth0 -nn 'tcp and (port 80 or port 443)'\ntcpdump -i eth0 -nn 'net 192.0.2.0/24 and not port 22'\ntcpdump -i eth0 -nn 'icmp or icmp6'\ntcpdump -i eth0 -nn 'tcp[tcpflags] & tcp-syn != 0'\n```\n`host` e `port` sem direção normalmente examinam **origem ou destino** na camada aplicável; `src` e `dst` refinam o sentido. A expressão `tcp port 443` restringe ao transporte TCP, enquanto `port 443` pode selecionar outros transportes compatíveis com esse qualificador. O último exemplo avalia flags TCP com operação bit a bit; é mais preciso para presença de SYN que confundir qualquer segmento TCP com pedido de abertura. **Filtros por posição** requerem cuidados com offsets, IP fragmentado e cabeçalhos de extensão IPv6. Teste a expressão em ambiente controlado e não suponha que um filtro sobre porta captura todo fragmento IP subsequente.\n\n## 4. Gravação, leitura e rotação\n\nUse `-w arquivo.pcap` para manter pacotes em forma analisável, e `-r arquivo.pcap` para decodificar uma gravação. Para controlar volume, `-C` pode rotacionar por tamanho de arquivo; `-G` rotaciona por intervalo de tempo, com configurações próprias de nomeação e quantidade de arquivos. `-W` relaciona-se à quantidade de arquivos na rotação, conforme a combinação de opções utilizada. Não confunda essas opções com o `-c`, que limita **número de pacotes**. O valor capturado pode diferir do tráfego visto no fio, seja por snaplen, perda de pacotes, filtros, espelhamento ou descarregamentos de processamento das placas (offload).\n\nAo encerrar, observe estatísticas como **pacotes capturados**, **recebidos pelo filtro** e **descartados pelo kernel**, lembrando que contadores variam conforme sistema/implementação e não equivalem automaticamente a uma medição completa de perda da rede. Muitos diagnósticos falham porque o analista interpreta “sem resposta” sem examinar dropped packets, filtros e o ponto de captura.\n\n## 5. Armadilhas da banca e roteiro de execução\n\nA linha `tcpdump -nn -r dados.pcap 'tcp port 443'` lê uma gravação e seleciona pacotes compatíveis para exibição; ela **não** inicia nova captura de tráfego ao vivo. Já `tcpdump -i eth0 -w dados.pcap 'udp port 53'` cria captura com critério de inclusão. Um filtro BPF informado durante a captura descarta o que não combina, antes de chegar ao arquivo final; a sintaxe `tcp.port == 443` pertence ao filtro de exibição do Wireshark, não ao filtro de captura libpcap. Para análise reprodutível, preserve arquivo original, registre o comando e gere cópia de trabalho antes de aplicar transformações ou compartilhar o conteúdo.\n"
+    },
+    {
+      "title": "Wireshark, diagnóstico, limitações e segurança da análise",
+      "markdown": "\n## 1. Da lista de pacotes aos campos detalhados\n\nO Wireshark permite percorrer a **lista de pacotes**, a **árvore de protocolos** e os **bytes** correspondentes. Comece com filtros de exibição reproduzíveis, como `tcp`, `udp`, `dns`, `arp`, `icmp`, `ipv6`, `ip.addr == 192.0.2.10`, `tcp.port == 443`, `tcp.flags.syn == 1 && tcp.flags.ack == 0` ou `dns.flags.response == 1`. Os filtros mostram subconjuntos dos pacotes que já existem no arquivo; não são os mesmos filtros BPF passados ao tcpdump. A cor visual aplicada a um pacote, por sua vez, representa uma regra de colorização e **não** necessariamente uma anomalia.\n\nAs ferramentas **Follow TCP Stream** e **Follow UDP Stream** organizam a observação de mensagens relacionadas. A remontagem de TCP pode permitir recuperar uma mensagem distribuída em múltiplos segmentos, se os bytes necessários foram efetivamente capturados. Ela não descriptografa TLS automaticamente nem cria bytes ausentes; tampouco a exibição como “fluxo” converte UDP em protocolo orientado à conexão. Em alguns protocolos, decodificações dependem da porta, de heurísticas e de configurações de dissector; uma identificação automática deve ser confrontada com os campos de fato observados.\n\n## 2. Diagnóstico estruturado por sintomas\n\n**Sintoma: DNS aparentemente lento.** Localize consulta e resposta por identificação, endpoints e tempo; avalie retransmissões ou novas tentativas, e se a resposta é positiva ou negativa. Se o cliente consulta vários resolvers, separe as transações antes de calcular um intervalo. Uma resposta DNS bem-sucedida não prova que a conexão TCP subsequente ocorreu.\n\n**Sintoma: conexão não abre.** Separe casos: SYN sem SYN/ACK observado; SYN/ACK seguido de ACK; RST; ICMP de erro; ou estabelecimento TCP sucedido por falha da aplicação. Um firewall pode descartar silenciosamente tráfego; também é possível que o pacote de retorno tome outro caminho. Correlacione o mesmo fluxo em mais de um ponto quando a conclusão sobre a rede exigir evidência adicional.\n\n**Sintoma: aplicação lenta.** Compare RTTs, variação temporal, tempo entre requisição e primeiro byte de resposta, retransmissões e tamanho do fluxo. Um intervalo grande entre o ACK de dados de requisição e o início de uma resposta **pode** apontar para espera no servidor ou aplicação, mas não exclui limitações de captura, filas intermediárias e dependências externas. Separar rede, processamento do serviço, autenticação, DNS e banco de dados exige correlação.\n\n**Sintoma: perda ou reordenação.** Inspecione números de sequência, acknowledgments, segmentos duplicados, gaps e indicadores de análise especializada. Verifique dropped packets na ferramenta antes de concluir que faltaram pacotes no fio. Confundir captura incompleta com perda real é uma fonte recorrente de falsos positivos.\n\n## 3. Checksums e offload\n\nÉ comum uma captura feita no host emissor mostrar checksums aparentemente inválidos porque a interface de rede completará o cálculo mais tarde (checksum offload). Recursos como TCP Segmentation Offload e Generic Receive Offload podem afetar o tamanho e a forma como unidades aparecem no monitoramento do host. Por isso, “bad checksum” em uma captura local **não comprova**, isoladamente, corrupção na rede. Compare com outra interface ou ponto de coleta e com as configurações de offload antes de diagnosticar a integridade dos quadros.\n\n## 4. Privacidade e limites de inferência\n\nTráfego HTTP sem proteção pode revelar cabeçalhos, caminhos e corpos; em HTTPS/TLS usualmente o payload da aplicação aparece criptografado, embora metadados permaneçam. Um arquivo de captura pode conter tokens, cookies, identificadores de equipamentos e informações pessoais; seu manuseio requer autorização, retenção mínima, controle de acesso e eventual anonimização. A anonimização deve preservar as relações necessárias para investigação sem disseminar endereços ou dados sensíveis.\n\nPontos cegos frequentes: tráfego assimétrico, interface errada, túnel VPN não observado na camada interna, pacotes ausentes por filtro, truncamento, VLAN/offload e relógios não sincronizados. Ferramentas visualizam **evidências**, não substituem raciocínio causal. A conclusão técnica deve ter forma limitada: “na captura da interface A, observou-se três SYNs sem SYN/ACK entre os instantes X e Y”, e não “o servidor certamente estava desligado”.\n\n## 5. Procedimento de resolução em concursos\n\n1. Identifique a camada em análise: Ethernet, IP, transporte ou aplicação.\n2. Leia **origem/destino** sem trocar endereço físico, IP e porta.\n3. Interprete flags e números conforme a especificação, não pelo nome coloquial.\n4. Distingua captura de exibição, fluxo da aplicação e conexão do transporte.\n5. Verifique se a inferência excede o que foi efetivamente observado.\n\n### Estudo final\n\nUm analista observa `tcp.analysis.retransmission` e `tcp.checksum_bad` na interface local e conclui “o cabo danificou os pacotes”. A assertiva é indevida: o primeiro pode decorrer de perda, reordenação ou insuficiência da captura; o segundo pode refletir offload. A prova de defeito físico requer observações adicionais, como captura noutro ponto, contadores de interface e evidências de camada física. A crítica correta não descarta a possibilidade de problema real, apenas recusa uma causalidade sem confirmação.\n"
+    }
+  ],
+  "summary": "\nA interpretação de pacotes consiste em analisar o que foi efetivamente capturado em cada ponto da rede, relacionando cabeçalhos de enlace, IP, transporte e aplicação. O método começa pela identificação da interface, do instante, dos endereços, das portas, dos protocolos e do tamanho armazenado. **MAC é endereço de enlace, IP é endereço lógico de rede e porta é identificador de transporte**; não se devem trocar tais conceitos. Em IPv4, o ARP permite resolver endereços locais; em IPv6, a descoberta de vizinhos depende de ICMPv6. Os cabeçalhos IP definem encaminhamento e limites de saltos, enquanto fragmentos podem esconder portas em partes não iniciais.\n\nEm TCP, o handshake normal é SYN → SYN/ACK → ACK; um ACK cumulativo informa o próximo byte esperado. Flags FIN e RST não são sinônimas. UDP não assegura, por si só, entrega e ordem. DNS pode usar UDP ou TCP; consultas A e AAAA tratam, respectivamente, IPv4 e IPv6. TLS limita a visibilidade do conteúdo protegido, mesmo que os metadados permaneçam observáveis.\n\nNo **tcpdump**, `-i` seleciona interface, `-D` lista interfaces, `-nn` mantém IPs/portas numéricos, `-c` limita pacotes, `-s 0` solicita coleta integral, `-w` grava PCAP, `-r` lê arquivo, `-A` imprime ASCII e `-X` mostra hexadecimal/ASCII. Seus filtros de captura usam sintaxe libpcap, como `tcp port 443`, diferente do filtro de exibição Wireshark `tcp.port == 443`. Uma exclusão na captura não é reversível por filtro de exibição.\n\nO diagnóstico confiável distingue observação de causalidade. **SYN sem resposta, retransmissão indicada pelo Wireshark e checksum ruim em captura local não provam, isoladamente, servidor desligado ou defeito físico**. Verifique snaplen, perdas na coleta, assimetria de rota, offload, relógios e evidência de outros sensores. Use arquivos de captura apenas quando autorizado e preserve a privacidade dos dados observados.\n",
+  "flashcards": [
+    {
+      "front": "Qual é a diferença entre filtro de captura e filtro de exibição?",
+      "back": "O de captura seleciona pacotes antes de armazená-los, tipicamente via libpcap/BPF; o de exibição apenas mostra um subconjunto dos pacotes que já foram coletados."
+    },
+    {
+      "front": "Quais são os componentes da quíntupla de um fluxo?",
+      "back": "Protocolo de transporte; IP de origem; porta de origem; IP de destino; porta de destino. Traduções NAT podem modificar a tupla entre pontos."
+    },
+    {
+      "front": "O que indica comprimento capturado inferior ao comprimento original?",
+      "back": "Truncamento na coleta, frequentemente devido a snaplen; não equivale a tamanho efetivamente transmitido pelo emissor."
+    },
+    {
+      "front": "O MAC de destino e o IP de destino são iguais conceitualmente?",
+      "back": "Não. Em rede roteada, o MAC identifica o próximo salto no enlace, enquanto o IP de destino geralmente indica o destinatário lógico remoto."
+    },
+    {
+      "front": "Qual a função do ARP e seu correspondente funcional no IPv6?",
+      "back": "ARP resolve IPv4 para endereço de enlace. IPv6 usa Neighbor Discovery com mensagens ICMPv6, não ARP."
+    },
+    {
+      "front": "O que expressa IHL em IPv4?",
+      "back": "O comprimento do cabeçalho IPv4 em palavras de 32 bits. IHL igual a 5 corresponde a 20 bytes."
+    },
+    {
+      "front": "Qual é a unidade de Fragment Offset do IPv4?",
+      "back": "Unidades de oito bytes, não bytes individuais. O deslocamento ajuda a posicionar fragmentos na remontagem."
+    },
+    {
+      "front": "Como diferem IPv4 e IPv6 quanto à fragmentação?",
+      "back": "IPv4 admite fragmentação em roteadores sob condições pertinentes; em IPv6, roteadores intermediários não fragmentam, e a origem pode usar cabeçalho de fragmentação."
+    },
+    {
+      "front": "Qual é a ordem clássica do three-way handshake TCP?",
+      "back": "SYN do iniciador; SYN/ACK do receptor; ACK do iniciador. Isso não comprova sucesso da aplicação."
+    },
+    {
+      "front": "O que significa ACK 3100 após dados TCP?",
+      "back": "Em confirmação cumulativa regular, o receptor indica esperar o byte de número 3100, tendo reconhecido os bytes anteriores pertinentes ao fluxo."
+    },
+    {
+      "front": "Qual a diferença entre FIN e RST?",
+      "back": "FIN participa do encerramento ordenado de uma direção do fluxo; RST reinicializa ou aborta a conexão TCP."
+    },
+    {
+      "front": "MSS e MTU são sinônimos?",
+      "back": "Não. MSS refere-se ao máximo de dados TCP em um segmento recebido segundo anúncio; MTU limita a unidade de transmissão de determinada camada/enlace."
+    },
+    {
+      "front": "UDP realiza retransmissão e ordenação de datagramas por padrão?",
+      "back": "Não. UDP não provê essas garantias no transporte. A aplicação, quando necessário, implementa mecanismos próprios."
+    },
+    {
+      "front": "Em DNS, o que diferencia registro A de AAAA?",
+      "back": "A associa nome a endereço IPv4; AAAA associa nome a endereço IPv6."
+    },
+    {
+      "front": "O que uma captura TLS sem chaves geralmente revela?",
+      "back": "Metadados como IPs, portas, volume e tempo e alguns elementos observáveis do handshake; não revela integralmente o conteúdo protegido da aplicação."
+    },
+    {
+      "front": "Qual a função de `tcpdump -i` e `tcpdump -D`?",
+      "back": "`-i` seleciona a interface para capturar; `-D` lista interfaces de captura disponibilizadas pela implementação."
+    },
+    {
+      "front": "Qual a diferença entre `tcpdump -w` e `tcpdump -r`?",
+      "back": "`-w` grava pacotes em arquivo de captura; `-r` lê uma captura previamente gravada."
+    },
+    {
+      "front": "O que faz `tcpdump -nn`?",
+      "back": "Desativa resolução de endereços para nomes e de números de portas para nomes de serviços."
+    },
+    {
+      "front": "Qual diferença entre `tcpdump -c` e `tcpdump -C`?",
+      "back": "`-c` estabelece número de pacotes a capturar antes de encerrar; `-C` participa de rotação de arquivos por tamanho."
+    },
+    {
+      "front": "Por que 'bad checksum' numa captura de host não comprova corrupção?",
+      "back": "A placa de rede pode completar checksums após o ponto de captura por offload. É preciso corroborar com outro sensor e configurações de interface."
+    },
+    {
+      "front": "O que o Follow TCP Stream não faz?",
+      "back": "Não reconstitui bytes que não foram capturados nem decifra automaticamente cargas TLS; apenas ajuda a analisar o fluxo observável."
+    },
+    {
+      "front": "O que indica ICMP Time Exceeded?",
+      "back": "Pode indicar que o pacote excedeu seu limite de saltos, como TTL do IPv4 ou Hop Limit do IPv6, sem revelar isoladamente a causa global do incidente."
+    }
+  ],
+  "tips": [
+    "Monte a linha do tempo DNS → SYN/SYN-ACK/ACK → TLS → dados → FIN/RST e descreva apenas os eventos realmente observados.",
+    "Em questão com endereços, separe MAC (enlace), IP (rede) e porta (transporte); em tráfego roteado, o MAC pode mudar em cada salto.",
+    "Memorize os pares de comandos: `-i` escolhe interface, `-D` lista, `-w` grava, `-r` lê, `-c` conta pacotes e `-nn` evita resolução de nomes.",
+    "Antes de concluir que houve perda na rede, confira filtro de captura, snaplen, pacotes descartados pelo sensor e assimetria da topologia.",
+    "Para filtros, contraste `tcp port 443` (captura libpcap) e `tcp.port == 443` (exibição Wireshark). Não misture gramáticas.",
+    "Leia a expressão de assertivas absolutas: o PCAP demonstra observação em um ponto, não necessariamente a causa definitiva da falha."
+  ],
+  "traps": [
+    "Confundir porta 443 com prova de HTTPS concluído: a porta não demonstra handshake TLS nem resultado de aplicação.",
+    "Tratar a ausência de SYN/ACK ou Echo Reply como prova de servidor desligado: filtros e pontos cegos podem ocultar respostas.",
+    "Interpretar IHL IPv4 como quantidade direta de bytes, ou Fragment Offset IPv4 como deslocamento em bytes.",
+    "Supor que IPv6 nunca fragmenta, ou que emprega ARP como método de descoberta de vizinhos.",
+    "Confundir ACK com confirmação do próprio segmento e FIN com RST; ACK cumulativo indica o próximo byte esperado.",
+    "Concluir que `tcp.analysis.retransmission` e `bad checksum` demonstram, sem outras provas, perda física no enlace."
+  ],
+  "activeRecall": [
+    {
+      "question": "Um PCAP apresenta 200 bytes originais e 64 capturados. O que investigar?",
+      "answer": "Snaplen e truncamento da captura; bytes ausentes podem impedir análise de protocolos superiores, sem provar que o emissor enviou apenas 64 bytes."
+    },
+    {
+      "question": "O quadro é enviado a um gateway; quais endereços descrevem o próximo salto e o destino final?",
+      "answer": "O MAC de destino normalmente é o do gateway no enlace; o IP de destino permanece o do host remoto, ressalvados tratamentos como NAT."
+    },
+    {
+      "question": "Quais são as três mensagens do handshake TCP e por que não provam HTTP bem-sucedido?",
+      "answer": "SYN, SYN/ACK, ACK; elas estabelecem estado TCP, mas uma requisição/resposta de aplicação ainda pode falhar ou nem ocorrer."
+    },
+    {
+      "question": "Em TCP, payload de 60 bytes inicia em seq 500. Qual é o ACK cumulativo esperado, sem SYN/FIN?",
+      "answer": "560, porque o receptor espera o próximo byte após os 60 bytes posicionados entre 500 e 559."
+    },
+    {
+      "question": "Quando consultar `icmp`, `icmp6` e `arp` numa captura?",
+      "answer": "Para investigar mensagens de controle IPv4, controle/Neighbor Discovery IPv6 e resolução de endereços IPv4 no enlace, respectivamente."
+    },
+    {
+      "question": "Qual comando grava tráfego TCP porta 443 da interface eth0 com endereços numéricos?",
+      "answer": "`tcpdump -i eth0 -nn -s 0 -w sessao.pcap 'tcp port 443'`, em interface autorizada."
+    },
+    {
+      "question": "Por que um filtro de exibição não recupera UDP descartado durante a coleta?",
+      "answer": "Porque ele seleciona pacotes já armazenados; os não coletados nunca compuseram o arquivo."
+    },
+    {
+      "question": "Como validar indicação de retransmissão e checksum ruim em captura de host?",
+      "answer": "Correlacionar sequências/ACKs e timestamps, checar perdas do sensor e offload, e comparar outra interface ou ponto de captura quando possível."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Camadas e sintaxe de filtros",
+      "summary": "Troca entre cabeçalhos de enlace, IP e transporte; confusão entre filtro libpcap/BPF de captura e expressões de exibição Wireshark."
+    },
+    {
+      "key": "e2",
+      "title": "Enquadramento, endereçamento e fragmentação",
+      "summary": "Mistura de MAC com IP remoto; atribuição de ARP ao IPv6; leitura incorreta de IHL, TTL, extensão e deslocamento de fragmentos."
+    },
+    {
+      "key": "e3",
+      "title": "Semântica de protocolos e ferramentas",
+      "summary": "Erros sobre handshake, ACK, UDP e DNS e sobre finalidades de opções do tcpdump; atribuição de funções não existentes a comandos."
+    },
+    {
+      "key": "e4",
+      "title": "Inferência causal excessiva",
+      "summary": "Tratar ausência de resposta, retransmissão heurística, filtros ou perda da coleta como demonstração conclusiva de falha de rede ou servidor."
+    },
+    {
+      "key": "e5",
+      "title": "Criptografia e processamento de offload",
+      "summary": "Acreditar que -X ou Follow TCP Stream descriptografam TLS automaticamente, ou que aviso local de checksum inválido comprova corrupção física."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Ao examinar uma comunicação TCP/IP em uma rede Ethernet, qual informação pertence primariamente ao cabeçalho da camada de transporte?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porta de destino TCP.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Endereço MAC de origem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "EtherType do quadro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Endereço IPv4 de origem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Identificador da VLAN.",
+          "correct": false
+        }
+      ],
+      "explanation": "A porta de destino TCP fica no cabeçalho do segmento TCP e identifica o ponto lógico de comunicação no transporte. MAC, EtherType e VLAN pertencem ao enlace; o endereço IPv4 integra o cabeçalho de rede.",
+      "section": "Fundamentos de captura, encapsulamento e leitura de evidências",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um filtro de exibição aplicado no Wireshark pode ocultar da tela pacotes já gravados sem, por isso, apagá-los do arquivo original.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O filtro de exibição seleciona quais registros existentes são mostrados na análise, preservando os demais na captura. Diferentemente, um filtro de captura impede que pacotes não selecionados entrem no arquivo desde a coleta.",
+      "section": "Fundamentos de captura, encapsulamento e leitura de evidências",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um arquivo, o analista vê um pacote com IP de destino 198.51.100.20 e porta TCP de destino 443. Qual é a conclusão tecnicamente sustentada apenas por esses dois campos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O servidor concluiu o handshake TLS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O pacote tem destino IP indicado e está direcionado à porta TCP 443.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Houve uma resposta HTTP com sucesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os dados de aplicação foram descriptografados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A porta 443 foi necessariamente acessada por um navegador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os dois campos identificam apenas o destino de rede e de transporte. Eles não confirmam conexão estabelecida, uso efetivo de HTTPS, negociação TLS ou resultado de uma aplicação; essas hipóteses exigem observar outras mensagens.",
+      "section": "Fundamentos de captura, encapsulamento e leitura de evidências",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma captura feita no computador cliente e outra feita em um roteador intermediário necessariamente exibem o mesmo conjunto de quadros Ethernet e os mesmos endereços MAC.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O conjunto visível depende de interface, ponto de coleta, filtros e caminho de tráfego. Além disso, cada salto com roteamento refaz o encapsulamento de enlace, de modo que os endereços MAC podem mudar entre segmentos.",
+      "section": "Fundamentos de captura, encapsulamento e leitura de evidências",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante a revisão de um PCAP, um registro indica comprimento original de 1.500 bytes e comprimento capturado de 96 bytes. A interpretação correta é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O emissor enviou exatamente 96 bytes no fio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O IP obrigatoriamente fragmentou o pacote em 96 bytes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O pacote observado foi truncado na captura, e seus dados posteriores podem faltar no arquivo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O TCP descartou o restante após detectar erro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O destino confirmou o recebimento dos 1.500 bytes.",
+          "correct": false
+        }
+      ],
+      "explanation": "A distinção entre tamanho original informado e bytes capturados indica limitação da coleta, frequentemente ligada ao snaplen. Não implica fragmentação, perda no destino ou transmissão efetiva de somente 96 bytes.",
+      "section": "Fundamentos de captura, encapsulamento e leitura de evidências",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A quíntupla de um fluxo inclui endereços IP e portas de origem e destino, além do protocolo de transporte; uma tradução NAT pode modificar esses valores entre pontos de captura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Os cinco componentes permitem acompanhar comunicações, mas podem ser reescritos quando ocorre tradução de endereços ou portas. Por isso, a mesma conexão pode aparecer com tuplas diferentes em interfaces distintas do equipamento NAT.",
+      "section": "Fundamentos de captura, encapsulamento e leitura de evidências",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sensor de rede aplica, durante a captura, um filtro que exclui todo o tráfego UDP. Dias depois, o analista deseja examinar as consultas DNS feitas via UDP naquele período. Qual medida resolve a lacuna do arquivo existente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Basta retirar o filtro de exibição para restaurar os pacotes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É suficiente reabrir o PCAP com verbose ativado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar Follow TCP Stream recria o UDP ausente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Nenhum filtro posterior recupera os datagramas que não foram capturados; é preciso outra fonte de registros.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Mudar a coluna Protocol para DNS reconstitui as mensagens.",
+          "correct": false
+        }
+      ],
+      "explanation": "Filtros de captura definem o conteúdo do arquivo no momento da coleta. O Wireshark não recria datagramas excluídos, independentemente de filtros de exibição, verbosidade ou remontagem. Só outra coleta ou fonte pode suprir a falta.",
+      "section": "Fundamentos de captura, encapsulamento e leitura de evidências",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um número de pacote mostrado na lista do Wireshark representa o número de sequência TCP transportado por aquele pacote.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O número da lista é uma posição de registro na captura; o número de sequência TCP é campo do protocolo usado na ordenação de bytes do fluxo. Confundi-los conduz a inferências falsas sobre perda, retransmissão e evolução da conexão.",
+      "section": "Fundamentos de captura, encapsulamento e leitura de evidências",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas capturas de um mesmo incidente apresentam marcas de tempo distintas, embora relatem eventos semelhantes. Antes de inferir atraso entre os pontos, o procedimento mais adequado é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Subtrair os horários diretamente e tratar a diferença como RTT.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Interpretar todas as diferenças como latência de transmissão de um sentido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desconsiderar o ponto de captura porque a quíntupla sempre é imutável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Atribuir a diferença ao tamanho do payload, sem mais verificação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Verificar sincronização de relógios, interfaces observadas e precisão dos timestamps.",
+          "correct": true
+        }
+      ],
+      "explanation": "Comparação temporal entre sensores exige relógios compatíveis e entendimento do que cada interface enxerga. A diferença bruta de timestamps não é, por si, RTT nem atraso unilateral validado; NAT e assimetria podem complicar correlações.",
+      "section": "Fundamentos de captura, encapsulamento e leitura de evidências",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um host IPv4 deve alcançar endereço em outra sub-rede por meio de seu roteador padrão. No primeiro enlace Ethernet, qual destino MAC é normalmente empregado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O MAC do servidor remoto, sem resolução de próximo salto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O MAC do próximo salto, obtido para o roteador no enlace local.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O endereço IPv4 remoto colocado diretamente no campo MAC.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O endereço MAC de broadcast para todos os pacotes de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O MAC da interface de loopback do próprio host.",
+          "correct": false
+        }
+      ],
+      "explanation": "No envio roteado, o destino IP continua sendo o servidor remoto, mas o quadro do enlace local se destina ao próximo salto. O roteador encaminhará o datagrama, construindo outro quadro apropriado para a interface seguinte.",
+      "section": "Quadros Ethernet, ARP, IPv4, IPv6 e ICMP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "ARP é usado na rede IPv4 local para obter, em situações comuns, o endereço de enlace associado a um endereço IPv4.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "ARP efetua resolução entre endereço IPv4 e endereço de enlace no domínio local apropriado. Não faz consulta de nomes DNS nem identifica portas; no IPv6, a descoberta de vizinhos é conduzida por mecanismos ICMPv6.",
+      "section": "Quadros Ethernet, ARP, IPv4, IPv6 e ICMP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um cabeçalho IPv4 sem opções, o valor IHL observado é 5. Qual é o tamanho do cabeçalho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "5 bytes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "10 bytes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "20 bytes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "32 bytes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "40 bytes.",
+          "correct": false
+        }
+      ],
+      "explanation": "IHL expressa a quantidade de palavras de 32 bits do cabeçalho IPv4. Cinco palavras de quatro bytes resultam em 20 bytes. Não se trata de comprimento total do datagrama nem de tamanho do cabeçalho IPv6.",
+      "section": "Quadros Ethernet, ARP, IPv4, IPv6 e ICMP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O checksum presente no cabeçalho IPv4 protege, por definição, todos os bytes de dados da aplicação encapsulada no datagrama.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O checksum do IPv4 cobre o cabeçalho IPv4, e não a carga útil integral. Protocolos de transporte têm verificações próprias; confundir os escopos leva à falsa conclusão de que o cabeçalho IP já garante integridade fim a fim.",
+      "section": "Quadros Ethernet, ARP, IPv4, IPv6 e ICMP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma captura IPv4, aparece um fragmento com deslocamento não nulo. Qual cuidado é adequado ao filtrar a captura por porta TCP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todo fragmento repete obrigatoriamente o cabeçalho TCP completo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A presença de fragmentação faz o datagrama deixar de ser IP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O deslocamento do fragmento é dado diretamente em bytes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Nem todo fragmento subsequente contém o cabeçalho TCP com as portas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O protocolo TCP sempre elimina a fragmentação feita pelo IP.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fragmentação IPv4 pode separar o conteúdo IP, e portas do transporte tendem a aparecer no fragmento inicial. O deslocamento IPv4 é expresso em unidades de oito bytes, razão pela qual filtros de porta podem perder partes do datagrama.",
+      "section": "Quadros Ethernet, ARP, IPv4, IPv6 e ICMP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Diferentemente do IPv4, o IPv6 não permite fragmentação por roteadores intermediários; quando fragmentos IPv6 são usados, são produzidos pela origem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A especificação IPv6 desloca a função de fragmentação para o nó de origem e emprega cabeçalho de extensão quando pertinente. Isso não significa ausência absoluta de fragmentação nem transforma o Hop Limit em contador de fragmentos.",
+      "section": "Quadros Ethernet, ARP, IPv4, IPv6 e ICMP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em capturas de dois enlaces consecutivos do mesmo roteamento IPv4, os MACs de origem e destino mudam, enquanto os IPs finais permanecem iguais. Qual explicação é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os MACs devem permanecer fim a fim e a captura contém erro inevitável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O IPv4 sempre exige alterar o IP de destino a cada roteador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A mudança de MAC confirma obrigatoriamente um ataque ARP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O transporte TCP cria novos MACs a cada ACK.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O roteador substitui o enquadramento de enlace ao encaminhar o datagrama.",
+          "correct": true
+        }
+      ],
+      "explanation": "Endereços MAC têm escopo de enlace, enquanto endereços IP viabilizam o encaminhamento lógico entre redes. Alteração de MAC entre saltos é comportamento normal; por si só, não evidencia ataque, corrupção nem mudança de destinatário IP.",
+      "section": "Quadros Ethernet, ARP, IPv4, IPv6 e ICMP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma captura com Echo Request ICMPv4 sem Echo Reply demonstra, de forma conclusiva, que o host de destino não tem conectividade IP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A ausência de resposta na captura pode decorrer de filtro ICMP, política do host, assimetria de rota ou perda no ponto de coleta. O teste é indício limitado e precisa ser combinado com outras observações para afirmar indisponibilidade IP.",
+      "section": "Quadros Ethernet, ARP, IPv4, IPv6 e ICMP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao examinar um pacote IPv6 com campo Next Header apontando para um cabeçalho de extensão, o analista pretende identificar o protocolo de transporte. Qual conduta é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Percorrer a cadeia de cabeçalhos de extensão até chegar ao protocolo superior, se presente e capturado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Interpretar sempre o Next Header inicial como TCP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Assumir que IPv6 não suporta camadas de transporte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ler o campo checksum do cabeçalho base para descobrir a porta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar extensões porque só existem em IPv4.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Next Header pode referenciar uma extensão antes de TCP, UDP ou ICMPv6. A identificação depende da cadeia efetiva e do conteúdo capturado; o cabeçalho base IPv6 não possui checksum próprio equivalente ao de IPv4.",
+      "section": "Quadros Ethernet, ARP, IPv4, IPv6 e ICMP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A sequência padrão de estabelecimento de uma conexão TCP, observada da perspectiva do cliente, é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ACK, FIN, SYN.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RST, ACK, FIN.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SYN, SYN/ACK, ACK.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "SYN, FIN, RST.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PSH, PSH/ACK, FIN.",
+          "correct": false
+        }
+      ],
+      "explanation": "O estabelecimento usual do TCP sincroniza os números de sequência com SYN do iniciador, SYN com ACK do respondente e ACK final do iniciador. FIN e RST pertencem a outros eventos, e o handshake TCP não prova êxito da aplicação.",
+      "section": "TCP, UDP, DNS, TLS e análise dos fluxos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "UDP oferece, por si só, garantia de entrega ordenada de datagramas e retransmissão automática de perdas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "UDP é orientado a datagramas e não implementa, na própria camada de transporte, conexão, confirmação ordenada ou retransmissão confiável. Aplicações podem acrescentar mecanismos de confiabilidade, mas isso não muda a característica do UDP.",
+      "section": "TCP, UDP, DNS, TLS e análise dos fluxos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta DNS solicita explicitamente um registro AAAA. Qual tipo de informação ela busca?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente endereço físico MAC do roteador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma porta TCP reservada ao domínio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um certificado TLS do site.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Endereço IPv6 associado ao nome consultado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Exclusivamente um endereço IPv4.",
+          "correct": false
+        }
+      ],
+      "explanation": "O tipo AAAA identifica registros de endereço IPv6; o tipo A é empregado para IPv4. DNS não substitui ARP/ND, nem fornece automaticamente porta de transporte, certificado do serviço ou garantia de conexão bem-sucedida.",
+      "section": "TCP, UDP, DNS, TLS e análise dos fluxos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em TCP, uma confirmação ACK 1101, em situação cumulativa regular, pode indicar que o receptor recebeu corretamente os bytes até o número de sequência 1100.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O número de confirmação TCP aponta para o próximo byte esperado; no exemplo, o receptor reconhece cumulativamente os bytes anteriores. É preciso considerar espaço de sequência e eventuais SYN/FIN, que também consomem numeração.",
+      "section": "TCP, UDP, DNS, TLS e análise dos fluxos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um TCP SYN é repetido várias vezes e, no sensor da origem, não se observa SYN/ACK. Qual conclusão é a mais defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O servidor necessariamente estava desligado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O DNS certamente não respondeu à consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O cabeçalho IPv6 foi sempre descartado por checksum.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A aplicação terminou uma requisição com sucesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A conexão não foi confirmada nesse ponto de observação, mas a causa ainda não está demonstrada.",
+          "correct": true
+        }
+      ],
+      "explanation": "SYNs repetidos sem resposta observada indicam tentativa TCP sem confirmação no sensor. A causa pode estar no caminho, no destino, em filtros ou na própria visibilidade da captura; não é correto declarar falha específica sem correlação.",
+      "section": "TCP, UDP, DNS, TLS e análise dos fluxos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A porta 53 pode transportar DNS tanto em UDP quanto em TCP em operações compatíveis com o protocolo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "DNS tradicional prevê transporte por UDP e também por TCP. A associação de DNS exclusivamente a UDP é simplificação incorreta; outros mecanismos modernos podem empregar protocolos e portas diferentes, alterando a observabilidade.",
+      "section": "TCP, UDP, DNS, TLS e análise dos fluxos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um segmento TCP transporta 100 bytes iniciados no número de sequência 3000 e não inclui SYN nem FIN. Qual número de confirmação cumulativa é esperado após recepção completa e em ordem desse segmento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "3100.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "3000.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "3001.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "3099.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "3200.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os 100 bytes ocupam as posições de sequência 3000 a 3099; a confirmação indica o próximo byte esperado, 3100. Somar apenas um byte corresponderia a tratar dados comuns como se fossem somente o consumo de SYN ou FIN.",
+      "section": "TCP, UDP, DNS, TLS e análise dos fluxos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sem acesso ao conteúdo em claro ou às chaves necessárias, a simples captura de um fluxo TLS 1.3 permite reconstruir integralmente os caminhos HTTP e os corpos das requisições protegidas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "TLS protege o conteúdo da aplicação, limitando o que o PCAP revela sem descriptografia. IPs, portas, temporização e certos metadados podem permanecer observáveis, mas não se deve inferir leitura automática de todo o HTTP.",
+      "section": "TCP, UDP, DNS, TLS e análise dos fluxos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analisador sinaliza `tcp.analysis.retransmission` em um fluxo. Qual interpretação preserva rigor técnico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É prova definitiva de rompimento do cabo Ethernet.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É uma indicação heurística a conferir com sequência, ACKs e qualidade da captura.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Demonstra que a aplicação utilizou UDP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Confirma que o servidor nunca recebeu o segmento original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permite medir, isoladamente, o atraso unilateral exato.",
+          "correct": false
+        }
+      ],
+      "explanation": "A heurística de retransmissão depende do que a captura mostrou e pode coexistir com reordenação, perdas ou observação incompleta. Diagnosticar a causa requer correlação temporal, números TCP e, se possível, outros pontos de coleta.",
+      "section": "TCP, UDP, DNS, TLS e análise dos fluxos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comando `tcpdump` é adequado para ler um arquivo de captura já existente, sem iniciar uma nova coleta na interface de rede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`tcpdump -i eth0 -w coleta.pcap`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`tcpdump -D`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`tcpdump -i eth0 -c 10`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`tcpdump -nn -r coleta.pcap`.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`tcpdump -i eth0 -A`.",
+          "correct": false
+        }
+      ],
+      "explanation": "A opção -r faz o tcpdump ler pacotes de um arquivo de captura. A opção -w grava, -i escolhe interface, -c limita captura e -D lista interfaces; nenhuma delas isoladamente significa leitura de arquivo pré-existente.",
+      "section": "tcpdump: opções, filtros BPF e leitura prática do terminal",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No tcpdump, a opção `-nn` evita a resolução de endereços em nomes e também a tradução de números de portas em nomes de serviços.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A desativação de resolução de nomes torna o resultado numérico e facilita comparações. Não altera os endereços ou portas dos pacotes transmitidos; trata-se de uma opção de apresentação e não de filtragem por IP.",
+      "section": "tcpdump: opções, filtros BPF e leitura prática do terminal",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção do tcpdump define a interface de rede em que será realizada uma captura ao vivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`-r`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`-A`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`-c`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`-X`.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`-i`.",
+          "correct": true
+        }
+      ],
+      "explanation": "A opção -i seleciona a interface para captura. A opção -r lê uma gravação, -A e -X controlam formatos da saída e -c estabelece limite de quantidade; confundir essas funções leva a comandos que não coletam o tráfego esperado.",
+      "section": "tcpdump: opções, filtros BPF e leitura prática do terminal",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O filtro de captura `src host 192.0.2.10 and dst port 53` seleciona, na camada aplicável, tráfego com origem nesse IP e porta de destino 53.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A combinação de qualificadores de direção com `and` impõe simultaneamente o endereço de origem e a porta de destino. O filtro é de captura libpcap, não a sintaxe de exibição `ip.src == ...` usada no Wireshark.",
+      "section": "tcpdump: opções, filtros BPF e leitura prática do terminal",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No tcpdump, o comando `tcpdump -i eth0 -nn -c 10 'udp port 53'` tem qual efeito essencial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Captura até dez pacotes correspondentes ao filtro UDP porta 53 na interface indicada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Limita a coleta a dez segundos, sem considerar quantidade de pacotes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplica filtro de exibição a um PCAP já existente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Captura apenas TCP porta 53 e resolve nomes DNS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Descriptografa até dez mensagens DNS via TLS.",
+          "correct": false
+        }
+      ],
+      "explanation": "A opção -c contabiliza pacotes capturados para encerrar a coleta; não é temporizador. O filtro limita a UDP na porta 53, e -nn controla resolução de nomes; não há operação automática de descriptografia ou leitura de arquivo.",
+      "section": "tcpdump: opções, filtros BPF e leitura prática do terminal",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A expressão `tcp.port == 443` é sintaxe válida e intercambiável com `tcp port 443` nos filtros de captura da libpcap usados pelo tcpdump.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A primeira expressão é típica de filtro de exibição do Wireshark, com campos e operadores próprios. A segunda usa linguagem de captura libpcap. A similaridade do objetivo não torna as gramáticas intercambiáveis.",
+      "section": "tcpdump: opções, filtros BPF e leitura prática do terminal",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista quer salvar bytes de uma captura ao vivo em arquivo e, depois, examiná-los com outro programa. Qual combinação é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`tcpdump -r evidencia.pcap -D`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`tcpdump -i eth0 -s 0 -w evidencia.pcap`.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`tcpdump -i eth0 -A > evidencia.pcap` como equivalente binário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`tcpdump -i eth0 -nn` sem redirecionamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`tcpdump -D -e -c 1` como gravação pcap.",
+          "correct": false
+        }
+      ],
+      "explanation": "A opção -w grava registros em formato de captura; -s 0 busca coletar o pacote integral na implementação correspondente. Redirecionar saída ASCII não cria um PCAP equivalente, e -r somente lê registros existentes.",
+      "section": "tcpdump: opções, filtros BPF e leitura prática do terminal",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A opção `-X` do tcpdump sempre revela, em texto legível, o conteúdo original de conexões HTTPS protegidas por TLS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A saída -X mostra bytes em hexadecimal e ASCII quando representáveis; não remove criptografia. Para ler dados protegidos, são necessárias condições específicas de descriptografia e autorização, não apenas outra opção de impressão.",
+      "section": "tcpdump: opções, filtros BPF e leitura prática do terminal",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após terminar uma captura, o tcpdump informa que houve pacotes descartados pelo kernel. O que é correto inferir?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todos os pacotes foram necessariamente perdidos no trajeto da rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O servidor de destino descartou cada pacote do cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pode ter ocorrido perda de visibilidade durante a coleta; os números devem ser avaliados segundo a implementação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O arquivo PCAP está obrigatoriamente íntegro e completo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os descartes medem exclusivamente erros de checksum do enlace.",
+          "correct": false
+        }
+      ],
+      "explanation": "Descartes associados à captura indicam que o sensor pode não ter armazenado todo o tráfego entregue ao mecanismo de coleta. Eles não medem, isoladamente, perdas fim a fim nem culpam o servidor; semântica e contadores variam por plataforma.",
+      "section": "tcpdump: opções, filtros BPF e leitura prática do terminal",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Wireshark, qual ferramenta é apropriada para acompanhar, em ordem, os dados relacionados a um fluxo TCP observado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Coloring Rules como prova de perda.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conversations como descriptografia automática.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Capture Options para reconstruir pacotes ausentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Interface List para autenticar servidores TLS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Follow TCP Stream.",
+          "correct": true
+        }
+      ],
+      "explanation": "Follow TCP Stream reúne a visualização de bytes relacionados a uma conexão TCP, respeitando os limites da captura. A ferramenta não garante descriptografar TLS nem recriar bytes omitidos por filtro ou perda de coleta.",
+      "section": "Wireshark, diagnóstico, limitações e segurança da análise",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As cores atribuídas a pacotes no Wireshark são, por si mesmas, prova objetiva de falha de protocolo ou ataque.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "As cores seguem regras de apresentação configuráveis e servem para facilitar a leitura. Uma coloração pode destacar padrões interessantes, mas o diagnóstico deve ser fundamentado em campos, tempos, mensagens e contexto de rede.",
+      "section": "Wireshark, diagnóstico, limitações e segurança da análise",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual filtro de exibição do Wireshark seleciona pacotes cujos campos TCP indicam porta 443 em origem ou destino?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`tcp.port == 443`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`tcp port 443` como filtro de exibição nativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`port == 443` na gramática libpcap de captura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`tcp[443]` com leitura obrigatória do payload.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`host 443 and udp` como sintaxe de exibição.",
+          "correct": false
+        }
+      ],
+      "explanation": "A linguagem de exibição admite o campo tcp.port e operador de igualdade. A sintaxe `tcp port 443` pertence aos filtros de captura libpcap; misturar gramáticas pode invalidar a expressão ou alterar o comportamento.",
+      "section": "Wireshark, diagnóstico, limitações e segurança da análise",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma captura realizada no host emissor pode mostrar checksum TCP aparentemente incorreto por causa de processamento de offload da interface de rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Com checksum offload, a placa de rede pode completar a verificação depois do ponto em que o sensor local registra o pacote. A indicação isolada de checksum ruim nesse cenário não demonstra corrupção durante o trânsito.",
+      "section": "Wireshark, diagnóstico, limitações e segurança da análise",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista detecta várias consultas DNS com resposta negativa de nome inexistente. Qual é a inferência mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todo servidor da Internet ficou indisponível.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Há indicação de respostas negativas de resolução para aqueles nomes, sem prova de falha da conectividade TCP de outros serviços.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A interface Ethernet não conseguiu resolver MAC por ARP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As conexões TLS foram necessariamente interrompidas por RST.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O nome consultado retornou obrigatoriamente um registro A válido.",
+          "correct": false
+        }
+      ],
+      "explanation": "A resposta DNS negativa informa o resultado daquela consulta de nomes. Ela não equivale a teste universal de conectividade, resolução ARP, funcionamento de outros serviços ou êxito de uma conexão HTTP/TLS.",
+      "section": "Wireshark, diagnóstico, limitações e segurança da análise",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um filtro de exibição do Wireshark oculta uma retransmissão TCP, isso significa que os bytes correspondentes foram retirados permanentemente do arquivo de origem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O filtro de exibição não apaga os registros da captura: apenas os remove do subconjunto mostrado. O analista pode alterar ou limpar o filtro para voltar a vê-los, desde que tenham sido efetivamente coletados.",
+      "section": "Wireshark, diagnóstico, limitações e segurança da análise",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coleta feita no próprio servidor mostra `bad checksum` em alguns segmentos de saída e, ao mesmo tempo, comunicação normal. Qual investigação é prioritária antes de atribuir defeito físico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar cabo defeituoso pelo simples aviso visual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar o DNS como causa demonstrada do checksum.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Verificar recursos de offload e, se possível, comparar uma captura em outro ponto da rede.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Assumir que toda aplicação recebeu dados corrompidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Interpretar o campo como sinal obrigatório de fragmentação IPv6.",
+          "correct": false
+        }
+      ],
+      "explanation": "O processamento por hardware pode fazer uma captura local parecer conter checksums inválidos antes de sua finalização. É preciso avaliar offload, contadores e sensores externos; a advertência isolada não confirma corrupção no enlace.",
+      "section": "Wireshark, diagnóstico, limitações e segurança da análise",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A montagem de um fluxo em Follow TCP Stream é capaz de criar, com plena fidelidade, segmentos que não foram capturados porque o sensor perdeu pacotes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A remontagem organiza bytes disponíveis, mas não conhece conteúdo que nunca foi registrado. Lacunas, truncamento e perda de captura podem impedir reconstrução fiel; o recurso não equivale a recuperação de pacotes ausentes.",
+      "section": "Wireshark, diagnóstico, limitações e segurança da análise",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um registro de conexão mostra atraso entre o envio da requisição e o primeiro byte de resposta. Sem capturas adicionais nem logs, qual afirmação é metodologicamente mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O banco de dados do servidor necessariamente está sobrecarregado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O RTT de rede é idêntico ao tempo total observado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O atraso prova perda física no cabo do cliente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Existe intervalo observado no ponto de coleta, cuja causa precisa ser correlacionada com outras evidências.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A aplicação não efetuou processamento algum durante o período.",
+          "correct": false
+        }
+      ],
+      "explanation": "O tempo observado inclui possíveis componentes de rede, serviço, filas, processamento e condições de coleta. Atribuí-lo exclusivamente ao banco, ao cabo ou ao RTT ultrapassa a evidência fornecida por um único intervalo no PCAP.",
+      "section": "Wireshark, diagnóstico, limitações e segurança da análise",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Transmission Control Protocol (TCP) — RFC 9293",
+      "publisher": "RFC Editor / IETF",
+      "reference": "RFC 9293, especificação consolidada de TCP",
+      "url": "https://www.rfc-editor.org/rfc/rfc9293.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Internet Protocol — RFC 791",
+      "publisher": "RFC Editor / IETF",
+      "reference": "RFC 791, campos do IPv4 e fragmentação",
+      "url": "https://www.rfc-editor.org/rfc/rfc791.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Internet Protocol, Version 6 (IPv6) Specification",
+      "publisher": "RFC Editor / IETF",
+      "reference": "RFC 8200, IPv6 e cabeçalhos de extensão",
+      "url": "https://www.rfc-editor.org/rfc/rfc8200.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "User Datagram Protocol",
+      "publisher": "RFC Editor / IETF",
+      "reference": "RFC 768, definição e formato do UDP",
+      "url": "https://www.rfc-editor.org/rfc/rfc768.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Domain names — implementation and specification",
+      "publisher": "RFC Editor / IETF",
+      "reference": "RFC 1035, mensagens, registros e transporte DNS",
+      "url": "https://www.rfc-editor.org/rfc/rfc1035.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "An Ethernet Address Resolution Protocol",
+      "publisher": "RFC Editor / IETF",
+      "reference": "RFC 826, funcionamento do ARP",
+      "url": "https://www.rfc-editor.org/rfc/rfc826.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Internet Control Message Protocol",
+      "publisher": "RFC Editor / IETF",
+      "reference": "RFC 792, mensagens ICMPv4",
+      "url": "https://www.rfc-editor.org/rfc/rfc792.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Transport Layer Security (TLS) Protocol Version 1.3",
+      "publisher": "RFC Editor / IETF",
+      "reference": "RFC 8446, proteção de tráfego de aplicação",
+      "url": "https://www.rfc-editor.org/rfc/rfc8446.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "tcpdump — manual de referência",
+      "publisher": "tcpdump / manual pages publicados em man7.org",
+      "reference": "tcpdump(8): captura, opções, gravação e decodificação",
+      "url": "https://man7.org/linux/man-pages/man8/tcpdump.8.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "pcap-filter — manual de sintaxe",
+      "publisher": "libpcap / manual pages publicados em man7.org",
+      "reference": "pcap-filter(7): qualificadores, operadores e expressões",
+      "url": "https://man7.org/linux/man-pages/man7/pcap-filter.7.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Wireshark User's Guide",
+      "publisher": "Wireshark Foundation / Wireshark",
+      "reference": "Guia oficial: filtros, detalhes de pacotes, fluxos e remontagem",
+      "url": "https://www.wireshark.org/docs/wsug_html/",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

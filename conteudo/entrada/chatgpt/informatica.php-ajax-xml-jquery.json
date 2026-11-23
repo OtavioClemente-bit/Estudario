@@ -1,0 +1,1884 @@
+{
+  "id": "informatica.php-ajax-xml-jquery",
+  "subject": "Informática / Desenvolvimento Web",
+  "title": "PHP, Ajax e jQuery",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "PHP, Ajax e jQuery",
+    "PHP, Ajax e jQuery"
+  ],
+  "scope": {
+    "covers": "Fundamentos de PHP; programação e segurança no PHP 8 e suas subversões; MySQLi, prepared statements e transações; Ajax, Fetch, XMLHttpRequest, HTTP, REST, XML, JSON e CORS; jQuery, seletores, eventos, manipulação do DOM e DHTML; Zend Framework/Laminas, Drupal e JSON:API; cenários integrados e boas práticas.",
+    "excludes": "Implementação exaustiva de drivers não MySQL, administração aprofundada de infraestrutura de produção, minúcias não confirmadas de versões futuras do PHP, referências a leis e conteúdo específico de provedores não relacionados."
+  },
+  "theoryTitle": "PHP, Ajax e jQuery: fundamentos, PHP 8, MySQLi, XML/JSON, DHTML e aplicações modernas",
+  "chapters": [
+    {
+      "title": "PHP: fundamentos, requisições e segurança",
+      "markdown": "## 1. Papel do PHP no desenvolvimento web\n\nPHP é uma linguagem de programação de propósito geral particularmente empregada no **lado do servidor**. Em uma aplicação web tradicional, o navegador envia uma requisição HTTP; o servidor web encaminha o trabalho ao interpretador ou gerenciador de processos PHP; o código valida a entrada, consulta serviços e bancos, monta uma resposta e a devolve ao cliente. O navegador **não executa o código PHP**: recebe os bytes resultantes, que podem representar HTML, JSON, XML, um arquivo ou outra mídia. JavaScript, por sua vez, costuma executar no navegador e pode chamar endpoints PHP sem recarregar o documento completo. A extensão `.php` é convencional, mas não determina, por si, o tipo da resposta. O cabeçalho `Content-Type` descreve o formato efetivamente enviado.\n\nO código PHP é delimitado por `<?php ... ?>`; em arquivos exclusivamente PHP, a recomendação comum de estilo é omitir o fechamento final para evitar saída acidental. `echo` escreve na resposta; `return` devolve valor de uma função; `include` e `require` incorporam código, com consequências diferentes diante de falhas ao localizar o arquivo. Variáveis começam com `$` e seu nome é sensível a maiúsculas e minúsculas. Arrays PHP podem ser sequenciais ou associativos, pois internamente são mapas ordenados; acessar `$_GET['termo']` não é o mesmo que acessar `$_POST['termo']`.\n\n```php\n<?php\nheader('Content-Type: application/json; charset=utf-8');\n$termo = trim((string)($_GET['termo'] ?? ''));\necho json_encode(['busca' => $termo], JSON_UNESCAPED_UNICODE);\n```\n\nO operador `??` usa o operando à direita quando o esquerdo não existe ou é `null`. Em um cadastro, separar a camada HTTP, a validação de domínio, a persistência e a serialização facilita testar e evitar mistura desordenada de responsabilidades. `$_SERVER` oferece dados do contexto de execução, mas cabeçalhos enviados pelo cliente podem não ser confiáveis. `$_COOKIE` contém dados recebidos em cookies e `$_FILES` contém metadados de uploads submetidos; não se deve confiar em nomes, extensões ou tipos MIME declarados pelo cliente.\n\n## 2. Tipos, funções, escopo e formulários\n\nEntre os tipos usuais estão `bool`, `int`, `float`, `string`, `array`, `object` e `null`. O operador `===` compara **valor e tipo**; `==` admite coerções, potencialmente surpreendentes. A função `isset($x)` verifica a existência e não nulidade; `empty($x)` considera vários valores vazios ou falsos. `array_key_exists('chave', $array)` reconhece uma chave mesmo quando seu valor é `null`. Funções recebem parâmetros posicionais ou, nas versões apropriadas, nomeados. Variáveis locais não se tornam globais automaticamente; closures podem capturar variáveis por `use`, e arrow functions capturam o escopo externo por valor.\n\nNo protocolo HTTP, `GET` identifica requisições voltadas a recuperação de representações e codifica frequentemente parâmetros na URL; `POST` envia dados no corpo e pode realizar operações com efeitos no servidor. **Usar POST não torna dados automaticamente secretos**, pois sigilo depende de HTTPS, entre outras medidas. Para interpretar um corpo JSON, `$_POST` não é a fonte geral: costuma-se ler `php://input` e utilizar `json_decode`, tratando erros e validando o esquema. `json_encode` serializa valores PHP e não deve ser confundido com uma operação de criptografia. `header()` define cabeçalhos antes da emissão do conteúdo, quando cabível.\n\n## 3. Segurança: sanitizar não é autorizar\n\nAs fronteiras de confiança existem entre navegador, API e banco. A validação de entrada verifica formato, tamanho, faixa e regras de negócio; a autorização decide se o usuário pode realizar aquela ação; o escape deve corresponder **ao contexto de saída**. Ao imprimir texto em um nó HTML, `htmlspecialchars($valor, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')` ajuda a neutralizar caracteres especiais. Isso não substitui políticas apropriadas para JavaScript, URL, atributos perigosos ou CSS, nem garante segurança se dados escapados forem reinseridos como HTML. Para SQL, não se usa escape HTML: empregar instruções preparadas com parâmetros é a técnica central.\n\nSessões permitem associar dados do lado do servidor a um identificador, normalmente enviado por cookie. `session_start()` inicia ou retoma o acesso ao estado da sessão, conforme a configuração. Autenticar significa identificar o usuário; autorizar significa conferir permissões. Medidas relevantes incluem HTTPS, regeneração de identificadores na autenticação, cookies com atributos de segurança e proteção contra CSRF em operações com estado. Um token CSRF não é um substituto para autenticação. Senhas precisam de funções específicas de hashing, como `password_hash` e `password_verify`, e nunca devem ser guardadas em texto puro.\n\n**Questão clássica:** o fato de uma página ter sido produzida em PHP não impede o usuário de inspecionar o HTML/JavaScript recebido; o código-fonte PHP permanece no servidor quando corretamente configurado. Evite imprimir mensagens internas de exceção, consultas e credenciais em uma resposta pública. O ambiente de produção deve registrar erros com controle de acesso e não expor pilhas sensíveis ao cliente. Conteúdo do navegador é sempre potencialmente adulterável pelo próprio usuário."
+    },
+    {
+      "title": "PHP 8: linguagem, orientação a objetos e evolução",
+      "markdown": "## 1. Leitura de código em PHP 8\n\nA família PHP 8 ampliou o sistema de tipos e refinou expressões e recursos de orientação a objetos. **PHP 8.0** introduziu argumentos nomeados, tipos união, atributos nativos, promoção de propriedades no construtor, `match`, operador de acesso seguro a nulos `?->` e suporte a JIT. Cada recurso tem comportamento próprio e não se deve supor que toda versão PHP 8 contém, desde o começo, recursos incluídos apenas em versões posteriores.\n\n```php\n<?php\nfunction etiqueta(string $texto, bool $maiusculas = false): string {\n    return $maiusculas ? mb_strtoupper($texto) : $texto;\n}\necho etiqueta(maiusculas: true, texto: 'prova');\n\n$status = 200;\n$mensagem = match ($status) {\n    200, 201 => 'sucesso',\n    404 => 'não encontrado',\n    default => 'outro',\n};\n```\n\nO `match` seleciona um braço por comparação **estrita**, devolve uma expressão e não apresenta a queda entre braços associada à falta de `break` em `switch`. Sem braço correspondente e sem `default`, pode lançar `UnhandledMatchError`. Argumentos nomeados dependem dos nomes dos parâmetros da assinatura; uma mudança nesses nomes pode afetar o código chamador. Tipos união como `int|string` aceitam valores de qualquer tipo listado, de acordo com a política de verificação e possíveis coerções; isso não equivale a permitir qualquer objeto arbitrário.\n\n## 2. Objetos, propriedades, exceções e abstrações\n\nClasses agrupam estado e comportamento. `public`, `protected` e `private` controlam visibilidade; `extends` implementa herança de classe; interfaces definem contratos; traits reutilizam métodos e propriedades sem constituir uma relação clássica de subtipagem. `__construct` inicializa instâncias; `$this` refere-se ao objeto atual; `self::` usa referência lexical à classe e `static::` permite vinculação estática tardia em contextos próprios. O operador `?->` interrompe uma cadeia quando o operando à esquerda é `null`, devolvendo `null`; **não** captura toda exceção nem corrige acessos em valores arbitrários.\n\n```php\n<?php\nclass Cliente {\n    public function __construct(\n        public readonly int $id,\n        public string $nome\n    ) {}\n}\n$apelido = $pedido?->cliente?->nome;\n```\n\nA promoção de propriedades no construtor reduz repetição ao declarar e inicializar propriedades diretamente nos parâmetros. O modificador `readonly` em propriedade impede reatribuição comum depois da inicialização permitida, mas não significa congelar recursivamente todos os objetos referenciados. Erros de aplicação podem ser comunicados por `throw`, capturados por `try/catch` e acompanhados por `finally` para ações de encerramento. `Throwable` é a interface comum implementada por `Exception` e `Error`: nem toda falha é uma `Exception`. Atributos com sintaxe `#[...]` estruturam metadados para reflexão e frameworks, ao contrário de comentários puramente descritivos.\n\n## 3. Linha temporal cobrada em concursos\n\nEm **PHP 8.1**, foram introduzidos `enum` e fibers, entre outros recursos. Enums fornecem tipos com um conjunto definido de casos; uma enum backed usa valores escalares permitidos e pode servir a fronteiras de entrada controladas. Fibers suportam suspensão e retomada cooperativa em arquiteturas apropriadas; não significam execução paralela automática. **PHP 8.2** trouxe classes `readonly`, tipos independentes `true`, `false` e `null` em contextos previstos, além de tornar desencorajada a criação dinâmica de propriedades em vários casos. **PHP 8.3** acrescentou declarações de tipo para constantes de classe. **PHP 8.4** introduziu property hooks e visibilidade assimétrica, entre outras mudanças. São marcos de versão, não sinônimos intercambiáveis.\n\nA característica JIT (*just in time*) permite compilação dinâmica em determinadas situações, mas a existência do recurso não garante aceleração expressiva de uma aplicação web dominada por banco de dados e rede. OpCache e JIT não devem ser confundidos: OpCache guarda bytecode compilado para evitar recompilação repetida de scripts, enquanto JIT atua sobre trechos que podem ser compilados para código de máquina. O ganho precisa ser medido e depende da carga.\n\n## 4. Práticas modernas sem falsas generalizações\n\nNamespaces organizam nomes e ajudam bibliotecas a coexistir; `use` importa ou cria aliases de nomes, não copia a implementação da classe. Composer é amplamente usado para dependências e autoload PSR, mas não é uma palavra reservada de PHP nem substitui o interpretador. A tipagem de retorno pode ser declarada na assinatura; `declare(strict_types=1)` altera regras de coerção em chamadas de funções conforme o arquivo chamador, não transforma PHP em linguagem universalmente estática. Para entrada de usuário, a validação explícita permanece indispensável, mesmo quando os tipos estão declarados. Ao estudar um edital, distinga **versão do runtime**, extensão carregada, pacote instalado e disponibilidade real do recurso."
+    },
+    {
+      "title": "MySQLi: consultas, parâmetros e transações",
+      "markdown": "## 1. Extensão e conexão\n\nA extensão **MySQLi** é uma API do PHP destinada a interagir com servidores MySQL e sistemas compatíveis conforme suporte. Pode ser utilizada no estilo orientado a objetos (`$mysqli->query(...)`) ou procedural (`mysqli_query(...)`). É distinta de PDO, que oferece uma interface de acesso a bancos com drivers; ambas podem executar consultas parametrizadas, mas suas classes e chamadas não são intercambiáveis. O uso de `mysqli` pressupõe uma conexão efetiva com o servidor e tratamento de falhas, configuração de credenciais e charset apropriados.\n\n```php\n<?php\n$mysqli = new mysqli($host, $usuario, $senha, $banco);\n$mysqli->set_charset('utf8mb4');\n$stmt = $mysqli->prepare('SELECT id, nome FROM pessoas WHERE email = ?');\n$stmt->bind_param('s', $email);\n$stmt->execute();\n$resultado = $stmt->get_result();\n$dados = $resultado->fetch_assoc();\n```\n\nO exemplo considera um ambiente em que `get_result()` está disponível. `fetch_assoc()` retorna uma linha como array associativo ou `null` quando não há mais linhas, conforme o caso. `fetch_row()` usa índices numéricos; `fetch_all()` permite obter múltiplas linhas conforme o modo solicitado. `affected_rows` informa linhas afetadas em operações relevantes, e não deve ser tratado indiscriminadamente como número de linhas de qualquer `SELECT`. A escolha do charset é importante inclusive para tratamento consistente de dados e segurança.\n\n## 2. Prepared statements: o que são e o que não são\n\nEm consultas preparadas, a estrutura SQL é enviada separadamente dos valores associados a *placeholders*. Em MySQLi, os marcadores posicionais comuns são `?`; `bind_param('si', $nome, $idade)` associa dados com especificadores de tipo como `s` (string), `i` (inteiro), `d` (double) e `b` (blob). Os marcadores representam **valores**, não identificadores SQL arbitrários como nomes de tabela, coluna ou palavra-chave `ORDER BY`. Para ordenação escolhida pelo usuário, emprega-se uma lista permitida de nomes de coluna e direções, montada com valores já validados.\n\n**Atenção:** escrever `WHERE email = '?'` põe aspas no marcador e normalmente impede sua função de parâmetro. Em vez de concatenar `$_GET['id']` ao SQL, use `WHERE id = ?` e vincule o valor. A separação entre comando e parâmetros reduz o risco de SQL injection mesmo quando uma string contém aspas ou operadores SQL. Ela não resolve, por si só, autorização insuficiente, regras de domínio ou exibição insegura de resultados em HTML. Concatenação insegura de fragmentos de comando não fica protegida porque outra parte da query foi preparada.\n\n## 3. Transações e consistência\n\nUma transação reúne operações que devem obedecer a propriedades de atomicidade, consistência, isolamento e durabilidade, observadas as características do mecanismo de armazenamento e da configuração. Operações `begin_transaction`, `commit` e `rollback` são recursos de controle transacional em MySQLi; um `rollback` tenta desfazer alterações transacionais ainda não confirmadas, mas não torna necessariamente reversíveis operações de esquema que causem confirmação implícita. Isolamento trata da interação entre transações concorrentes, não é promessa de eliminação de qualquer conflito.\n\n```php\n<?php\n$mysqli->begin_transaction();\ntry {\n    $saida = $mysqli->prepare('UPDATE contas SET saldo = saldo - ? WHERE id = ?');\n    $saida->bind_param('di', $valor, $origem);\n    $saida->execute();\n    $entrada = $mysqli->prepare('UPDATE contas SET saldo = saldo + ? WHERE id = ?');\n    $entrada->bind_param('di', $valor, $destino);\n    $entrada->execute();\n    // Conferir regras e se as duas contas foram efetivamente atingidas.\n    $mysqli->commit();\n} catch (Throwable $erro) {\n    $mysqli->rollback();\n    throw $erro;\n}\n```\n\nO exemplo ilustra organização, não constitui uma transferência bancária completa. Sistemas reais precisam verificar existência de contas, saldo, concorrência, erros e quantidades de linhas atingidas. Dependendo da configuração, erros de MySQLi geram exceções, e o tratamento correto deve considerar a versão do PHP e o relatório de erros definido. A reconexão não é automaticamente a continuação da mesma transação; confirmar resultados e controlar falhas fazem parte do desenho da aplicação.\n\n## 4. Armadilhas de prova\n\n`prepare()` prepara uma declaração; **não** significa que a consulta já foi executada. `execute()` envia a execução; obter resultado vem depois, quando a instrução retorna linhas. `real_escape_string()` tem papel diferente da parametrização e não deve ser promovido a substituto universal de prepared statements. `mysqli::execute_query()` é uma conveniência disponível desde **PHP 8.2**, que permite consulta com parâmetros; não se deve considerá-lo presente em todas as instalações PHP 8.0. Além de SQL injection, avalie gestão de conexões, privilégios mínimos para o usuário do banco, uso de TLS quando adequado, armazenamento seguro de segredos e observabilidade de erros sem vazamento de credenciais."
+    },
+    {
+      "title": "Ajax, HTTP, REST, XML e JSON",
+      "markdown": "## 1. Ajax e ciclo de requisição assíncrona\n\n**Ajax** é uma abordagem para trocar informações entre cliente e servidor e atualizar partes da interface sem uma navegação integral de página. O acrônimo histórico alude a *Asynchronous JavaScript and XML*, mas o formato dos dados hoje frequentemente é JSON. Ajax **não é uma linguagem nova**, **não exige XML** e **não depende de jQuery**. Na forma clássica, usa `XMLHttpRequest` (XHR); APIs modernas também usam `fetch()`, que retorna uma Promise. A assíncronia favorece experiência de usuário responsiva, mas não garante sucesso nem ordem de conclusão entre requisições concorrentes.\n\n```javascript\nasync function carregar(id) {\n  const resposta = await fetch(`/api/pessoas/${encodeURIComponent(id)}`);\n  if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);\n  const dados = await resposta.json();\n  document.querySelector('#nome').textContent = dados.nome;\n}\n```\n\n`fetch()` não rejeita automaticamente sua Promise por respostas HTTP de erro como 404 e 500; deve-se verificar `response.ok` ou `status`. Uma falha de rede, por sua vez, normalmente rejeita a Promise. `response.json()` interpreta o corpo como JSON, mas não transforma uma resposta malformada em objeto válido. Em XHR, o evento `readystatechange` e a propriedade `readyState` caracterizam etapas do ciclo, sendo o valor 4 associado ao estado concluído; o status HTTP ainda precisa ser avaliado. O navegador controla a atualização do DOM após receber os dados.\n\n## 2. Origem, CORS e segurança de requisições\n\nA política de mesma origem compara **esquema, host e porta**. Portas diferentes configuram origens diferentes mesmo com nomes de domínio iguais. CORS permite que um servidor indique ao navegador quais origens podem ler respostas de determinadas requisições cross-origin; não é uma autorização universal para qualquer pessoa utilizar a API, nem dispensa autenticação e controle de acesso no backend. Em determinadas requisições, o navegador faz uma solicitação preflight com `OPTIONS` antes de enviar a principal. Credenciais, cookies e cabeçalhos permissivos exigem configuração compatível; `Access-Control-Allow-Origin: *` não autoriza leitura de resposta com credenciais em fluxos que as exijam.\n\nCSRF e XSS têm naturezas distintas. CSRF explora o envio de requisições autenticadas de forma indevida; XSS decorre da execução de conteúdo ativo injetado. CORS não substitui mecanismos contra ambos. Ao exibir conteúdo retornado, prefira `textContent` para texto simples, evitando `innerHTML` quando ele for desnecessário. Validação do lado cliente melhora usabilidade, mas pode ser ignorada: validações e permissões críticas devem ser aplicadas no servidor.\n\n## 3. HTTP e estilo REST\n\nREST é um conjunto de restrições arquiteturais, frequentemente usado na construção de APIs sobre HTTP. Recursos são identificados por URIs; a interface uniforme, a ausência de estado de sessão de aplicação em cada requisição (*stateless* no sentido arquitetural) e a possibilidade de cache fazem parte da discussão. Não se deve confundir **stateless** com ausência de banco ou de qualquer estado no servidor: uma API pode manter dados persistidos; cada requisição precisa carregar informação suficiente para ser compreendida.\n\nMétodos e semântica: `GET` obtém uma representação e deve ser seguro (sem mudança de estado solicitada); `POST` submete dados para processamento e pode criar recursos; `PUT` cria ou substitui a representação do recurso indicado segundo a semântica do servidor, sendo idempotente; `PATCH` aplica alteração parcial e **não é necessariamente idempotente**; `DELETE` remove a associação do recurso, sendo idempotente na semântica da operação, ainda que respostas subsequentes variem. Códigos usuais: 200 (sucesso), 201 (criação), 204 (sucesso sem corpo), 400 (requisição inválida), 401 (credenciais de autenticação ausentes ou inválidas), 403 (acesso proibido), 404 (não encontrado), 409 (conflito) e 500 (erro interno). O código não determina sozinho o formato do corpo.\n\n## 4. XML, DOM, namespaces e JSON\n\nXML usa elementos, atributos e uma estrutura hierárquica de dados com **um único elemento raiz** em um documento bem formado. Tags XML diferenciam maiúsculas de minúsculas; elementos devem estar corretamente aninhados; valores de atributo devem ser delimitados por aspas e caracteres reservados exigem escape ou outra representação válida. Um documento **bem formado** não é necessariamente **válido** diante de uma DTD ou XML Schema. Namespaces distinguem vocabulários potencialmente homônimos mediante URIs de namespace; o prefixo literal é um apelido e, sozinho, não define a identidade semântica.\n\n```xml\n<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<p:pessoa xmlns:p=\"urn:exemplo:pessoas\" id=\"7\">\n  <p:nome>Ana &amp; Bia</p:nome>\n</p:pessoa>\n```\n\nDOM representa o documento como árvore navegável e editável; em PHP há `DOMDocument`, `SimpleXML`, `XMLReader` e `XMLWriter`, entre outras soluções. SimpleXML oferece acesso prático a árvores XML menores; XMLReader é orientado a fluxo e pode ser útil no processamento de documentos grandes. Parsers XML devem ser configurados para evitar resolução indevida de entidades externas e acesso não autorizado a recursos, mitigando XXE. Habilitar substituição ou carregamento externo de entidades sem necessidade pode aumentar riscos.\n\nJSON, por sua vez, modela objetos, arrays, strings, números, booleanos e `null`, mas não comentários ou funções na sintaxe padrão. Em PHP, `json_decode($texto, true)` produz arrays associativos para objetos JSON; sem o segundo argumento, objetos normalmente viram `stdClass`. `json_encode` serializa estruturas e pode necessitar de opções e tratamento de falhas. A presença de uma resposta JSON não faz da API automaticamente REST, e uma API REST pode representar dados em XML, JSON ou outros formatos negociados."
+    },
+    {
+      "title": "jQuery, DOM, eventos e DHTML",
+      "markdown": "## 1. Biblioteca e seletores\n\njQuery é uma biblioteca JavaScript voltada a operações frequentes no navegador: seleção e alteração de elementos, eventos, efeitos e requisições Ajax. `$(seletor)` tipicamente produz um objeto jQuery contendo zero ou mais elementos; **não** é exatamente um elemento DOM nativo. Por exemplo, `$('#painel')` devolve a coleção jQuery, enquanto `document.querySelector('#painel')` devolve o primeiro `Element` compatível ou `null`. Um seletor CSS `.classe` identifica elementos pela classe, `#id` pelo identificador e `ul li` encontra descendentes `li` de `ul`. Métodos `.find()`, `.closest()`, `.children()` e `.parent()` têm semânticas distintas de navegação.\n\n```javascript\n$(function () {\n  $('#pesquisar').on('click', function () {\n    $('#status').text('Pesquisando...');\n  });\n});\n```\n\nA forma abreviada de ready executa a função quando o DOM está pronto para manipulação; não é idêntica ao evento `load`, que também considera o carregamento de recursos associados à página. `.text()` trata conteúdo como texto e `.html()` insere ou recupera marcação HTML; inserir strings não confiáveis com `.html()` pode introduzir XSS. `.val()` manipula valores de controles; `.attr()` trabalha com atributos, e `.prop()` costuma ser adequado para propriedades de estado, como `checked`, conforme o uso. `addClass`, `removeClass` e `toggleClass` alteram classes CSS.\n\n## 2. Eventos diretos e delegados\n\nCom `.on('click', handler)`, o evento é associado aos elementos selecionados naquele momento. Quando novos descendentes surgem posteriormente via Ajax, os handlers associados diretamente a elementos antigos não se transferem magicamente para esses novos nós. A **delegação de eventos** usa um ancestral estável: `$('#lista').on('click', '.excluir', handler)`. O evento que propaga até o ancestral é filtrado pelo seletor do descendente, permitindo atender elementos acrescentados após o registro. A delegação depende das características de propagação dos eventos; não é um recurso que atribui listeners fisicamente a todos os filhos.\n\n```javascript\n$('#lista').on('click', '.excluir', function (evento) {\n  evento.preventDefault();\n  $(this).closest('li').remove();\n});\n```\n\n`preventDefault()` tenta impedir a ação padrão do navegador para um evento cancelável; `stopPropagation()` altera a propagação. São mecanismos diferentes, não equivalentes e não substituem verificação de autorização em PHP. `.off()` remove tratadores de eventos com base nos critérios informados; utilizar namespaces de eventos pode ajudar a gerenciar módulos mais complexos. Evite acoplar lógica a seletores excessivamente específicos, difíceis de manter.\n\n## 3. Ajax em jQuery e integração com PHP\n\n`$.ajax({url, method, data, dataType, success, error})` configura uma chamada Ajax. `dataType` descreve o **tipo de resposta esperado pelo jQuery**, enquanto `contentType` descreve o tipo do corpo **enviado** em determinadas situações. São conceitos que concursos frequentemente invertem. Métodos de conveniência como `$.get()` e `$.post()` simplificam usos comuns. A chamada retorna um `jqXHR`, com interface de conclusão assíncrona, incluindo `.done()`, `.fail()` e `.always()`; não se deve tratá-la como retorno síncrono dos dados do servidor.\n\n```javascript\n$.ajax({\n  url: '/api/usuarios.php', method: 'GET', dataType: 'json',\n  data: { pagina: 2 }\n}).done(function (dados) {\n  $('#total').text(dados.total);\n}).fail(function () {\n  $('#total').text('Falha ao consultar');\n});\n```\n\nDo lado PHP, o endpoint deve conferir parâmetros, executar consultas seguras, estabelecer `Content-Type: application/json; charset=utf-8` e serializar a resposta. O fato de o frontend usar jQuery não altera permissões do servidor. O navegador também pode utilizar `fetch` nativo, tornando o uso de jQuery opcional. Em códigos legados, é útil reconhecer `$.ajaxSetup()`, eventos globais Ajax e callbacks, mas deve-se preferir projetos claros, sem efeitos globais surpreendentes.\n\n## 4. DHTML não é outra linguagem\n\nDHTML, ou **Dynamic HTML**, designa historicamente a combinação de HTML, CSS, JavaScript e DOM para alterar dinamicamente a aparência e o conteúdo de uma página. Não corresponde a uma especificação independente ou a uma extensão de arquivo que substitui HTML. Mudanças de classe, inserção de nós, exibição e ocultação de blocos e validação visual são exemplos. A **manipulação local do DOM** pode ocorrer sem contato com servidor; por outro lado, uma requisição Ajax pode receber dados sem alterá-lo automaticamente. DHTML descreve a interface dinâmica; Ajax descreve trocas assíncronas com serviços. jQuery facilita ambos, mas não é condição necessária para nenhum deles.\n\n**Armadilha final:** um documento exibido sem recarregamento não prova que a operação seja exclusivamente client-side. É preciso verificar se dados chegaram de uma requisição assíncrona ou se a mudança foi apenas DOM/CSS. Da mesma forma, DOM é uma API estruturada de documentos, não um sinônimo de banco de dados e tampouco de linguagem JavaScript."
+    },
+    {
+      "title": "Zend/Laminas, Drupal, APIs e arquitetura integrada",
+      "markdown": "## 1. Framework, CMS e bibliotecas\n\nUm **framework** propõe componentes e convenções para estruturar aplicações; um **CMS** é uma plataforma orientada à gestão e publicação de conteúdo, normalmente extensível por módulos. Não são categorias absolutamente excludentes: um CMS pode usar bibliotecas e subsistemas semelhantes aos de frameworks. Um sistema web em PHP pode combinar um roteador, controladores, serviços, acesso a dados, templates e autenticação, mas cada projeto deve definir fronteiras claras. A separação usual é: navegador encaminha a requisição, roteador seleciona o endpoint, controlador organiza a chamada, serviço aplica regra de negócio, repositório persiste dados e serializer produz a resposta.\n\n## 2. Zend Framework e o projeto Laminas\n\n**Zend Framework** foi um framework de componentes PHP bastante presente em bibliografia antiga de concursos. O projeto teve sua continuidade reorganizada no ecossistema **Laminas**, incluindo ferramentas para apoiar migração de dependências e namespaces. A relação histórica não significa que uma aplicação Zend antiga se torne automaticamente compatível com qualquer versão recente de PHP, sem revisão de código e de pacotes. Ao encontrar a expressão 'Zend Framework' no edital, reconheça a arquitetura MVC e componentes reutilizáveis; em sistemas atuais, verifique as contrapartes e a documentação do Laminas.\n\nMVC distingue responsabilidades: **Model** trata dados e domínio; **View** apresenta resultados; **Controller** coordena requisições e respostas. É um padrão de separação lógica, não uma obrigação de uma query SQL específica por controlador. Camadas adicionais, como serviços e repositórios, são comuns. Gerenciamento de dependências, injeção de dependências e configuração centralizada ajudam a substituir implementações sem misturar a lógica de HTTP com a persistência. Framework não torna uma aplicação segura por simples instalação: autenticação, validação e atualização de dependências continuam essenciais.\n\n## 3. Drupal e APIs de conteúdo\n\n**Drupal** é um CMS extensível construído sobre tecnologias PHP. Seu conteúdo é organizado em entidades, tipos de conteúdo, campos e mecanismos de configuração e permissões; módulos acrescentam ou alteram funcionalidades. O desenvolvimento de módulos requer reconhecer rotas, serviços, permissões, plugins, eventos e camadas de renderização conforme a versão. Nunca trate uma interface de administração como prova de que todos os dados estão disponíveis publicamente. Uma API de conteúdo deve respeitar o modelo de permissões e a possibilidade de campos restritos.\n\nO **JSON:API** do núcleo Drupal expõe recursos centrados nas entidades e nos campos, seguindo a especificação JSON:API. O módulo REST do núcleo é uma alternativa com características e configuração próprias: **JSON:API e REST não são o mesmo módulo**. Uma implementação pode atender cenários headless/decoupled: o Drupal gerencia conteúdo e expõe interfaces, enquanto um frontend separado consome os recursos. Isso não obriga a abandonar renderização tradicional pelo servidor; os modelos podem coexistir. Recursos de escrita dependem de configuração e permissões, não apenas de o endpoint ser conhecido.\n\n## 4. Exemplo de integração ponta a ponta\n\nImagine uma pesquisa de usuários em painel administrativo. No navegador, um formulário captura o termo; jQuery ou `fetch` envia `GET /api/usuarios?busca=...`; o controlador PHP valida limites; um repositório MySQLi executa `SELECT ... WHERE nome LIKE ?` associando o valor por marcador; a camada HTTP retorna JSON com cabeçalho correto; o navegador recebe, trata falhas e adiciona texto ao DOM com `textContent`/`.text()`. **Cada etapa tem um contrato próprio**: URI e verbo, esquema dos dados, segurança da consulta, controle de acesso e renderização. XML pode substituir JSON em certas integrações; os conceitos não ficam fundidos.\n\nPara atualização de perfil, `PATCH` pode descrever alteração parcial de recurso, mas o servidor deve verificar autenticação, autorização, regras de negócio e proteção CSRF quando aplicável. O corpo JSON não é automaticamente convertido em `$_POST`; convém ler e validar a entrada. Falhas esperadas de validação devem retornar respostas HTTP adequadas, sem confundi-las com erro interno 500. Logs do servidor precisam ser informativos sem expor dados pessoais. Testes podem isolar serviço, repositório e endpoint; testes de integração precisam considerar banco real ou substitutos controlados.\n\n## 5. Comparativos de alto rendimento para concursos\n\n| Assunto | Distinção importante |\n|---|---|\n| PHP × JavaScript no browser | PHP normalmente produz resposta no servidor; JavaScript manipula interface no cliente |\n| Ajax × REST | Ajax é técnica de comunicação do cliente; REST é estilo arquitetural de APIs |\n| JSON × XML | JSON usa objetos/arrays; XML usa elementos, atributos e namespaces |\n| DOM × DHTML | DOM é representação/API do documento; DHTML é combinação histórica de tecnologias de interface dinâmica |\n| MySQLi × PDO | São interfaces de acesso a banco distintas; MySQLi é voltada ao MySQL |\n| Zend × Laminas | Relação histórica de continuidade e migração de componentes |\n| Drupal × jQuery | Drupal é CMS; jQuery é biblioteca JavaScript no navegador |\n| JSON:API × módulo REST Drupal | Implementações distintas do núcleo com escopos e configurações próprios |\n\nA prova pode misturar níveis para construir uma pegadinha: afirmar que `$().ajax()` roda diretamente no interpretador PHP, que a API REST exige XML, que o DOM é banco de dados ou que `prepare()` por si executa uma transação. Reconstrua o fluxo **cliente → HTTP → controlador PHP → banco/serviço → HTTP → DOM**. Essa sequência resolve grande parte das inversões conceituais sem exigir memorização superficial."
+    }
+  ],
+  "summary": "**Visão de prova:** PHP processa requisições no servidor e pode devolver HTML, XML ou JSON; JavaScript executado no navegador usa Ajax, com `XMLHttpRequest`, `fetch` ou jQuery, para consultar serviços e atualizar o DOM sem navegação completa. No PHP, distinga `$_GET`, `$_POST`, leitura de JSON em `php://input`, tipos, comparação estrita e escape contextual. No PHP 8, destaque `match`, tipos união, argumentos nomeados, nullsafe e atributos; versões posteriores introduzem enums, fibers, classes readonly, constantes tipadas e property hooks. Para MySQL, **MySQLi não é PDO**: parâmetros preparados protegem valores, não identificadores SQL, e transações requerem confirmação ou desfazimento conforme suporte. Em HTTP, `GET` é seguro, `PUT` é idempotente e `PATCH` trata alterações parciais; CORS não substitui autenticação. Em XML, bem-formação difere de validação, e namespaces distinguem vocabulários; JSON é formato distinto. Em jQuery, `.on()` com seletor de descendente delega eventos, `.text()` não interpreta marcação e `dataType` não é `contentType`. DHTML refere-se à composição dinâmica de HTML, CSS, JS e DOM. Drupal é CMS, Zend Framework teve continuidade no Laminas e REST/JSON:API não são sinônimos.",
+  "flashcards": [
+    {
+      "front": "Onde normalmente é executado o código PHP de uma aplicação web?",
+      "back": "No servidor; o navegador recebe a resposta produzida, como HTML ou JSON, não o código-fonte PHP processado."
+    },
+    {
+      "front": "Quando usar $_GET e quando usar $_POST?",
+      "back": "Para parâmetros de consulta e dados de formulários tradicionais correspondentes; corpo JSON bruto requer leitura e decodificação próprias."
+    },
+    {
+      "front": "Qual é a função de php://input em uma API?",
+      "back": "Disponibilizar o corpo bruto da requisição para interpretação, por exemplo com json_decode ao receber JSON."
+    },
+    {
+      "front": "O que distingue == de === no PHP?",
+      "back": "=== compara tipo e valor; == permite coerções de tipo conforme regras da linguagem."
+    },
+    {
+      "front": "O que ocorre quando uma chave existe com valor null no isset?",
+      "back": "isset retorna falso; array_key_exists pode comprovar que a chave realmente existe."
+    },
+    {
+      "front": "Como produzir texto seguro em HTML a partir de entrada?",
+      "back": "Escapar para o contexto HTML, por exemplo com htmlspecialchars e parâmetros adequados."
+    },
+    {
+      "front": "O que mudou com match no PHP 8.0?",
+      "back": "Expressão com comparação estrita, sem fall-through; sem caso compatível ou default, pode lançar UnhandledMatchError."
+    },
+    {
+      "front": "Qual a função do operador ?->?",
+      "back": "Interromper acesso encadeado quando um alvo for null; não captura exceções genéricas."
+    },
+    {
+      "front": "Quais recursos entraram no PHP 8.1?",
+      "back": "Enums e fibers estão entre as novidades; fibers não representam paralelismo automático."
+    },
+    {
+      "front": "O que são classes readonly do PHP 8.2?",
+      "back": "Classes cujas propriedades de instância obedecem às regras de readonly; isso não equivale à imutabilidade profunda."
+    },
+    {
+      "front": "Quais recursos marcam PHP 8.3 e 8.4?",
+      "back": "8.3: constantes tipadas de classe; 8.4: property hooks e visibilidade assimétrica."
+    },
+    {
+      "front": "O que é a API MySQLi?",
+      "back": "Uma interface PHP para MySQL, utilizável em estilo procedural ou orientado a objetos; distinta de PDO."
+    },
+    {
+      "front": "Para que servem ? em prepared statements MySQLi?",
+      "back": "Para associar valores, e não nomes arbitrários de colunas, tabelas ou palavras-chave SQL."
+    },
+    {
+      "front": "O que fazem prepare, bind_param e execute?",
+      "back": "Preparam o comando, vinculam parâmetros e executam a instrução, respectivamente."
+    },
+    {
+      "front": "Por que utilizar transações?",
+      "back": "Para agrupar alterações relacionadas, confirmando com commit ou revertendo alterações transacionais pendentes com rollback."
+    },
+    {
+      "front": "Ajax precisa usar XML?",
+      "back": "Não. O nome é histórico; XML, JSON, texto ou outros formatos podem ser intercambiados por requisições assíncronas."
+    },
+    {
+      "front": "O fetch rejeita automaticamente por HTTP 404?",
+      "back": "Não necessariamente: deve-se verificar response.ok ou status; rejeição é típica de falhas de rede."
+    },
+    {
+      "front": "Quais são os componentes de uma origem web?",
+      "back": "Esquema, host e porta. Alterar qualquer um pode estabelecer origem diferente."
+    },
+    {
+      "front": "O que caracteriza uma API REST stateless?",
+      "back": "Cada requisição carrega contexto suficiente para processamento; a restrição não proíbe banco persistente."
+    },
+    {
+      "front": "Qual é a diferença entre PUT e PATCH?",
+      "back": "PUT substitui/cria representação no recurso-alvo e é idempotente; PATCH aplica modificações parciais, sem idempotência garantida."
+    },
+    {
+      "front": "Qual diferença entre XML bem formado e válido?",
+      "back": "Bem formado segue regras de sintaxe XML; válido também satisfaz restrições de um esquema, como DTD ou XSD."
+    },
+    {
+      "front": "Como delegar evento com jQuery?",
+      "back": "Usar .on(evento, seletorDescendente, handler) em um ancestral estável para atender elementos dinâmicos."
+    },
+    {
+      "front": "Qual diferença entre dataType e contentType em $.ajax?",
+      "back": "dataType indica o tipo de resposta esperado; contentType informa a mídia do corpo enviado."
+    },
+    {
+      "front": "Como diferenciar Zend/Laminas e Drupal?",
+      "back": "Zend/Laminas refere-se a framework e componentes PHP; Drupal é CMS extensível com módulos e APIs, incluindo JSON:API."
+    }
+  ],
+  "tips": [
+    "Desenhe o fluxo navegador → HTTP → PHP → MySQLi → JSON → DOM; localize em que camada cada comando atua.",
+    "Leia códigos PHP 8 atentos a comparações estritas no match, valores null, argumentos nomeados e subversão exata.",
+    "Em MySQLi, marque a diferença entre preparar, vincular, executar, buscar e confirmar transação.",
+    "Identifique em $.ajax o sentido dos dados: dataType da resposta e contentType da requisição.",
+    "Separe quatro conceitos que costumam aparecer misturados: Ajax, REST, XML/JSON e DOM/DHTML.",
+    "Em frameworks e CMS, procure a função da camada, do serviço e do modelo de permissões; evite decorar siglas fora do contexto."
+  ],
+  "traps": [
+    "POST não implica criptografia; apenas HTTPS protege o transporte e controle de acesso continua necessário.",
+    "Placeholder ? em consulta preparada não substitui nome de tabela, coluna ou palavra-chave SQL.",
+    "readonly não significa imutabilidade profunda de objetos referenciados e fibras não produzem paralelismo automático.",
+    "Um 404 recebido por fetch não equivale, por si só, à rejeição da Promise.",
+    "CORS não autentica usuários, não autoriza operações de negócio e não substitui prevenção de CSRF/XSS.",
+    "O método .html() interpreta marcação; para mostrar texto externo literalmente, prefira .text() ou textContent.",
+    "DHTML pode ser inteiramente local; Ajax não exige XML; JSON:API e módulo REST são componentes diferentes no Drupal."
+  ],
+  "activeRecall": [
+    {
+      "question": "Um JSON enviado por POST é automaticamente disponibilizado como array em $_POST? Explique.",
+      "answer": "Não. Para corpo application/json, leia a entrada bruta, decodifique o JSON e valide os campos; $_POST atende principalmente formulários tradicionais."
+    },
+    {
+      "question": "Quando se aplica escape HTML e quando se aplica parametrização SQL?",
+      "answer": "Escape HTML ao imprimir texto em contexto HTML; instruções preparadas com parâmetros ao incorporar valores às consultas SQL. São defesas diferentes."
+    },
+    {
+      "question": "Quais são três diferenças entre match e switch em PHP?",
+      "answer": "match é expressão que devolve valor, usa comparação estrita e não apresenta fall-through; sem braço compatível nem default, lança UnhandledMatchError."
+    },
+    {
+      "question": "Por que ORDER BY ? não é a solução para ordenar por coluna escolhida pelo usuário?",
+      "answer": "Porque placeholders representam valores, não identificadores SQL; escolha colunas/direções de uma lista permitida e parametrize filtros."
+    },
+    {
+      "question": "O que é necessário conferir após uma requisição fetch que recebeu status 500?",
+      "answer": "Verificar ok/status e tratar o erro HTTP; o recebimento de um objeto Response não implica sucesso da operação."
+    },
+    {
+      "question": "Como uma API REST pode ser stateless e ter banco de dados?",
+      "answer": "A restrição diz respeito ao estado de sessão de aplicação entre requisições; o estado persistente dos recursos pode ficar no banco."
+    },
+    {
+      "question": "Qual a diferença entre elemento XML bem formado, documento válido e elemento em namespace?",
+      "answer": "Bem-formação diz respeito à sintaxe; validade ao esquema; namespace identifica o vocabulário do nome expandido, não apenas seu prefixo."
+    },
+    {
+      "question": "Como atender cliques em botões criados depois do carregamento e proteger o texto retornado?",
+      "answer": "Delegue eventos com .on em ancestral estável e use .text() ou textContent para conteúdo textual não confiável; valide permissões no backend."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "PHP, transporte e tipos",
+      "summary": "Confundir execução no servidor com navegador, tratamento de corpo JSON com $_POST, igualdade estrita com flexível e existência de chave com valor não nulo."
+    },
+    {
+      "key": "e2",
+      "title": "Recursos e versões do PHP 8",
+      "summary": "Trocar versões de enums, match, argumentos nomeados e property hooks; supor que nullsafe captura exceções e que readonly congela recursivamente objetos."
+    },
+    {
+      "key": "e3",
+      "title": "Segurança por contexto",
+      "summary": "Achar que HTTPS valida arquivo, que POST cifra dados, que prepared statement faz autorização ou que escape SQL impede injeção de HTML."
+    },
+    {
+      "key": "e4",
+      "title": "MySQLi e SQL parametrizado",
+      "summary": "Usar ? para identificadores, confundir prepare com execute, supor que rollback reverte qualquer DDL ou que PDO e MySQLi são a mesma interface."
+    },
+    {
+      "key": "e5",
+      "title": "Ajax, REST, XML e semântica HTTP",
+      "summary": "Exigir XML em Ajax, confundir status HTTP com rejeição de fetch, ignorar CORS/origem e tratar bem-formação XML como validade."
+    },
+    {
+      "key": "e6",
+      "title": "jQuery, DHTML e ecossistema PHP",
+      "summary": "Confundir objeto jQuery com DOM nativo, eventos diretos com delegados, dataType com contentType e Zend/Laminas com o CMS Drupal."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em uma configuração web usual, o navegador recebe a resposta gerada pelo script PHP no servidor, mas não executa diretamente o código-fonte PHP encaminhado ao interpretador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O PHP normalmente processa a requisição no servidor e produz HTML, JSON ou outros conteúdos. O navegador recebe a representação resultante, podendo executar JavaScript incluído nela, mas não o código PHP original.",
+      "section": "PHP: fundamentos, requisições e segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API em PHP recebe uma requisição POST com Content-Type application/json e corpo {\"ativo\":true}. Qual procedimento é adequado para obter os dados do corpo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Utilizar exclusivamente $_GET, porque o método POST não fornece corpo ao PHP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Consultar $_FILES, que sempre contém qualquer corpo JSON enviado pelo navegador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ler php://input e decodificar o conteúdo com json_decode, validando os campos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Aplicar htmlspecialchars diretamente ao corpo e tratar o retorno como array PHP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar session_start para converter automaticamente o JSON enviado em $_POST.",
+          "correct": false
+        }
+      ],
+      "explanation": "Corpos enviados como JSON não são automaticamente interpretados como campos tradicionais de formulário em $_POST. Ler o fluxo da requisição, decodificar JSON e validar seu esquema separa o transporte da regra de negócio.",
+      "section": "PHP: fundamentos, requisições e segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar duas variáveis no PHP, o operador === considera valor e tipo, ao contrário de ==, que pode realizar coerções de tipo em determinadas comparações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A comparação estrita exige equivalência de valor e tipo; a comparação não estrita admite conversões conforme as regras da linguagem. Assim, escolher um ou outro operador pode modificar a avaliação de uma condição.",
+      "section": "PHP: fundamentos, requisições e segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço PHP imprime o nome recebido em um elemento de texto HTML. Qual medida é mais diretamente adequada à prevenção de injeção de marcação nesse contexto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Passar a entrada por mysqli_real_escape_string, pois SQL e HTML usam as mesmas regras.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Utilizar json_decode sobre qualquer texto para impedir execução de tags HTML.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas alterar o método HTTP da operação de GET para POST.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar CSS, pois marcação HTML injetada depende necessariamente de estilos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar htmlspecialchars ao texto com parâmetros adequados para a codificação e as aspas.",
+          "correct": true
+        }
+      ],
+      "explanation": "O escape deve respeitar o contexto de saída. htmlspecialchars protege a exibição textual em HTML ao codificar caracteres especiais; escape SQL, escolha do verbo HTTP e desabilitação de CSS não resolvem essa finalidade.",
+      "section": "PHP: fundamentos, requisições e segurança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como campos transmitidos pelo método POST não aparecem normalmente na barra de endereços, o uso de POST, mesmo sem HTTPS, garante o sigilo do conteúdo contra interceptação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "POST define a forma e a semântica da requisição, não um mecanismo criptográfico. Sem proteção de transporte, o corpo pode ser interceptado; HTTPS é essencial para confidencialidade e integridade durante a transmissão.",
+      "section": "PHP: fundamentos, requisições e segurança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao implementar autenticação em PHP, um desenvolvedor precisa armazenar verificadores de senha. Qual é a abordagem apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Armazenar hashes produzidos por password_hash e verificar com password_verify.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Guardar a senha recebida em texto puro e protegê-la apenas com permissões do banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar json_encode como criptografia irreversível de senhas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenar a senha em um cookie legível pelo JavaScript para comparação futura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar htmlspecialchars à senha e salvar o resultado como hash criptográfico.",
+          "correct": false
+        }
+      ],
+      "explanation": "password_hash e password_verify foram concebidas para armazenamento e checagem de senhas. Serialização JSON e escape HTML não são algoritmos de hash de senha; texto puro e exposição em cookies aumentam o risco.",
+      "section": "PHP: fundamentos, requisições e segurança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em arrays PHP, array_key_exists pode indicar a presença de uma chave cujo valor é null, enquanto isset considera essa posição como não definida para seu teste de não nulidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "array_key_exists investiga a existência da chave; isset exige que a variável ou posição exista e não tenha valor null. A diferença importa quando null representa um valor de negócio distinto de campo ausente.",
+      "section": "PHP: fundamentos, requisições e segurança",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um upload tratado por um endpoint PHP, qual afirmação representa um cuidado indispensável com $_FILES?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confiar integralmente na extensão do nome, pois o PHP já verificou o conteúdo binário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Assumir que qualquer arquivo enviado em HTTPS é seguro para execução no servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Utilizar a pasta pública como destino irrestrito para arquivos de tipos executáveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Validar o arquivo no servidor, sem presumir confiáveis o nome e o tipo informado pelo cliente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Interpretar automaticamente o valor de $_FILES como um documento XML bem formado.",
+          "correct": false
+        }
+      ],
+      "explanation": "$_FILES fornece metadados e referências ao upload, mas dados declarados pelo cliente podem ser falsos. Verificações de tamanho, tipo real, destino e permissões cabem ao servidor; HTTPS não valida a segurança do arquivo.",
+      "section": "PHP: fundamentos, requisições e segurança",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O construto match do PHP 8 faz comparações estritas entre o valor avaliado e as condições dos braços, evitando a queda implícita entre casos típica de um switch sem break.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "match é uma expressão que seleciona o braço por comparação estrita e retorna seu resultado. Não depende de break para impedir execução dos braços seguintes; essa distinção evita erros em comparação e fluxo.",
+      "section": "PHP 8: linguagem, orientação a objetos e evolução",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PHP 8, a chamada relatorio(limite: 10, formato: \"csv\") exemplifica qual recurso da linguagem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Parâmetros variáveis de uma string de conexão do MySQLi.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Argumentos nomeados, associados aos nomes dos parâmetros definidos na função.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Sintaxe obrigatória para criar objetos por meio de reflexão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Atributos de classe definidos entre delimitadores #[...].",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Associação de eventos JavaScript a elementos HTML.",
+          "correct": false
+        }
+      ],
+      "explanation": "A sintaxe nome: valor na chamada permite vincular argumentos aos parâmetros por nome, em vez de depender somente da posição. Não é decoração por atributo, configuração de banco nem mecanismo de evento no navegador.",
+      "section": "PHP 8: linguagem, orientação a objetos e evolução",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O operador ?-> do PHP intercepta qualquer exceção lançada durante a chamada de um método e devolve null, inclusive quando o objeto à esquerda não é nulo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O acesso nullsafe interrompe o encadeamento quando o alvo é null. Ele não é mecanismo geral de tratamento de exceções e não substitui try/catch; uma falha ocorrida dentro de método chamado pode continuar sendo lançada.",
+      "section": "PHP 8: linguagem, orientação a objetos e evolução",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja modelar em PHP um conjunto fechado de estados de pedido com um tipo próprio, introduzido na família PHP 8. Qual recurso e versão correspondem corretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fiber, introduzida no PHP 8.0 para declarar conjuntos fixos de estados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Classe readonly, introduzida no PHP 8.0 como enumeração de valores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Enum, introduzida no PHP 8.1.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Property hook, introduzido no PHP 8.1 para substituir tipos enumerados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Namespace, criado no PHP 8.4 exclusivamente para estados fechados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Enums foram adicionadas no PHP 8.1 e permitem expressar casos definidos por um tipo. Fibers coordenam suspensão, classes readonly restringem mudanças em propriedades e namespaces organizam identificadores.",
+      "section": "PHP 8: linguagem, orientação a objetos e evolução",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Fibers, incorporadas ao PHP 8.1, fazem todo código que as utiliza executar automaticamente em paralelo em núcleos diferentes de processador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Fibers oferecem pontos de suspensão e retomada cooperativa de execução. Seu uso não cria, por si, threads paralelas nem executa automaticamente tarefas em múltiplos núcleos; a arquitetura de agendamento é outra questão.",
+      "section": "PHP 8: linguagem, orientação a objetos e evolução",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Considere o uso de match($codigo) em PHP 8, sem default e sem braço compatível com o valor informado. Qual resultado é esperado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O primeiro braço é executado porque match usa seleção por aproximação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O valor null é sempre retornado silenciosamente por definição da linguagem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Todos os braços são executados até aparecer uma instrução break.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A expressão é transformada automaticamente em um switch com coerção de tipos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É lançada uma exceção de erro do tipo UnhandledMatchError.",
+          "correct": true
+        }
+      ],
+      "explanation": "Sem caso correspondente e sem default, match não produz um valor alternativo implícito: ocorre UnhandledMatchError. A expressão não apresenta fall-through e suas comparações seguem igualdade estrita.",
+      "section": "PHP 8: linguagem, orientação a objetos e evolução",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Declarar uma propriedade PHP como readonly implica congelar recursivamente todos os objetos e arrays que possam ser alcançados por meio dela, impedindo qualquer alteração interna.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "readonly restringe reatribuições da propriedade nos termos da linguagem, mas não equivale a imutabilidade profunda de objetos referenciados. O conteúdo interno de um objeto apontado pela propriedade pode continuar mutável.",
+      "section": "PHP 8: linguagem, orientação a objetos e evolução",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma banca compara recursos adicionados em subversões distintas do PHP 8. Qual correspondência está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "PHP 8.3 acrescentou constantes de classe com tipos declarados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "PHP 8.0 introduziu property hooks como mecanismo obrigatório em todas as propriedades.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PHP 8.1 inaugurou argumentos nomeados apenas para métodos estáticos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PHP 8.2 retirou totalmente o suporte ao operador nullsafe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PHP 8.4 foi a primeira versão a oferecer o construto match.",
+          "correct": false
+        }
+      ],
+      "explanation": "As constantes tipadas de classe chegaram no PHP 8.3. Argumentos nomeados, match e operador nullsafe já existiam no PHP 8.0, enquanto property hooks foram introduzidos posteriormente, no PHP 8.4.",
+      "section": "PHP 8: linguagem, orientação a objetos e evolução",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A extensão MySQLi do PHP admite API orientada a objetos e API procedural para interagir com servidores MySQL, sendo distinta da interface PDO.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O mesmo conjunto de funcionalidades essenciais da MySQLi pode ser acessado em estilos procedural e orientado a objetos. PDO é outra interface, baseada em drivers, e suas classes não são aliases intercambiáveis de MySQLi.",
+      "section": "MySQLi: consultas, parâmetros e transações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No MySQLi, após preparar SELECT id FROM usuarios WHERE email = ?, o que deve ser associado ao marcador de posição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma instrução SQL inteira que substitua a cláusula SELECT.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um nome de tabela arbitrário para compor a estrutura da consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um operador ORDER BY fornecido diretamente na forma de parâmetro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um valor de parâmetro, por exemplo uma string de e-mail, antes da execução.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O nome da coluna selecionada, dispensando indicação prévia no texto SQL.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os marcadores de uma instrução preparada representam valores, não elementos estruturais como tabela, coluna ou palavras-chave. A consulta já define sua estrutura e os parâmetros são vinculados separadamente.",
+      "section": "MySQLi: consultas, parâmetros e transações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A chamada $mysqli->prepare($sql) prepara a instrução, mas não equivale, por si só, a executar imediatamente a consulta e receber suas linhas como resultado final.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Preparação e execução são etapas distintas. O método prepare cria a instrução preparada; a execução ocorre com execute e, quando cabível, a aplicação obtém e percorre o resultado posteriormente.",
+      "section": "MySQLi: consultas, parâmetros e transações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação aceita o nome da coluna usada em ORDER BY. Qual estratégia é mais segura em MySQLi?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Passar o nome de coluna como argumento de bind_param em ORDER BY ?.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mapear a escolha para uma lista permitida de identificadores SQL e parametrizar separadamente os valores de filtro.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Concatenar sem validação o nome recebido porque apenas valores numéricos causam injeção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar ORDER BY por eval do valor recebido e executar o resultado no PHP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Enviar a coluna em um cookie, pois dados em cookies não podem ser adulterados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Placeholders não substituem identificadores SQL. Para uma ordenação dinâmica, a aplicação seleciona apenas colunas e direções explicitamente permitidas; filtros de dados seguem como parâmetros preparados.",
+      "section": "MySQLi: consultas, parâmetros e transações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O método rollback de uma transação MySQLi garante, sem qualquer condição, desfazer comandos de definição de esquema que provoquem confirmação implícita no servidor de banco de dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O desfazimento depende do suporte transacional das operações e do mecanismo de armazenamento. Certos comandos de definição de dados podem produzir confirmação implícita e não se comportam como alterações comuns reversíveis.",
+      "section": "MySQLi: consultas, parâmetros e transações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script PHP pretende debitar e creditar valores em contas diferentes, exigindo que alterações transacionais confirmadas ocorram como uma unidade lógica. Qual sequência se alinha a essa intenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar cada UPDATE antes de validar a segunda operação, para assegurar atomicidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir a transação por dois echo consecutivos que exibam o saldo esperado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Iniciar transação, executar e conferir as duas alterações e confirmar; em caso de falha, efetuar rollback.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Executar os dois comandos apenas no navegador, sem acesso ao banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Utilizar exclusivamente SELECT com autocommit para produzir as alterações definitivas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A transação deve reunir as mudanças relacionadas, com commit somente após a verificação das condições necessárias. Rollback é o caminho de falha para alterações transacionais pendentes, respeitadas as limitações do banco.",
+      "section": "MySQLi: consultas, parâmetros e transações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como MySQLi oferece prepared statements, toda aplicação que utiliza essa extensão está automaticamente protegida contra falhas de autorização, exposição de dados e XSS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Consultas parametrizadas reduzem riscos de injeção SQL quando usadas corretamente, mas não aplicam permissões de usuário nem protegem a renderização HTML. Segurança depende de controles distintos em cada camada.",
+      "section": "MySQLi: consultas, parâmetros e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um desenvolvedor documenta mysqli::execute_query() como método presente desde a primeira versão do PHP 8.0. Em relação à disponibilidade do recurso, qual análise é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A documentação está correta: o método existe exclusivamente no PHP 8.0 e foi removido depois.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A documentação está correta porque todos os métodos de MySQLi surgiram simultaneamente no PHP 8.0.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A documentação está incorreta porque execute_query pertence apenas ao JavaScript do navegador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A documentação está incorreta porque MySQLi nunca admite parâmetros em consultas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A documentação está incorreta: o método de conveniência foi disponibilizado a partir do PHP 8.2.",
+          "correct": true
+        }
+      ],
+      "explanation": "mysqli::execute_query é uma facilidade introduzida no PHP 8.2, e não um requisito universal do PHP 8.0. Diferenciar disponibilidade por versão evita presumir que todos os ambientes de PHP 8 suportam o mesmo método.",
+      "section": "MySQLi: consultas, parâmetros e transações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A adoção de Ajax obriga a transportar dados em XML e a utilizar XMLHttpRequest, sendo incompatível com JSON e com a API Fetch.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O nome Ajax tem origem histórica, mas a técnica de comunicação assíncrona pode transportar JSON ou outros dados. Fetch é uma API atual de requisições, e o uso de XML ou da interface XMLHttpRequest não é obrigatório.",
+      "section": "Ajax, HTTP, REST, XML e JSON",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma página executa fetch(\"/api/item/9\") e o servidor retorna HTTP 404 com corpo JSON válido. Qual comportamento deve ser considerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A Promise de fetch pode ser resolvida; o código precisa verificar response.ok ou status para detectar o erro HTTP.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A Promise será sempre rejeitada antes de disponibilizar um objeto Response.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O navegador converterá automaticamente 404 em resposta 200 para qualquer corpo JSON.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O método json() retornará sempre uma exceção porque 404 proíbe corpos de resposta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O protocolo HTTP exige que o navegador recarregue toda a página ao receber 404.",
+          "correct": false
+        }
+      ],
+      "explanation": "Fetch distingue falhas de rede de respostas HTTP com status de erro. Um 404 pode produzir um objeto Response, e a aplicação deve conferir status ou ok antes de confiar no resultado da operação.",
+      "section": "Ajax, HTTP, REST, XML e JSON",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na análise de mesma origem do navegador, uma mudança apenas na porta da URL já é suficiente para caracterizar origem distinta, mesmo quando esquema e host permanecem iguais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Origem é definida pela combinação de esquema, host e porta. Se um desses componentes difere, a requisição pode tornar-se cross-origin, sujeita às regras do navegador e à eventual política CORS aplicável.",
+      "section": "Ajax, HTTP, REST, XML e JSON",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa alterar apenas o campo telefone de um recurso de usuário, sem necessariamente substituir toda a sua representação. Qual método HTTP expressa diretamente a semântica de atualização parcial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "GET, porque toda alteração parcial deve ser tratada como leitura segura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "HEAD, pois esse método sempre envia modificações no corpo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "OPTIONS, que substitui parcialmente recursos por definição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PATCH.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "TRACE, que registra alterações persistentes em entidades.",
+          "correct": false
+        }
+      ],
+      "explanation": "PATCH é destinado a aplicar modificações parciais a um recurso. GET e HEAD são métodos de consulta, OPTIONS trata de possibilidades de comunicação e TRACE não define atualização persistente de recurso.",
+      "section": "Ajax, HTTP, REST, XML e JSON",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em XML, um documento pode ser bem formado por respeitar a sintaxe e o aninhamento de elementos sem que tenha sido validado contra uma DTD ou um XML Schema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Bem-formação diz respeito a regras sintáticas como raiz única, marcação compatível e fechamento correto. Validação exige comparar o documento com restrições adicionais de um esquema; são verificações diferentes.",
+      "section": "Ajax, HTTP, REST, XML e JSON",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Considere dois elementos XML com o mesmo nome local cadastro, mas pertencentes a namespaces distintos. Qual informação diferencia adequadamente a identidade dos elementos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A ordem de aparição dos elementos, independentemente de seus namespaces.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A URI do namespace associada ao nome local de cada elemento.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O texto literal do prefixo, mesmo sem declaração de namespace.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A extensão do arquivo XML em que os elementos foram inseridos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A quantidade de atributos id presentes em todo o documento.",
+          "correct": false
+        }
+      ],
+      "explanation": "O nome expandido XML considera o namespace associado e o nome local. Prefixos são aliases ligados a URIs; trocar apenas um prefixo mantendo a URI não muda a identidade expandida do elemento.",
+      "section": "Ajax, HTTP, REST, XML e JSON",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao tratar XML externo sem controle de entidades, habilitar indevidamente a expansão de entidades externas pode criar exposição a leitura de recursos e ataques do tipo XXE.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Parsers XML requerem atenção a entidades externas e acesso a arquivos ou recursos de rede. A substituição ou resolução indevida de entidades pode provocar XXE, razão pela qual o processamento de XML não confiável precisa de configuração segura.",
+      "section": "Ajax, HTTP, REST, XML e JSON",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint PHP usa json_decode($texto, true) em uma string JSON contendo um objeto. Qual é o efeito esperado do segundo argumento nessa chamada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter todo objeto JSON em documento DOM XML automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Garantir que qualquer texto malformado se torne uma estrutura válida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Decodificar objetos JSON como arrays associativos do PHP.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Criptografar os dados antes de carregá-los na memória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar chaves do JSON como código PHP no servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com o modo associativo habilitado, objetos JSON são normalmente decodificados como arrays associativos PHP. Decodificar não é validar esquema, criptografar, executar código nem converter automaticamente para XML.",
+      "section": "Ajax, HTTP, REST, XML e JSON",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em jQuery, a expressão $(\"#painel\") normalmente produz um objeto jQuery que encapsula elementos selecionados, em vez de devolver diretamente o mesmo tipo de objeto nativo retornado por document.querySelector.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A função jQuery produz uma coleção com métodos próprios, como text e on; querySelector retorna diretamente o primeiro Element compatível ou null. Os objetos interagem com o DOM, mas não são o mesmo tipo.",
+      "section": "jQuery, DOM, eventos e DHTML",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Novos botões com a classe excluir são adicionados à lista depois de uma chamada Ajax. Que registro de evento atende tanto os botões existentes quanto os criados posteriormente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "$('.excluir').on('click', function () { /* ação */ }); executado apenas antes da inserção dos novos botões.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "$('#lista').text('click', '.excluir');",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "$('.excluir').removeClass('click');",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "$('#lista').val('click', '.excluir');",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "$('#lista').on('click', '.excluir', function () { /* ação */ });",
+          "correct": true
+        }
+      ],
+      "explanation": "A delegação registra o tratamento em um ancestral estável e filtra eventos propagados a partir de descendentes compatíveis. Ligação direta anterior não alcança automaticamente elementos adicionados depois.",
+      "section": "jQuery, DOM, eventos e DHTML",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O atalho $(function () { ... }) do jQuery é destinado a executar código quando a estrutura DOM está pronta, não exigindo como condição geral o carregamento completo de todas as imagens.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O ready trata da disponibilidade do DOM para manipulação, enquanto o evento load se relaciona ao carregamento de recursos da página. Misturar os eventos pode atrasar desnecessariamente a inicialização da interface.",
+      "section": "jQuery, DOM, eventos e DHTML",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta de API contém a string literal \"<script>alert(1)</script>\", que deve ser exibida como texto para o usuário. Qual método jQuery é preferível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "$(\"#saida\").text(resposta);",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "$(\"#saida\").html(resposta); porque interpreta e neutraliza automaticamente toda marcação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "$(\"#saida\").append(resposta); porque nunca permite interpretar HTML.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "$(\"#saida\").replaceWith(resposta); porque qualquer string será texto inerte.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "$(\"#saida\").load(resposta); porque trata o argumento exclusivamente como texto.",
+          "correct": false
+        }
+      ],
+      "explanation": "O método text insere o valor como conteúdo textual, sem transformá-lo em marcação HTML executável. Operações que interpretam strings como HTML exigem cuidados extras com conteúdo externo para evitar XSS.",
+      "section": "jQuery, DOM, eventos e DHTML",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada feita por $.ajax() devolve sincronicamente, como retorno da função, o JSON final do servidor; por isso não há utilidade para done, fail ou outros callbacks.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A API retorna um objeto jqXHR que representa a operação, e a obtenção dos dados ocorre quando a solicitação é concluída. Callbacks ou métodos de conclusão tratam sucesso e falha de forma assíncrona.",
+      "section": "jQuery, DOM, eventos e DHTML",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma integração configura $.ajax com dataType: \"json\" e contentType: \"application/json\". Qual interpretação distingue corretamente essas propriedades?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambas definem exclusivamente o tipo de banco de dados utilizado pelo PHP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "dataType determina o verbo HTTP, enquanto contentType define o status de resposta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "dataType controla a codificação do arquivo JavaScript, e contentType obriga o retorno a ser XML.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "dataType expressa o formato esperado na resposta; contentType informa o tipo do corpo enviado quando aplicável.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Ambas são sinônimos e só possuem efeito em formulários submetidos sem Ajax.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em jQuery Ajax, dataType orienta a interpretação da resposta e contentType comunica o tipo de mídia do corpo enviado. Confundir direção de entrada e saída provoca incompatibilidades de contrato com a API.",
+      "section": "jQuery, DOM, eventos e DHTML",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Toda alteração dinâmica de aparência de uma página, classificada historicamente como DHTML, exige uma comunicação Ajax prévia com servidor remoto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "DHTML pode resultar apenas de JavaScript alterando DOM e CSS locais, sem nenhuma requisição de rede. Ajax é uma técnica distinta para obter ou enviar dados; as duas abordagens podem coexistir, mas uma não exige a outra.",
+      "section": "jQuery, DOM, eventos e DHTML",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um manipulador de clique jQuery, qual distinção entre event.preventDefault() e event.stopPropagation() está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambos revogam automaticamente as permissões do usuário autenticado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O primeiro busca impedir a ação padrão de evento cancelável; o segundo atua sobre a propagação do evento.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O primeiro interrompe sempre o bubbling; o segundo grava dados de formulário no servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O primeiro desativa JavaScript; o segundo converte o elemento para XML.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ambos têm a única finalidade de remover listeners registrados pelo método off.",
+          "correct": false
+        }
+      ],
+      "explanation": "Impedir o comportamento padrão e alterar a propagação são operações diferentes do sistema de eventos. Nenhuma das duas efetua autorização no backend, persistência automática ou remoção genérica de listeners.",
+      "section": "jQuery, DOM, eventos e DHTML",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O projeto Laminas representa uma continuidade e reorganização histórica de componentes ligados ao Zend Framework, havendo recursos documentados para apoiar migrações de código e dependências.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O ecossistema Zend Framework foi sucedido por projetos sob o nome Laminas, com ferramentas e documentação de migração. Essa relação histórica não assegura atualização automática de sistemas legados nem elimina revisão de compatibilidade.",
+      "section": "Zend/Laminas, Drupal, APIs e arquitetura integrada",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na organização MVC de uma aplicação PHP, qual distribuição de responsabilidades está adequadamente descrita?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Model desenha o CSS; View administra transações do banco; Controller é o navegador do usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Model é sinônimo de JSON; View é o banco MySQL; Controller armazena exclusivamente senhas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Model concentra domínio e dados; View apresenta informações; Controller coordena a interação e a resposta.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Model autentica toda requisição por obrigação; View interpreta PHP no cliente; Controller é a API Fetch.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Model é o protocolo HTTP; View corresponde à porta TCP; Controller substitui consultas preparadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "MVC separa, em termos gerais, dados e regras, apresentação e coordenação de interações. Pode haver camadas extras de serviços e repositórios; o padrão não altera a natureza de PHP, HTTP ou do banco de dados.",
+      "section": "Zend/Laminas, Drupal, APIs e arquitetura integrada",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No núcleo do Drupal, o módulo JSON:API e o módulo REST são exatamente o mesmo componente técnico, apenas apresentados com nomes diferentes nas telas administrativas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O Drupal possui um módulo JSON:API centrado nas entidades e na especificação JSON:API, além de um módulo REST com características próprias. Ambos podem servir integrações, mas não são componentes idênticos.",
+      "section": "Zend/Laminas, Drupal, APIs e arquitetura integrada",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um órgão público deseja disponibilizar a um aplicativo externo determinados conteúdos geridos em Drupal. Qual opção corresponde a uma capacidade documentada do núcleo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Supor que todos os campos privados são públicos porque Drupal usa PHP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Transformar automaticamente cada módulo do Drupal em tabela MySQL acessível pelo navegador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar integralmente o controle de acesso antes de habilitar qualquer endpoint.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Considerar jQuery como o único protocolo disponível para integração com Drupal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Empregar o módulo JSON:API para expor recursos baseados em entidades, sujeitos a permissões.",
+          "correct": true
+        }
+      ],
+      "explanation": "O JSON:API do Drupal expõe recursos de entidades conforme a configuração e as permissões de acesso. Disponibilidade de endpoint não significa liberação indiscriminada de dados, nem impõe jQuery ao consumidor.",
+      "section": "Zend/Laminas, Drupal, APIs e arquitetura integrada",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A restrição stateless de uma interface REST impede que o servidor mantenha dados persistentes em banco de dados entre duas requisições distintas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Stateless significa que cada requisição deve conter o contexto necessário ao seu processamento, sem depender de estado de sessão de aplicação armazenado no servidor. Isso não proíbe recursos persistidos em banco.",
+      "section": "Zend/Laminas, Drupal, APIs e arquitetura integrada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um painel que consulta cadastros, qual encadeamento implementa de forma coerente PHP, MySQLi, Ajax e manipulação segura do DOM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O navegador faz requisição assíncrona; o PHP valida e usa consulta parametrizada; responde JSON; a interface insere campos como texto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O navegador executa o script PHP original e consulta diretamente o arquivo de credenciais do banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A biblioteca jQuery elimina a necessidade de validar permissões e entradas no servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O servidor devolve instruções SQL como HTML e permite que o navegador as execute no MySQL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Toda resposta JSON deve ser processada como XML e inserida por innerHTML sem verificação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A arquitetura separa cliente, HTTP, processamento PHP, consulta segura e renderização. Validações e autorização pertencem ao servidor; a interface deve tratar falhas e apresentar texto externo sem executar marcação.",
+      "section": "Zend/Laminas, Drupal, APIs e arquitetura integrada",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Habilitar CORS em uma API utilizada por um frontend Drupal torna desnecessárias as verificações de autenticação e autorização no servidor para os métodos de leitura e escrita.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "CORS regula condições de acesso de scripts de determinadas origens a respostas no navegador. Não prova identidade, não concede permissão de negócio nem substitui controles de autenticação e autorização da API.",
+      "section": "Zend/Laminas, Drupal, APIs e arquitetura integrada",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma arquitetura headless utiliza Drupal para gestão de conteúdo e um frontend independente para apresentação. Qual caracterização é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A arquitetura exige que toda interface seja produzida obrigatoriamente por jQuery 1.x.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O frontend passa a executar módulos PHP do Drupal como scripts nativos do navegador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Todo acesso a conteúdo deve ocorrer por consultas SQL diretas emitidas pelo browser.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O frontend pode consumir APIs do Drupal, enquanto o CMS permanece responsável por administrar conteúdo e permissões.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A separação elimina a necessidade de versões compatíveis e atualização de módulos.",
+          "correct": false
+        }
+      ],
+      "explanation": "No modelo desacoplado, o frontend consome interfaces de dados e o Drupal administra conteúdo e controles internos. O desenho não dispensa segurança, compatibilidade de componentes nem respeito aos contratos HTTP.",
+      "section": "Zend/Laminas, Drupal, APIs e arquitetura integrada",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "PHP: Escaping from HTML",
+      "publisher": "PHP Documentation Group",
+      "reference": "Manual de sintaxe e mesclagem de PHP com HTML",
+      "url": "https://www.php.net/manual/en/language.basic-syntax.phpmode.php",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PHP 8.0: New Features",
+      "publisher": "PHP Documentation Group",
+      "reference": "Guia oficial de recursos introduzidos no PHP 8.0",
+      "url": "https://www.php.net/manual/en/migration80.new-features.php",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PHP: History of PHP",
+      "publisher": "PHP Documentation Group",
+      "reference": "História e introdução das funcionalidades da série PHP 8",
+      "url": "https://www.php.net/manual/en/history.php",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PHP: Prepared Statements (MySQLi)",
+      "publisher": "PHP Documentation Group",
+      "reference": "Manual de consultas preparadas MySQLi",
+      "url": "https://www.php.net/manual/en/mysqli.quickstart.prepared-statements.php",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PHP: json_decode",
+      "publisher": "PHP Documentation Group",
+      "reference": "Referência da decodificação JSON no PHP",
+      "url": "https://www.php.net/manual/en/function.json-decode.php",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PHP: DOMDocument",
+      "publisher": "PHP Documentation Group",
+      "reference": "Documentação da extensão DOM para manipular XML",
+      "url": "https://www.php.net/manual/en/class.domdocument.php",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Network requests: AJAX",
+      "publisher": "Mozilla / MDN Web Docs",
+      "reference": "Guia de requisições web assíncronas",
+      "url": "https://developer.mozilla.org/pt-BR/docs/Learn_web_development/Core/Scripting/Network_requests",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Cross-Origin Resource Sharing (CORS)",
+      "publisher": "Mozilla / MDN Web Docs",
+      "reference": "Política de origem e compartilhamento de recursos",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "HTTP request methods",
+      "publisher": "Mozilla / MDN Web Docs",
+      "reference": "Semântica de GET, POST, PUT, PATCH e outros métodos",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Methods",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "jQuery: .on() e delegação de eventos",
+      "publisher": "OpenJS Foundation / jQuery",
+      "reference": "Documentação da API de registro e delegação de eventos",
+      "url": "https://api.jquery.com/on/",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Drupal: JSON:API module",
+      "publisher": "Drupal Association",
+      "reference": "Guia oficial do módulo JSON:API do núcleo Drupal",
+      "url": "https://www.drupal.org/docs/core-modules-and-themes/core-modules/jsonapi-module",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Laminas: About the Foundation",
+      "publisher": "Laminas Project",
+      "reference": "Histórico do projeto e migração dos componentes Zend",
+      "url": "https://getlaminas.org/about/foundation",
+      "accessedAt": "2026-11-17"
+    }
+  ]
+}

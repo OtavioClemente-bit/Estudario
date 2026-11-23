@@ -1,0 +1,1946 @@
+{
+  "id": "informatica.automacao-tarefas-administrativas",
+  "subject": "Informática",
+  "title": "Automação de tarefas administrativas com scripts",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Automação de tarefas administrativas com scripts",
+    "Automação de tarefas administrativas com scripts"
+  ],
+  "scope": {
+    "covers": "Fundamentos de scripting; PowerShell e Windows; Bash, Zsh, Linux e macOS; cron, systemd e launchd; arquivos, temporários, instalação de aplicativos e WinGet; relatórios, inventário e monitoração periódica; automação de rede; segurança, CI/CD, GitHub Actions, testes e governança.",
+    "excludes": "Desenvolvimento aprofundado de aplicações web, protocolos de roteamento em nível de engenharia, administração avançada de clusters e instruções para operar dispositivos sem autorização."
+  },
+  "theoryTitle": "Automação de tarefas administrativas com scripts: plataformas, segurança e operação",
+  "chapters": [
+    {
+      "title": "Fundamentos, arquitetura e segurança da automação",
+      "markdown": "## Da tarefa repetitiva ao processo confiável\nAutomação administrativa é a execução programada ou acionada por evento de operações anteriormente manuais: criar pastas, renomear documentos, extrair dados, conferir arquivos, atualizar inventários, registrar eventos e produzir relatórios. **Script** é um programa geralmente textual que orquestra comandos, arquivos e serviços; pode ser escrito em PowerShell, Python, Bash ou Zsh. O script não deve ser confundido com seu **agendador**: ele contém a lógica, ao passo que o agendador determina quando e sob qual identidade executá-la. Da mesma forma, uma **pipeline** integra atividades encadeadas, enquanto um comando isolado pode constituir apenas uma das etapas.\n\nO desenho começa pela identificação de entradas, processamento, saídas, pré-condições e falhas possíveis. Exemplo: ao importar planilhas, validar a existência do diretório de origem, o cabeçalho esperado e a codificação; processar os registros; gerar relatório em caminho conhecido; registrar quantidades e exceções. Não se deve pressupor que o diretório de trabalho atual coincida com o diretório do script: um agendador, um runner de CI ou outra conta de usuário pode iniciar o processo em localização diversa. Caminhos absolutos configuráveis, como argumentos de linha de comando ou variáveis de ambiente, reduzem a ambiguidade.\n\n## Portabilidade, escolha da linguagem e estrutura\nPowerShell é especialmente apropriado à administração Windows, mas dispõe de versões multiplataforma; seu pipeline transmite objetos, não simplesmente linhas de texto. Bash é frequente em Linux e em ambientes de construção; macOS adota Zsh como shell interativo padrão em configurações atuais, sem impedir o uso de Bash quando disponível. Python favorece processamento de dados, APIs e portabilidade, mas a instalação de bibliotecas e os caminhos de execução variam por ambiente. Um arquivo `.ps1` não é um executável de Bash, e a extensão `.sh` não garante por si só permissão de execução no Unix. A linha shebang indica o interpretador pretendido quando o arquivo é executado como programa.\n\nUma estrutura robusta separa configuração, validação, operações e emissão de resultados. Parâmetros devem ter padrões seguros, nomes descritivos e mensagens úteis ao operador. A entrada externa — nome de arquivo, IP, host, URL, opção recebida de formulário — nunca deve ser tratada como confiável. Ao executar processos em Python, prefira `subprocess.run([programa, argumento], check=True, timeout=...)` ao montar uma única linha de comando com entrada não confiável; `shell=True` amplia riscos de interpretação de metacaracteres e exige cuidados específicos. Quando possível, evite invocar shell para operações que bibliotecas nativas já resolvem.\n\n## Confiabilidade operacional\nUma automação **idempotente** tende a produzir o mesmo estado desejado quando executada repetidamente: criar diretório com a opção de aceitar existência prévia e verificar antes de instalar pacote são exemplos. Idempotência não significa que todas as operações tenham retorno idêntico, pois registros de data e métricas podem mudar. É diferente de **reversibilidade**, capacidade de desfazer mudanças, e de **atomicidade**, ideia de concluir uma unidade sem expor estados intermediários inválidos. Operações críticas podem usar arquivo temporário e substituição final no mesmo sistema de arquivos, acompanhadas de validações e recuperação.\n\nDefina códigos de saída: sucesso normalmente é indicado por zero em processos convencionais; um valor diferente de zero informa falha ao invocador. Em Bash, `set -e` não substitui tratamento deliberado de erros e tem exceções contextuais; `set -u` acusa variáveis não definidas; `set -o pipefail` permite refletir falha em algum estágio de pipeline em shells que o suportam. Em PowerShell, erros não terminantes podem demandar `-ErrorAction Stop` ou política explícita para serem tratados por `try/catch`. Em Python, exceções devem ser capturadas nos limites adequados, com log e decisão de reexecutar ou encerrar.\n\n**Privilégio mínimo** é essencial: tarefas devem usar a conta e as permissões estritamente necessárias, com credenciais fornecidas por gerenciador de segredos ou mecanismo autorizado. Senhas embutidas, logs com tokens, comandos de exclusão genéricos, concessão indiscriminada de administrador e desativação de verificações de segurança são defeitos. Mantenha scripts versionados, documentação de dependências, testes, revisão por pares e responsáveis pelo processo. A execução não deve alcançar dados pessoais além dos necessários à finalidade. Em atividades destrutivas, faça cópia de segurança, execução simulada (*dry run*), lista de caminhos candidatos e confirmação quando apropriado.\n\n## Observabilidade e manutenção\nUma automação sem rastreabilidade não equivale a um processo gerenciado. Registre início, fim, duração, quantidade de itens, status, identificador de execução e erros sanitizados. Prefira logs estruturados ou campos estáveis; separe mensagens destinadas a pessoas de saídas destinadas a ferramentas. Dimensione níveis como DEBUG, INFO, WARNING e ERROR; aplique retenção e rotação para que os próprios logs não esgotem o armazenamento. Uma falha transiente de rede pode justificar tentativas com intervalo e limite; arquivo de configuração inválido ou credencial revogada requer correção, não repetição ilimitada. Preserve documentação de execução manual e plano de contingência quando o agendamento falhar."
+    },
+    {
+      "title": "PowerShell e automação administrativa no Windows",
+      "markdown": "## Objetos, comandos e seleção\nPowerShell utiliza **cmdlets** com convenção Verbo-Substantivo, como `Get-ChildItem`, `Get-Process`, `Get-Service`, `Copy-Item`, `Move-Item`, `Remove-Item` e `Get-Content`. O pipeline `|` transmite objetos .NET entre etapas, permitindo selecionar propriedades e filtrar tipos. Por exemplo, `Get-ChildItem -File | Where-Object Length -gt 1MB | Select-Object Name,Length` trabalha com propriedades de arquivos. Comparativamente, canalizações de shells Unix muitas vezes interligam fluxos de bytes ou texto; conversões para objetos podem ser feitas, mas não são a semântica padrão da pipeline tradicional.\n\n`Get-Help` e `Get-Command` auxiliam na descoberta. `-WhatIf`, quando suportado pelo cmdlet ou função, mostra uma estimativa das mudanças sem aplicá-las; não se deve supor que qualquer comando possua essa opção. `-Confirm` solicita confirmação conforme seu suporte e configuração. `-LiteralPath` trata caracteres especiais do caminho como literais; `-Path` em muitos comandos interpreta curingas. A diferença importa ao operar nomes que contenham colchetes ou outros metacaracteres. Para dados CSV, `Import-Csv` produz objetos baseados em cabeçalhos, e `Export-Csv` serializa colunas; `ConvertTo-Json` e `ConvertFrom-Json` conectam scripts a APIs e arquivos de configuração.\n\n## Exceções e execução não assistida\nUsar `try { ... } catch { ... } finally { ... }` facilita tratar exceções terminantes e realizar limpeza. Muitos cmdlets geram erros **não terminantes** por padrão; `-ErrorAction Stop` transforma erros elegíveis em terminantes, permitindo captura pelo `catch`. A variável `$LASTEXITCODE` registra o código de saída de programas nativos após a execução; ela não é a mesma coisa que o resultado booleano `$?` nem um substituto universal para o tratamento de erros em cmdlets. Para subprocessos, verifique a condição apropriada ao executável invocado.\n\nA **política de execução** do PowerShell é um mecanismo de proteção operacional contra execução não intencional de scripts, não uma fronteira de segurança completa. Alterá-la não deve ser apresentado como solução genérica para permissões insuficientes. Arquivos de origem não confiável e comandos baixados da Internet devem passar por avaliação, assinatura quando aplicável e canal de distribuição confiável. Scripts agendados devem funcionar sem prompts interativos e produzir resultados úteis nos fluxos de saída e nos logs.\n\n## Agendamento e identidade de execução\nO **Agendador de Tarefas do Windows** dispara execuções em horários, eventos ou condições configuradas. PowerShell oferece cmdlets como `New-ScheduledTaskAction`, `New-ScheduledTaskTrigger` e `Register-ScheduledTask`; criar uma definição sem registrá-la não a torna automaticamente executada. Uma ação típica informa o executável PowerShell e argumentos que apontem para um `.ps1`. A escolha de conta, permissões, diretório inicial, comportamento quando o computador está inativo, repetição e histórico de execução afeta o resultado. Execuções podem falhar mesmo quando a mesma instrução funciona no terminal do operador, porque a tarefa usa outra identidade ou ambiente.\n\nNo Windows, um agendamento diário e um script em loop permanente são estratégias distintas: o primeiro é supervisionado pelo agendador; o segundo ocupa um processo entre verificações e precisa de mecanismos de parada e recuperação. Agendamentos dependem de políticas e disponibilidade do equipamento. Evite criar tarefas duplicadas em toda execução: teste se já estão registradas e gerencie a configuração como estado desejado.\n\n## Inventário, limpeza e instalação\nUm script de inventário pode consultar serviços, processos, espaço em disco, versões de aplicativos e estado de conectividade, exportando resultados com carimbo temporal. Para limpar arquivos, combine filtro de extensão, idade, diretório permitido e revisão. `Remove-Item -Recurse -Force` é potencialmente destrutivo e não deve ser apontado indiscriminadamente para diretórios de sistema, perfis ou compartilhamentos. Prefira *dry run* e caminhos específicos, valide permissões e não apague arquivos em uso.\n\n**WinGet** é o gerenciador de pacotes da Microsoft para descobrir, instalar, atualizar e remover aplicações em sistemas compatíveis. `winget install --id ...` instala um identificador de pacote quando disponível; `winget upgrade` consulta ou aplica atualizações segundo opções fornecidas. A disponibilidade do WinGet, do pacote, do provedor, das licenças e de interações silenciosas varia conforme instalação, contexto e política organizacional. Uma instalação automatizada deve validar origem, identidade do pacote, código de retorno, necessidade de reinicialização e estado final; não basta disparar o processo e presumir êxito."
+    },
+    {
+      "title": "Linux e macOS: shell, permissões e agendamento",
+      "markdown": "## Bash e Zsh na administração\nAmbientes Unix costumam empregar scripts que encadeiam utilitários como `find`, `grep`, `awk`, `sort`, `date`, `df`, `du`, `tar` e `rsync`, observadas disponibilidade e diferenças entre implementações. Uma variável deve ser geralmente expandida entre aspas, como `\"$arquivo\"`, para evitar divisão acidental em palavras e expansão de curingas. A construção `for f in $(ls ...)` é frágil diante de espaços e nomes atípicos; prefira globbing controlado, `find` com processamento seguro e ferramentas que delimitam nomes por NUL quando necessário. Em scripts Bash, `[[ ... ]]` e arrays oferecem facilidades que não são portáveis para qualquer `/bin/sh`.\n\n`chmod` modifica permissões de arquivo e `chown` altera proprietário quando autorizado. A permissão de execução de um `.sh` não substitui a necessidade de o interpretador estar instalado nem garante acesso aos diretórios e recursos usados. `sudo` eleva privilégios conforme configuração: embutir solicitações de senha em automação não assistida costuma falhar e amplia risco. Contas de serviço, ACLs e configurações de sudo cuidadosamente limitadas são mais adequadas que executar todos os processos como root. `umask` influencia permissões padrão dos arquivos criados.\n\n## Cron, temporizadores e robustez\nNo cron tradicional, uma entrada de crontab do usuário geralmente usa cinco campos de tempo — minuto, hora, dia do mês, mês e dia da semana — seguidos de comando; a sintaxe e os recursos variam por implementação. O cron inicia uma nova execução a cada disparo definido, e não determina automaticamente se outra instância ainda está em andamento. O ambiente disponível é mais restrito que o terminal interativo, motivo para definir caminhos e redirecionamentos corretamente. Cron não garante execução retroativa depois de desligamentos: essa capacidade depende de mecanismos adicionais ou de outro agendador.\n\nEm distribuições com **systemd**, arquivos `.service` descrevem unidades executáveis e `.timer` seus disparos. Diretivas como `OnCalendar=` exprimem calendários, enquanto `OnBootSec=` e `OnUnitActiveSec=` tratam intervalos relativos a eventos. O recurso `Persistent=true`, para timers calendáricos compatíveis, ajuda a disparar serviço cuja ocorrência seria perdida enquanto o temporizador estava inativo; não significa reproduzir cada ocorrência perdida. Verifique `systemctl list-timers`, o estado da unidade e os registros do `journalctl`. Um timer não é intercambiável com cron em qualquer computador, pois systemd pode não ser o gerenciador presente.\n\nPara evitar concorrência, use mecanismos de exclusão mútua ou travamento adequados ao sistema, sem deixar locks eternos após falhas. O agendamento de um backup precisa avaliar duração, espaço, I/O e conectividade; uma janela de disparo não é garantia de término antes da próxima execução. Registre o resultado da cópia, teste restauração e não equipare sincronização destrutiva a backup histórico.\n\n## Particularidades do macOS\nO **Terminal** no macOS permite scripts de shell, geralmente com Zsh para novos usuários, além de ferramentas Unix e Python instalado separadamente conforme necessidade. A Apple documenta o **launchd** como sistema de gerenciamento de tarefas; configurações em listas de propriedades (`.plist`) descrevem trabalhos periódicos ou vinculados a eventos. Diferencie **LaunchAgents**, normalmente associados ao contexto de usuário, de **LaunchDaemons**, voltados a serviços de sistema e executados fora de uma sessão gráfica de usuário. A localização e a identidade da tarefa influenciam permissões e acesso à interface gráfica.\n\nArquivos de propriedades podem incluir informações como `ProgramArguments`, `Label`, `StartCalendarInterval` e caminhos de logs, com requisitos de formato e contexto de carregamento. Um script disparado pelo launchd deve usar caminhos absolutos e interpretar corretamente o usuário efetivo; presumir que funções de shell configuradas no `~/.zshrc` estarão disponíveis é erro típico. Ferramentas de gerenciamento incluem `launchctl` em comandos apropriados à versão do sistema. As políticas de privacidade do macOS, inclusive permissões para pastas protegidas, podem bloquear acessos mesmo que a sintaxe do script esteja correta.\n\n## Pacotes em diferentes plataformas\nNo Linux, gerenciadores como `apt` e `dnf` dependem da distribuição e de seus repositórios; comandos não são automaticamente intercambiáveis. No macOS, o **Homebrew**, quando instalado, gerencia pacotes por fórmulas e aplicativos por casks; não é componente obrigatório do sistema. Validar a origem do repositório, versões, compatibilidade de arquitetura, privilégios e reinício de serviços evita instalações parciais. Inicie testes em ambiente descartável e mantenha procedimentos para retorno à versão anterior. As mudanças em massa exigem inventário, janela de manutenção e possibilidade de rollback."
+    },
+    {
+      "title": "Arquivos, temporários, aplicativos e relatórios",
+      "markdown": "## Manipulação segura de arquivos\nEm Python, `pathlib.Path` representa caminhos e oferece operações como `exists()`, `is_file()`, `iterdir()`, `glob()` e `mkdir()`. `shutil` dá suporte à cópia, movimentação e manipulação de árvores de diretórios. Essas operações respeitam permissões, erros de I/O e diferenças entre sistemas: uma tentativa de copiar ou renomear não é transação garantida. Use validação explícita, tratamento de exceções e checagem de saída. Em nomes que provêm de usuário ou planilha, evite concatenar cegamente segmentos que possam escapar de uma raiz autorizada; verifique resolução de caminho e política para links simbólicos.\n\nOperações recorrentes podem organizar arquivos por data, setor e padrão de nomenclatura. Um padrão seguro usa diretório de entrada **somente leitura**, processamento em área temporária e publicação na saída após validação. Em arquivos grandes, processe em fluxo ou lotes em vez de carregar tudo na memória. `csv.DictReader` interpreta linhas com nomes de colunas; `csv.DictWriter` cria saídas tabulares; `json` serializa estruturas. É necessário definir codificação, delimitador, cabeçalho, linhas inválidas e tratamento de datas. Na geração de CSV para abertura em planilhas, considere riscos de *formula injection* quando células oriundas de entrada não confiável começam com caracteres interpretados como fórmulas.\n\n## Temporários e limpeza\nDiretórios temporários existem para dados transitórios, mas não se deve pressupor que sejam descartáveis sob qualquer condição: aplicativos ativos podem utilizá-los. Em Python, `tempfile.TemporaryDirectory()` fornece contexto que organiza e remove a área temporária ao sair, sujeito a erros e permissões do sistema. Arquivos temporários gerenciados individualmente também têm regras de exclusão e fechamento. Limpeza periódica de temporários administrativos deve limitar-se a uma raiz controlada, filtrar idade e proprietário quando apropriado, excluir arquivos ativos e registrar tudo que seria apagado antes da execução real. A opção *dry run* deve ser o padrão de avaliação inicial.\n\nExcluir o conteúdo indiscriminado de `%TEMP%`, `/tmp` ou de pastas internas de aplicativos pode causar erro ou perda de dados não persistidos. O administrador deve distinguir limpeza **do próprio fluxo**, sob sua responsabilidade, de uma política global de conservação de espaço. `shutil.rmtree()` remove árvore de diretórios e exige extrema cautela, verificação de raiz e, preferencialmente, isolamento de alvos previamente aprovados. Nada disso substitui medidas de recuperação e backup.\n\n## Integridade e implantação de aplicativos\nAo copiar um relatório para pasta compartilhada ou enviar artefato, verifique se o arquivo foi produzido, se seu tamanho é coerente e, quando o caso exigir, se o resumo criptográfico (*hash*) corresponde ao esperado. Hash detecta alteração acidental ou intencional relativa ao valor conhecido, mas **não** comprova, sozinho, a autenticidade do fornecedor: o próprio hash deve ser obtido de canal confiável ou validado por assinatura. Uma atualização automatizada deve observar inventário, origem, versão alvo, compatibilidade e teste pós-instalação. Executar instalador silencioso sem revisar opções pode aceitar parâmetros inadequados ou ocultar falhas.\n\n**Idempotência** em implantação significa verificar estado atual e ajustar apenas desvios; por exemplo, não reinstalar desnecessariamente um aplicativo na versão exigida. Uma transação de arquivo pode seguir a sequência: gerar relatório em caminho temporário na mesma área de destino, validar conteúdo, sincronizar quando necessário e substituir o destino segundo as garantias oferecidas pelo sistema. A substituição atômica depende da operação e do sistema de arquivos, não de mero uso de `move`. Para desfazer alterações em aplicativos, planeje backups ou mecanismos explícitos de rollback, pois a reinstalação não restaura por si só dados anteriores.\n\n## Construção de relatórios operacionais\nUm bom relatório informa período observado, origem dos dados, critérios de filtro, contagem de registros, falhas, itens ignorados e horário de geração. CSV facilita importação para planilhas; JSON expressa dados hierárquicos com tipos; HTML pode apresentar painel estático; texto simples pode servir a ferramentas automáticas. Relatórios periódicos são úteis em auditoria de permissões, inventário de software, acompanhamento de espaço em disco e prestação de contas de rotinas. Dados sensíveis devem ser minimizados ou anonimizados conforme finalidade e autorização, e o destino deve exigir controle de acesso. Em relatórios para máquinas, preserve um esquema estável e evite introduzir texto informal na saída estruturada.\n\nO envio de arquivos por e-mail ou upload não prova seu recebimento ou processamento por quem os consome. Inclua identificador, soma de verificação ou protocolo quando necessário e implemente política de repetição sem envios duplicados. Testes devem contemplar pastas vazias, nomes com acentos e espaços, arquivos sem permissão, volume elevado, dados inconsistentes e encerramento inesperado. Para conformidade, conserve evidências conforme política de retenção; evite acumular logs contendo credenciais e dados pessoais além da necessidade."
+    },
+    {
+      "title": "Automação de rede, monitoração e notificações",
+      "markdown": "## Verificações distintas da saúde de serviços\nAutomatizar redes envolve verificar resolução de nomes, conectividade, portas, certificados, latência, disponibilidade de HTTP/HTTPS, estado de DNS e registros de equipamentos. Essas medições são **complementares**. ICMP pode ser bloqueado por firewall sem que o serviço de aplicação esteja indisponível; obter resposta a um ping não comprova que o banco de dados ou o portal estejam operacionais. Um teste TCP indica possibilidade de estabelecer conexão na porta observada, não a correção funcional da aplicação. Já uma requisição HTTP pode avaliar código de resposta e conteúdo esperado, com atenção a autenticação e redirecionamentos.\n\nNo Windows, `Test-Connection` auxilia em verificações de comunicação, enquanto `Test-NetConnection` traz diagnósticos, inclusive de portas TCP, no ambiente para o qual o cmdlet está disponível. Em sistemas Unix, ferramentas como `ping`, `curl`, `dig` ou `nc` podem ser empregadas quando instaladas; a sintaxe exata não é igual em todas as distribuições e versões. Em Python, `socket` permite consultas e conexões, e bibliotecas HTTP apropriadas verificam endpoints. Para qualquer teste remoto, configure **timeout** para impedir espera indefinida, limites de concorrência e frequência compatível com o serviço.\n\n## Inventário, configuração e acesso remoto\nScripts podem extrair configuração de interfaces, endereços, rotas, informações de DNS, detalhes de software e estatísticas de servidores. A consulta não deve ser confundida com modificação: diagnosticar é tipicamente menos invasivo que reiniciar serviço ou aplicar configuração. A automação por SSH deve verificar identidade do host, tratar chaves e credenciais de maneira segura, limitar privilégios da conta e evitar comandos montados com dados externos. A opção de desabilitar verificação de chave do host pode facilitar testes, mas cria vulnerabilidade e não é recomendação para produção.\n\nPara alterações de rede, aplique princípios de gestão de configuração: descreva estado desejado, valide dispositivos ou hosts alvo, faça backup de configuração, execute por lotes, confira resultados e tenha procedimento de reversão. Não dispare mudanças simultâneas irrestritas em toda infraestrutura. Uma lista de IPs não é autorização para conexão: a política organizacional e os limites de escopo devem ser respeitados. Configurações que envolvam VLAN, DNS, firewall ou roteamento podem interromper serviços e requerem janela planejada.\n\n## Monitoração periódica e alertas\nUm monitor periódico registra métricas comparáveis ao longo do tempo: capacidade de disco, duração de backup, taxa de falhas, tempo de resposta, disponibilidade observada e quantidade de tarefas concluídas. O relatório **deve separar observações de interpretações**; por exemplo, indisponibilidade de ICMP não basta para declarar indisponibilidade do sistema. Alertas precisam de condição clara, janela de avaliação, nível de gravidade e responsáveis. Para reduzir alarmes por oscilações curtas, mecanismos de múltiplas amostras, histerese e períodos de silêncio podem ser úteis.\n\nEvite alerta a cada execução quando o defeito persiste: isso gera fadiga e encobre problemas novos. Deduplicação identifica eventos equivalentes; escalonamento avisa novo responsável se o incidente não for tratado; reconhecimento documenta que alguém assumiu a ocorrência. O script não deve enviar senhas, tokens ou conteúdo excessivo dos logs à plataforma de mensagens. É importante monitorar **o próprio monitor**: ausência inesperada do relatório, lacuna no histórico ou tarefa sem código de conclusão também pode indicar falha.\n\n## Falhas transitórias, métricas e segurança\nRepita apenas operações consideradas seguras e tolerantes a repetição. Use retentativas limitadas e espera progressiva (*backoff*) após erros temporários; para endpoints sensíveis, considere variações aleatórias no intervalo a fim de reduzir sincronização de acessos. Erro permanente de autenticação não se resolve com repetição sem fim. As medições precisam de carimbo temporal e do ponto de observação: uma falha da rede local do verificador pode gerar falsos positivos para múltiplos destinos.\n\nCredenciais de API podem entrar por variável de ambiente ou cofre de segredos, embora o ambiente de processo também requeira controle de acesso e não deva ser exposto em diagnóstico. Use TLS e validação de certificados; desabilitar verificação TLS destrói uma garantia importante de autenticidade. Relatórios automatizados devem ter política de privacidade e retenção. Compare resultados com linhas de base e diferencie disponibilidade aferida de acordos contratuais ou SLAs formais, que possuem critérios e janelas próprios."
+    },
+    {
+      "title": "Scripts em CI/CD, testes e governança",
+      "markdown": "## Integração e entrega contínuas\n**CI** (integração contínua) busca integrar mudanças com frequência, executar verificações e detectar defeitos antes da junção ao código principal. **CD** pode designar entrega contínua, na qual a versão permanece apta à liberação mediante decisão, ou implantação contínua, na qual mudanças aprovadas pelo fluxo chegam automaticamente ao ambiente final. Em rotinas administrativas, CI/CD é útil para testar scripts de inventário, empacotar dependências, validar JSON e CSV, publicar artefatos e liberar versões de automações que serão executadas depois por agendadores.\n\nEm GitHub Actions, um *workflow* normalmente é definido em YAML no repositório, com eventos de disparo, **jobs**, **steps** e um **runner** que executa comandos e ações. Eventos como `push`, `pull_request`, disparo manual e agendamento possuem semânticas próprias. Um job pode conter `run` para comandos do shell e `uses` para ações; o uso de uma ação externa exige atenção à procedência e versionamento. Jobs podem depender de outros, condicionar execuções e definir permissões. YAML organiza configuração, mas não substitui a linguagem usada nos scripts executados.\n\n## Pipeline segura e reprodutível\nUma pipeline mínima para um script Python pode instalar dependências fixadas, verificar sintaxe e estilo, rodar testes, produzir relatório de cobertura se aplicável e armazenar artefatos. **Artefato** é o resultado persistido de etapa ou execução, como relatório ou pacote; **cache** acelera futuras execuções de dependências e não deve ser tratado como repositório oficial de evidências imutáveis. O código de saída do processo informa sucesso ou falha ao runner; encerrar com zero quando os testes falharam produzirá falso sucesso.\n\nSegredos devem ser mantidos em mecanismos dedicados do provedor e expostos apenas quando estritamente necessários. O GitHub documenta o uso de contextos de `secrets` e riscos de **injeção de script** ao interpolar conteúdo não confiável em comandos de shell. Dados oriundos de títulos de solicitações, mensagens, nomes de branches e outras fontes externas podem conter metacaracteres maliciosos. Prefira passar dados como parâmetros ou variáveis adequadamente tratadas, valide entradas, restrinja permissões do token e não execute códigos de contribuições não confiáveis com credenciais privilegiadas.\n\n## Estratégias de testes\n**Teste unitário** isola função ou módulo e usa entradas controladas; **teste de integração** verifica interação com sistema de arquivos, API, banco de dados ou serviço externo; **teste de ponta a ponta** cobre o fluxo do início ao resultado. *Mock* e *stub* podem substituir dependências externas para controlar falhas e respostas; os testes reais de integração continuam necessários em ambiente autorizado. Uma pasta temporária de teste, em vez de diretórios produtivos, evita a exclusão acidental de documentos. Casos essenciais incluem arquivo ausente, permissão negada, resposta HTTP inválida, timeout, queda de rede, resultados duplicados e reexecução após falha.\n\n**Ambiente de desenvolvimento**, **homologação/teste** e **produção** não precisam ter dados reais idênticos. Entretanto, devem ser próximos nas características relevantes: versões do interpretador, permissões, sistema operacional, caminhos, bibliotecas, relógio, variáveis e acesso à rede. Dados sintéticos protegem informações sensíveis. Um teste que passa num runner Linux não comprova compatibilidade com PowerShell no Windows ou launchd no macOS. Utilize matriz de sistemas quando a portabilidade for requisito e evite testes destrutivos em máquinas compartilhadas.\n\n## Implantação, aprovação e continuidade\nPromover scripts para produção requer inventário de versões, aprovação aplicável, segregação de funções, histórico de alterações, documentação e possibilidade de desfazer a publicação. Na entrega contínua, a aprovação de implantação pode ser uma etapa explícita; na implantação contínua, a liberação final ocorre automaticamente quando todas as condições forem satisfeitas. Utilize *feature flags*, implantação gradual e verificações posteriores quando apropriado. Para tarefas de alto impacto, execute primeiro em subconjunto pequeno e monitore evidências.\n\nUma rotina não termina na publicação: designe responsável, revise frequência, versões e segurança, avalie logs e retenção, teste restauração e revogação de segredos. Em falhas, diferencie o erro de código do problema operacional da infraestrutura. Assegure que o canal de alerta não dependa exclusivamente do sistema que está indisponível. A governança deve conseguir responder quem alterou o script, por que ele roda, em quais máquinas, sob qual credencial, quais dados movimenta e como desabilitá-lo sem interromper serviços não relacionados."
+    }
+  ],
+  "summary": "A automação de tarefas administrativas utiliza scripts (PowerShell, Python, Bash e Zsh) para reduzir repetição e padronizar operações, como inventário, tratamento de arquivos, limpeza controlada, implantação de aplicativos, monitoração de serviços e geração de relatórios. O script contém a lógica; agendadores como Agendador de Tarefas, cron, systemd timers e launchd determinam quando ela roda. A confiabilidade depende de idempotência, validação de entrada, códigos de saída, logs, limites de execução, tratamento de erros e credenciais sob privilégio mínimo. No Windows, PowerShell trabalha com objetos e WinGet auxilia na instalação; em sistemas Unix, permissões e ambiente não interativo exigem atenção. Em rede, ping, conexão TCP e testes HTTP medem aspectos diferentes. Em CI/CD, workflows automatizam testes e implantação, mas precisam proteger segredos e entradas externas, usar ambientes reproduzíveis, registrar evidências e prever rollback. Limpeza e instalação automatizadas exigem escopo autorizado, simulação prévia, integridade e verificação de estado final.",
+  "flashcards": [
+    {
+      "front": "O que diferencia script de agendador?",
+      "back": "Script define a operação; agendador determina disparo, periodicidade e contexto de execução."
+    },
+    {
+      "front": "Qual a principal característica do pipeline do PowerShell?",
+      "back": "Passa objetos entre cmdlets, preservando propriedades para filtragem e seleção."
+    },
+    {
+      "front": "O que é idempotência?",
+      "back": "Capacidade de reaplicar uma operação sem alterar indevidamente o estado desejado já alcançado."
+    },
+    {
+      "front": "Idempotência e rollback são equivalentes?",
+      "back": "Não. Idempotência evita efeitos repetidos indesejados; rollback desfaz alterações."
+    },
+    {
+      "front": "O que é dry run?",
+      "back": "Execução simulada que mostra efeitos pretendidos sem realizar alterações destrutivas."
+    },
+    {
+      "front": "Qual a cautela com subprocess.run em Python?",
+      "back": "Passar argumentos em lista, verificar retorno, impor timeout e evitar shell=True com entrada não confiável."
+    },
+    {
+      "front": "Quando usar -LiteralPath no PowerShell?",
+      "back": "Quando o caminho deve ser interpretado literalmente, inclusive contendo caracteres que poderiam ser curingas."
+    },
+    {
+      "front": "O que faz -ErrorAction Stop?",
+      "back": "Converte erros não terminantes elegíveis em erros terminantes para tratamento como try/catch."
+    },
+    {
+      "front": "O que Register-ScheduledTask realiza?",
+      "back": "Registra uma definição de tarefa junto ao Agendador de Tarefas do Windows."
+    },
+    {
+      "front": "Como o WinGet contribui para automação?",
+      "back": "Fornece operações de consulta, instalação e atualização de pacotes disponíveis e compatíveis."
+    },
+    {
+      "front": "O que muda entre cron e script em loop?",
+      "back": "Cron inicia execuções nos eventos programados; loop mantém processo executando entre verificações."
+    },
+    {
+      "front": "Qual a função de Persistent=true em timer calendárico do systemd?",
+      "back": "Permite disparo referente a ocorrência perdida durante período de inatividade, sem reexecutar todas as perdas."
+    },
+    {
+      "front": "Qual o mecanismo de agendamento do macOS documentado pela Apple?",
+      "back": "launchd, configurado com trabalhos em arquivos de propriedades e gerenciado no contexto apropriado."
+    },
+    {
+      "front": "LaunchAgent e LaunchDaemon são sinônimos?",
+      "back": "Não. Agents relacionam-se ao contexto de usuário; daemons a serviços de sistema."
+    },
+    {
+      "front": "Por que não apagar indiscriminadamente /tmp ou %TEMP%?",
+      "back": "Podem conter dados ainda usados por aplicativos e processos; é preciso delimitar escopo e critérios."
+    },
+    {
+      "front": "O que tempfile.TemporaryDirectory auxilia a fazer?",
+      "back": "Criar área temporária gerenciada por contexto, com limpeza ao sair conforme condições e permissões."
+    },
+    {
+      "front": "Qual a diferença entre CSV e JSON em relatórios?",
+      "back": "CSV representa registros tabulares; JSON permite estruturas e tipos hierárquicos."
+    },
+    {
+      "front": "Responder a ping confirma saúde do aplicativo?",
+      "back": "Não. Apenas informa resultado da verificação ICMP, que não valida necessariamente serviço e conteúdo."
+    },
+    {
+      "front": "Teste de conexão TCP comprova correto funcionamento do HTTP?",
+      "back": "Não. Indica conexão na porta, mas não garante respostas e funcionalidades da aplicação."
+    },
+    {
+      "front": "O que distingue timeout de retry?",
+      "back": "Timeout limita uma tentativa; retry decide realizar novas tentativas, preferencialmente com limites."
+    },
+    {
+      "front": "O que significa CI?",
+      "back": "Integração contínua: integrar mudanças e executar verificações automáticas frequentes."
+    },
+    {
+      "front": "Entrega contínua é sempre implantação automática?",
+      "back": "Não. Entrega mantém versão pronta para liberação; implantação contínua efetiva liberação automática."
+    },
+    {
+      "front": "Artefatos e caches têm o mesmo objetivo em CI/CD?",
+      "back": "Não. Artefatos preservam produtos de execução; caches aceleram operações futuras."
+    },
+    {
+      "front": "Como reduzir risco de injeção em workflows?",
+      "back": "Tratar entradas externas como não confiáveis, evitar interpolá-las diretamente no shell e limitar permissões."
+    }
+  ],
+  "tips": [
+    "Em itens comparativos, separe lógica do script, disparo do agendador e execução no contexto da conta de serviço.",
+    "PowerShell: memorize objetos no pipeline, -LiteralPath, -WhatIf quando suportado e erros não terminantes com -ErrorAction Stop.",
+    "Associe plataformas: Agendador de Tarefas no Windows; cron/systemd timers em ambientes Linux; launchd no macOS.",
+    "Em tarefas destrutivas, exija diretório permitido, filtros, simulação, logs e meio de recuperar dados.",
+    "Em rede, diferencie prova de conectividade ICMP, abertura de porta TCP e verificação funcional de HTTP.",
+    "CI/CD: distinga entrega de implantação contínua, além de segredo, artefato, cache, runner e ambiente de teste.",
+    "Na instalação automatizada, uma execução sem erro aparente não dispensa validação da versão e do estado final."
+  ],
+  "traps": [
+    "Confundir pipeline do PowerShell, baseada em objetos, com concatenação de texto típica de shells Unix.",
+    "Afirmar que shell=True é sempre obrigatório ao executar comando externo em Python.",
+    "Tratar -WhatIf como suporte universal de qualquer programa ou cmdlet.",
+    "Supor que cron executa automaticamente tarefas perdidas enquanto a máquina estava desligada.",
+    "Pressupor que launchd tem o mesmo contexto e as mesmas permissões do Terminal interativo.",
+    "Tratar resposta de ping como garantia de que o serviço de aplicação está saudável.",
+    "Equiparar hash a assinatura digital e assumir autenticidade apenas porque o arquivo possui checksum.",
+    "Afirmar que um pipeline aprovada em runner Linux garante execução compatível em Windows e macOS."
+  ],
+  "activeRecall": [
+    {
+      "question": "Por que um script funciona manualmente e falha quando agendado?",
+      "answer": "A conta, diretório de trabalho, PATH, variáveis, permissões e ambiente interativo podem mudar; deve-se diagnosticar logs e contexto de execução."
+    },
+    {
+      "question": "Como desenhar uma limpeza segura de arquivos temporários?",
+      "answer": "Delimitar raiz autorizada, validar idade e tipo, excluir arquivos ativos, simular exclusões, registrar resultados e manter recuperação."
+    },
+    {
+      "question": "Quais indicadores utilizar para testar um site automatizadamente?",
+      "answer": "DNS, possibilidade de conexão TCP, resposta HTTP, conteúdo esperado, latência, timeout e diferentes pontos de observação."
+    },
+    {
+      "question": "Como assegurar que um script seja reexecutável após falha?",
+      "answer": "Validar estado atual, fazer operações idempotentes, usar checkpoints quando necessário e impedir sobreposição indevida de instâncias."
+    },
+    {
+      "question": "Como criar relatório confiável de inventário?",
+      "answer": "Definir escopo e período, registrar origem, coletar dados verificáveis, validar campos, incluir erros e exportar formato consistente com controle de acesso."
+    },
+    {
+      "question": "O que separa um teste unitário de um de integração?",
+      "answer": "Unitário isola função com dependências controladas; integração testa a interação real entre componentes ou serviços."
+    },
+    {
+      "question": "Como proteger segredos em CI/CD?",
+      "answer": "Armazenar no gerenciador apropriado, minimizar permissões, restringir acesso em jobs e não registrar valores em logs nem injetá-los em execuções não confiáveis."
+    },
+    {
+      "question": "O que avaliar antes de instalar software por script?",
+      "answer": "Procedência, versão, licença, compatibilidade, permissões, parâmetros silenciosos, reinicialização, resultado e reversão."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Execução de scripts e agendamento",
+      "summary": "O script define ações e o agendador configura gatilhos. O ambiente não interativo pode alterar usuário, PATH, diretório atual, permissões e acesso a recursos."
+    },
+    {
+      "key": "e2",
+      "title": "Exclusão de dados e idempotência",
+      "summary": "Idempotência não significa reversibilidade. A limpeza requer delimitação de caminhos, dry run, filtragem, logs e estratégia de recuperação, sem exclusão genérica de temporários."
+    },
+    {
+      "key": "e3",
+      "title": "Shell, pipeline e tratamento de erros",
+      "summary": "PowerShell normalmente transmite objetos; Bash tipicamente texto. Erros não terminantes, códigos de saída e uso de shell=True exigem tratamento conforme ferramenta."
+    },
+    {
+      "key": "e4",
+      "title": "Medição de conectividade e saúde de serviços",
+      "summary": "Ping ICMP, estabelecimento de TCP e resposta HTTP não medem a mesma condição. Monitores necessitam timeout, análise de falsos positivos e critérios de alerta."
+    },
+    {
+      "key": "e5",
+      "title": "Segurança e controle de qualidade em CI/CD",
+      "summary": "Workflows executam scripts em runners; aprovações, segredos, ambientes, testes e privilégios reduzidos protegem o processo. Cache não substitui artefato ou backup."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "O script define a lógica de uma tarefa administrativa, ao passo que o agendador estabelece condições e momentos de execução, podendo alterar o contexto em que o processo roda.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A definição da rotina e seu disparo pertencem a componentes diferentes. Ao agendar, a execução pode ocorrer com outra identidade, diretório e ambiente, exigindo caminhos, dependências e permissões explícitos.",
+      "section": "Fundamentos, arquitetura e segurança da automação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina é idempotente sempre que permite desfazer integralmente todas as alterações produzidas por sua primeira execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Idempotência trata da repetição sem produzir efeitos adicionais indevidos sobre o estado desejado. Desfazer alterações caracteriza reversibilidade ou rollback; uma operação pode ser idempotente e irreversível.",
+      "section": "Fundamentos, arquitetura e segurança da automação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, usar uma lista de argumentos com subprocess.run, verificar falhas e definir tempo limite ajuda a evitar ambiguidades e processos presos; shell=True não é requisito para invocar programas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "subprocess.run aceita sequência de argumentos e pode lançar exceção em retornos de erro com check=True. A invocação via shell não é obrigatória e pode aumentar a superfície de injeção quando recebe dados externos.",
+      "section": "Fundamentos, arquitetura e segurança da automação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O código de saída zero de um programa convencional indica, em regra, falha, ao passo que códigos diferentes de zero indicam êxito.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A convenção predominante nos sistemas operacionais e ferramentas de automação é saída zero para êxito e não zero para erro. Inverter a interpretação pode fazer uma pipeline aprovar tarefas que falharam.",
+      "section": "Fundamentos, arquitetura e segurança da automação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Conceder privilégios administrativos a todo script é estratégia de segurança adequada, pois elimina erros de permissão e torna os resultados mais previsíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Privilégio mínimo reduz danos de falhas e invasões. Elevar todas as tarefas amplia a exposição e não substitui definição de permissões específicas, autenticação segura, registro de ações e validação de entradas.",
+      "section": "Fundamentos, arquitetura e segurança da automação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe transforma conferência manual de arquivos em script diário. Qual providência torna a rotina mais confiável ao ser executada por outra conta no agendador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pressupor que o diretório corrente sempre será o da pasta do script.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Configurar caminhos e credenciais de forma controlada, validar entradas e registrar resultados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Gravar a senha do operador no corpo do script para evitar prompts.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar o tratamento de erros para acelerar a execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar todos os passos com privilégio máximo, sem necessidade de revisão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A execução não assistida depende de contexto explícito, credenciais protegidas e rastreabilidade. O terminal interativo do autor não representa necessariamente as permissões e o diretório do agendador.",
+      "section": "Fundamentos, arquitetura e segurança da automação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um utilitário consulta servidores periodicamente, mas alguns ficam lentos. Qual combinação previne espera indefinida e excesso de tentativas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir indefinidamente toda requisição, inclusive quando a senha é inválida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar timeout por tentativa e repetição limitada conforme o tipo de falha.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Remover todos os tempos limites, porque a rede sempre responderá.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar o código de retorno e considerar sucesso qualquer conexão iniciada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar consultas simultâneas sem limite para reduzir a duração total.",
+          "correct": false
+        }
+      ],
+      "explanation": "Timeout limita o tempo de cada operação; retry limitado lida com falhas transitórias. A repetição infinita, sobretudo em erros permanentes, consome recursos e dificulta identificar incidentes.",
+      "section": "Fundamentos, arquitetura e segurança da automação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao desenvolver rotina que pode ser disparada duas vezes, qual característica descreve melhor a idempotência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir excluir arquivos sem possibilidade de recuperação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Garantir que o programa nunca registrará horários distintos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar sempre com conta administrativa, independentemente da operação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reexecutar a operação preservando o estado desejado sem duplicações indevidas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Desfazer automaticamente toda e qualquer modificação anterior.",
+          "correct": false
+        }
+      ],
+      "explanation": "A idempotência se refere ao efeito no estado administrado, como criar recursos somente se ausentes. Não é o mesmo que inexistência de logs, execução privilegiada ou capacidade de desfazer alterações.",
+      "section": "Fundamentos, arquitetura e segurança da automação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação de automação recebe nome de arquivo indicado por usuário e precisa chamar um programa externo. Qual abordagem reduz riscos de injeção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concatenar a entrada diretamente em uma string submetida ao shell.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Validar a entrada e passar o executável e os argumentos em lista, sem shell quando dispensável.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Interpretar automaticamente caracteres especiais como operadores do sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar registros para que a execução não revele o nome recebido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conceder acesso irrestrito ao sistema de arquivos antes de executar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Entradas externas podem conter caracteres com significado para o shell. Separar argumentos e validar valores limita interpretações imprevistas, especialmente quando é possível dispensar shell=True.",
+      "section": "Fundamentos, arquitetura e segurança da automação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de informações torna um registro de rotina automatizada mais útil para auditoria e diagnóstico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas a frase “feito”, sem data nem contagem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Todas as senhas e tokens utilizados, para facilitar futura reprodução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Identificador da execução, horários, quantidade processada, status e falhas sanitizadas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Somente a mensagem de início, descartando resultado e duração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cópia integral de arquivos pessoais desnecessários ao objetivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Registros devem permitir entender o que foi executado e com qual resultado, sem expor segredos ou dados excessivos. Contagens, tempo e identificador favorecem correlação e diagnóstico de falhas.",
+      "section": "Fundamentos, arquitetura e segurança da automação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PowerShell, a pipeline entre cmdlets normalmente transmite objetos com propriedades, o que permite selecionar informações de arquivos sem depender exclusivamente de recortes de texto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A pipeline do PowerShell fornece objetos .NET aos próximos cmdlets, possibilitando filtrar por propriedades como tamanho. Isso a distingue da canalização textual tradicional de muitos utilitários Unix.",
+      "section": "PowerShell e automação administrativa no Windows",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O parâmetro -WhatIf é aceito por qualquer comando de PowerShell ou executável externo e garante que nenhuma alteração ocorrerá.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "-WhatIf depende do suporte do cmdlet ou da função e não é mecanismo universal para todo programa invocado pelo PowerShell. Seu comportamento deve ser verificado antes de adotar simulações como controle.",
+      "section": "PowerShell e automação administrativa no Windows",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando um cmdlet em PowerShell produz erro não terminante, -ErrorAction Stop pode permitir que esse erro seja tratado por bloco catch.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Erros não terminantes nem sempre ativam catch. Ao usar -ErrorAction Stop em comandos compatíveis, a falha passa a ser tratada como terminante, viabilizando controle explícito da rotina.",
+      "section": "PowerShell e automação administrativa no Windows",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A criação de um objeto de definição de tarefa no PowerShell registra automaticamente o agendamento no Windows, dispensando Register-ScheduledTask.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Preparar ação, gatilho ou objeto de tarefa não significa cadastrá-lo no serviço de agendamento. O registro é etapa própria, frequentemente feita por Register-ScheduledTask.",
+      "section": "PowerShell e automação administrativa no Windows",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina PowerShell precisa remover um arquivo cujo nome inclui colchetes, que poderiam ser interpretados como padrão. Qual escolha é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar -Path presumindo que curingas nunca terão significado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Excluir a pasta inteira para garantir a remoção do arquivo individual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Renomear indiscriminadamente todos os arquivos do diretório.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar caracteres especiais e deixar a escolha ao agendador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Utilizar -LiteralPath com o caminho verificado e as salvaguardas necessárias.",
+          "correct": true
+        }
+      ],
+      "explanation": "Em cmdlets que o suportam, -LiteralPath considera o nome sem expansão de padrões. Isso diminui exclusões acidentais quando há metacaracteres; ainda é necessário validar o alvo e as permissões.",
+      "section": "PowerShell e automação administrativa no Windows",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após rodar um programa nativo em PowerShell, qual informação é útil para avaliar o resultado desse executável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente a existência de uma janela de terminal visível.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Exclusivamente o valor do comando Get-Help usado anteriormente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A versão do PowerShell, que equivale ao código do programa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O código retornado pelo processo nativo, observável por $LASTEXITCODE conforme o contexto.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A presença de mensagem em saída padrão, sempre indicadora de sucesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "$LASTEXITCODE permite analisar o estado de saída de programas nativos depois de sua execução. Mensagens e códigos de cmdlets têm comportamentos próprios e não devem ser confundidos indiscriminadamente.",
+      "section": "PowerShell e automação administrativa no Windows",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao planejar implantação de aplicativos no Windows com WinGet, qual fluxo é tecnicamente adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Presumir que todo aplicativo existe em qualquer origem do WinGet.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar o instalador sem verificar licença, versão ou resultado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tratar a listagem de pacotes como confirmação de que foram instalados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar sempre comandos de remoção antes de consultar a instalação existente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Verificar disponibilidade e identidade do pacote, executar a instalação e validar o estado final.",
+          "correct": true
+        }
+      ],
+      "explanation": "A automação de instalação exige confirmação de origem e pacote, interpretação de retorno e verificação da versão ou funcionalidade instalada. A simples invocação não comprova implantação concluída.",
+      "section": "PowerShell e automação administrativa no Windows",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa agendada funciona manualmente no Windows, mas falha ao ocorrer durante a madrugada. Qual hipótese deve ser examinada prioritariamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Impossibilidade de qualquer script executar fora do horário comercial.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Obrigação de manter aberta a sessão interativa do autor em toda tarefa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Diferenças de conta, privilégios, diretório inicial e acesso à rede no contexto agendado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Incompatibilidade absoluta entre PowerShell e o Agendador de Tarefas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Necessidade de trocar todos os arquivos .ps1 por documentos de texto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Agendamentos podem usar credenciais, PATH e locais de trabalho distintos do terminal do usuário. Revisar essas condições, histórico e logs explica falhas que a execução manual não reproduz.",
+      "section": "PowerShell e automação administrativa no Windows",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O cron tradicional permite agendar comandos, mas não garante, por padrão, que todas as execuções perdidas durante um desligamento serão realizadas após o retorno do computador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Cron dispara rotinas conforme agenda quando o mecanismo e o sistema estão ativos. Recuperação de execuções perdidas não é garantia geral; depende de ferramenta ou configuração específica.",
+      "section": "Linux e macOS: shell, permissões e agendamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em ambientes Unix, colocar aspas ao redor de expansões de variáveis com caminhos ajuda a evitar divisão inesperada em palavras quando há espaços no nome.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Aspas duplas preservam o valor expandido como argumento em contextos usuais e evitam divisão acidental. Isso é relevante ao automatizar diretórios e arquivos cujos nomes contêm espaços.",
+      "section": "Linux e macOS: shell, permissões e agendamento",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No macOS, todos os processos lançados por launchd herdam automaticamente as funções personalizadas do arquivo de configuração do shell interativo do usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Tarefas iniciadas por launchd podem ter ambiente e usuário diferentes da sessão interativa. Funções de inicialização do shell não são automaticamente garantidas; caminhos e dependências precisam ser explícitos.",
+      "section": "Linux e macOS: shell, permissões e agendamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em timers calendáricos compatíveis do systemd, Persistent=true pode contribuir para disparar uma ocorrência perdida durante período de inatividade, sem exigir que cada execução omitida seja reproduzida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O recurso de persistência considera o último disparo registrado para um timer calendárico e pode ativar a unidade após retorno à atividade. Não equivale a executar uma vez por cada intervalo perdido.",
+      "section": "Linux e macOS: shell, permissões e agendamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador precisa executar script periódico associado ao usuário no macOS. Qual mecanismo atende ao cenário segundo a arquitetura nativa do sistema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar um trabalho de launchd no contexto apropriado, como um LaunchAgent.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Registrar obrigatoriamente uma tarefa no Agendador de Tarefas do Windows.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar exclusivamente um contêiner Docker como serviço de kernel.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Utilizar apenas um shell interativo aberto sem interrupção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pressupor que cron é o único mecanismo disponível no macOS.",
+          "correct": false
+        }
+      ],
+      "explanation": "A Apple documenta launchd para gerenciamento de trabalhos e a distinção entre contextos de usuário e serviços do sistema. O script deve explicitar caminhos e permissões necessários.",
+      "section": "Linux e macOS: shell, permissões e agendamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em servidor Linux, uma rotina demora mais do que seu intervalo de agendamento e não deve ter instâncias simultâneas. Qual medida é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Considerar que cron sempre bloqueia a execução seguinte.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Adicionar mecanismo de trava ou exclusão mútua, com tratamento de falhas e liberação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Elevar a prioridade das tarefas sem controlar sobreposição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover os logs para evitar disputa por arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar cada instância como root para que coexistam sem conflito.",
+          "correct": false
+        }
+      ],
+      "explanation": "Agendamento determina disparos, não necessariamente exclusão mútua. Travamento adequado protege arquivos e recursos compartilhados; também é preciso prever quedas e locks abandonados.",
+      "section": "Linux e macOS: shell, permissões e agendamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script shell cria arquivo que contém informações restritas. Qual medida ajuda a proteger as permissões iniciais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar chmod 777 em todos os diretórios de saída.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar controle de proprietário do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Configurar umask e identidade de execução adequadas, observando ACLs e diretórios.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Confiar apenas na extensão .sh para impedir acesso de terceiros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Gravar uma cópia pública para que todos possam conferir os dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A máscara de criação influencia permissões padrão, combinada com dono, grupos e controles do sistema. Permissões amplas aumentam a exposição e não são exigência para automações.",
+      "section": "Linux e macOS: shell, permissões e agendamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um timer de systemd deve disparar uma rotina em horário do calendário. Qual diretiva está ligada a esse tipo de agendamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "OnlyAfter=, que substitui a definição da unidade .service.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RunEveryMinute=, obrigatória para todos os timers systemd.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DefaultShell=, que especifica exclusivamente a frequência da tarefa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "OnCalendar= na unidade .timer, associada à unidade de serviço correspondente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "TaskTrigger=, diretiva do cron usada sem serviço associado.",
+          "correct": false
+        }
+      ],
+      "explanation": "OnCalendar= configura eventos calendáricos na unidade de timer. O serviço acionado contém a ação executada; outras diretivas oferecem intervalos relativos e ajustes adicionais.",
+      "section": "Linux e macOS: shell, permissões e agendamento",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O contexto tempfile.TemporaryDirectory em Python pode criar uma área temporária e cuidar de sua limpeza ao término do bloco, observadas as permissões e condições do sistema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O gerenciador de contexto disponibiliza diretório transitório e tenta sua remoção na saída, o que facilita testes e processamento intermediário. A limpeza pode sofrer exceções, conforme o ambiente.",
+      "section": "Arquivos, temporários, aplicativos e relatórios",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um checksum obtido de qualquer canal público, sem confirmação da origem, é suficiente para demonstrar a autenticidade de um instalador baixado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O hash compara conteúdo com um valor de referência, mas esse valor também pode ter sido alterado. Autenticidade requer procedência confiável e, quando cabível, validação de assinatura digital.",
+      "section": "Arquivos, temporários, aplicativos e relatórios",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em limpeza automatizada, delimitar uma pasta administrada, filtrar idade e permitir execução simulada é mais seguro do que excluir indiscriminadamente todo o conteúdo de diretórios temporários compartilhados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Diretórios temporários podem conter itens usados por outros processos. Escopo explícito, filtros, simulação e logs reduzem a chance de afetar sessões e aplicativos alheios à rotina.",
+      "section": "Arquivos, temporários, aplicativos e relatórios",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao produzir arquivo CSV para importação em planilha, o script deve necessariamente preservar qualquer fórmula informada pelo usuário como fórmula executável, sem considerar o risco de entrada maliciosa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Células iniciadas por caracteres especiais podem ser interpretadas como fórmulas em aplicativos de planilha. Dados externos exigem tratamento conforme destino e política, não execução indiscriminada.",
+      "section": "Arquivos, temporários, aplicativos e relatórios",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma automação precisa organizar milhares de documentos, sem manter tudo na memória. Qual estratégia tende a ser adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Carregar sempre todos os arquivos simultaneamente, mesmo que excedam a RAM.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Eliminar o registro de erros para reduzir o tamanho do relatório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Presumir que todos os nomes de arquivo seguem codificação e estrutura idênticas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Processar arquivos em fluxo ou lotes e validar resultados progressivamente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Modificar diretamente originais sem cópias nem validação do processamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "O processamento por lotes reduz uso de memória e permite identificar falhas por conjunto. Conferências, escopo controlado e publicação segura diminuem o impacto de interrupções.",
+      "section": "Arquivos, temporários, aplicativos e relatórios",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após criar relatório destinado a uma planilha e a uma API, qual distinção entre formatos é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "CSV é formato binário exclusivo de bancos relacionais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "JSON exige obrigatoriamente cinco campos de cabeçalho em cada linha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "CSV e JSON dispensam validação de caracteres e codificação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CSV é tabular; JSON pode representar estruturas aninhadas e diversos tipos de valores.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "JSON não pode representar listas de dados ou objetos com propriedades.",
+          "correct": false
+        }
+      ],
+      "explanation": "CSV organiza campos em registros, enquanto JSON representa objetos e arrays. Em ambos, o consumidor precisa conhecer esquema, codificação e regras de validação dos dados.",
+      "section": "Arquivos, temporários, aplicativos e relatórios",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma limpeza periódica usa shutil.rmtree para apagar diretório selecionado por variável externa. Qual proteção é mais importante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Validar a raiz permitida e a resolução do destino antes de excluir, com simulação e recuperação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar a exclusão sempre como administrador, independentemente da pasta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar links simbólicos e nomes recebidos porque a biblioteca é automaticamente segura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar primeiro a raiz do disco, para liberar mais espaço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar o nome da variável por uma abreviação, sem validar seu valor.",
+          "correct": false
+        }
+      ],
+      "explanation": "shutil.rmtree remove árvores de arquivos e pode causar grande dano se apontada ao local errado. Verificar raiz, caminho, permissões e lista de alvos é indispensável antes de alterar dados.",
+      "section": "Arquivos, temporários, aplicativos e relatórios",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe publica um novo arquivo de configuração após gerar e validar conteúdo intermediário. Qual alternativa é mais segura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Produzir em local temporário adequado e promover o resultado validado segundo as garantias do sistema.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Editar parcialmente o arquivo definitivo durante todo o processamento, sem backup.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Declarar que qualquer comando move é atômico, inclusive entre sistemas de arquivos distintos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eliminar a verificação de conteúdo para economizar tempo de publicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desconsiderar permissões e a possibilidade de falta de espaço no destino.",
+          "correct": false
+        }
+      ],
+      "explanation": "Preparar, validar e substituir ao final diminui exposição a estados intermediários. A atomicidade depende da operação e do sistema de arquivos, de modo que não pode ser presumida em toda movimentação.",
+      "section": "Arquivos, temporários, aplicativos e relatórios",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta positiva de ping comprova que o aplicativo HTTP do destino está respondendo com conteúdo correto e dentro da meta de desempenho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Ping normalmente avalia alcance por ICMP, quando permitido; não consulta o funcionamento do serviço HTTP nem a validade das respostas. Os testes de aplicação são complementares.",
+      "section": "Automação de rede, monitoração e notificações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "É possível que um serviço HTTP esteja disponível mesmo quando pacotes ICMP não recebam resposta, pois políticas de rede podem filtrar esse protocolo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Filtragem de ICMP pode impedir respostas de ping sem afetar conexões TCP e aplicações. Portanto, inferir indisponibilidade total a partir desse único resultado gera falsos alarmes.",
+      "section": "Automação de rede, monitoração e notificações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conexão TCP bem-sucedida com a porta de um servidor garante que a aplicação realizará corretamente sua função de negócio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O estabelecimento de conexão demonstra a condição de transporte testada, mas a aplicação pode devolver erro ou conteúdo inválido. Uma verificação funcional deve examinar respostas apropriadas.",
+      "section": "Automação de rede, monitoração e notificações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Retentativas ilimitadas são recomendadas para erros permanentes de autenticação, já que não consomem recursos e acabam por corrigir credenciais inválidas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Credenciais inválidas precisam de correção ou renovação; repetir indefinidamente pode agravar bloqueios, custos e fadiga de alertas. Use limites e diferencie falhas transitórias e permanentes.",
+      "section": "Automação de rede, monitoração e notificações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um monitor registra que todos os sites externos ficaram indisponíveis no mesmo minuto. Antes de notificar paralisação geral, que verificação é prioritária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Assumir imediatamente a falha simultânea de todos os servidores remotos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conferir a conectividade e a saúde do próprio ponto de observação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Excluir os dados de todos os monitores e reiniciar a coleta sem registro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar permanentemente a autenticação TLS dos endpoints.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Elevar a frequência para milhares de solicitações por segundo sem limite.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma falha local de DNS, gateway ou conectividade do agente pode afetar vários destinos e gerar falsos positivos. Correlacionar pontos de medição melhora a avaliação do incidente.",
+      "section": "Automação de rede, monitoração e notificações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Windows, é necessário verificar estabelecimento de conexão com uma porta TCP de host remoto. Qual recurso é diretamente adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Test-NetConnection com parâmetros pertinentes ao destino e à porta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Get-Content de um arquivo que contém o nome do servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Import-Csv sem realizar qualquer acesso de rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Register-ScheduledTask sem ação de diagnóstico de conectividade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remove-Item para remover o cache local de documentos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Test-NetConnection fornece diagnóstico de conectividade e dispõe de teste a portas TCP nos ambientes suportados. A presença do cmdlet e sua sintaxe devem ser consideradas conforme o sistema.",
+      "section": "Automação de rede, monitoração e notificações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script monitora serviço sujeito a oscilações breves e dispara notificações em excesso. Qual abordagem ajuda a reduzir alertas espúrios?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enviar um alerta para cada tentativa, ainda que se refira ao mesmo incidente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desabilitar todos os registros e nunca mais consultar o indicador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Classificar toda variação mínima como falha crítica permanente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar sempre os incidentes para impedir mensagens repetidas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exigir persistência da condição por múltiplas amostras e aplicar deduplicação de alertas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Janelas de avaliação, histerese e deduplicação reduzem alarmes passageiros e repetidos. A política precisa manter informação relevante para o responsável agir diante de falhas persistentes.",
+      "section": "Automação de rede, monitoração e notificações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma automação executa consultas de API em rede instável. Qual estratégia é mais compatível com operação responsável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir solicitações permanentemente em sequência sem intervalo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desabilitar validação TLS para fazer qualquer conexão funcionar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Registrar tokens de acesso em cada mensagem enviada ao operador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reexecutar indiscriminadamente operações com efeitos colaterais sem verificar duplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar timeout, retentativas limitadas com espera progressiva e respeitar limites de acesso.",
+          "correct": true
+        }
+      ],
+      "explanation": "Limites de espera e repetição reduzem bloqueios e sobrecarga. Também é necessário tratar operações não idempotentes, respeitar o serviço consultado e proteger certificados e credenciais.",
+      "section": "Automação de rede, monitoração e notificações",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Integração contínua envolve integrar alterações e executar verificações automatizadas; isso não implica necessariamente implantar cada mudança diretamente em produção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "CI se concentra em integração frequente e qualidade das alterações. Colocar versões em produção pertence ao fluxo de entrega ou implantação, com critérios e aprovações próprios.",
+      "section": "Scripts em CI/CD, testes e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em GitHub Actions, workflows podem usar jobs e steps para executar comandos ou ações em runners; o arquivo YAML define a orquestração, não substitui o interpretador dos scripts.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Os arquivos de workflow especificam eventos e execução, enquanto os passos podem acionar PowerShell, Bash, Python ou ações. O runner fornece o ambiente em que a lógica é processada.",
+      "section": "Scripts em CI/CD, testes e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por definição, um cache de dependências de pipeline deve ser tratado como artefato imutável de auditoria e como backup histórico confiável de documentos administrativos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Cache visa acelerar etapas e pode ser atualizado ou descartado. Artefatos preservam saídas específicas, e backup exige estratégia própria de retenção e recuperação. Confundir funções compromete evidências.",
+      "section": "Scripts em CI/CD, testes e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dados externos inseridos diretamente em comandos de shell por expressões de workflows podem provocar injeção; o uso de segredos e validação de entradas exige cuidados próprios.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Título de solicitação, nome de branch ou outros campos podem conter metacaracteres. Uma pipeline segura evita interpolação direta e limita credenciais e permissões dos jobs.",
+      "section": "Scripts em CI/CD, testes e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe exige aprovação humana antes de promover para produção uma versão já testada automaticamente. Esse processo se aproxima mais de qual conceito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Implantação contínua obrigatória sem qualquer intervenção humana.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Execução manual sem testes e sem integração do código.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Exclusivamente teste unitário, sem relação com entrega de versões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenamento de cache, cujo objetivo é substituir aprovação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Entrega contínua com etapa de autorização para liberação.",
+          "correct": true
+        }
+      ],
+      "explanation": "Na entrega contínua, o sistema conserva a versão pronta para ser liberada e pode exigir decisão final. A implantação contínua elimina essa etapa manual quando critérios definidos são atendidos.",
+      "section": "Scripts em CI/CD, testes e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um teste de script precisa simular uma resposta de API sem acessar o sistema real. Qual técnica é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar o teste diretamente em produção com credenciais administrativas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar as verificações e presumir sucesso do serviço externo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir a dependência externa por mock ou stub controlado no teste.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Excluir os logs de integração antes de examinar a falha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dispensar casos de erro e testar apenas a resposta de sucesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mocks ou stubs permitem testar caminhos de resposta e erro de forma isolada e reprodutível. Testes de integração adicionais devem verificar as interações reais em ambiente autorizado.",
+      "section": "Scripts em CI/CD, testes e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um workflow processa contribuição externa e também tem acesso a credenciais de publicação. Qual controle reduz risco de comprometimento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Restringir permissões e evitar disponibilizar segredos privilegiados ao código não confiável.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Expor todas as variáveis de segredo no log para rastrear execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar automaticamente qualquer comando fornecido na solicitação externa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar token com acesso irrestrito a todos os repositórios por conveniência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar revisão e validações de entrada para acelerar a pipeline.",
+          "correct": false
+        }
+      ],
+      "explanation": "O conteúdo de contribuições externas pode ser malicioso. Segregar ambientes, limitar permissões e resguardar credenciais impede que testes de código não confiável adquiram poderes de publicação.",
+      "section": "Scripts em CI/CD, testes e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script passa em runner Linux e será implantado em máquinas Windows e macOS. Qual providência é apropriada antes da publicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Assumir compatibilidade total porque YAML é independente do sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir todos os testes por uma única mensagem de sucesso na pipeline.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Testar nos sistemas e versões relevantes, considerando shells, caminhos e permissões.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Garantir que qualquer caminho Unix seja válido sem ajustes no Windows.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar diferenças de interpretador e acesso a diretórios protegidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O runner executa a lógica em ambiente específico. Linguagem, dependências, permissões e regras de caminhos podem divergir entre plataformas; a matriz de testes sustenta portabilidade real.",
+      "section": "Scripts em CI/CD, testes e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "pathlib — Object-oriented filesystem paths",
+      "publisher": "Python Software Foundation",
+      "reference": "Biblioteca-padrão Python: pathlib",
+      "url": "https://docs.python.org/3/library/pathlib.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "subprocess — Subprocess management",
+      "publisher": "Python Software Foundation",
+      "reference": "Biblioteca-padrão Python: subprocess",
+      "url": "https://docs.python.org/3/library/subprocess.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "logging — Logging facility for Python",
+      "publisher": "Python Software Foundation",
+      "reference": "Biblioteca-padrão Python: logging",
+      "url": "https://docs.python.org/3/library/logging.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "tempfile — Generate temporary files and directories",
+      "publisher": "Python Software Foundation",
+      "reference": "Biblioteca-padrão Python: tempfile",
+      "url": "https://docs.python.org/3/library/tempfile.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Register-ScheduledTask (ScheduledTasks)",
+      "publisher": "Microsoft Learn",
+      "reference": "Módulo ScheduledTasks: Register-ScheduledTask",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/scheduledtasks/register-scheduledtask?view=windowsserver2025-ps",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Test-NetConnection (NetTCPIP)",
+      "publisher": "Microsoft Learn",
+      "reference": "Módulo NetTCPIP: Test-NetConnection",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/nettcpip/test-netconnection?view=windowsserver2025-ps",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Comando install — WinGet",
+      "publisher": "Microsoft Learn",
+      "reference": "Gerenciador de Pacotes do Windows: instalação",
+      "url": "https://learn.microsoft.com/pt-br/windows/package-manager/winget/install",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Script management with launchd in Terminal on Mac",
+      "publisher": "Apple Support",
+      "reference": "Manual do Terminal: administração por launchd",
+      "url": "https://support.apple.com/guide/terminal/script-management-with-launchd-apdc6c1077b-5d5d-4d35-9c19-60f2397b2369/mac",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Intro to shell scripts in Terminal on Mac",
+      "publisher": "Apple Support",
+      "reference": "Manual do Terminal: scripts de shell",
+      "url": "https://support.apple.com/guide/terminal/intro-to-shell-scripts-apd53500956-7c5b-496b-a362-2845f2aab4bc/mac",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Workflow syntax for GitHub Actions",
+      "publisher": "GitHub Docs",
+      "reference": "GitHub Actions: definição de workflows",
+      "url": "https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Script injections",
+      "publisher": "GitHub Docs",
+      "reference": "GitHub Actions: riscos de injeção",
+      "url": "https://docs.github.com/en/actions/concepts/security/script-injections",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "systemd.timer — Timer unit configuration",
+      "publisher": "freedesktop.org / systemd",
+      "reference": "Manual systemd.timer",
+      "url": "https://www.freedesktop.org/software/systemd/man/255/systemd.timer.html",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

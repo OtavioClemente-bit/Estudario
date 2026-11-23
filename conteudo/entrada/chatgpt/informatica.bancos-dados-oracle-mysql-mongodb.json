@@ -1,0 +1,2138 @@
+{
+  "id": "informatica.bancos-dados-oracle-mysql-mongodb",
+  "subject": "Informática — Bancos de Dados",
+  "title": "Oracle 19c, MySQL, MongoDB e outros SGBDs",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Bancos de dados Oracle 19c, MySQL e MongoDB",
+    "Bancos de dados Oracle 19c, MySQL e MongoDB, SQL Server, PostgreSQL, SQLite, Firebird e modelos de dados"
+  ],
+  "scope": {
+    "covers": "Conceitos e modelos hierárquico, rede, relacional, documental, grafo e multidimensional; modelagem ER, normalização, OLTP/OLAP; SQL, ACID, transações, isolamento, MVCC, índices, segurança, backup e otimização; recursos de Oracle Database 19c, MySQL/InnoDB, MongoDB, SQL Server, PostgreSQL, SQLite e Firebird.",
+    "excludes": "Instalações passo a passo e scripts específicos de produção, tuning dependente de hardware, benchmarks, licenciamento por edição, serviços comerciais de nuvem e funcionalidades lançadas após as versões citadas."
+  },
+  "theoryTitle": "Teoria completa de modelos de dados e SGBDs: Oracle 19c, MySQL, MongoDB, SQL Server, PostgreSQL, SQLite e Firebird",
+  "chapters": [
+    {
+      "title": "Modelos de dados, projeto lógico e organização analítica",
+      "markdown": "## Da necessidade de negócio ao esquema\nUm banco de dados é uma coleção organizada de informações; um sistema gerenciador de bancos de dados (SGBD) controla acesso, persistência, concorrência, segurança e recuperação. O projeto começa pelo **modelo conceitual**, frequentemente representado por entidades, atributos, relacionamentos e cardinalidades. O projeto lógico converte esse desenho para um modelo — por exemplo, tabelas com chaves — sem confundi-lo com detalhes físicos de índices e arquivos. O projeto físico escolhe estruturas, particionamento e estratégias de armazenamento conforme carga e plataforma.\n\n**Chave primária** identifica univocamente a linha e não aceita NULL; **chave estrangeira** representa referência a uma chave candidata ou primária de outra tabela, conforme restrições do mecanismo. Uma chave candidata é um conjunto mínimo de atributos capaz de identificar uma ocorrência. Uma chave composta possui mais de uma coluna. Em cardinalidade 1:N, a referência normalmente fica na tabela do lado N; relações N:N requerem, em modelagem relacional usual, tabela associativa com referências às entidades. Integridade de entidade, referencial e de domínio são dimensões distintas: a primeira preserva identidade, a segunda coerência entre referências e a última valores admissíveis, frequentemente por tipos, CHECK e regras de negócio.\n\n## Modelos clássicos e atuais\nNo **modelo hierárquico**, registros formam uma árvore com vínculo pai-filho; cada filho tem um pai nesse arranjo, e caminhos de navegação são relevantes. No **modelo em rede**, registros são conectados por conjuntos de relacionamentos, permitindo associações mais flexíveis, inclusive múltiplos pais lógicos; não é sinônimo de banco distribuído nem de rede TCP/IP. No **modelo relacional**, informações são relações representadas por tabelas, com linhas e colunas; SQL é linguagem declarativa predominante para consultas e alterações. O relacional não exige que todos os dados sejam textuais, nem impede colunas JSON, desde que o produto as suporte.\n\nNo **modelo de documentos**, uma coleção contém documentos, normalmente com campos e estruturas aninhadas, como no MongoDB com BSON. Documentos da mesma coleção podem variar quanto aos campos, mas flexibilidade de esquema não equivale a ausência de validação. No **modelo de grafos**, vértices e arestas (eventualmente com propriedades) representam entidades e vínculos; percorrem-se caminhos e vizinhanças com naturalidade. Um esquema de rede de relacionamentos em um banco relacional não o transforma automaticamente em SGBD de grafos. O **modelo multidimensional** representa medidas por fatos e dimensões analíticas: a tabela fato armazena métricas e chaves de dimensão; as dimensões fornecem perspectivas como tempo, produto e região. Cubos e operações de *drill-down*, *roll-up*, *slice* e *dice* facilitam exploração analítica, não substituem transações operacionais.\n\n## Normalização versus uso analítico\nA primeira forma normal exige valores atômicos conforme o domínio modelado e ausência de grupos repetitivos na estrutura relacional. A segunda trata dependência funcional parcial de chave candidata composta; a terceira remove dependências transitivas inadequadas de atributos não-chave, no tratamento clássico. **Desnormalizar** intencionalmente pode agilizar leituras agregadas, à custa de redundância, necessidade de sincronização e risco de anomalias. Não se deve afirmar que todo esquema normalizado é mais rápido: performance depende do padrão de acesso, volumes, índices e execução. **OLTP** prioriza operações curtas e concorrentes com integridade; **OLAP** prioriza análise histórica e agregações extensas. Esquemas estrela mantêm dimensões relativamente desnormalizadas ligadas a fatos; floco de neve normaliza algumas dimensões. *ETL* extrai, transforma e carrega; *ELT* carrega antes de transformar no destino, segundo a arquitetura. \n\n## Como a banca diferencia conceitos\nConsidere `Cliente(id, nome)` e `Pedido(id, cliente_id, valor)`: a estrangeira é `Pedido.cliente_id`, mas isso não torna `cliente_id` único, porque um cliente pode ter vários pedidos. Se `Pedido` guardar repetidamente o endereço do cliente, haverá potencial anomalia de atualização. Já num repositório analítico, redundância controlada pode ser deliberada. Em grafo, a pergunta central pode ser qual caminho conecta duas pessoas; em multidimensional, quanto se vendeu por mês e região; em documento, a recuperação conjunta do pedido e de seus itens pode favorecer incorporação. A decisão de modelagem decorre da semântica dos vínculos e da frequência de leitura e alteração, não de rótulos de marketing."
+    },
+    {
+      "title": "SQL, consistência, índices, segurança e desempenho",
+      "markdown": "## Linguagem declarativa e operações essenciais\n**DDL** define objetos: `CREATE`, `ALTER`, `DROP`. **DML** manipula linhas: `INSERT`, `UPDATE`, `DELETE`; a classificação de `SELECT` como DQL é didática, e há variações de classificação. **DCL** trata privilégios, como `GRANT` e `REVOKE`; **TCL** gerencia transações com `COMMIT`, `ROLLBACK` e, onde suportado, `SAVEPOINT`. `WHERE` filtra linhas antes da agregação; `HAVING` filtra grupos após `GROUP BY`. `JOIN` combina conjuntos por uma condição: `INNER JOIN` inclui correspondências; `LEFT JOIN` preserva linhas do lado esquerdo sem correspondência, preenchendo o outro lado com NULL. `CROSS JOIN` expressa produto cartesiano. `UNION` elimina duplicatas no resultado combinado; `UNION ALL` conserva duplicatas.\n\nNULL indica ausência/desconhecimento de valor na lógica SQL, não zero nem texto vazio em geral. Comparações com NULL usando `=` ou `<>` resultam em desconhecido; o teste correto é `IS NULL`/`IS NOT NULL`. `COUNT(*)` conta linhas do grupo, inclusive as que possuem NULL; `COUNT(coluna)` desconsidera os NULL daquela expressão. `ORDER BY` define ordenação; sem ele não há garantia de ordem dos resultados, mesmo que um índice exista. `DELETE` sem filtro pode apagar todas as linhas de uma tabela, sujeito a restrições; `DROP TABLE` remove o objeto, com consequências que variam conforme SGBD. Consultas parametrizadas separam dados de comandos e são proteção importante contra injeção SQL, sem dispensar controle de privilégios.\n\n## ACID, isolamento e concorrência\nUma transação reúne operações como unidade lógica. **Atomicidade** é tudo ou nada; **consistência** preserva restrições; **isolamento** regula interferência de transações concorrentes; **durabilidade** exige persistência dos efeitos confirmados, conforme garantias do SGBD. Fenômenos de concorrência incluem leitura suja (dado ainda não confirmado), leitura não repetível (mudança de valor entre leituras) e fantasma (mudança no conjunto de linhas de um predicado). Níveis como READ COMMITTED, REPEATABLE READ e SERIALIZABLE não possuem implementação idêntica em todos os produtos; atenção ao mecanismo e à versão.\n\n**MVCC**, controle multiversão, mantém versões apropriadas para permitir leituras consistentes em cenários de concorrência. Não dispensa bloqueios em todas as situações; atualizações conflitantes ainda requerem coordenação. **Deadlock** ocorre quando transações formam espera circular de recursos; o sistema pode escolher vítima e desfazer parte do trabalho. *Lock* protege recurso; *latch* é sincronização interna de estruturas e não deve ser equiparado a bloqueio transacional. Em práticas de prova, uma leitura consistente não significa necessariamente que todos os comandos da transação enxerguem exatamente o mesmo instantâneo: isso depende do isolamento e do produto.\n\n## Índices, planos e manutenção\nÍndices aceleram determinadas buscas e ordenações, mas consomem armazenamento e elevam o custo de escritas; portanto, indexar toda coluna é má prática. B-tree é família comum para igualdade, faixas e ordenação, embora o aproveitamento dependa da posição da coluna e do predicado. Índices compostos merecem estudo pela ordem de suas colunas; índices únicos ajudam a garantir unicidade. Para dimensionar ganhos, observe seletividade, cardinalidade, custo estimado, filtros, junções e volume lido. `EXPLAIN` e ferramentas equivalentes mostram planos de execução; plano estimado não garante tempo exato, e estatísticas desatualizadas podem prejudicar escolhas do otimizador.\n\n## Governança, disponibilidade e recuperação\n**Backup** é cópia recuperável; **replicação** mantém cópias sincronizadas ou assincronizadas para outros objetivos, inclusive disponibilidade, e não equivale automaticamente a histórico restaurável. **RPO** mede perda máxima tolerável de dados em tempo; **RTO** mede prazo tolerável de restabelecimento. Criptografia em trânsito protege conexões, e em repouso protege dados armazenados, sem substituir autenticação ou autorização. Privilégios mínimos, auditoria de ações críticas, rotação de segredos e testes de restauração são controles complementares. Uma política que possui backup sem testar restore contém risco operacional importante. A prova costuma trocar `COMMIT` por `ROLLBACK`, chave primária por estrangeira, isolamento por durabilidade e replicação por backup."
+    },
+    {
+      "title": "Oracle Database 19c: arquitetura, SQL e transações",
+      "markdown": "## Estruturas da arquitetura Oracle\nNo Oracle Database 19c, diferencie **instância** (memória e processos que operam a base) de **database** (conjunto de arquivos). A área de memória compartilhada **SGA** e a área de memória privada por processo **PGA** possuem funções diferentes. O mecanismo usa *datafiles*, arquivos de controle, arquivos de redo log e outras estruturas operacionais. **Tablespaces** são unidades lógicas de armazenamento que agrupam segmentos, conectando objetos lógicos a espaço físico. Um **schema** reúne objetos pertencentes a um usuário, como tabelas, visões e sequências; não se confunde com o tablespace em que segmentos ficam armazenados.\n\nArquiteturas multitenant incluem **CDB** (*container database*) e **PDB** (*pluggable database*). Uma CDB pode conter PDBs isoladas logicamente que compartilham infraestrutura da instância. É uma distinção arquitetural, não o mesmo que replicação entre servidores. *Data dictionary* cataloga metadados de objetos e permissões. Visões de catálogo e visões dinâmicas de desempenho ajudam administradores a investigar esquema e execução, desde que tenham privilégios. Os arquivos de **redo** guardam registros de mudanças para recuperação; dados de **undo** ajudam a desfazer transações e a construir imagens consistentes para leitura. Redo e undo não são sinônimos.\n\n## SQL e peculiaridades da versão 19c\nO Oracle tem suporte a SQL declarativo e extensões como **PL/SQL** para blocos, procedimentos, funções e tratamentos de exceção. `SELECT ... FROM ... WHERE ... ORDER BY ... FETCH FIRST 5 ROWS ONLY` limita linhas de modo legível; para resultado determinístico, estabeleça uma ordenação adequada. `ROWNUM` também existe, mas sua interação com ordenação e subconsultas exige atenção. `NVL(expressao, substituto)` fornece valor alternativo quando a primeira expressão é NULL. `COALESCE` segue conceito SQL de primeiro valor não nulo. A tabela especial `DUAL` é conhecida em consultas de expressões. Sequências com `NEXTVAL` geram valores, mas não garantem ausência de lacunas, pois transações podem reverter e valores podem ser consumidos sem inserção final.\n\n`CREATE VIEW` expõe consultas como objetos lógicos; uma **materialized view** guarda resultado materializado que exige estratégia de atualização. Índices e particionamento são recursos para melhorar determinados acessos e gerenciamento; particionamento não elimina obrigação de projetar chaves e consultar planos. `MERGE` permite operações condicionais de atualização/inserção conforme correspondências, obedecendo regras de sintaxe do Oracle. Tabelas e transações devem seguir restrições e privilégios. Comandos DDL têm comportamento de **commit implícito** no Oracle, ponto clássico de prova: não assuma rollback de um `CREATE TABLE` bem-sucedido como se fosse simples DML.\n\n## Conflitos, isolamento e proteção\nO padrão de isolamento da Oracle é **READ COMMITTED**, com consistência de leitura por instrução; cada instrução pode observar um estado confirmado diferente, se outra transação fizer commit entre as instruções. No modo **SERIALIZABLE**, a consistência de leitura pode abranger a transação conforme as garantias e possibilidades de conflito do mecanismo; erros de serialização devem ser tratados pela aplicação. **SELECT FOR UPDATE** bloqueia linhas selecionadas para alteração coordenada; não é equivalente a SELECT ordinário. Locks coexistem com leitura multiversionada. Os mecanismos automáticos procuram preservar integridade e evitar leituras sujas nas garantias documentadas.\n\n## Operação e cobrança em concursos\nO plano pode ser examinado com ferramentas de explicação de consulta, mas um plano isolado não comprova desempenho real. A recuperação envolve redo, políticas de backup e procedimentos próprios, não apenas `ROLLBACK`. A segurança distingue usuário, papel (*role*), concessões e objeto de esquema. Priorize a tríade **arquivos–memória–processos**, os pares **redo versus undo**, **schema versus tablespace**, **CDB versus PDB** e **consistência de instrução versus transação**. Entre Oracle 19c e outros SGBDs, o núcleo relacional e ACID é compartilhado, mas sintaxes de paginação, identidade, gestão de sessões e comandos administrativos podem divergir."
+    },
+    {
+      "title": "MySQL e PostgreSQL: motores, recursos e diferenças",
+      "markdown": "## MySQL e o papel do mecanismo de armazenamento\nO MySQL é SGBD relacional de uso amplo. Na família MySQL 8.4, **InnoDB** é mecanismo de armazenamento padrão e oferece transações ACID, chaves estrangeiras, recuperação, bloqueios e controle multiversão. Isso importa porque o comportamento transacional não deve ser generalizado a qualquer mecanismo de armazenamento antigo ou alternativo. Em InnoDB, o nível usual padrão é **REPEATABLE READ**; são oferecidos READ UNCOMMITTED, READ COMMITTED, REPEATABLE READ e SERIALIZABLE. A leitura consistente com snapshot e os chamados *next-key locks* são mecanismos cuja atuação varia conforme isolamento e tipo de operação.\n\nEm sintaxe MySQL, `AUTO_INCREMENT` costuma gerar identificadores e `LIMIT 10 OFFSET 20` representa paginação; a presença de `ORDER BY` é necessária para controle da ordem. Índices compostos dependem da ordem das colunas; operações em índices secundários e armazenamento organizado por chave primária no InnoDB merecem ser entendidos separadamente. **EXPLAIN** oferece informações para investigar planos, inclusive possibilidades de varredura, filtragem e junções. **JSON** é um tipo oferecido pelo MySQL, e seu emprego não elimina a necessidade de pensar em esquema, consistência e estratégia de consultas. Procedimentos, *triggers* e *views* ampliam a lógica armazenada; uso excessivo pode dificultar manutenção.\n\n## PostgreSQL: SQL avançado e extensibilidade\nO PostgreSQL é um SGBD relacional e objeto-relacional aberto, com fortes recursos transacionais. Seu **MVCC** preserva visões consistentes para leituras e reduz determinados bloqueios de leitura e escrita, mas versões antigas das tuplas precisam de manutenção; **VACUUM** colabora na recuperação de espaço reutilizável e no cuidado com metadados de visibilidade, não equivale a backup. **WAL** (*write-ahead log*) registra alterações necessárias à recuperação e mecanismos de replicação. No isolamento **SERIALIZABLE**, o PostgreSQL emprega técnicas que podem exigir repetição de transações em caso de conflito.\n\nO PostgreSQL diferencia os tipos **json** (representação textual preservada) e **jsonb** (representação binária processável, com bom suporte a indexação); `jsonb` não mantém necessariamente espaços, ordem de chaves e duplicações como no texto original. **GIN**, **GiST**, **B-tree** e outros métodos atendem tipos de consulta distintos; não existe um índice único ideal para qualquer predicado. O banco oferece CTEs (`WITH`), funções de janela (`OVER`), `RETURNING` para devolver valores de operações e colunas de identidade geradas por sequências. Uma transação controla modificações e visibilidade, mas desempenho depende de planos, estatísticas e índices, assim como nos demais produtos.\n\n## Comparações para memorizar sem simplificar demais\nMySQL/InnoDB e PostgreSQL são relacionais, têm integridade, índices e transações; não são bancos orientados a documentos apenas por aceitarem JSON. Não é correto dizer que PostgreSQL não possui transações por ser código aberto, nem que todo `SELECT` em MySQL impõe bloqueio exclusivo. Quando uma prova disser que **REPEATABLE READ** é comportamento padrão universal, rejeite: a configuração é dependente de produto e mecanismo. O MySQL integra recursos a seus motores e usa terminologia típica de *storage engine*; o PostgreSQL integra um motor transacional com extensões, tipos e estratégias próprias.\n\n## Aplicação prática\nPara serviço que precisa de pedidos e pagamentos consistentes, modele referências e garanta transações e restrições. Para consulta frequente a um atributo em JSON, considere o suporte específico a expressões, colunas geradas e índices apropriados. Uma migração deve verificar tipos, tratamento de NULL, identificadores com aspas, rotinas, collation, funções, isolamento e paginação: SQL semelhante não assegura portabilidade automática. Em concursos, destaque `AUTO_INCREMENT` e `LIMIT` (MySQL), `jsonb`, `VACUUM`, `RETURNING` e a ideia de extensibilidade (PostgreSQL); não confunda esses itens com particularidades de SQL Server ou Oracle."
+    },
+    {
+      "title": "MongoDB: documentos, agregação e arquitetura distribuída",
+      "markdown": "## Documento e desenho de coleções\nMongoDB é SGBD orientado a documentos. Seus registros são documentos em formato **BSON**, representação binária com tipos além do JSON textual, reunidos em **coleções**. Documentos normalmente possuem o campo **`_id`**, identificador único, cujo valor pode ser criado automaticamente. Não equivale a afirmar que todos os documentos obrigatoriamente têm os mesmos campos ou que não podem existir regras de esquema. Arrays e subdocumentos dão expressividade à modelagem. A escolha entre **incorporar** (*embed*) e **referenciar** depende de leitura conjunta, cardinalidade, frequência de atualizações e crescimento do documento: incorporar favorece leitura coesa e atomicidade local; referenciar pode reduzir duplicação e conter crescimento de estruturas muito grandes.\n\nOperações como `find`, `insertOne`, `updateOne`, `deleteOne` consultam e alteram documentos; os filtros são documentos de consulta, por exemplo `{idade: {$gte: 18}}`. Projeção escolhe campos devolvidos, com regras específicas sobre inclusão/exclusão. `createIndex({campo: 1})` cria índice ascendente; índices multichave atendem campos com arrays conforme regras de indexação. Índices ajudam consultas, mas exigem custo em alterações. O índice único de `_id` é característica central da coleção. Schema flexível não torna seguro inserir arbitrariamente tipos incompatíveis com as aplicações. Há recursos de validação de documentos e escolha de tipos apropriados.\n\n## Pipeline de agregação e relacionamento\nO método `aggregate` opera com estágios encadeados. **`$match`** filtra documentos; **`$project`** escolhe ou transforma campos; **`$group`** agrega por chave expressa em `_id`, com acumuladores como `$sum` e `$avg`; **`$sort`** ordena e **`$limit`** restringe a quantidade. **`$unwind`** expande elementos de array em documentos do fluxo; **`$lookup`** permite associação com outra coleção nos cenários suportados. A ordem dos estágios altera custos e às vezes semântica. Uma chave `_id: null` em `$group` representa um único grupo de todos os documentos que chegarem ao estágio. `$group` não é simples renomeação de `GROUP BY` SQL: contexto e estrutura do pipeline importam.\n\n## Atomicidade, replica sets e sharding\nA operação de escrita de **um documento** é atômica na granularidade documentada pelo MongoDB, mesmo se alterar múltiplos campos desse documento. Para alterações atômicas entre **vários documentos**, MongoDB **suporta transações multidocumento**, inclusive em ambientes de replica set e de clusters fragmentados, com custos e restrições operacionais; portanto, é falso afirmar que NoSQL não oferece transações. Uma **replica set** mantém cópias de um conjunto de dados, com membro primário para escrita comum e secundários que replicam operações; eleições podem promover outro membro. Réplicas não são sinônimo de fragmentos independentes.\n\n**Sharding** distribui dados de uma coleção entre partições (*shards*) para escalar armazenamento/carga horizontalmente. A **shard key** influencia distribuição e roteamento; chaves mal escolhidas podem gerar concentração de inserções ou desbalanceamento. O roteador **mongos** direciona operações nos clusters fragmentados; servidores de configuração mantêm metadados do cluster. Em geral, cada shard pode ser implementado como replica set, compondo escalabilidade e disponibilidade. Replicação visa redundância e continuidade; sharding visa distribuição do volume. Nenhum deles dispensa backups e testes de restauração.\n\n## Seleção da tecnologia com limites conscientes\nA adequação do MongoDB decorre de acesso predominante a agregados documentais e flexibilidade estrutural, não da incapacidade de um relacional armazenar JSON. Associar milhões de ocorrências por caminhos altamente conectados pode favorecer um grafo; consolidar indicadores históricos pode favorecer modelagem dimensional; operações fortemente relacionais podem favorecer SQL com restrições declarativas. Segurança inclui autenticação, funções, conexão protegida, monitoramento e mínimos privilégios. Provas costumam explorar afirmações falsas como 'não há índices', 'não há transações', 'replica set divide os dados' e 'sharding apenas duplica todos os dados'."
+    },
+    {
+      "title": "SQL Server, SQLite e Firebird; comparação de plataformas",
+      "markdown": "## SQL Server: Transact-SQL e objetos de administração\nMicrosoft **SQL Server** é SGBD relacional com dialeto **Transact-SQL (T-SQL)**. `SELECT TOP (10)` restringe linhas, mas requer `ORDER BY` para uma seleção determinística de maiores/menores valores; o produto também oferece paginação por `OFFSET` e `FETCH` no contexto apropriado. **IDENTITY** é recurso comum para geração de valores; não é equivalente à garantia de sequência contínua sem buracos. `GETDATE()` é função de data/hora frequentemente cobrada, enquanto outros SGBDs adotam nomes e tipos diferentes. **Stored procedures**, visões, funções e gatilhos são formas de lógica programável no banco.\n\nNo SQL Server, um **clustered index** determina a ordem lógica de armazenamento dos dados da tabela segundo a chave do índice; por isso normalmente existe no máximo um por tabela. Índices **nonclustered** mantêm estruturas distintas com chaves e localizadores para linhas, e podem atender consultas sem leitura completa da estrutura base conforme colunas disponíveis. Uma tabela sem clustered index pode ser um **heap**. **Transaction log** participa da recuperação; fazer backup desse log, quando aplicável ao modelo de recuperação, segue regras próprias. Isolamento, versões de linhas e bloqueios devem ser avaliados conforme configuração, e o chamado snapshot isolation não é automaticamente a única estratégia.\n\n## SQLite: motor embarcado e arquivo de dados\n**SQLite** é biblioteca de banco relacional **embarcado**, em geral sem processo servidor independente, acessada dentro do aplicativo. Armazena tipicamente a base em arquivo e é muito usado em dispositivos móveis, testes e aplicativos locais; esse desenho não implica falta de SQL, transações ou índices. A **afinidade de tipos** permite flexibilidade de armazenamento sob regras próprias, embora o modo STRICT permita verificações mais rígidas em tabelas apropriadas. Integridade referencial existe, mas o aplicativo deve observar a configuração efetiva de **`PRAGMA foreign_keys`** na conexão: não se deve assumir sua fiscalização só porque uma cláusula FOREIGN KEY foi declarada.\n\nNo modo **WAL** (*write-ahead logging*), alterações são escritas inicialmente em log apropriado, permitindo leitores e escritor coexistirem em condições documentadas. A existência de WAL não significa múltiplos escritores simultâneos sem coordenação: SQLite serializa gravações. O mecanismo possui `BEGIN`, `COMMIT`, `ROLLBACK`, índices, gatilhos e consultas SQL. É ótima escolha quando independência de servidor e simplicidade operacional importam, mas muitos clientes remotos escrevendo intensamente no mesmo arquivo podem exigir outra arquitetura.\n\n## Firebird: SQL transacional e isolamento\n**Firebird** é SGBD relacional de código aberto, com suporte a transações, procedimentos, gatilhos e mecanismos multiversionados de concorrência. Sua linguagem procedural é conhecida como **PSQL**, enquanto DSQL designa SQL dinâmico. O mecanismo admite sintaxes de limitação como **`FIRST`/`SKIP`**, bem como formas modernas de paginação especificadas na documentação da versão; não se deve supor que todas as sintaxes ou palavras-chave sejam idênticas às do Oracle, MySQL ou SQL Server. **Generators/sequences** podem fornecer identificadores, sem promessa de ausência de lacunas. Firebird utiliza conceitos transacionais e ferramentas próprias de backup e administração.\n\n## Quadro mental de migração e escolha\nA pergunta 'qual é melhor?' não tem resposta universal. SQL Server, Oracle, MySQL, PostgreSQL e Firebird atendem sistemas relacionais com SQL e garantias transacionais, mas divergem em licença/edição, sintaxe, extensões, gerenciamento, custos operacionais e ecossistema. SQLite favorece incorporação local e baixo peso administrativo; MongoDB favorece agregados documentais e escala distribuída com projeto adequado. Em uma migração, verifique o tratamento de identificadores, `NULL`, tipos numéricos e temporais, transações de DDL, sequences/identity, paginação, triggers, procedimentos, índices e estratégia de recuperação. Converter `TOP`, `LIMIT`, `FETCH` e `FIRST/SKIP` cegamente produz erro de portabilidade. A banca pode misturar produtos: reconheça o nome da funcionalidade, depois pergunte se ela é padrão SQL ou particularidade de um fabricante."
+    }
+  ],
+  "summary": "**Mapa essencial para revisão:** os modelos hierárquico (árvore) e em rede (ligações navegáveis) são clássicos; o relacional armazena dados em tabelas, o documental em documentos, o de grafos em vértices e arestas e o multidimensional em fatos e dimensões. No SQL, `WHERE` filtra linhas e `HAVING` filtra grupos; `COUNT(*)` difere de `COUNT(campo)` quando há NULL. Transações obedecem ACID, e MVCC não é ausência total de bloqueios. **Oracle 19c:** instância/SGBD, SGA/PGA, tablespaces, redo/undo, CDB/PDB e READ COMMITTED. **MySQL:** InnoDB, ACID, REPEATABLE READ usual, LIMIT e AUTO_INCREMENT. **PostgreSQL:** MVCC, VACUUM, WAL, jsonb e RETURNING. **MongoDB:** BSON, `_id`, incorporação/referência, pipelines, transações entre documentos, replica sets e sharding. **SQL Server:** TOP e índice clustered; **SQLite:** banco embarcado, WAL e PRAGMA foreign_keys; **Firebird:** SQL transacional e FIRST/SKIP. Questões costumam exigir distinção entre replicação e backup, arquitetura e modelo de dados, e diferenças de sintaxe e de configuração entre produtos.",
+  "flashcards": [
+    {
+      "front": "O que distingue instância e banco no Oracle 19c?",
+      "back": "A instância contém memória e processos; o banco envolve arquivos persistentes como datafiles, control files e redo logs."
+    },
+    {
+      "front": "Qual é a diferença entre redo e undo no Oracle?",
+      "back": "Redo registra alterações para recuperação; undo conserva informações para reversão e leituras consistentes."
+    },
+    {
+      "front": "O que caracteriza uma CDB e uma PDB?",
+      "back": "CDB é base contêiner da arquitetura multitenant; PDB é base plugável logicamente isolada dentro de um contêiner."
+    },
+    {
+      "front": "Quais são as quatro propriedades ACID?",
+      "back": "Atomicidade: tudo ou nada; consistência: respeito a restrições; isolamento: concorrência; durabilidade: persistência após commit."
+    },
+    {
+      "front": "Qual é a diferença entre WHERE e HAVING?",
+      "back": "WHERE filtra linhas antes da agregação; HAVING filtra grupos, inclusive por valores agregados."
+    },
+    {
+      "front": "Por que COUNT(*) difere de COUNT(coluna)?",
+      "back": "COUNT(*) conta linhas; COUNT(coluna) desconsidera linhas em que a expressão vale NULL."
+    },
+    {
+      "front": "Como se distingue chave primária de chave estrangeira?",
+      "back": "A primária identifica univocamente a linha; a estrangeira estabelece referência sujeita às restrições declaradas."
+    },
+    {
+      "front": "O que é modelo hierárquico?",
+      "back": "Estrutura lógica de registros em árvore pai-filho com caminhos de navegação."
+    },
+    {
+      "front": "Qual é a diferença entre modelo em rede e modelo de grafos?",
+      "back": "O modelo de rede clássico organiza registros e conexões por conjuntos; grafos modelam entidades e arestas com consultas de caminhos e vizinhanças."
+    },
+    {
+      "front": "Qual é a diferença entre modelo relacional e dimensional?",
+      "back": "O relacional organiza relações em tabelas; o dimensional estrutura fatos e dimensões para análise de medidas sob diferentes perspectivas."
+    },
+    {
+      "front": "Quando há vantagem em desnormalizar?",
+      "back": "Quando acesso e agregação justificam redundância controlada; deve-se administrar anomalias, custos e consistência."
+    },
+    {
+      "front": "O que são OLTP e OLAP?",
+      "back": "OLTP prioriza transações operacionais curtas e integridade; OLAP prioriza análise, agregações e histórico."
+    },
+    {
+      "front": "Qual é o mecanismo de armazenamento padrão do MySQL 8.4?",
+      "back": "InnoDB, com suporte a transações ACID, chaves estrangeiras e multiversão."
+    },
+    {
+      "front": "Qual o isolamento padrão usual de InnoDB e Oracle?",
+      "back": "InnoDB utiliza normalmente REPEATABLE READ; Oracle normalmente READ COMMITTED, ressalvadas configurações."
+    },
+    {
+      "front": "Que função desempenha VACUUM no PostgreSQL?",
+      "back": "Ajuda na manutenção de tuplas obsoletas e em atividades de visibilidade próprias do MVCC; não substitui backups."
+    },
+    {
+      "front": "Como se diferenciam json e jsonb no PostgreSQL?",
+      "back": "json preserva o texto de entrada; jsonb guarda representação processada apropriada a operadores e índices, sem preservar todos os detalhes textuais."
+    },
+    {
+      "front": "Qual a função do campo _id no MongoDB?",
+      "back": "Identificar univocamente o documento na coleção; um índice único auxilia essa garantia."
+    },
+    {
+      "front": "O que é BSON?",
+      "back": "Representação binária de documentos com tipos próprios, utilizada pelo MongoDB."
+    },
+    {
+      "front": "O que fazem $match e $group?",
+      "back": "$match filtra documentos; $group agrega por chave expressa em _id, usando acumuladores como $sum."
+    },
+    {
+      "front": "Qual a diferença entre replica set e sharding?",
+      "back": "Replica set replica o conjunto de dados para redundância; sharding distribui partes dos dados entre shards para escala."
+    },
+    {
+      "front": "MongoDB oferece transações multidocumento?",
+      "back": "Sim. Há suporte em implantações adequadas, inclusive replica sets e clusters com sharding, com custos e restrições."
+    },
+    {
+      "front": "O que significa clustered index no SQL Server?",
+      "back": "Índice que organiza logicamente dados da tabela por sua chave; normalmente apenas um por tabela."
+    },
+    {
+      "front": "Por que SQLite é chamado de embarcado?",
+      "back": "Executa como biblioteca integrada ao aplicativo, geralmente com banco em arquivo, dispensando processo servidor independente."
+    },
+    {
+      "front": "Que configuração deve ser observada para chaves estrangeiras SQLite?",
+      "back": "Verificar a aplicação efetiva de PRAGMA foreign_keys na conexão, sem presumir enforcement apenas pela declaração."
+    },
+    {
+      "front": "Qual sintaxe de paginação é típica do Firebird?",
+      "back": "FIRST/SKIP; outras sintaxes de paginação também são suportadas segundo a versão."
+    },
+    {
+      "front": "Por que replica não equivale a backup?",
+      "back": "Alterações incorretas podem ser replicadas; o backup deve permitir restauração em ponto adequado e ser testado."
+    }
+  ],
+  "tips": [
+    "Primeiro identifique o modelo: árvore (hierárquico), vínculos navegáveis (rede), tabelas (relacional), vértices/arestas (grafo), documentos BSON (documental), fatos/dimensões (multidimensional).",
+    "Associe Oracle 19c a SGA/PGA, tablespace, redo/undo, CDB/PDB, PL/SQL, READ COMMITTED e FETCH FIRST.",
+    "Associe MySQL/InnoDB a motor transacional, REPEATABLE READ usual, AUTO_INCREMENT, LIMIT/OFFSET e EXPLAIN.",
+    "Associe PostgreSQL a MVCC, VACUUM, WAL, jsonb, RETURNING e métodos variados de indexação.",
+    "Associe MongoDB a _id, BSON, embed/reference, $match/$group, replica set para redundância e sharding para distribuição.",
+    "Associe SQL Server a T-SQL, TOP e clustered index; SQLite a biblioteca embarcada, PRAGMA e WAL; Firebird a PSQL e FIRST/SKIP.",
+    "Em perguntas sobre isolamento, veja o produto, o motor e a configuração; não assuma que níveis iguais têm implementações rigorosamente idênticas.",
+    "Exija ORDER BY para resultados ordenados; índice e LIMIT/TOP/FETCH sozinhos não fornecem classificação determinística."
+  ],
+  "traps": [
+    "Confundir banco em rede clássico com rede TCP/IP ou banco distribuído: um é modelo lógico, os outros são arquitetura e comunicação.",
+    "Confundir OLTP/OLAP e concluir que todo banco normalizado é mais rápido: há trocas entre atualização, redundância e leitura analítica.",
+    "Confundir redo (recuperação) com undo (reversão/consistência de leitura) no Oracle.",
+    "Afirmação de que MongoDB não tem transações ou índices: ambos existem, com granularidade e condições próprias.",
+    "Substituir replica set por sharding: o primeiro replica, o segundo fragmenta; podem coexistir.",
+    "Supor que SQL Server permite diversos clustered indexes sobre uma única tabela tradicional.",
+    "Achar que FOREIGN KEY no SQLite garante, sem verificar configuração, que a aplicação terá enforcement.",
+    "Universalizar sintaxe de paginação: TOP, LIMIT, FETCH FIRST e FIRST/SKIP pertencem a dialetos/suportes distintos."
+  ],
+  "activeRecall": [
+    {
+      "question": "Desenhe conceitualmente uma relação cliente-pedido 1:N. Onde vai a chave estrangeira?",
+      "answer": "Na tabela de pedidos, com referência ao identificador de cliente; múltiplos pedidos podem compartilhar a mesma referência."
+    },
+    {
+      "question": "Um SELECT com GROUP BY precisa filtrar grupos com SUM acima de um valor. Qual cláusula usar?",
+      "answer": "HAVING, porque se filtra o resultado agregado; WHERE é aplicado a linhas antes de agrupar."
+    },
+    {
+      "question": "Cite uma situação em que MVCC não elimina necessidade de coordenação.",
+      "answer": "Atualizações concorrentes do mesmo registro podem exigir bloqueios, detecção de conflito ou repetição de transações."
+    },
+    {
+      "question": "Explique o efeito de um comando DDL bem-sucedido sobre transações no Oracle.",
+      "answer": "Oracle realiza commits implícitos relacionados a DDL; não trate CREATE TABLE como UPDATE comum reversível por ROLLBACK."
+    },
+    {
+      "question": "Como investigar uma consulta lenta em MySQL ou PostgreSQL?",
+      "answer": "Consultar plano de execução, seletividade, índices e estatísticas, verificando volume e custos em vez de presumir que índice sempre resolve."
+    },
+    {
+      "question": "Qual decisão de modelagem MongoDB tomar quando subdocumentos crescem sem controle?",
+      "answer": "Considerar referências e repartição adequada, ponderando atualizações, cardinalidade, volume e padrão de leitura."
+    },
+    {
+      "question": "Diferencie replicação, sharding e backup em uma frase cada.",
+      "answer": "Replicação mantém cópias; sharding distribui dados; backup permite restaurar estado anterior conforme política e retenção."
+    },
+    {
+      "question": "Como obter os cinco maiores valores em T-SQL de modo previsível?",
+      "answer": "Usar TOP com ORDER BY DESC na coluna de valor, considerando critério de desempate para total determinismo."
+    },
+    {
+      "question": "Por que SQLite pode ser útil em dispositivos móveis sem ser NoSQL?",
+      "answer": "É um SGBD relacional embarcado e transacional; a ausência de servidor independente não altera seu modelo de tabelas."
+    },
+    {
+      "question": "O que distingue fato e dimensão em um data warehouse?",
+      "answer": "Fato armazena medidas e referências; dimensão fornece eixos descritivos de análise, como período, território e produto."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Modelos versus arquitetura",
+      "summary": "Modelos hierárquico, rede, relacional, documental, grafo e dimensional descrevem organização lógica de dados; replicação e sharding descrevem estratégias de implantação."
+    },
+    {
+      "key": "e2",
+      "title": "SQL e transações",
+      "summary": "WHERE e HAVING, COUNT(*) e COUNT(expr), isolamento e atomicidade são pares conceituais diferentes; NULL não pode ser testado como número comum."
+    },
+    {
+      "key": "e3",
+      "title": "Arquitetura Oracle",
+      "summary": "Instância não é banco físico; SGA/PGA não são tablespaces; redo não equivale a undo; CDB/PDB não significa replica set."
+    },
+    {
+      "key": "e4",
+      "title": "Variações entre relacionais",
+      "summary": "InnoDB, PostgreSQL, SQL Server, SQLite e Firebird têm recursos específicos; isolamento, paginação e identidade gerada não são intercambiáveis por simples troca de nome."
+    },
+    {
+      "key": "e5",
+      "title": "MongoDB e distribuição",
+      "summary": "Documento é unidade básica; o banco tem índices e transações; replica set preserva cópias, sharding divide dados; a escolha embed/reference depende da carga."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um projeto conceitual, pretende-se representar o fato de que um cliente pode efetuar vários pedidos, mas cada pedido pertence a um único cliente. Na passagem para tabelas, qual solução usual preserva a cardinalidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Inserir uma chave estrangeira de cliente na tabela de pedidos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar uma coluna de pedido único em cada cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eliminar a tabela de clientes e repetir todos os seus dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Obrigar a chave estrangeira de cliente em pedidos a ser única.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Associar cada pedido a todos os clientes por produto cartesiano.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em relação 1:N, a chave estrangeira normalmente fica do lado N, permitindo vários pedidos apontarem para um cliente. Torná-la única converteria indevidamente a relação em 1:1.",
+      "section": "Modelos de dados, projeto lógico e organização analítica",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação possui pessoas com múltiplas conexões entre si e precisa consultar caminhos de relacionamento de comprimento variável. Qual modelo é conceitualmente mais aderente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Modelo hierárquico estrito, de pai único para todo filho.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Modelo de grafos, com vértices, arestas e percursos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Modelo multidimensional, restrito a fatos e dimensões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Planilha sem vínculos entre registros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Modelo em rede entendido apenas como protocolo de transporte.",
+          "correct": false
+        }
+      ],
+      "explanation": "No grafo, arestas formalizam conexões e buscas de caminho, enquanto vértices representam entidades. A rede de registros clássica não se confunde com rede de computadores.",
+      "section": "Modelos de dados, projeto lógico e organização analítica",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma área de controladoria organiza vendas por tempo, região e produto, com medidas de quantidade e receita. Qual arranjo representa a modelagem dimensional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Árvore hierárquica com todos os registros sob um único pai.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma tabela que armazena apenas textos de consultas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tabela fato com medidas associadas a dimensões de análise.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Coleção de documentos sem medidas e sem critérios de agregação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Rede física que vincula exclusivamente computadores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tabelas fato reúnem medidas e referências às dimensões de análise. A organização multidimensional facilita agregar receitas por período e região; não descreve topologia de rede.",
+      "section": "Modelos de dados, projeto lógico e organização analítica",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe decide repetir o nome do fornecedor em milhares de linhas de pedidos. A principal cautela da normalização é evitar",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "desaparecimento obrigatório de todas as chaves estrangeiras.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "impossibilidade de realizar qualquer JOIN.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "exclusão de todos os índices existentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "anomalia de atualização causada por redundância do atributo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "proibição universal de desnormalização para relatórios.",
+          "correct": false
+        }
+      ],
+      "explanation": "A repetição do mesmo atributo em muitas linhas pode gerar inconsistência quando algumas cópias são atualizadas e outras não. Desnormalização controlada permanece possível para uso analítico.",
+      "section": "Modelos de dados, projeto lógico e organização analítica",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar o modelo hierárquico com o de rede clássico, a distinção mais adequada é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O hierárquico exige tabelas de fato para organizar métricas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O modelo em rede é obrigatoriamente um cluster MongoDB.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O relacional não suporta cardinalidade N:N.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O hierárquico é sinônimo de consulta SQL com CTE.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A rede admite vínculos de registros mais flexíveis que a árvore pai-filho.",
+          "correct": true
+        }
+      ],
+      "explanation": "O modelo hierárquico baseia-se em navegação por árvore com relação pai-filho. O modelo em rede permite conexões entre registros mais amplas, sem significar comunicação por TCP/IP.",
+      "section": "Modelos de dados, projeto lógico e organização analítica",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo relacional, um relacionamento muitos-para-muitos pode ser implementado por tabela associativa que referencia as duas entidades.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma tabela associativa com chaves estrangeiras é solução comum para representar ocorrências N:N no modelo relacional. O desenho preserva relações sem criar listas repetitivas dentro de uma coluna.",
+      "section": "Modelos de dados, projeto lógico e organização analítica",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo de dados em rede clássico, a expressão rede significa necessariamente a distribuição de registros por diferentes servidores da Internet.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O modelo em rede refere-se à estrutura lógica de associações entre tipos de registros e caminhos de navegação. Não define protocolo de comunicação nem exige armazenamento distribuído.",
+      "section": "Modelos de dados, projeto lógico e organização analítica",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em esquemas analíticos, uma tabela fato pode conter medidas e chaves para dimensões como período, região e produto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A tabela fato registra medidas e referências dimensionais para análises por diferentes perspectivas. Cubos e agregações OLAP usam esse arranjo sem substituírem a modelagem transacional.",
+      "section": "Modelos de dados, projeto lógico e organização analítica",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A terceira forma normal determina que qualquer tipo de redundância seja sempre proibido em qualquer projeto físico, inclusive em data warehouses.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Normalização busca reduzir certas dependências e anomalias no modelo lógico. Em data warehouses, desnormalização controlada pode ser escolhida, com custos de armazenamento e atualização claramente avaliados.",
+      "section": "Modelos de dados, projeto lógico e organização analítica",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta SQL contém agrupamento por setor e precisa retornar somente setores cuja soma das vendas supera um limite. Qual cláusula filtra o resultado da agregação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "HAVING, aplicado aos grupos formados pela consulta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "WHERE, usado somente após GROUP BY para todas as agregações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ORDER BY, que elimina grupos fora do limite.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DROP TABLE, que retira os setores pequenos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "JOIN, que funciona como predicado de agregação.",
+          "correct": false
+        }
+      ],
+      "explanation": "HAVING filtra grupos a partir de condições agregadas; WHERE filtra linhas antes do agrupamento. ORDER BY apenas ordena e não substitui a seleção de grupos por soma.",
+      "section": "SQL, consistência, índices, segurança e desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dada uma coluna email com entradas NULL, qual expressão SQL conta todas as linhas da tabela independentemente do conteúdo dessa coluna?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "COUNT(email)",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "COUNT(*)",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "SUM(email)",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "COUNT(DISTINCT email)",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "AVG(email)",
+          "correct": false
+        }
+      ],
+      "explanation": "COUNT(*) conta linhas, mesmo quando existem campos nulos. COUNT(email) ignora entradas NULL dessa expressão, ao passo que média e soma calculam agregações de outra natureza.",
+      "section": "SQL, consistência, índices, segurança e desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema confirma transferência entre contas apenas se débito e crédito puderem ser efetivados juntos. A propriedade ACID central desse requisito é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Durabilidade, porque dispensa qualquer log.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Isolamento, porque elimina a necessidade de consistência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atomicidade, pela execução integral ou reversão do conjunto.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Integridade referencial, porque proíbe transações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Escalabilidade, porque distribui carga por shards.",
+          "correct": false
+        }
+      ],
+      "explanation": "A atomicidade impede que apenas parte da transferência seja confirmada. Durabilidade preserva efeitos de operações já confirmadas, e isolamento regula a concorrência.",
+      "section": "SQL, consistência, índices, segurança e desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um banco relacional sob forte carga de atualizações, qual afirmação sobre índices é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todo índice melhora qualquer consulta sem sobrecusto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Índices substituem as regras de integridade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Índices tornam ORDER BY desnecessário para resultados determinísticos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Podem acelerar buscas, mas têm custo de espaço e manutenção em escritas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um índice composto ignora completamente a ordem das colunas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Índices reduzem determinados acessos, porém consomem espaço e precisam refletir inserções e alterações. O otimizador pode optar por não usá-los segundo os custos estimados.",
+      "section": "SQL, consistência, índices, segurança e desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após implantar replicação em dois servidores, a equipe decide descontinuar backups. Qual risco invalida essa decisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Réplicas tornam todas as transações automaticamente não atômicas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A replicação impede autenticação por usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Backup serve apenas para aumentar velocidade de SELECT.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Réplicas não podem conservar dados em discos diferentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterações erradas e exclusões podem se propagar às réplicas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Replicação costuma propagar alterações, inclusive exclusões acidentais, entre cópias. Backup restaurável e sua verificação são proteção distinta contra perda lógica e corrupção.",
+      "section": "SQL, consistência, índices, segurança e desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em SQL, COUNT(*) e COUNT(coluna) são garantidamente equivalentes, mesmo quando há NULL na coluna considerada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "COUNT(*) considera todas as linhas do grupo, enquanto COUNT(coluna) ignora linhas em que a expressão vale NULL. A equivalência ocorre apenas em condições apropriadas, não de forma universal.",
+      "section": "SQL, consistência, índices, segurança e desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A durabilidade das transações corresponde à preservação dos efeitos confirmados, conforme os mecanismos de persistência do SGBD.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Durabilidade trata de manter alterações após a confirmação, mesmo diante de falhas cobertas pelas garantias da plataforma. Ela não se confunde com atomicidade nem com a escolha do isolamento.",
+      "section": "SQL, consistência, índices, segurança e desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A presença de um índice torna desnecessária a cláusula ORDER BY sempre que se exige ordenação garantida do resultado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O plano do otimizador pode usar diferentes caminhos de acesso; nenhum deles fornece promessa geral de ordem sem ORDER BY. Índices auxiliam o desempenho, mas não substituem a expressão da ordenação.",
+      "section": "SQL, consistência, índices, segurança e desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta parametrizada ajuda a reduzir o risco de injeção SQL ao separar o texto do comando dos valores informados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A parametrização evita que um valor de entrada seja interpretado como sintaxe SQL na situação adequada. Continua indispensável validar permissões e adotar contas de menores privilégios.",
+      "section": "SQL, consistência, índices, segurança e desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Oracle Database 19c, uma equipe confunde instância com banco físico. Qual descrição distingue corretamente os termos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A instância reúne memória e processos; a base inclui arquivos de dados e controle.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A instância contém somente tabelas e é idêntica ao schema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Database significa exclusivamente o processo listener.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O banco físico é composto apenas de sessões em memória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A SGA é o conjunto de arquivos de dados persistentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "A instância Oracle executa o banco com memória e processos; os arquivos físicos constituem a base persistente. Schema é coleção lógica de objetos, e tablespace é espaço lógico.",
+      "section": "Oracle Database 19c: arquitetura, SQL e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante análise de recuperação e leitura consistente no Oracle 19c, é correto associar:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "redo à definição de usuários e undo ao balanceamento de carga.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "redo ao registro de alterações para recuperação e undo a imagens anteriores.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "undo apenas ao registro de tentativas de login.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "redo exclusivamente a planos de execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "redo e undo a cópias idênticas do mesmo arquivo de backup.",
+          "correct": false
+        }
+      ],
+      "explanation": "Redo registra alterações relevantes para recuperação e undo mantém informações de versões anteriores para reversão e leitura consistente. Os dois cumprem funções complementares.",
+      "section": "Oracle Database 19c: arquitetura, SQL e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A consulta Oracle `SELECT nome FROM pessoas ORDER BY nome FETCH FIRST 5 ROWS ONLY` tem qual finalidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar registros depois da quinta linha.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar índice para os cinco nomes mais frequentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Devolver até cinco nomes em ordem definida pelo critério informado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Devolver obrigatoriamente cinco nomes mesmo se houver três.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Agrupar os nomes em cinco schemas distintos.",
+          "correct": false
+        }
+      ],
+      "explanation": "FETCH FIRST restringe o número de linhas devolvidas, e ORDER BY fixa a ordenação exigida para previsibilidade. A consulta não altera registros e pode retornar menos linhas.",
+      "section": "Oracle Database 19c: arquitetura, SQL e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sobre sequências Oracle e o uso de NEXTVAL, qual afirmação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "NEXTVAL sempre reaproveita números de transações desfeitas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sequências são exclusivamente índices de pesquisa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma sequência obriga que todas as chaves sejam compostas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A geração de valores pode produzir lacunas e não é contagem contínua garantida.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "NEXTVAL exige consulta exclusiva a tabelas temporárias.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sequências fornecem valores para identificação, mas consumo antecipado, falhas e rollback podem deixar intervalos. A presença de lacuna não demonstra perda de integridade da chave.",
+      "section": "Oracle Database 19c: arquitetura, SQL e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Oracle 19c, qual par expressa a arquitetura multitenant?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "WAL e VACUUM, como nomes das bases plugáveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Replica set e shard key, como nomes dos contêineres Oracle.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Heap e clustered index, como partes de um contêiner.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "BSON e JSON, como processos de inicialização de instância.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CDB e PDB, em que bases plugáveis residem em um contêiner.",
+          "correct": true
+        }
+      ],
+      "explanation": "A arquitetura multitenant Oracle organiza PDBs dentro de uma CDB. Esse desenho de isolamento lógico não equivale a distribuir documentos por shards ou manter réplicas MongoDB.",
+      "section": "Oracle Database 19c: arquitetura, SQL e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Oracle 19c, SGA e PGA são conceitos de memória, enquanto tablespace é unidade lógica de armazenamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "SGA é compartilhada na instância e PGA está associada à memória de processo; tablespace organiza armazenamento lógico de segmentos. Trocar esses nomes de classe é pegadinha frequente.",
+      "section": "Oracle Database 19c: arquitetura, SQL e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Oracle Database 19c, executar com sucesso um comando DDL nunca envolve commit implícito e pode ser desfeito como um UPDATE comum.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Em Oracle, comandos DDL envolvem comportamento de commit implícito, conforme documentação. É inadequado tratá-los como DML reversível por um ROLLBACK de transação comum.",
+      "section": "Oracle Database 19c: arquitetura, SQL e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No nível READ COMMITTED do Oracle, duas instruções SELECT sucessivas na mesma transação podem observar resultados diferentes após commit concorrente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "No READ COMMITTED, a Oracle fornece consistência de leitura por instrução, não necessariamente um único snapshot durante toda a transação. Um commit concorrente pode afetar a instrução posterior.",
+      "section": "Oracle Database 19c: arquitetura, SQL e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Oracle, undo e redo são sinônimos, e ambos armazenam exclusivamente a lista de usuários ativos da instância.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Undo mantém informações úteis à reversão e à consistência de leitura; redo registra alterações para recuperação. Catálogo de usuários e sessões envolve outras estruturas do sistema.",
+      "section": "Oracle Database 19c: arquitetura, SQL e transações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma prova afirma que no MySQL 8.4 o mecanismo InnoDB é irrelevante para operações transacionais. A alternativa correta é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "InnoDB é motor padrão e oferece transações ACID e integridade referencial.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "InnoDB é exclusivamente formato de exportação CSV.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "InnoDB proíbe qualquer chave estrangeira.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MySQL sempre executa todas as tabelas sem mecanismo de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "InnoDB substitui a linguagem SQL por consultas de grafos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O InnoDB é o mecanismo de armazenamento padrão em MySQL 8.4 e oferece recursos transacionais, MVCC e chaves estrangeiras. Não cabe atribuir suas garantias a qualquer engine indistintamente.",
+      "section": "MySQL e PostgreSQL: motores, recursos e diferenças",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em relação ao isolamento padrão, a associação típica correta é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "MySQL InnoDB: SERIALIZABLE; Oracle: READ UNCOMMITTED.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "MySQL InnoDB: REPEATABLE READ; Oracle: READ COMMITTED.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "MySQL InnoDB: ausência de transações; Oracle: REPEATABLE READ obrigatório.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MySQL InnoDB: snapshot universal; Oracle: isolamento inexistente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MySQL InnoDB: READ UNCOMMITTED; Oracle: SERIALIZABLE exclusivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O nível padrão usual do InnoDB é REPEATABLE READ, enquanto Oracle adota READ COMMITTED. Configurações podem mudar; não há nível único que se deva imputar a todos os SGBDs.",
+      "section": "MySQL e PostgreSQL: motores, recursos e diferenças",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para consultas que analisam documentos JSON no PostgreSQL com possibilidade de indexação, qual tipo é especialmente relevante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "text, sempre equivalente a jsonb em operadores e índices.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "blob, que é o único tipo JSON do PostgreSQL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "jsonb, representação processável com recursos de indexação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "nvarchar(max), nome obrigatório da modalidade JSON.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ObjectId, tipo relacional de identidade do PostgreSQL.",
+          "correct": false
+        }
+      ],
+      "explanation": "PostgreSQL dispõe de json e jsonb; o segundo é armazenado em representação binária e suporta indexação especializada. Não preserva necessariamente detalhes textuais do original.",
+      "section": "MySQL e PostgreSQL: motores, recursos e diferenças",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual operação administrativa do PostgreSQL está relacionada a manutenção de versões antigas de tuplas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SHARD KEY.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "PRAGMA foreign_keys.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "NEXTVAL de sequence Oracle exclusivamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "VACUUM.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Replica set election.",
+          "correct": false
+        }
+      ],
+      "explanation": "VACUUM ajuda a tratar tuplas obsoletas no contexto do MVCC e manter saúde do banco. Não produz sozinho backup restaurável, tampouco corresponde a recurso de fragmentação MongoDB.",
+      "section": "MySQL e PostgreSQL: motores, recursos e diferenças",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa paginar no MySQL de modo previsível. Qual consulta exemplifica a prática?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "SELECT id FROM produtos LIMIT 10 OFFSET 20 sem qualquer critério de ordenação garantido;",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SELECT TOP (10) id FROM produtos ORDER BY id;",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SELECT FIRST 10 SKIP 20 id FROM produtos;",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "db.produtos.find({}).limit(10);",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SELECT id FROM produtos ORDER BY id LIMIT 10 OFFSET 20;",
+          "correct": true
+        }
+      ],
+      "explanation": "A sintaxe MySQL utiliza LIMIT e OFFSET, e ORDER BY define critério de ordem. TOP é típico de T-SQL, FIRST/SKIP é recurso do Firebird e find é operação MongoDB.",
+      "section": "MySQL e PostgreSQL: motores, recursos e diferenças",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No MySQL com InnoDB, o isolamento padrão usual é READ UNCOMMITTED, que permite leituras sujas por definição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A configuração padrão usual do InnoDB é REPEATABLE READ, e não READ UNCOMMITTED. Os níveis de isolamento alteram garantias e mecanismos; não se deve universalizar configurações entre bancos.",
+      "section": "MySQL e PostgreSQL: motores, recursos e diferenças",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O PostgreSQL utiliza MVCC para lidar com visibilidade de versões de registros nas consultas concorrentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O controle multiversão PostgreSQL permite que consultas enxerguem versões apropriadas conforme transação e isolamento, reduzindo certos conflitos de leitura sem eliminar todos os bloqueios.",
+      "section": "MySQL e PostgreSQL: motores, recursos e diferenças",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PostgreSQL, jsonb preserva obrigatoriamente a formatação exata do JSON original, inclusive todos os espaços e a ordem textual das chaves.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "jsonb armazena representação processável e pode normalizar detalhes de apresentação textual do documento. Para necessidade de manter exatamente o texto, o comportamento de json é distinto.",
+      "section": "MySQL e PostgreSQL: motores, recursos e diferenças",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No MySQL, um índice secundário pode beneficiar buscas, mas deve ser mantido nas alterações relevantes de registros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Índices secundários aceleram alguns predicados e acessos, ao custo de espaço e manutenção durante inserções, atualizações e exclusões. A utilidade concreta depende do plano e da carga.",
+      "section": "MySQL e PostgreSQL: motores, recursos e diferenças",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um cadastro MongoDB, alguns clientes têm dois telefones e outros nenhum. Qual característica do modelo permite estruturas distintas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Documentos BSON podem conter campos e arrays variáveis entre registros.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todas as coleções exigem colunas idênticas a um schema SQL fixo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "BSON significa apenas texto delimitado por vírgulas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cada cliente deve ocupar uma tabela relacional exclusiva.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O campo _id não possui qualquer noção de unicidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "Documentos BSON permitem campos opcionais e arrays, facilitando variação estrutural. Isso não elimina mecanismos de validação de esquema nem a importância do identificador _id.",
+      "section": "MongoDB: documentos, agregação e arquitetura distribuída",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja calcular o faturamento total por estado em uma coleção MongoDB. Qual estágio agrega valores por chave?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "$match, cujo único objetivo é criar índices.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "$group, com _id definido pelo estado e acumulador de soma.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "$project, que sempre cria transações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "$sort, que soma valores de grupos automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "$limit, que converte documentos em tabelas fato.",
+          "correct": false
+        }
+      ],
+      "explanation": "No pipeline MongoDB, $group agrega documentos por expressão em _id e permite usar $sum. $match filtra e $sort ordena; esses estágios têm funções diferentes.",
+      "section": "MongoDB: documentos, agregação e arquitetura distribuída",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo atualiza vários campos do mesmo documento em uma operação MongoDB. Qual garantia é aplicável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Toda escrita precisa obrigatoriamente de transação em dez coleções.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Nenhum comando MongoDB suporta atomicidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A operação de escrita individual em documento é atômica.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A garantia só existe caso haja sharding habilitado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O documento deve ser convertido para tabela SQL antes do update.",
+          "correct": false
+        }
+      ],
+      "explanation": "A escrita de um documento é atômica na granularidade documentada. Transações de vários documentos também existem, mas não são obrigatórias para obter atomicidade em um único documento.",
+      "section": "MongoDB: documentos, agregação e arquitetura distribuída",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num cluster MongoDB, qual componente de arquitetura é voltado à distribuição horizontal do conjunto de dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Replica set entendido como subdivisão obrigatória de cada documento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Coleção view que sempre copia toda a base para cada servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Transação local desprovida de índices.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sharding com partições distribuídas e chave de fragmentação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Operador $project usado como balanceador de servidores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sharding distribui dados entre shards para lidar com escala. Replica sets replicam dados para redundância e disponibilidade; a escolha da shard key afeta o equilíbrio e roteamento.",
+      "section": "MongoDB: documentos, agregação e arquitetura distribuída",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No MongoDB, quando documentos relacionados devem ser lidos juntos com frequência e têm tamanho administrável, uma decisão frequente de modelagem é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar uma tabela fato obrigatória para cada subdocumento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir todo relacionamento por replicação geográfica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Forçar um JOIN SQL em toda operação antes de salvar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar uma coleção separada para cada atributo simples.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Incorporar subdocumentos para favorecer leitura conjunta e atomicidade local.",
+          "correct": true
+        }
+      ],
+      "explanation": "A incorporação reduz consultas adicionais para dados usualmente acessados juntos e concentra mudanças num documento. Referências são opção quando há crescimento, reuso ou atualizações independentes.",
+      "section": "MongoDB: documentos, agregação e arquitetura distribuída",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No MongoDB, o documento pode conter arrays e documentos aninhados, e a coleção não exige campos idênticos em todos os registros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A modelagem documental com BSON aceita campos variáveis e estruturas aninhadas. A flexibilidade não elimina boas práticas de validação, índices e definição de contratos de dados.",
+      "section": "MongoDB: documentos, agregação e arquitetura distribuída",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O MongoDB não permite transações que envolvam mais de um documento, razão pela qual qualquer operação multidocumento é necessariamente não atômica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O MongoDB oferece transações multidocumento em configurações suportadas, inclusive replica sets e ambientes com sharding. Há custos e limites que devem ser avaliados, mas a proibição absoluta é incorreta.",
+      "section": "MongoDB: documentos, agregação e arquitetura distribuída",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No pipeline MongoDB, $match seleciona documentos e $group permite aplicar acumuladores por chave de agrupamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Os estágios desempenham funções diferentes: $match filtra o fluxo e $group reúne documentos pela expressão de _id para agregações. A ordem pode afetar custos e resultados.",
+      "section": "MongoDB: documentos, agregação e arquitetura distribuída",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em MongoDB, replica set e sharding são termos equivalentes que descrevem somente cópias integrais dos mesmos dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Replica set oferece redundância mediante replicação, enquanto sharding distribui dados entre partições. Arquiteturas podem combinar ambos, mas os objetivos não são iguais.",
+      "section": "MongoDB: documentos, agregação e arquitetura distribuída",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em SQL Server, uma consulta limita linhas com `TOP (5)`. Para selecionar previsivelmente os cinco maiores salários, deve-se acrescentar:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ORDER BY salario DESC.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "GROUP BY salario sem agregação para produzir ranking.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PRAGMA foreign_keys = ON.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "VACUUM FULL obrigatório antes do SELECT.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SHARD KEY salario configurada em cada sessão.",
+          "correct": false
+        }
+      ],
+      "explanation": "TOP limita a quantidade de linhas, mas quem determina os maiores salários é ORDER BY na direção DESC. Sem critério de ordenação, o subconjunto retornado não é previsível.",
+      "section": "SQL Server, SQLite e Firebird; comparação de plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve melhor um índice clustered tradicional no SQL Server?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pode haver obrigatoriamente dez índices clustered na mesma tabela.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Organiza logicamente as linhas da tabela segundo a chave do índice.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "É exclusivo de bancos de documentos BSON.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Impede a existência de índices nonclustered.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazena apenas arquivos de backup, sem afetar linhas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O índice clustered determina a organização lógica dos dados da tabela por uma chave, normalmente um por tabela. Índices nonclustered podem coexistir e mantêm estruturas separadas.",
+      "section": "SQL Server, SQLite e Firebird; comparação de plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aplicativo móvel requer base local e integrada ao processo, sem serviço de banco independente. Qual produto é especialmente conhecido por esse desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SQL Server em cluster distribuído obrigatório.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "MongoDB com um shard por aparelho sem conexão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SQLite.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Oracle 19c exigido em todo telefone.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MySQL com roteador mongos embarcado.",
+          "correct": false
+        }
+      ],
+      "explanation": "SQLite é um mecanismo de banco relacional embarcado, normalmente ligado ao aplicativo e a arquivo local. Isso não significa ausência de SQL, transações ou regras de integridade.",
+      "section": "SQL Server, SQLite e Firebird; comparação de plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para exigir verificação de chaves estrangeiras em conexão SQLite, que cuidado é especialmente relevante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar exclusivamente o comando MongoDB createIndex.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desligar sempre todos os mecanismos de transação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar índice clustered na tabela de sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificar a configuração de PRAGMA foreign_keys na conexão.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar NEXTVAL para habilitar automaticamente toda integridade.",
+          "correct": false
+        }
+      ],
+      "explanation": "SQLite suporta chaves estrangeiras, mas sua aplicação deve assegurar a configuração de enforcement efetiva, normalmente por PRAGMA foreign_keys. A declaração isolada não deve ser presumida suficiente.",
+      "section": "SQL Server, SQLite e Firebird; comparação de plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Entre as alternativas, qual sintaxe é característica conhecida de seleção limitada em Firebird?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "db.clientes.aggregate([{ $group: { _id: null } }])",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SELECT TOP (10) nome FROM clientes",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SELECT nome FROM clientes LIMIT 10 OFFSET 5",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SELECT nome FROM clientes WHERE ROWNUM = JSONB",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SELECT FIRST 10 SKIP 5 nome FROM clientes",
+          "correct": true
+        }
+      ],
+      "explanation": "FIRST e SKIP são sintaxes de limitação/paginação próprias do Firebird, que também admite alternativas conforme versão. TOP é associado a SQL Server e LIMIT a outros dialetos.",
+      "section": "SQL Server, SQLite e Firebird; comparação de plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SQL Server, uma tabela pode manter vários índices clustered independentes, cada um estabelecendo uma ordem física distinta para as mesmas linhas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Em uma tabela tradicional, há no máximo um índice clustered, pois ele estrutura a organização lógica dos dados. É possível, entretanto, criar diversos índices nonclustered adequados às consultas.",
+      "section": "SQL Server, SQLite e Firebird; comparação de plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SQLite, a utilização do modo WAL permite coexistência de leitores e escritor dentro das condições do mecanismo, sem significar múltiplos escritores simultâneos irrestritos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O WAL é recurso de registro e concorrência que favorece leituras durante escrita. SQLite mantém coordenação de gravações; o log não transforma o arquivo em cluster de escrita distribuída.",
+      "section": "SQL Server, SQLite e Firebird; comparação de plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A biblioteca SQLite depende, por definição, de um servidor remoto dedicado para interpretar qualquer consulta SQL de um aplicativo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "SQLite é embarcado e geralmente executa no processo da própria aplicação, acessando a base local. O sistema ainda oferece SQL, transações, índices e regras de integridade.",
+      "section": "SQL Server, SQLite e Firebird; comparação de plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Firebird oferece SQL transacional e sintaxe FIRST/SKIP para limitar e deslocar linhas em consultas, conforme sua linguagem documentada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O Firebird é um SGBD relacional com suporte a transações e extensões de SQL, entre elas FIRST/SKIP. Sua linguagem também contempla formas alternativas de paginação conforme a versão.",
+      "section": "SQL Server, SQLite e Firebird; comparação de plataformas",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Oracle Database 19c – Database Concepts",
+      "publisher": "Oracle",
+      "reference": "Manual oficial de conceitos e arquitetura Oracle 19c",
+      "url": "https://docs.oracle.com/en/database/oracle/oracle-database/19/cncpt/introduction-to-oracle-database.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Oracle 19c – SELECT (SQL Language Reference)",
+      "publisher": "Oracle",
+      "reference": "Referência oficial do comando SELECT em Oracle 19c",
+      "url": "https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/SELECT.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MySQL 8.4 – Introduction to InnoDB",
+      "publisher": "Oracle MySQL",
+      "reference": "Manual de referência oficial, mecanismo InnoDB",
+      "url": "https://dev.mysql.com/doc/refman/8.4/en/innodb-introduction.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL – Concurrency Control",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Documentação oficial de MVCC e transações",
+      "url": "https://www.postgresql.org/docs/current/mvcc.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL – JSON Types",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Documentação oficial dos tipos json e jsonb",
+      "url": "https://www.postgresql.org/docs/current/datatype-json.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MongoDB – Data Modeling",
+      "publisher": "MongoDB, Inc.",
+      "reference": "Documentação oficial sobre dados documentais e relacionamentos",
+      "url": "https://www.mongodb.com/docs/manual/data-modeling/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MongoDB – Transactions",
+      "publisher": "MongoDB, Inc.",
+      "reference": "Documentação oficial sobre transações multidocumento",
+      "url": "https://www.mongodb.com/docs/manual/core/transactions/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MongoDB – Sharding",
+      "publisher": "MongoDB, Inc.",
+      "reference": "Documentação oficial sobre fragmentação e shard key",
+      "url": "https://www.mongodb.com/docs/manual/sharding/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SQL Server – SELECT (Transact-SQL)",
+      "publisher": "Microsoft",
+      "reference": "Referência oficial de SELECT e TOP",
+      "url": "https://learn.microsoft.com/sql/t-sql/queries/select-transact-sql/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SQLite – Write-Ahead Logging",
+      "publisher": "SQLite Consortium",
+      "reference": "Documentação oficial do modo WAL",
+      "url": "https://sqlite.org/wal.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SQLite – Foreign Key Support",
+      "publisher": "SQLite Consortium",
+      "reference": "Documentação oficial da integridade referencial e sua configuração",
+      "url": "https://www.sqlite.org/foreignkeys.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Firebird 5.0 – Language Reference",
+      "publisher": "Firebird Project",
+      "reference": "Manual oficial de SQL e transações Firebird 5.0",
+      "url": "https://www.firebirdsql.org/file/documentation/html/en/refdocs/fblangref50/firebird-50-language-reference.html",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

@@ -1,0 +1,2014 @@
+{
+  "id": "informatica.desenvolvimento-web-backend-frameworks",
+  "subject": "Informática",
+  "title": "Desenvolvimento web backend e frameworks",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Desenvolvimento web backend e frameworks",
+    "Desenvolvimento web backend e frameworks"
+  ],
+  "scope": {
+    "covers": "Fundamentos de HTTP, APIs REST e MVC; PHP e orientação a objetos; PDO, Composer e segurança; CodeIgniter 3/4 com foco no 4; Symfony e principais componentes; jQuery, eventos e Ajax.",
+    "excludes": "Implementação exaustiva de deploy em nuvem, tuning específico de servidores e detalhes instáveis de versões de bibliotecas não essenciais ao edital."
+  },
+  "theoryTitle": "Desenvolvimento web backend e frameworks: PHP, CodeIgniter, Symfony e jQuery",
+  "chapters": [
+    {
+      "title": "Fundamentos do backend, HTTP e arquitetura web",
+      "markdown": "## 1. Onde se situa o backend\nUma aplicação web é um sistema distribuído em que o **cliente** (navegador, aplicativo móvel ou outro programa) envia requisições e o **servidor** processa regras, controla o acesso aos dados e produz respostas. O frontend cuida da interação no cliente, enquanto o backend implementa autenticação, validação de dados, regras de negócio, persistência, integrações e gerenciamento de recursos. Essa divisão é lógica: a mesma organização pode renderizar HTML no servidor, expor uma API JSON ou combinar ambas as abordagens. O servidor web recebe a conexão HTTP e pode encaminhar a execução para um runtime PHP, processo ou serviço de aplicação; o banco de dados é um componente distinto, não sinônimo de backend. Em uma arquitetura por camadas, a apresentação transforma a entrada e a saída, a aplicação orquestra os casos de uso, o domínio concentra regras e a infraestrutura acessa banco, filas e serviços externos. As camadas devem ser separadas por responsabilidades, não necessariamente por servidores físicos.\n\n## 2. Protocolo HTTP e semântica dos métodos\nHTTP é um protocolo de requisição e resposta; o servidor não precisa manter memória de uma requisição anterior para interpretar a seguinte. Uma requisição inclui método, alvo, cabeçalhos e, eventualmente, corpo. A resposta possui código de status, cabeçalhos e, eventualmente, corpo. **GET** solicita uma representação; é seguro no sentido semântico de que não deve pedir alteração de estado. **HEAD** obtém metadados sem corpo de resposta. **POST** costuma submeter dados e pode criar recursos ou disparar ações. **PUT** descreve a substituição da representação de um recurso, com semântica idempotente. **PATCH** indica modificação parcial, sem garantia geral de idempotência. **DELETE** é idempotente quanto ao efeito pretendido, mesmo que respostas sucessivas tenham códigos diferentes. Segurança de método (safe) não é sinônimo de proteção contra ataques; e idempotência diz respeito ao efeito de várias requisições iguais, não à identidade das respostas.\n\nCódigos frequentes: `200 OK` para sucesso geral; `201 Created` em criação; `204 No Content` quando não há corpo; `301` ou `308` em redirecionamento permanente, com nuances de preservação do método; `400 Bad Request` para requisição inválida; `401 Unauthorized` quando faltam credenciais válidas; `403 Forbidden` quando o servidor recusa autorizar a ação; `404 Not Found` quando o recurso não é encontrado; `409 Conflict` para conflito de estado; `422 Unprocessable Content` quando o conteúdo é compreendido, mas não pode ser processado conforme a semântica; `500 Internal Server Error` para falha inesperada no servidor. Não presuma que toda validação incorreta de formulário deva obrigatoriamente resultar no mesmo código: contratos de API adotam convenções explícitas.\n\n## 3. Estado, sessões e cookies\nHTTP não impõe sessão de usuário; sessões são construídas pela aplicação. O servidor pode guardar dados de sessão e entregar ao navegador um identificador por cookie. **Cookies** são enviados pelo navegador conforme domínio, caminho, expiração e atributos. `HttpOnly` reduz exposição do cookie ao JavaScript; `Secure` restringe o envio a conexões seguras; `SameSite` influencia o envio em contextos entre sites e auxilia contra certos cenários de CSRF, sem substituir análise de ameaça e proteções adicionais. Uma API pode usar autenticação por token, mas a existência de token não torna qualquer projeto automaticamente seguro nem elimina os riscos de vazamento e revogação. Autenticação responde 'quem é?', autorização responde 'o que pode fazer?'. O servidor deve fazer ambas as verificações onde necessárias, mesmo quando o frontend oculta botões.\n\n## 4. API, REST, JSON e integração\nUma API define operações e contratos de intercâmbio. JSON representa objetos, listas, números, strings, booleanos e `null`, mas **JSON não define o protocolo de transporte**: pode trafegar em HTTP ou outros meios. Uma API que busca seguir princípios REST privilegia recursos identificáveis, representações, interface uniforme, interações sem estado de sessão do ponto de vista da requisição e uso apropriado de métodos e códigos HTTP. A mera troca de JSON não prova que uma API seja RESTful. A paginação limita conjuntos de resultados; filtros e ordenação precisam ser validados; versionamento e compatibilidade protegem consumidores. CORS é uma política de navegadores baseada em cabeçalhos HTTP e não substitui autenticação nem restringe clientes fora de navegadores. A documentação de contrato pode adotar OpenAPI e exemplos de requisição/resposta.\n\n## 5. Padrões arquiteturais e ciclo de requisição\nO padrão **MVC** separa modelo, visão e controlador. O modelo abriga acesso ou representação de dados e regras relacionadas, conforme o framework; a visão renderiza uma apresentação; o controlador recebe a requisição e coordena a resposta. MVC não exige banco relacional, jQuery ou templates específicos. O roteador mapeia método e caminho para um controlador/handler; middleware e filtros executam etapas transversais, como autorização, logging, CORS e limites de taxa. **Injeção de dependências** fornece a uma classe seus colaboradores, facilitando substituição e testes. Um contêiner pode montar instâncias e resolver dependências, mas DI não obriga o uso de um contêiner.\n\n### Exemplo de fluxo\n`GET /produtos/25` → servidor web → roteador → verificação de acesso → controlador → serviço → repositório/ORM → banco → serializador ou template → resposta HTTP. O fluxo real pode variar, incluir cache ou omitir componentes. Cache HTTP, cache de aplicação e cache de banco operam em camadas diferentes. Uma operação assíncrona com fila permite desacoplar tarefas demoradas, mas requer observar repetição de mensagens, falhas, idempotência e consistência eventual.\n\n## 6. Critérios de projeto\nEscalabilidade não é o mesmo que velocidade de uma única requisição; observabilidade reúne logs, métricas e rastreamento; testes de unidade validam pequenas partes isoladas, integração verifica colaboração entre componentes e testes de ponta a ponta exercitam fluxos completos. Em concursos, desconfie de expressões 'sempre', 'somente' ou 'necessariamente': backend pode gerar HTML ou JSON, MVC não elimina acoplamentos por decreto e protocolo HTTP não garante por si só segurança nem persistência."
+    },
+    {
+      "title": "PHP: sintaxe, tipos, funções e orientação a objetos",
+      "markdown": "## 1. PHP no servidor\nPHP é uma linguagem de propósito geral muito utilizada no desenvolvimento web do lado do servidor. O código PHP executado no servidor produz HTML, JSON ou outros conteúdos; o cliente recebe **o resultado**, e não o código-fonte PHP interpretado. Arquivos podem combinar HTML e blocos `<?php ... ?>`. Em arquivos exclusivamente PHP, omitir a tag de fechamento evita problemas de saída acidental. As instruções costumam terminar em `;`; comentários incluem `//`, `#` e `/* ... */`. Variáveis começam com `$` e seu nome distingue maiúsculas de minúsculas, como `$valor` e `$Valor`. A concatenação de strings utiliza o ponto (`.`), não o sinal de adição empregado em outras linguagens. A atribuição é `=`, a comparação de valor com coerção é `==` e a comparação estrita de valor **e tipo** é `===`. Os operadores `!==` e `??` são frequentemente cobrados: `??` fornece valor alternativo se o operando anterior for inexistente ou nulo.\n\n## 2. Tipos de dados, coleções e conversão\nOs tipos abrangem `bool`, `int`, `float`, `string`, `array`, `object`, `null`, entre outros. `array` de PHP é um mapa ordenado, apto a operar como lista indexada ou como estrutura associativa: `['nome' => 'Ana', 'ativo' => true]`. `foreach ($itens as $item)` percorre elementos; `foreach ($itens as $chave => $valor)` disponibiliza ambos. `isset($x)` resulta falso para variável inexistente ou com valor `null`; `empty($x)` testa se um valor é vazio segundo regras próprias da linguagem, inclusive para `0`, `false`, `''` e estruturas vazias. O comando `echo` emite saída e `return` devolve resultado de uma função. Strings entre aspas duplas podem interpolar variáveis; entre aspas simples, em regra, não fazem interpolação. Conversões implícitas existem, mas são fontes de armadilhas. Prefira tipos explícitos, validações e `===` quando for preciso evitar coerção.\n\n```php\n<?php\n$produto = ['id' => 7, 'preco' => 49.90];\n$nome = $_GET['nome'] ?? 'visitante';\nif ($produto['id'] === 7) {\n    echo 'Produto selecionado';\n}\n```\n\nO exemplo ilustra acesso a array, nulo-coalescência e comparação estrita; **não** deve ser interpretado como validação ou como indicação de que dados de entrada são confiáveis. `$_GET`, `$_POST`, `$_COOKIE`, `$_SERVER`, `$_SESSION` e `$_FILES` são superglobais que carregam dados de diferentes origens, de acordo com configuração e contexto. O nome `$_POST` não significa que todo corpo HTTP POST seja automaticamente convertido para esse array: JSON recebido em `application/json` costuma exigir leitura do corpo e decodificação apropriada.\n\n## 3. Funções, escopo e tratamento de falhas\nFunções encapsulam lógica e aceitam argumentos com valores padrão, anotações de tipos e tipos de retorno. Parâmetros normalmente recebem valores; referências explícitas são outra possibilidade. Variáveis locais têm escopo diferente das globais; funções anônimas (`function (...) use (...) {}`) e arrow functions (`fn($x) => $x * 2`) oferecem expressões funcionais. Closures podem capturar variáveis do escopo externo, observando as regras específicas de captura. `try`/`catch` capturam exceções e `finally` permite limpeza; capturar toda exceção para ignorá-la silenciosamente dificulta diagnóstico. Erros de programação e falhas de negócio devem ser distinguidos no log e na resposta ao consumidor. Uma API não deve publicar stack trace e segredos em ambiente de produção.\n\n## 4. Classes, objetos, herança e interfaces\nUma classe define propriedades e métodos; a instância é criada, em geral, com `new`. `public`, `protected` e `private` definem visibilidade. `__construct` inicializa o objeto; `$this` acessa membros da instância; `self::` referencia membros estáticos ou elementos de classe, com nuances diante de herança. Interfaces especificam contratos implementados com `implements`. Classes abstratas podem oferecer implementação parcial e impedir instanciação direta. Traits compartilham métodos em classes sem estabelecer uma relação de herança entre tipos. `final` pode impedir extensão de classe ou sobrescrita de método conforme sua aplicação. Namespaces reduzem colisão de nomes; `use` importa ou estabelece aliases de nomes qualificados. `readonly` e propriedades tipadas, em versões adequadas, apoiam modelos de dados mais previsíveis. Não confunda *interface* de programação com interface gráfica.\n\n```php\ninterface Enviador { public function enviar(string $mensagem): void; }\nfinal class Notificador {\n    public function __construct(private Enviador $canal) {}\n    public function avisar(string $texto): void { $this->canal->enviar($texto); }\n}\n```\n\nA classe `Notificador` depende de uma **abstração**, não de um fornecedor concreto, facilitando testes com dublês e diferentes implementações. Esse exemplo combina promoção de propriedade no construtor e injeção de dependência; o propósito da orientação a objetos é modelar responsabilidades, não garantir automaticamente arquitetura de boa qualidade.\n\n## 5. Estruturas e recursos úteis\n`if`, `elseif`, `else`, `switch`, `match`, `for`, `while` e `foreach` controlam o fluxo. A expressão `match` usa correspondência estrita, devolve valor e não realiza queda (*fall-through*) entre braços, ao contrário de armadilhas comuns sobre `switch`. `include` e `require` carregam arquivos; diferenças de comportamento em falhas importam, mas bibliotecas modernas preferem autoload quando cabível. `json_encode` serializa em JSON e `json_decode` interpreta JSON com opções que determinam o resultado como objeto ou array associativo. A serialização não é substituto para autorização, validação ou codificação segura para HTML. `filter_var` pode auxiliar na validação de formatos, mas nenhuma função isolada substitui regras de domínio. Em uploads, verifique tipo real de conteúdo, tamanho, nomes seguros, destino, permissões e política de acesso; aceitar apenas a extensão indicada pelo cliente é insuficiente.\n\n## 6. Distinções de prova\nPHP **não** é linguagem executada exclusivamente no navegador; jQuery, ao contrário, executa no cliente como biblioteca JavaScript. PHP pode ser usado fora da web por CLI, tarefas agendadas e scripts. Uma aplicação escrita em PHP pode funcionar sem framework, embora frameworks tragam convenções e componentes. Tipagem dinâmica não é ausência de tipos: operações, declarações e verificações de tipo influenciam o comportamento. Confundir `.` e `+`, `==` e `===`, `isset` e `empty`, ou array associativo e objeto produz questões diretas e pegadinhas clássicas."
+    },
+    {
+      "title": "Persistência em PHP, Composer, APIs e segurança",
+      "markdown": "## 1. Persistência e conexões de dados\nO backend costuma acessar um sistema gerenciador de bancos de dados relacional por um driver apropriado. **PDO (PHP Data Objects)** fornece uma interface uniforme de acesso a diferentes drivers; não apaga, porém, as diferenças de sintaxe, capacidades e comportamentos dos SGBDs. Uma instrução preparada separa o texto SQL dos **valores** fornecidos pelo usuário. O fluxo típico é preparar a consulta, vincular valores e executar; parâmetros não substituem identificadores arbitrários de coluna ou tabela: nesses casos, escolha nomes por lista de permissões controlada pelo código. Concatenação direta de entrada não confiável dentro do SQL pode permitir **injeção SQL**. Escapar HTML não protege SQL; usar consultas parametrizadas não torna seguro renderizar HTML com valores não confiáveis.\n\n```php\n$stmt = $pdo->prepare('SELECT id, nome FROM usuarios WHERE email = :email');\n$stmt->execute(['email' => $email]);\n$usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC);\n```\n\nA transação engloba operações que precisam ser confirmadas ou revertidas de modo coerente. `beginTransaction()`, `commit()` e `rollBack()` são operações típicas de PDO, quando suportadas pela configuração e pelo banco. ACID descreve atomicidade, consistência, isolamento e durabilidade; níveis de isolamento e efeitos concorrentes dependem do SGBD. Índices podem acelerar busca, mas implicam custos de manutenção e armazenamento; migrar esquema em produção pede testes, backup e estratégia de reversão compatível. Um ORM mapeia objetos ou entidades a dados persistentes, mas não substitui a compreensão de SQL nem impede, por si só, consultas ineficientes, como N+1.\n\n## 2. Composer e organização de bibliotecas\n**Composer** é o gerenciador de dependências amplamente adotado no ecossistema PHP. O `composer.json` declara pacotes e restrições; o `composer.lock` registra versões resolvidas, permitindo instalações mais reproduzíveis. `composer install` usa o lock quando presente, ao passo que `composer update` resolve atualizações e modifica o lock conforme as restrições. `vendor/autoload.php` carrega o mecanismo de autoload gerado, evitando numerosos `require` manuais. **PSR-4** estabelece uma estratégia de autoload mapeando prefixos de namespace a diretórios. Não confunda PSR (recomendações de interoperabilidade do ecossistema) com nome de uma implementação específica de ORM. Dependências transitivas também precisam de atualização e análise de vulnerabilidades. Uma revisão pode empregar `composer audit` quando disponível, sem dispensar gestão de risco.\n\n## 3. Segurança: entrada, saída e autorização\nAmeaças distintas exigem defesas distintas. Na **injeção SQL**, código não confiável é interpretado como parte de uma consulta; a defesa central envolve consultas parametrizadas e critérios estritos de construção de identificadores. No **XSS**, uma página interpreta conteúdo não confiável como código ativo, por exemplo scripts; as defesas incluem codificação de saída conforme contexto, modelos seguros de DOM, sanitização quando HTML de usuário é estritamente necessário e uma política de segurança de conteúdo apropriada. `htmlspecialchars` pode auxiliar na saída textual para HTML, mas não serve indiscriminadamente para todos os contextos, como scripts, CSS, URLs ou SQL. Em jQuery, `.text()` insere texto; `.html()` trata a entrada como marcação e pode introduzir risco quando recebe conteúdo não confiável.\n\nO **CSRF** explora a capacidade de um navegador enviar solicitações autenticadas em contexto indevido. Tokens de CSRF, cookies com atributos adequados e validação de origem conforme o cenário mitigam o risco. A **autorização** precisa ser aplicada ao recurso/registro, não apenas à rota ou ao botão visível. Falhas de controle de acesso podem ocorrer mesmo em APIs autenticadas se um usuário alterar o identificador de objeto e alcançar dados de terceiro (**IDOR/BOLA**). Senhas devem ser processadas por hash específico de senhas, com salt e parâmetros adequados, nunca armazenadas em texto puro nem reversivelmente cifradas como regra de autenticação. Em PHP, `password_hash()` e `password_verify()` integram esse processo. SSL/TLS protege o transporte corretamente configurado, mas não corrige falhas de autorização, injeção ou XSS.\n\n## 4. Validação, erros e autenticação\n**Validar** significa verificar propriedades dos dados contra regras esperadas; **sanitizar** significa transformar valores para determinado uso, o que pode causar perda de dados. A validação no navegador melhora a experiência do usuário, porém a decisão de confiar em uma entrada deve ser tomada no servidor. Uma API não deve confundir autenticação (identidade), autorização (permissões) e verificação de integridade. Controles contra força bruta, limitação de taxa, política de senhas, gestão de sessão, renovação de identificadores após login e revogação de credenciais são pontos de projeto. Erros operacionais devem ser registrados em canais protegidos; a resposta pública deve ser útil sem revelar credenciais, query interna, rastreio de pilha ou detalhes sensíveis.\n\n## 5. APIs JSON, contratos e testes\nUma API com `Content-Type: application/json` especifica o formato do corpo enviado; `Accept: application/json` manifesta a preferência de formato da resposta. Em PHP, os dados podem ser lidos do corpo HTTP e decodificados, observando erros de formato. Valide cada campo, rejeite atributos não permitidos quando aplicável, escolha status coerentes e documente a semântica. Respostas previsíveis ajudam consumidores a tratar falhas. Testes de integração podem utilizar um banco isolado e avaliar status, corpo, autenticação e efeitos persistidos. Testes de segurança procuram cenários de injeção, XSS, manipulação de identificadores, upload inseguro e exposição de informações. O princípio do menor privilégio vale para a conta de banco, o usuário de execução e tokens de integração.\n\n## 6. Desempenho e operação\nPaginação, índices adequados, cache e redução de consultas redundantes ajudam na escala; cache mal invalidado produz dados obsoletos e falhas difíceis de reproduzir. Logs estruturados com identificador de requisição facilitam rastrear um erro entre serviços. Ambiente de desenvolvimento pode exibir mensagens detalhadas; produção exige configuração restritiva. Variáveis de ambiente ou gerenciadores de segredos devem custodiar credenciais, nunca um commit público. A escolha entre SQL direto, query builder e ORM é uma decisão de projeto: cada um oferece diferentes graus de abstração e demanda análise de desempenho e segurança."
+    },
+    {
+      "title": "CodeIgniter: MVC, rotas, models e filtros",
+      "markdown": "## 1. Identidade do CodeIgniter\n**CodeIgniter** é um framework PHP orientado à construção de aplicações web e APIs, com convenções para roteamento, controladores, modelos, views e serviços de infraestrutura. Ao estudar provas, é essencial distinguir gerações: **CodeIgniter 3** e **CodeIgniter 4** têm diferenças de diretórios, namespaces, APIs e arquitetura. As descrições abaixo se referem prioritariamente ao **CodeIgniter 4**; questões históricas de CI3 precisam identificar sua versão. CodeIgniter 4 usa namespace de aplicação, estrutura típica `app/`, diretório `public/` como pasta pública e componentes como `app/Controllers`, `app/Models`, `app/Views` e `app/Config`.\n\n## 2. MVC e fluxo de execução\nO roteamento associa uma URL e um método HTTP a uma ação do controlador. O controlador recebe entrada, solicita serviços e devolve resposta; o modelo representa operações de dados e persistência; a view contém a apresentação. Não é necessário que o controlador redija SQL manualmente, nem que a view realize autenticação. Um exemplo didático em CodeIgniter 4:\n\n```php\n// Em app/Config/Routes.php\n$routes->get('produtos/(:num)', 'Produtos::mostrar/$1');\n// Método de controlador simplificado:\npublic function mostrar(int $id)\n{\n    return view('produtos/detalhe', ['id' => $id]);\n}\n```\n\nO placeholder `(:num)` indica um segmento numérico e o `$1` é um marcador para o valor capturado. O exemplo ilustra associação rota/ação, sem afirmar que um ID válido existe ou que houve controle de acesso. Em rotas sensíveis, exigem-se controles de autorização; *auto routing* pode afetar a superfície de exposição de controladores, razão para entender as configurações efetivas do projeto.\n\n## 3. Models, Query Builder e migrations\nO `CodeIgniter\\Model` facilita operações comuns de CRUD, regras de dados permitidos, validação integrada e paginação, conforme configuração. Um modelo pode definir tabela, chave primária e lista de campos que podem ser preenchidos por operações. O **Query Builder** constrói consultas por métodos encadeáveis, reduzindo concatenação manual de comandos e auxiliando no tratamento seguro de valores; isso não autoriza inserir nomes de colunas, operadores ou fragmentos SQL recebidos de usuários sem validação. As *migrations* descrevem mudanças de esquema em código versionável, úteis para reproduzir evoluções do banco, com cautela para dados preexistentes. **Seeders** auxiliam na criação de dados iniciais ou de teste; não são substitutos de migrations.\n\n```php\n// Exemplo conceitual: construção de consulta\n$builder = $db->table('produtos');\n$linhas = $builder->where('ativo', 1)->orderBy('nome')->get()->getResultArray();\n```\n\nAqui há uma condição e uma ordenação; a segurança depende também do restante do fluxo, da origem dos identificadores e do controle de acesso. **Entidades** podem organizar dados e comportamentos, mas não são necessariamente a mesma coisa que modelos. A documentação do CodeIgniter ressalta que a utilização direta do Query Builder não aciona automaticamente todos os recursos de um `Model` configurado.\n\n## 4. Filters, validação e respostas\nOs **filters** do CodeIgniter 4 permitem executar lógica antes ou depois de controladores, conforme configuração. Usos: checar autenticação, aplicar cabeçalhos, implementar políticas de acesso ou registrar atividades. Um filtro não substitui a decisão de autorização vinculada ao objeto acessado. O framework oferece mecanismos de validação e tratamento de request/response, sessões, proteção de formulários e helpers. A aplicação deve diferenciar dados de entrada brutos, dados validados e dados já preparados para saída; helpers não autorizam ignorar políticas específicas de segurança. Um controlador voltado à API pode retornar JSON e códigos HTTP apropriados, não precisando produzir uma view HTML.\n\n## 5. Configuração e organização\nOs arquivos em `app/Config` centralizam aspectos do projeto, e variáveis de ambiente podem mudar entre desenvolvimento, homologação e produção. O servidor deve apontar para a pasta pública e impedir acesso direto a código de aplicação e segredos. O CI4 conta com CLI (`spark`) para operações de desenvolvimento, inclusive tarefas relativas a migrations e geração de componentes conforme a instalação. Testes automatizados e bibliotecas de terceiros podem compor a aplicação. Framework não elimina necessidade de entender PHP, HTTP, banco e ameaças.\n\n## 6. Pegadinhas sobre versões\nAfirmações absolutas como 'toda aplicação CodeIgniter usa a mesma estrutura de diretórios do CI3' estão erradas para projetos CI4. **Filters** não são o mesmo que `WHERE` de SQL; os primeiros interceptam o fluxo HTTP, enquanto o segundo restringe linhas em uma consulta. **Model** não se confunde com **Controller**: receber e despachar a requisição não é responsabilidade exclusiva da camada de persistência. Também não confunda `view()` com uma API REST: views são alternativas de apresentação, e endpoints JSON podem seguir rotas e controladores sem template HTML."
+    },
+    {
+      "title": "Symfony: componentes, serviços, Doctrine e Twig",
+      "markdown": "## 1. Ecossistema Symfony\n**Symfony** é um framework PHP e também um conjunto de componentes reutilizáveis separadamente. O aplicativo completo combina componentes como HttpFoundation (objetos de requisição e resposta), Routing (resolução de caminhos), DependencyInjection (serviços), EventDispatcher (eventos) e outros. É possível usar componentes Symfony em outros projetos, sem criar uma aplicação Symfony completa. Seu modelo enfatiza organização de responsabilidades, configurações, tipagem e extensibilidade. A flexibilidade não elimina a curva de aprendizagem; expressões como 'Symfony só serve a sistemas grandes' ou 'não admite API JSON' são simplificações falsas.\n\n## 2. Routing, controllers e HttpFoundation\nO roteador relaciona URI, métodos e condições às ações. Rotas podem ser declaradas por **attributes** em classes/métodos PHP, além de outros formatos de configuração suportados. O controlador prepara uma resposta `Response`, eventualmente em JSON, redirecionamento ou HTML renderizado. `Request` encapsula entradas e contexto HTTP; seus diversos repositórios de dados não devem ser confundidos. Um controlador é parte da borda da aplicação: valida entrada, coordena serviços e produz resposta, mas regras de negócio complexas podem ser deslocadas a serviços testáveis.\n\n```php\nuse Symfony\\Component\\HttpFoundation\\Response;\nuse Symfony\\Component\\Routing\\Attribute\\Route;\n\n#[Route('/saudacao/{nome}', methods: ['GET'])]\npublic function saudacao(string $nome): Response\n{\n    return new Response('Olá, ' . htmlspecialchars($nome, ENT_QUOTES, 'UTF-8'));\n}\n```\n\nEsse é um fragmento de método, não um arquivo PHP completo. O atributo define um parâmetro de rota e limita o método HTTP; a codificação de saída textual em HTML precisa considerar o contexto efetivo de uso. Não generalize essa codificação para atributos de URL, blocos de JavaScript ou consultas SQL.\n\n## 3. Contêiner e injeção de dependências\nServiços representam objetos que desempenham tarefas, como enviar mensagens, consultar repositórios e executar regras. O **container de serviços** gerencia construção e fornecimento de dependências; **autowiring** pode resolver serviços por informações de tipos e configuração. A dependência pode ser recebida no construtor ou em argumentos de ações quando suportado. Isso favorece inversão de controle e testes, mas não autoriza concluir que todo objeto seja automaticamente serviço público nem que abstrações dispensem cuidado com ciclo de vida e escopo.\n\n## 4. Twig, Doctrine e persistência\n**Twig** é mecanismo de templates com recursos para apresentação e escape automático em contextos usuais de HTML, sem servir de proteção universal para todo contexto de saída. **Doctrine** é um conjunto de bibliotecas frequentemente usado com Symfony para persistência e mapeamento objeto-relacional, mas **não é uma parte obrigatória do núcleo do framework**. O `EntityManager` em projetos com Doctrine gerencia entidades e sincroniza alterações com o armazenamento por operações como `persist()` e `flush()`. `persist()` sinaliza uma entidade para gerenciamento; `flush()` processa as alterações pendentes conforme o estado e a unidade de trabalho. Uma entidade não é sinônimo de tabela em qualquer estratégia nem um ORM garante desempenho adequado em todas as consultas. Migrations do ecossistema Doctrine registram alterações de esquema versionáveis.\n\n## 5. Segurança, formulários e eventos\nO componente **Security** e as configurações associadas oferecem recursos para autenticação e autorização. **Voters** podem apoiar decisões de autorização contextual, como verificar se o usuário pode editar determinado recurso; esconder um botão no Twig não implementa essa proteção. O componente **Form** ajuda a mapear, validar e processar dados de formulários; validação de dados e autorização de ações continuam conceitos diferentes. Eventos permitem desacoplar reações a situações do ciclo de vida; listeners e subscribers não são equivalentes a controladores de rota. O console `bin/console` executa comandos de manutenção e desenvolvimento em aplicações Symfony. Configurações de produção precisam impedir exibição de erros sensíveis e cuidar dos segredos.\n\n## 6. Comparação orientada a concursos\nCodeIgniter e Symfony são **frameworks backend PHP**; nenhum deles é linguagem. O CodeIgniter tende a ser reconhecido por um núcleo de convenções de aplicação relativamente direto; Symfony disponibiliza uma arquitetura fortemente baseada em componentes e serviços, inclusive para reutilização isolada. O mapeamento MVC aparece em ambos, embora os detalhes de implementação sejam diferentes. `Route` de Symfony não é o mesmo tipo ou chamada que `Routes.php` de CodeIgniter; `Twig` não é jQuery, `Doctrine` não é PDO e `Composer` não é um roteador. A prova pode solicitar o papel de cada componente e o encadeamento **requisição → rota → controlador → serviço → persistência → resposta**."
+    },
+    {
+      "title": "jQuery, integração frontend-backend e revisão comparativa",
+      "markdown": "## 1. O lugar do jQuery\n**jQuery é uma biblioteca JavaScript executada predominantemente no navegador**, portanto não é framework backend nem executa a linguagem PHP. Simplifica seleção de elementos do DOM, manipulação de nós, eventos, efeitos e comunicação assíncrona por Ajax. A função `$()` geralmente recebe um seletor CSS, elemento, função ou outro objeto suportado. Em um projeto com backend PHP, jQuery faz requisições HTTP; o servidor responde com JSON, HTML ou outra representação. O fato de o frontend chamar uma API não elimina validações no backend.\n\n```javascript\n$(function () {\n  $('#buscar').on('click', function () {\n    $.getJSON('/api/produtos', function (dados) {\n      $('#resultado').text('Itens: ' + dados.length);\n    });\n  });\n});\n```\n\nO atalho `$(function(){ ... })` executa o callback quando o DOM está pronto para manipulação, sem necessariamente esperar o carregamento de todas as imagens. `$('#buscar')` usa um seletor por identificador. `.text()` modifica conteúdo textual e evita interpretar uma string como HTML; `.html()` interpreta a marcação e precisa de cuidados ao lidar com entrada não confiável.\n\n## 2. Seletores, eventos e delegação\nSeletores do tipo `'.classe'`, `'#id'`, `'li'` e combinações CSS localizam elementos. `.addClass()`, `.removeClass()`, `.attr()`, `.val()`, `.prop()` e `.css()` operam sobre aspectos diferentes de elementos. `.val()` é apropriado para valores de muitos campos de formulário, enquanto `.text()` trabalha com texto de nós. `.on('click', manipulador)` registra handlers de eventos. A **delegação** registra o handler em ancestral que recebe eventos propagados e usa seletor para identificar alvos descendentes, útil para elementos criados dinamicamente:\n\n```javascript\n$('#lista').on('click', '.remover', function (evento) {\n  evento.preventDefault();\n  $(this).closest('li').remove();\n});\n```\n\nDelegação depende de eventos e condições de propagação apropriados; não se deve afirmar que qualquer evento seja delegável de qualquer forma. `.off()` remove handlers segundo argumentos utilizados. O uso de `preventDefault()` evita a ação padrão em eventos canceláveis, mas não interrompe por si só a propagação; `stopPropagation()` trata da propagação, sem substituir autorização no servidor.\n\n## 3. Ajax, JSON e promessas\nO termo **Ajax** descreve uma técnica de comunicação assíncrona que permite atualizar partes da interface sem navegação completa. `$.ajax()` é uma API configurável; `$.get()` e `$.post()` fornecem atalhos, e `$.getJSON()` facilita requisição de JSON. `$.ajax()` devolve um objeto `jqXHR` que permite callbacks e comportamento semelhante a promises/deferred conforme a API. Os métodos `done`, `fail` e `always` favorecem tratamento de resultados; uma chamada assíncrona não produz imediatamente dados finais sincronizados. O servidor tem responsabilidade de verificar autorização, validar parâmetros e retornar status correto.\n\nExemplo de requisição com método POST e JSON:\n\n```javascript\n$.ajax({\n  url: '/api/produtos',\n  method: 'POST',\n  contentType: 'application/json',\n  data: JSON.stringify({ nome: 'Caderno' })\n}).done(function (resposta) { console.log(resposta); })\n  .fail(function (xhr) { console.error(xhr.status); });\n```\n\nEnviar `Content-Type: application/json` não transforma automaticamente o corpo recebido em `$_POST` no PHP. Cabe ao backend interpretar o corpo conforme o tipo. `dataType` no jQuery refere-se ao tipo de **resposta esperado/processado**, enquanto `contentType` diz respeito ao tipo de conteúdo **enviado**. A distinção costuma ser examinada em provas.\n\n## 4. Integração e segurança do DOM\nA validação no navegador melhora a usabilidade, mas pode ser desativada pelo cliente, então o servidor precisa validar de novo. Introduzir texto arbitrário via `.html()` pode criar XSS; prefira `.text()` para exibir conteúdo como texto simples e use sanitização apropriada quando HTML for de fato requisito. Cookies e tokens transportam credenciais conforme a arquitetura; alterações de estado exigem avaliar proteção contra CSRF no contexto de sessão. **CORS** não concede permissão de negócio, e clientes de linha de comando podem fazer solicitações independentemente da política de navegadores. O controle de acesso real deve ocorrer no servidor.\n\n## 5. Contraste de tecnologias\n**PHP** é linguagem; **CodeIgniter** e **Symfony** são frameworks de backend PHP; **Composer** gerencia dependências PHP; **PDO** viabiliza acesso a banco; **Doctrine** pode fazer mapeamento objeto-relacional; **Twig** renderiza templates; **jQuery** é biblioteca JavaScript no cliente; **JSON** é formato de dados; **HTTP** é protocolo; **Ajax** é técnica de comunicação. Ferramentas modernas podem cumprir algumas funções sem jQuery, por exemplo `fetch` e APIs nativas do navegador, o que não retira a relevância da biblioteca em sistemas existentes e em provas.\n\n## 6. Roteiro de solução de questões\nAo encontrar um enunciado, identifique primeiro a camada solicitada. Uma questão sobre SQL parametrizado aponta para segurança de persistência, não para cookies. Uma questão sobre `.on()` e delegação refere-se a eventos em DOM; uma sobre `routes` pode exigir distinguir frameworks e versão. Pergunte, em seguida, **qual é o objeto de proteção**: autenticação comprova identidade, autorização restringe ação, validação limita formato e regra de entrada, escape adequado à saída reduz injeções em contexto de apresentação. Por fim, desconfie de generalizações sobre tecnologias: nenhuma biblioteca, ORM, framework ou mecanismo de cache garante, isoladamente, segurança, desempenho ou escalabilidade."
+    }
+  ],
+  "summary": "O desenvolvimento web **backend** combina HTTP, roteamento, processamento de regras de negócio, autenticação, autorização, persistência e produção de respostas HTML ou JSON. No **PHP**, são essenciais os operadores `.` (concatenação) e `===` (igualdade estrita), arrays associativos, funções, namespaces e recursos de orientação a objetos. **PDO** executa consultas preparadas; para evitar injeção SQL, vincule valores e controle rigidamente identificadores dinâmicos. O **Composer** administra dependências: `composer.json` expressa restrições e `composer.lock` registra versões resolvidas. No **CodeIgniter 4**, rotas, controllers, models, Query Builder, views e filters compõem a arquitetura MVC, com diferenças relevantes em relação ao CI3. No **Symfony**, Routing, HttpFoundation e DependencyInjection compõem a base; Twig oferece templates, Doctrine é integração de ORM opcional e voters auxiliam na autorização. **jQuery** é biblioteca JavaScript de navegador para DOM, eventos e Ajax: `.text()` não interpreta HTML; `.on()` pode delegar eventos; `contentType` indica formato enviado e `dataType`, resposta esperada. Em provas, separe CORS de autorização, SQL injection de XSS e validação no cliente de verificação obrigatória no servidor.",
+  "flashcards": [
+    {
+      "front": "O que cabe ao backend web?",
+      "back": "Processar requisições, autorizar ações, executar regras de negócio e integrar persistência e serviços."
+    },
+    {
+      "front": "Qual é a diferença entre autenticação e autorização?",
+      "back": "Autenticação comprova identidade; autorização verifica a permissão para uma ação ou recurso."
+    },
+    {
+      "front": "O que significa idempotência em HTTP?",
+      "back": "Repetir uma requisição equivalente tem o mesmo efeito pretendido no estado do recurso, independentemente de respostas idênticas."
+    },
+    {
+      "front": "PUT e PATCH são sempre idempotentes?",
+      "back": "PUT tem semântica idempotente; PATCH não oferece garantia geral de idempotência."
+    },
+    {
+      "front": "JSON é sinônimo de REST?",
+      "back": "Não. JSON é formato de representação; REST é um estilo arquitetural com restrições específicas."
+    },
+    {
+      "front": "Qual o papel do controlador em MVC?",
+      "back": "Receber ou coordenar a requisição e produzir resposta com ajuda de serviços, modelos e views."
+    },
+    {
+      "front": "Como concatenar strings em PHP?",
+      "back": "Com o operador ponto: $a . $b."
+    },
+    {
+      "front": "Diferença entre == e === em PHP?",
+      "back": "== pode usar coerção; === exige igualdade de valor e tipo."
+    },
+    {
+      "front": "O que faz ?? em PHP?",
+      "back": "Fornece valor alternativo se o operando anterior não existe ou é null."
+    },
+    {
+      "front": "O que faz isset($x)?",
+      "back": "Retorna falso quando a variável não existe ou tem valor null."
+    },
+    {
+      "front": "Como PHP representa arrays associativos?",
+      "back": "Com array de chaves e valores, por exemplo [\"id\" => 5]."
+    },
+    {
+      "front": "Para que serve um namespace em PHP?",
+      "back": "Organiza nomes e reduz conflitos entre classes e demais símbolos."
+    },
+    {
+      "front": "Interface, classe abstrata e trait são iguais?",
+      "back": "Não: interface especifica contrato; classe abstrata pode oferecer implementação parcial; trait compartilha implementação."
+    },
+    {
+      "front": "O que é PDO?",
+      "back": "Interface do PHP para acesso a bancos via drivers, incluindo suporte a instruções preparadas."
+    },
+    {
+      "front": "Como prevenir injeção SQL com dados de entrada?",
+      "back": "Use consultas parametrizadas para valores e allowlist para identificadores variáveis."
+    },
+    {
+      "front": "composer.json e composer.lock diferem como?",
+      "back": "O primeiro declara dependências/restrições; o segundo registra versões efetivamente resolvidas."
+    },
+    {
+      "front": "Para que serve vendor/autoload.php?",
+      "back": "Carregar classes e arquivos por meio do autoloader gerado pelo Composer."
+    },
+    {
+      "front": "O que caracteriza PSR-4?",
+      "back": "Uma convenção de autoload que relaciona prefixos de namespace a caminhos de arquivos."
+    },
+    {
+      "front": "Qual a função de filters no CodeIgniter 4?",
+      "back": "Executar lógicas transversais antes/depois de controllers no fluxo da requisição."
+    },
+    {
+      "front": "O que faz o Query Builder do CodeIgniter?",
+      "back": "Facilita montar consultas por uma interface fluente, sem dispensar validação de identificadores e controle de acesso."
+    },
+    {
+      "front": "O que é HttpFoundation no Symfony?",
+      "back": "Componente com objetos e abstrações para requisições e respostas HTTP."
+    },
+    {
+      "front": "O que é autowiring no Symfony?",
+      "back": "Resolução de dependências de serviços por tipos e configuração no container."
+    },
+    {
+      "front": "Twig e Doctrine servem para quê?",
+      "back": "Twig renderiza templates; Doctrine pode realizar ORM e persistência em projetos Symfony."
+    },
+    {
+      "front": "persist() e flush() no Doctrine são sinônimos?",
+      "back": "Não. persist sinaliza gerenciamento; flush sincroniza mudanças pendentes gerenciadas."
+    },
+    {
+      "front": "Para que serve um voter no Symfony?",
+      "back": "Implementar decisões de autorização contextual para ações e objetos."
+    },
+    {
+      "front": "jQuery é backend?",
+      "back": "Não; é uma biblioteca JavaScript de DOM, eventos e Ajax, geralmente executada no navegador."
+    },
+    {
+      "front": "Qual a diferença entre .text() e .html() no jQuery?",
+      "back": ".text() opera com texto; .html() trabalha com marcação HTML e requer cuidados com entrada não confiável."
+    },
+    {
+      "front": "O que é delegação em .on()?",
+      "back": "Registrar handler no ancestral e identificar eventos de descendentes por seletor."
+    },
+    {
+      "front": "dataType e contentType no $.ajax indicam o quê?",
+      "back": "dataType orienta o formato de resposta esperado; contentType indica o tipo de conteúdo enviado."
+    },
+    {
+      "front": "Um POST JSON chega automaticamente em $_POST?",
+      "back": "Não; o backend PHP deve interpretar o corpo JSON de acordo com Content-Type."
+    }
+  ],
+  "tips": [
+    "Mapeie a tecnologia à camada: PHP no backend; jQuery no navegador; HTTP no transporte; JSON na representação.",
+    "Diferencie funções HTTP por semântica: GET é seguro, PUT e DELETE são idempotentes quanto ao efeito pretendido; PATCH não necessariamente.",
+    "Para PHP, compare `.` versus `+`, `==` versus `===` e `isset` versus `empty` em pequenos trechos de código.",
+    "Em SQL, parâmetros preparados representam valores; identificadores dinâmicos exigem lista explícita de opções autorizadas.",
+    "Em CodeIgniter, confirme se o enunciado refere-se ao CI3 ou CI4 antes de julgar diretórios, rotas e APIs.",
+    "No Symfony, associe Routing a rotas, HttpFoundation a HTTP, DependencyInjection a serviços, Twig a templates e Doctrine ao ORM opcional.",
+    "Em jQuery, memorize `.text()` versus `.html()`, `.on()` direto versus delegado e `contentType` versus `dataType`.",
+    "Associe cada ameaça à defesa: SQL injection/parametrização; XSS/codificação contextual; CSRF/tokens e estratégia de origem; IDOR/autorização por objeto."
+  ],
+  "traps": [
+    "Confundir JSON com REST: um endpoint JSON não se torna RESTful apenas pelo formato.",
+    "Afirmar que todo endpoint autenticado é autorizado: identidade não libera acesso a objetos de terceiros.",
+    "Tomar `isset(null)` por verdadeiro ou dizer que `==` e `===` têm a mesma regra de comparação em PHP.",
+    "Achar que instruções preparadas permitem substituir qualquer nome de tabela ou coluna por parâmetro.",
+    "Equiparar CodeIgniter 3 e 4 quanto a namespaces e estrutura de diretórios.",
+    "Tratar Doctrine como parte obrigatória do núcleo Symfony ou Twig como biblioteca de eventos de DOM.",
+    "Inverter o papel de `contentType` e `dataType` em uma chamada Ajax do jQuery.",
+    "Concluir que CORS impede toda chamada HTTP ou que validação no navegador dispensa validação no servidor."
+  ],
+  "activeRecall": [
+    {
+      "question": "Uma pessoa autenticada solicita dados de terceiro alterando o ID. O que deve ser verificado?",
+      "answer": "Autorização vinculada ao objeto e ao usuário, pois autenticação não garante acesso a qualquer registro."
+    },
+    {
+      "question": "Qual é a diferença entre GET, POST e PUT em termos de finalidade?",
+      "answer": "GET solicita representação, POST submete dados ou ações e PUT expressa substituição de estado de recurso com semântica idempotente."
+    },
+    {
+      "question": "Por que parametrizar SQL não resolve XSS?",
+      "answer": "Parâmetros impedem que valores alterem a estrutura de SQL; XSS ocorre na saída e pede codificação específica para o contexto de apresentação."
+    },
+    {
+      "question": "Ao migrar CodeIgniter 3 para 4, que pontos merecem revisão?",
+      "answer": "Diretórios, namespaces, rotas, APIs de models, validação, filtros e configurações de segurança."
+    },
+    {
+      "question": "O que Symfony oferece além de um framework de aplicação completo?",
+      "answer": "Componentes desacoplados como HttpFoundation, Routing, DependencyInjection e EventDispatcher, reutilizáveis isoladamente."
+    },
+    {
+      "question": "Que papel têm Twig, Doctrine e voters em um projeto Symfony?",
+      "answer": "Twig: apresentação; Doctrine: ORM opcional; voters: decisões de autorização contextual."
+    },
+    {
+      "question": "Como registrar clique em botões dinamicamente adicionados por jQuery?",
+      "answer": "Usar delegação de evento em um ancestral com `.on(\"click\", \".botao\", handler)` quando houver propagação adequada."
+    },
+    {
+      "question": "Se $.ajax enviar JSON em POST, qual cuidado o PHP deve ter?",
+      "answer": "Decodificar o corpo JSON em vez de presumir variáveis de formulário em $_POST, e validar os dados recebidos."
+    },
+    {
+      "question": "Quando Composer install e update tendem a diferir?",
+      "answer": "Install respeita o composer.lock existente; update resolve versões permitidas e atualiza o arquivo lock."
+    },
+    {
+      "question": "Qual a função do comparador === no PHP?",
+      "answer": "Exigir igualdade de valor e tipo, evitando coerção presente na comparação não estrita."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "HTTP, REST e camadas do backend",
+      "summary": "Distingue protocolo, método, código de status, recursos, JSON e arquitetura MVC. Repetição idempotente não exige código de resposta idêntico."
+    },
+    {
+      "key": "e2",
+      "title": "Autenticação, autorização e CORS",
+      "summary": "Identidade não equivale a permissão sobre cada recurso. CORS é política relacionada a navegadores e não substitui segurança de API."
+    },
+    {
+      "key": "e3",
+      "title": "Semântica do PHP e tipagem",
+      "summary": "Explora comparação estrita, concatenação, isset, funções, interfaces e fluxo de execução; confusões com outras linguagens levam a erros."
+    },
+    {
+      "key": "e4",
+      "title": "SQL seguro, saída contextual e Composer",
+      "summary": "Separa consultas parametrizadas, identificadores SQL permitidos, escape para HTML e gestão de dependências por composer.json/lock."
+    },
+    {
+      "key": "e5",
+      "title": "CodeIgniter 4 e versões",
+      "summary": "Diferencia roteamento, controllers, models, Query Builder e filters; CI3 e CI4 não apresentam APIs e estrutura idênticas."
+    },
+    {
+      "key": "e6",
+      "title": "Componentes e persistência do Symfony",
+      "summary": "Identifica serviços, HttpFoundation, Twig, Doctrine opcional, voters e diferença entre persist e flush."
+    },
+    {
+      "key": "e7",
+      "title": "jQuery, DOM e Ajax",
+      "summary": "Distingue cliente de servidor, eventos delegados, texto versus HTML e o papel de dataType/contentType nas chamadas Ajax."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "O backend pode receber requisições HTTP, executar regras de negócio e retornar uma representação JSON sem gerar uma página HTML.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A afirmação descreve uma modalidade comum de backend orientado a APIs. O servidor também pode renderizar HTML; nenhum dos dois formatos é obrigatório. JSON é representação de dados e não substitui o protocolo HTTP.",
+      "section": "Fundamentos do backend, HTTP e arquitetura web",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O método HTTP DELETE não pode ser idempotente, pois a segunda chamada ao mesmo recurso necessariamente devolve o mesmo código de status da primeira.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Idempotência se refere ao efeito pretendido de repetir requisições equivalentes sobre o estado do servidor, não a manter idênticos os códigos de resposta. DELETE é definido com semântica idempotente.",
+      "section": "Fundamentos do backend, HTTP e arquitetura web",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política CORS correta elimina a necessidade de autorização nas rotas da API, já que impede requisições de clientes não autorizados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "CORS atua principalmente nas restrições de acesso impostas por navegadores e não autentica usuários nem substitui controle de autorização. Outros clientes HTTP podem enviar requisições independentemente dessa política.",
+      "section": "Fundamentos do backend, HTTP e arquitetura web",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma aplicação web, qual atividade é tipicamente atribuída ao backend?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar permissões e aplicar regras de negócio antes de persistir dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aplicar diretamente regras CSS ao navegador sem requisição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir o protocolo HTTP por arquivos JSON.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar exclusivamente scripts JavaScript no DOM.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Renderizar cada pixel da tela do usuário no banco de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "O backend toma decisões de autorização, regras de negócio e acesso a dados. CSS e manipulação do DOM são preocupações do frontend; JSON é formato de representação, e não substituto do protocolo de comunicação.",
+      "section": "Fundamentos do backend, HTTP e arquitetura web",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço retorna uma resposta de sucesso sem corpo após processar uma solicitação. Qual status HTTP é particularmente apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "404 Not Found.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "204 No Content.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "500 Internal Server Error.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "401 Unauthorized.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "409 Conflict.",
+          "correct": false
+        }
+      ],
+      "explanation": "O status 204 comunica sucesso sem conteúdo de resposta. Os demais indicam, respectivamente, ausência de recurso, erro interno, falta de credenciais adequadas e conflito de estado; não equivalem a sucesso sem corpo.",
+      "section": "Fundamentos do backend, HTTP e arquitetura web",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente repete diversas vezes uma mesma requisição PUT válida ao mesmo recurso, com conteúdo idêntico. Qual interpretação corresponde à semântica do método?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A resposta precisa conter exatamente o mesmo corpo em cada execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A requisição é obrigatoriamente cacheável por qualquer intermediário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O efeito pretendido sobre o estado do recurso deve ser idempotente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O servidor fica impedido de registrar qualquer auditoria da chamada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O método passa a ter semântica de leitura equivalente a GET.",
+          "correct": false
+        }
+      ],
+      "explanation": "PUT tem semântica idempotente para o efeito pretendido no recurso. Essa propriedade não obriga respostas idênticas, não assegura armazenamento em cache e não proíbe registros de auditoria ou verificações de acesso.",
+      "section": "Fundamentos do backend, HTTP e arquitetura web",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API recebe uma solicitação de usuário autenticado para editar documento pertencente a terceiro e recusa a operação. Qual princípio foi aplicado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Serialização dos dados do documento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Paginação da coleção de registros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Compressão da representação HTTP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Autorização sobre o recurso solicitado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Conversão de JSON em HTML.",
+          "correct": false
+        }
+      ],
+      "explanation": "A identidade pode ter sido comprovada, mas a permissão para editar o documento deve ser avaliada separadamente. Autenticação não implica autorização universal, e as demais operações não justificam negar o acesso ao recurso.",
+      "section": "Fundamentos do backend, HTTP e arquitetura web",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No padrão MVC, qual elemento costuma coordenar a entrada da requisição e a escolha da resposta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O índice do banco relacional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A folha de estilos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A configuração de DNS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O componente de cache de navegador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O controlador.",
+          "correct": true
+        }
+      ],
+      "explanation": "O controlador recebe ou coordena a requisição e relaciona modelo, serviços e apresentação. Índices, CSS, DNS e cache desempenham funções distintas; MVC não exige que o controlador contenha toda a regra de negócio.",
+      "section": "Fundamentos do backend, HTTP e arquitetura web",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PHP, o operador de concatenação de strings é o sinal de adição, ao passo que o operador de comparação estrita é representado por três sinais de igualdade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A segunda parte está certa: === realiza comparação estrita de valor e tipo. Entretanto, a concatenação de strings usa o ponto, não o sinal de adição. A confusão com operadores de outras linguagens invalida o item.",
+      "section": "PHP: sintaxe, tipos, funções e orientação a objetos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A expressão isset($x) devolve verdadeiro sempre que a variável foi declarada, inclusive quando contém null.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "isset verifica a existência com valor não nulo e, portanto, é falso quando a variável é null ou não está definida. A função empty segue outra lógica e também considera vazios vários valores não nulos, como zero.",
+      "section": "PHP: sintaxe, tipos, funções e orientação a objetos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PHP, uma interface pode declarar um contrato de métodos, e uma classe que a implemente pode receber a dependência por tipagem de interface em vez de depender de uma classe concreta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A tipagem por interface permite substituir implementações que atendam ao contrato e favorece testes e baixo acoplamento. A implementação deve observar as exigências do contrato; isso não faz da interface uma instância concreta.",
+      "section": "PHP: sintaxe, tipos, funções e orientação a objetos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Considere `$x = 10;` e `$y = \"10\";`. Qual expressão é falsa em PHP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`$x === $y`",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`$x == $y`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`$x > 5`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`$y !== \"11\"`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`$x !== 11`",
+          "correct": false
+        }
+      ],
+      "explanation": "A comparação estrita diferencia inteiro e string, por isso é falsa. A comparação não estrita pode considerar esses valores equivalentes por coerção, e as demais expressões apresentam condições verdadeiras no contexto.",
+      "section": "PHP: sintaxe, tipos, funções e orientação a objetos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual superglobal PHP está associada, em regra, a parâmetros de consulta na URL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`$_FILES`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`$_GET`",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`$_SESSION`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`$_COOKIE`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`$_SERVER`",
+          "correct": false
+        }
+      ],
+      "explanation": "$_GET contém variáveis provenientes dos parâmetros da query string, conforme o processamento da requisição. Os demais nomes tratam, respectivamente, de arquivos enviados, sessão, cookies e dados de ambiente/servidor.",
+      "section": "PHP: sintaxe, tipos, funções e orientação a objetos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PHP, qual descrição da expressão `match` é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sempre realiza coerção de tipos antes da comparação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executa todos os braços seguintes após encontrar um caso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usa comparação estrita para selecionar um braço e retorna um valor.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Somente pode ser usada dentro de classes abstratas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É um alias obrigatório de foreach para listas associativas.",
+          "correct": false
+        }
+      ],
+      "explanation": "match usa correspondência estrita e produz um valor, sem queda automática para braços seguintes. Não é estrutura de iteração, não depende de herança e não se confunde com o comportamento comum de switch.",
+      "section": "PHP: sintaxe, tipos, funções e orientação a objetos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe recebe no construtor um objeto do tipo `Enviador`, declarado por interface. Qual vantagem arquitetural decorre diretamente desse desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Eliminação automática de todos os testes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Garantia de que o código será executado no navegador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Proibição de múltiplas implementações do envio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Possibilidade de trocar implementações que respeitem o contrato.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Substituição integral de autenticação por tipagem.",
+          "correct": false
+        }
+      ],
+      "explanation": "A injeção por interface permite fornecer diferentes implementações, inclusive dublês de teste. Tipagem não elimina testes, não muda o ambiente de execução e não realiza controles de segurança automaticamente.",
+      "section": "PHP: sintaxe, tipos, funções e orientação a objetos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em PHP, qual estrutura permite percorrer diretamente elementos de um array?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`namespace`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`trait`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`throw`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`extends`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`foreach`",
+          "correct": true
+        }
+      ],
+      "explanation": "foreach percorre os elementos de arrays e estruturas iteráveis. Namespace organiza nomes; trait compartilha implementação; throw lança exceção; extends expressa herança. São recursos válidos, mas com finalidades diferentes.",
+      "section": "PHP: sintaxe, tipos, funções e orientação a objetos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Composer pode usar um arquivo composer.lock para reproduzir versões de dependências resolvidas previamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O arquivo lock registra uma resolução específica de pacotes, ajudando diferentes ambientes a instalar versões compatíveis com a solução registrada. O composer.json declara dependências e suas restrições, mas não substitui essa função.",
+      "section": "Persistência em PHP, Composer, APIs e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Codificar uma string com htmlspecialchars antes de concatená-la em SQL é medida suficiente e específica de prevenção a injeção SQL.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "htmlspecialchars é voltada à codificação em determinados contextos de HTML, não à estruturação segura de SQL. Para valores não confiáveis em consultas, utilizam-se instruções parametrizadas e validação de identificadores.",
+      "section": "Persistência em PHP, Composer, APIs e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PDO, parâmetros vinculados podem representar valores de condições de consulta, mas não devem ser tratados como meio de escolher livremente nomes de tabela enviados pelo usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Parâmetros preparados se destinam a valores, e não a substituir identificadores arbitrários de SQL. Nomes de tabelas e colunas dinâmicos exigem seleção por lista permitida e construção controlada pelo código.",
+      "section": "Persistência em PHP, Composer, APIs e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso do PHP é voltado à preparação de consultas SQL com parâmetros?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`PDO::prepare()`",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`json_encode()`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`header()`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`htmlspecialchars()`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`password_verify()`",
+          "correct": false
+        }
+      ],
+      "explanation": "PDO::prepare cria uma instrução preparada que pode receber parâmetros e ser executada com valores vinculados. As outras funções têm funções próprias de JSON, cabeçalhos, codificação HTML e verificação de hashes de senha.",
+      "section": "Persistência em PHP, Composer, APIs e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um projeto PHP com composer.lock versionado, qual comando é apropriado para instalar as versões nele registradas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`composer init`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`composer install`",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`composer validate`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`composer update`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`composer show`",
+          "correct": false
+        }
+      ],
+      "explanation": "composer install utiliza, quando existente, a resolução guardada no lock. O comando update busca atualizar dependências conforme restrições; init inicia configuração, validate verifica arquivos e show informa pacotes.",
+      "section": "Persistência em PHP, Composer, APIs e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint permite ao usuário informar diretamente o nome da coluna usada em ORDER BY. Qual tratamento reduz o risco de injeção nesse ponto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir somente aspas duplas por aspas simples.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar `htmlspecialchars` à coluna escolhida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Selecionar a coluna entre identificadores previamente autorizados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Considerar o campo confiável sempre que vier via HTTPS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Enviar o valor à função de hash de senhas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Nomes de colunas não são substituídos com segurança por parâmetros de valor no SQL. Uma lista fechada de identificadores permitidos preserva a estrutura da consulta. Codificação HTML, TLS e hashes não resolvem esse risco.",
+      "section": "Persistência em PHP, Composer, APIs e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao renderizar um texto fornecido pelo usuário dentro do corpo de uma página HTML, qual proteção se relaciona mais diretamente com a prevenção de XSS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar todas as transações do banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar os verbos HTTP GET e POST.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o número de índices de tabela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Codificar a saída conforme o contexto HTML apropriado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar o mesmo segredo em todos os ambientes.",
+          "correct": false
+        }
+      ],
+      "explanation": "XSS surge quando conteúdo não confiável é interpretado como código ativo na saída. Codificação contextual e APIs de saída segura reduzem esse risco; transações, índices e métodos HTTP não substituem a defesa específica.",
+      "section": "Persistência em PHP, Composer, APIs e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual arquivo Composer normalmente disponibiliza o carregamento automático das classes instaladas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`public/index.html`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`app/Routes.php`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`config/cache.xml`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`database/schema.sql`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`vendor/autoload.php`",
+          "correct": true
+        }
+      ],
+      "explanation": "O Composer gera vendor/autoload.php para ativar seu mecanismo de autoload, geralmente com mapeamentos como PSR-4. Os demais caminhos não cumprem esse papel por definição e podem sequer existir em um projeto.",
+      "section": "Persistência em PHP, Composer, APIs e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O CodeIgniter 4 adota o padrão MVC e disponibiliza convenções para organizar controllers, models e views.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O framework fornece estrutura para separação das responsabilidades de controle, acesso/modelagem de dados e apresentação. O padrão orienta a organização, mas não impõe que toda regra de negócio seja implementada no controller.",
+      "section": "CodeIgniter: MVC, rotas, models e filtros",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em CodeIgniter 4, filtros de requisição e cláusulas WHERE de SQL são o mesmo mecanismo, pois ambos atuam diretamente sobre o roteamento HTTP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Filters executam lógica no ciclo da requisição, por exemplo antes de uma ação; WHERE restringe registros de uma consulta SQL. São mecanismos de camadas diferentes, e nenhum pode ser definido como sinônimo do outro.",
+      "section": "CodeIgniter: MVC, rotas, models e filtros",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Usar diretamente o Query Builder do CodeIgniter 4 não garante que todos os recursos de um Model, como sua validação configurada, sejam automaticamente executados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O Query Builder facilita a construção de SQL, mas não equivale a passar por todos os métodos e regras configurados no Model. É indispensável verificar validação, campos permitidos e autorização no caminho utilizado.",
+      "section": "CodeIgniter: MVC, rotas, models e filtros",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No CodeIgniter 4, onde se costuma definir as rotas da aplicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`app/Config/Routes.php`",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`vendor/bin/twig.php`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`app/Models/Routes.sql`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`public/jquery.js`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`database/Routes.html`",
+          "correct": false
+        }
+      ],
+      "explanation": "Routes.php em app/Config é um local padrão para configuração de rotas no CI4. Os outros caminhos associam roteamento a componentes não responsáveis por essa configuração, como jQuery, template, SQL e arquivos HTML.",
+      "section": "CodeIgniter: MVC, rotas, models e filtros",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em CodeIgniter 4, qual ferramenta permite construir consultas como condições e ordenação por métodos encadeados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`EventDispatcher` do Symfony",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`Query Builder`",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`Twig`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`$.ajax()`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`composer.lock`",
+          "correct": false
+        }
+      ],
+      "explanation": "O Query Builder do CodeIgniter oferece interface programática para montar consultas. EventDispatcher lida com eventos no ecossistema Symfony, Twig renderiza templates, $.ajax comunica no cliente e o lock fixa versões de dependências.",
+      "section": "CodeIgniter: MVC, rotas, models e filtros",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema legado utiliza CodeIgniter 3, mas será reescrito em CodeIgniter 4. Qual decisão de projeto é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reaproveitar integralmente diretórios e APIs sem revisão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Concluir que o CI4 aboliu controllers e o padrão MVC.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Planejar adaptação de namespaces, diretórios e APIs entre versões.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Substituir obrigatoriamente o PHP por JavaScript de navegador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover todas as validações porque haverá Query Builder.",
+          "correct": false
+        }
+      ],
+      "explanation": "CI3 e CI4 diferem em organização, namespaces e APIs; uma migração pede revisão estruturada. CI4 permanece framework PHP baseado em MVC, e nem query builder nem a atualização dispensam controles de dados e segurança.",
+      "section": "CodeIgniter: MVC, rotas, models e filtros",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação CodeIgniter precisa executar verificação transversal antes de determinadas ações. Qual recurso é mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Seeder de dados de exemplo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Índice exclusivo no banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Template estático de apresentação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Filter aplicado ao ciclo de requisição.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Seletor CSS do navegador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Filters interceptam etapas do ciclo HTTP e servem a verificações transversais. Seeders geram dados, índices atuam na persistência, templates apresentam conteúdo e CSS seleciona ou estiliza elementos no cliente.",
+      "section": "CodeIgniter: MVC, rotas, models e filtros",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual papel está mais associado à view em uma aplicação MVC do CodeIgniter?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Decidir isoladamente todas as permissões do banco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar o protocolo TCP utilizado no tráfego.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir integralmente os modelos de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Interceptar pacotes antes do servidor web.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apresentar informações ao usuário em um formato de saída.",
+          "correct": true
+        }
+      ],
+      "explanation": "A view se concentra na apresentação, como geração de HTML. A autorização deve ser imposta pelo backend em componentes apropriados; rede, banco e processamento de requisições não são responsabilidades exclusivas da view.",
+      "section": "CodeIgniter: MVC, rotas, models e filtros",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Symfony disponibiliza componentes reutilizáveis, mas nenhum deles pode ser empregado fora de uma aplicação Symfony completa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O Symfony é simultaneamente framework e conjunto de componentes que podem ser usados separadamente. Routing e HttpFoundation, por exemplo, também podem integrar outros projetos; a proibição absoluta afirmada é incorreta.",
+      "section": "Symfony: componentes, serviços, Doctrine e Twig",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Doctrine ORM é um componente obrigatório do núcleo de toda aplicação Symfony, de forma que uma aplicação sem Doctrine não pode responder a requisições HTTP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Symfony processa requisições por seus componentes próprios e não depende necessariamente de Doctrine. O ORM é uma integração comum para persistência, mas é possível usar outros métodos de acesso a dados ou nenhum banco.",
+      "section": "Symfony: componentes, serviços, Doctrine e Twig",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No fluxo comum do Doctrine ORM, chamar persist() e chamar flush() são operações com responsabilidades distintas, e o flush processa alterações pendentes gerenciadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "persist indica que uma entidade seja gerenciada conforme o ciclo de vida do ORM, enquanto flush sincroniza alterações pendentes com o banco. Confundir o agendamento de estado com a operação de sincronização é pegadinha comum.",
+      "section": "Symfony: componentes, serviços, Doctrine e Twig",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Symfony, qual componente oferece abstrações como Request e Response HTTP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`HttpFoundation`",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`Twig`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`Doctrine Migrations`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`jQuery UI`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`PDOStatement`",
+          "correct": false
+        }
+      ],
+      "explanation": "HttpFoundation modela a requisição e a resposta HTTP no ecossistema Symfony. Twig lida com templates, Doctrine Migrations gerencia evolução de esquemas e os demais itens não são componentes de requisição/resposta do framework.",
+      "section": "Symfony: componentes, serviços, Doctrine e Twig",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um controller Symfony, uma dependência é declarada por tipo e fornecida pelo container. A qual prática isso se relaciona?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Montagem obrigatória de HTML no banco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Injeção de dependências com possibilidade de autowiring.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Codificação de arquivos por jQuery.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Construção de índices SQL por CSS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eliminação da necessidade de testes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O contêiner pode resolver serviços e fornecê-los conforme tipos e configuração, abordagem conhecida como injeção de dependências. O mecanismo não se confunde com persistência, manipulação de DOM ou garantia automática de qualidade.",
+      "section": "Symfony: componentes, serviços, Doctrine e Twig",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma aplicação Symfony com Doctrine ORM, qual operação tem a finalidade de sincronizar alterações pendentes gerenciadas com o banco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`Route`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`render()`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`flush()`",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`$.post()`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`htmlspecialchars()`",
+          "correct": false
+        }
+      ],
+      "explanation": "flush processa a unidade de trabalho do Doctrine e envia alterações pendentes ao armazenamento conforme o estado das entidades. Route configura caminho, render apresenta templates, $.post atua no cliente e htmlspecialchars codifica texto HTML.",
+      "section": "Symfony: componentes, serviços, Doctrine e Twig",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para decidir se um usuário pode editar determinado objeto no Symfony, qual mecanismo do ecossistema é especialmente apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Transformação do arquivo composer.lock em sessão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Geração de CSS dinâmico a partir do banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uso exclusivo de um template sem checagem no servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificação de autorização contextual por voter.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Alteração do cabeçalho Accept para text/plain.",
+          "correct": false
+        }
+      ],
+      "explanation": "Voters ajudam a encapsular decisões de autorização ligadas ao usuário, à ação e ao objeto. Uma view escondendo botões não protege o recurso; cabeçalhos, CSS e controle de dependências têm papéis diferentes.",
+      "section": "Symfony: componentes, serviços, Doctrine e Twig",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma aplicação Symfony tradicional, qual mecanismo é frequentemente usado para renderização de templates?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`PDO`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`CORS`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`PSR-4`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`Composer`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`Twig`",
+          "correct": true
+        }
+      ],
+      "explanation": "Twig é um motor de templates utilizado com frequência no ecossistema Symfony. PDO trata de acesso a bancos, CORS de política de origem, PSR-4 de autoload e Composer de dependências PHP.",
+      "section": "Symfony: componentes, serviços, Doctrine e Twig",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "jQuery é biblioteca JavaScript utilizada no cliente para manipular o DOM, registrar eventos e fazer chamadas Ajax.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Essas são funcionalidades centrais do jQuery, que normalmente roda no navegador. Ele pode consumir endpoints PHP, mas não se transforma por isso em linguagem de servidor ou framework de persistência de banco de dados.",
+      "section": "jQuery, integração frontend-backend e revisão comparativa",
+      "errorConceptKey": "e7",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na configuração de $.ajax(), dataType descreve o formato do corpo que o cliente está enviando, enquanto contentType indica exclusivamente o formato de resposta esperado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A relação foi invertida: contentType descreve o tipo do conteúdo enviado; dataType orienta o tipo de resposta esperado/processado pelo jQuery. Confundir esses campos prejudica a integração com endpoints JSON.",
+      "section": "jQuery, integração frontend-backend e revisão comparativa",
+      "errorConceptKey": "e7",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A delegação de eventos no jQuery pode permitir atender cliques em elementos adicionados posteriormente, mediante handler instalado em ancestral apropriado e seletor dos descendentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Ao registrar o manipulador em um ancestral, eventos que se propagam podem alcançar o handler, inclusive de descendentes criados depois. Há limitações conforme evento e propagação; não é autorização de ações no servidor.",
+      "section": "jQuery, integração frontend-backend e revisão comparativa",
+      "errorConceptKey": "e7",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual chamada jQuery, no uso normal, insere uma string como conteúdo textual de um elemento, sem tratá-la como marcação HTML?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`.text()`",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`.html()`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`.append()` com HTML de entrada",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`.replaceWith()` com HTML de entrada",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`.load()` com HTML remoto",
+          "correct": false
+        }
+      ],
+      "explanation": "O método .text() opera sobre conteúdo textual, diferentemente das formas citadas que podem interpretar marcação. O risco de XSS depende do contexto e da origem dos dados; texto simples é escolha adequada quando HTML não é necessário.",
+      "section": "jQuery, integração frontend-backend e revisão comparativa",
+      "errorConceptKey": "e7",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual forma de registrar eventos corresponde à delegação de cliques em elementos `.remover` dentro de `#lista`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`$('.remover').val('click')`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`$('#lista').on('click', '.remover', handler)`",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`$('#lista').css('click', handler)`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`$('body').html('.remover', handler)`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`$('#lista').getJSON('click', handler)`",
+          "correct": false
+        }
+      ],
+      "explanation": "A forma com .on(evento, seletor, handler) vincula o evento ao ancestral e filtra alvos descendentes pelo seletor, alcançando elementos dinâmicos quando há propagação pertinente. As outras chamadas não registram essa delegação.",
+      "section": "jQuery, integração frontend-backend e revisão comparativa",
+      "errorConceptKey": "e7",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um navegador, $.ajax envia um objeto JSON como corpo de requisição POST com Content-Type application/json para um backend PHP. Qual afirmação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O PHP necessariamente disponibiliza cada campo em $_GET.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O navegador converte o JSON automaticamente em cookies de sessão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O backend deve interpretar o corpo JSON; não se presume população de $_POST.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O método HTTP passa a ser GET, porque o formato é JSON.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O jQuery passa a executar PHP localmente para decodificar o corpo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um corpo JSON enviado em POST não equivale a campos de formulário automaticamente representados em $_POST. O servidor deve ler e decodificar o corpo adequadamente; o formato não altera o método HTTP nem executa PHP no navegador.",
+      "section": "jQuery, integração frontend-backend e revisão comparativa",
+      "errorConceptKey": "e7",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa atualizar somente a lista de resultados após filtrar dados, sem recarregar toda a página. Qual abordagem é compatível com jQuery?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alterar o esquema do banco a cada clique.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir JSON por um protocolo físico de rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fazer a autorização exclusivamente por CSS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar Ajax para requisitar os dados e atualizar o DOM.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Exigir que a view do PHP rode dentro do navegador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ajax permite requisitar dados e atualizar parte da interface, e jQuery fornece funções para comunicação e manipulação de DOM. O servidor deve manter validação e autorização; as demais medidas não implementam esse comportamento.",
+      "section": "jQuery, integração frontend-backend e revisão comparativa",
+      "errorConceptKey": "e7",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual associação entre tecnologia e função está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CodeIgniter: biblioteca JavaScript de seletores DOM.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "PHP: protocolo de transporte de imagens.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "jQuery: driver SQL nativo de Symfony.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Composer: linguagem de templates do navegador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Symfony: framework e componentes de backend PHP.",
+          "correct": true
+        }
+      ],
+      "explanation": "Symfony reúne um framework PHP e componentes reutilizáveis. CodeIgniter também é framework PHP; jQuery atua no JavaScript do cliente; Composer gerencia dependências; PHP é linguagem e não protocolo.",
+      "section": "jQuery, integração frontend-backend e revisão comparativa",
+      "errorConceptKey": "e7",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "PHP Manual — Basic syntax",
+      "publisher": "The PHP Group",
+      "reference": "Sintaxe, tags PHP, linguagens e conceitos essenciais",
+      "url": "https://www.php.net/manual/en/language.basic-syntax.php",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PHP Manual — PDO prepared statements",
+      "publisher": "The PHP Group",
+      "reference": "Instruções preparadas e parâmetros",
+      "url": "https://www.php.net/manual/en/pdo.prepared-statements.php",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Composer — Basic usage",
+      "publisher": "Composer",
+      "reference": "composer.json, composer.lock, install e autoload",
+      "url": "https://getcomposer.org/doc/01-basic-usage.md",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "CodeIgniter User Guide — MVC",
+      "publisher": "CodeIgniter Foundation",
+      "reference": "Conceitos de modelo, visão e controlador no CI4",
+      "url": "https://codeigniter.com/user_guide/concepts/mvc.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "CodeIgniter User Guide — Query Builder",
+      "publisher": "CodeIgniter Foundation",
+      "reference": "Consultas por métodos e cuidados com identificadores",
+      "url": "https://codeigniter.com/user_guide/database/query_builder.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "CodeIgniter User Guide — Controller Filters",
+      "publisher": "CodeIgniter Foundation",
+      "reference": "Filtros no ciclo de requisição",
+      "url": "https://www.codeigniter.com/user_guide/incoming/filters.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Symfony Documentation — Controllers",
+      "publisher": "Symfony",
+      "reference": "Controladores, HttpFoundation, respostas e injeção de serviços",
+      "url": "https://symfony.com/doc/current/controller.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Symfony Documentation — Routing",
+      "publisher": "Symfony",
+      "reference": "Rotas HTTP e attributes",
+      "url": "https://symfony.com/doc/current/routing.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "jQuery API — .on()",
+      "publisher": "OpenJS Foundation — jQuery",
+      "reference": "Eventos diretos e delegados",
+      "url": "https://api.jquery.com/on/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "jQuery API — jQuery.ajax()",
+      "publisher": "OpenJS Foundation — jQuery",
+      "reference": "Chamadas Ajax, dataType, contentType e jqXHR",
+      "url": "https://api.jquery.com/jQuery.ajax/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OWASP Cheat Sheet — SQL Injection Prevention",
+      "publisher": "OWASP Foundation",
+      "reference": "Parametrização e controle de estrutura SQL",
+      "url": "https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "OWASP Cheat Sheet — Cross Site Scripting Prevention",
+      "publisher": "OWASP Foundation",
+      "reference": "Codificação contextual de saída e prevenção de XSS",
+      "url": "https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

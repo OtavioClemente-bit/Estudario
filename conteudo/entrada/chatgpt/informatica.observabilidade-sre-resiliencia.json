@@ -1,0 +1,2027 @@
+{
+  "id": "informatica.observabilidade-sre-resiliencia",
+  "subject": "Informática / Engenharia de Software e Operações",
+  "title": "Observabilidade, SRE e Resiliência de Aplicações",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Observabilidade, SRE e Resiliência de Aplicações",
+    "Observabilidade, SRE e resiliência de aplicações"
+  ],
+  "scope": {
+    "covers": "Observabilidade de software, instrumentação por métricas, logs e traces; OpenTelemetry, quatro sinais dourados, RED/USE; Prometheus, Zabbix, Nagios, ELK/Kibana, Sentry, CloudWatch, Azure Monitor; SRE, SLI/SLO/SLA e orçamento de erros, MTBF/MTTF/MTTR, disponibilidade; alta disponibilidade, clusters, failover, sistemas distribuídos, RTO/RPO, estratégias de resiliência; SIEM, qualidade de pipelines de dados e monitoramento de inferência de IA.",
+    "excludes": "Instalação passo a passo de ferramentas em versões específicas, administração avançada de provedores, procedimentos ofensivos de segurança e implementação integral de modelos de aprendizado de máquina."
+  },
+  "theoryTitle": "Teoria completa: telemetria, confiabilidade, recuperação e observabilidade moderna",
+  "chapters": [
+    {
+      "title": "Fundamentos de observabilidade e instrumentação",
+      "markdown": "### 1. Do monitoramento à observabilidade\nMonitoramento acompanha condições previamente conhecidas mediante verificações, métricas e alertas; observabilidade designa a capacidade prática de compreender o estado interno e investigar comportamentos novos a partir dos sinais produzidos pelo sistema. Uma tela repleta de gráficos não garante observabilidade: é preciso haver perguntas investigáveis, contexto e correlação entre componentes. Um monitor sintético testa um percurso de fora para dentro, enquanto o monitoramento por instrumentação registra o funcionamento interno. Ambos são complementares: a experiência real de usuários pode falhar mesmo quando CPUs e contêineres parecem saudáveis. Defina primeiro as jornadas críticas, como autenticar, pagar e consultar, e depois derive indicadores e sinais.\n\n### 2. Métricas, logs, traces e eventos\n**Métricas** condensam medições numéricas por intervalo: número de requisições, bytes, latência e ocupação de filas. São econômicas para tendências e alertas, mas perdem detalhes individuais. **Logs** descrevem eventos discretos com horário, severidade, mensagem e campos estruturados; um JSON consistente facilita filtros e junções. **Traces distribuídos** representam o caminho de uma transação entre serviços por meio de um trace com vários spans; cada span registra operação, duração, situação e atributos. Trace ID e span ID conectam informações de serviços distintos quando a propagação de contexto é configurada. **Eventos** de mudança, como implantação, rotação de certificado ou alteração de configuração, enriquecem diagnósticos; um pico de erro após um deploy pede comparação com o histórico da versão. O padrão OpenTelemetry organiza coleta, instrumentação, processamento e exportação de sinais, sem impor necessariamente um fornecedor de armazenamento ou visualização.\n\n### 3. Modelos de medidas e cardinalidade\nUma série temporal associa instantes a valores e dimensões. Labels como `servico`, `regiao` e `status` permitem segmentar resultados, mas cada combinação distinta pode criar séries adicionais. Acrescentar `id_usuario`, `pedido_id` ou URL com parâmetros exclusivos aumenta descontroladamente a **cardinalidade**, comprometendo memória, custo e performance do armazenamento. Prefira dimensões de conjunto limitado; IDs específicos pertencem a logs e traces, sujeitos a políticas de privacidade. Um **counter** representa acúmulo e normalmente cresce até reiniciar o processo; analise sua taxa por janela em vez de interpretar o valor bruto como quantidade por segundo. Um **gauge** pode aumentar ou diminuir, como quantidade atual de conexões. Um **histogram** agrupa observações em faixas e permite estimar quantis agregados sob certas condições; um quantil não é o mesmo que a média, e médias podem esconder caudas longas.\n\n### 4. Sinais relevantes de serviços e recursos\nOs **quatro sinais dourados** para serviços são latência, tráfego, erros e saturação. Em uma API, acompanhe latência de respostas bem-sucedidas e com erro separadamente, volume de chamadas por segundo, percentual de requisições malsucedidas e limites de capacidade (filas, conexões, thread pools). O modelo **RED** resume Rate, Errors e Duration e funciona bem em serviços orientados a requisições. O método **USE** observa Utilization, Saturation e Errors em recursos, como CPU, disco e rede. Não confunda alta utilização com saturação inevitável: a saturação aparece quando trabalho começa a esperar ou a ser descartado. Indicadores de negócio, como compras concluídas, podem detectar impacto que contadores de infraestrutura não revelam.\n\n### 5. Amostragem, contexto e qualidade dos sinais\nTraçar todas as requisições pode ser caro; amostragem probabilística ou orientada a regras reduz volume, porém pode deixar passar casos raros. Decisões de amostragem feitas no início da requisição (head sampling) não conhecem o desfecho; amostragem posterior (tail sampling), quando disponível e corretamente configurada, pode preservar traces de erros ou lentidão com custo operacional maior. Propague contexto entre chamadas síncronas e assíncronas; filas exigem atenção à vinculação entre produtores e consumidores. Sincronize relógios, trate fuso horário e atraso de ingestão, pois marcas temporais inconsistentes distorcem a sequência de spans. Proteja dados: não envie segredos, tokens de sessão, documentos pessoais ou cargas sensíveis para ferramentas de telemetria sem controles apropriados.\n\n### 6. Estratégia de implantação\nInicie por uma definição operacional de experiência correta e um inventário de dependências. Instrumente a fronteira externa de entrada, banco de dados, mensageria, cache e serviços de terceiros; inclua versão de aplicação e ambiente como dimensões controladas. Construa dashboards úteis por público: visão executiva de SLO e impacto, visão de operação de erros/latência e painéis diagnósticos. Aplique retenção proporcional ao valor do sinal, avalie custo por volume e use logs com estrutura padronizada. Um alerta precisa levar a uma ação concreta: sinais ruidosos repetidos geram fadiga e reduzem a confiança em eventos realmente graves. Teste a própria cadeia de observabilidade, inclusive indisponibilidade do coletor ou falha de envio. Foco de prova: observabilidade não é ferramenta específica nem substitui engenharia de confiabilidade."
+    },
+    {
+      "title": "Ferramentas e arquitetura de monitoramento",
+      "markdown": "### 1. Prometheus e ecossistema de métricas\nO **Prometheus** é um mecanismo de métricas orientado a séries temporais e consultas por **PromQL**. Seu modo usual de coleta é **pull**: o servidor faz *scrape* periódico de endpoints de métricas; exporters traduzem indicadores de bancos, sistemas operacionais e outros serviços. O Pushgateway atende casos específicos, notadamente tarefas efêmeras, mas não altera o desenho predominantemente pull. Labels permitem filtrar e agrupar séries; regras de gravação criam resultados pré-computados, e regras de alerta avaliam condições. O **Alertmanager** recebe alertas, agrupa, silencia, inibe e encaminha notificações; não é ele que recolhe, por padrão, todas as métricas dos alvos. A expressão conceitual `rate(http_requests_total[5m])` estima a taxa recente de um contador; usar diferença simples sem cuidado com reinícios do processo pode induzir erro. Para serviços e ambientes dinâmicos, discovery e definição de alvos devem refletir contêineres e instâncias transitórias. **Grafana** costuma visualizar diversas fontes, incluindo Prometheus, mas não deve ser confundido com o próprio banco de séries temporais.\n\n### 2. Zabbix e Nagios\nO **Zabbix** oferece monitoramento de infraestrutura e aplicações, itens coletados, triggers, templates, descoberta, eventos, proxies e dashboards. Pode usar agentes e métodos de coleta sem agente, conforme cada integração; os proxies ajudam em topologias distribuídas e redes com conectividade limitada. Uma trigger representa condição de interesse baseada em métricas; um template agrupa itens, triggers e outros componentes reutilizáveis. O **Nagios Core** tradicionalmente trabalha com checks de hosts e serviços, frequentemente por plugins. Estados operacionais e notificações apoiam equipes de suporte; checks ativos são iniciados pelo mecanismo de verificação, ao passo que verificações passivas recebem resultados externos. Nenhuma dessas ferramentas, isoladamente, resolve automaticamente rastreabilidade completa de requisições entre dezenas de microsserviços: diagnóstico distribuído costuma exigir traces e contexto adicional.\n\n### 3. Elasticsearch, Logstash, Kibana e Sentry\nNo arranjo frequentemente chamado **ELK**, o **Elasticsearch** indexa e permite busca e agregação; o **Logstash** pode ingerir e transformar eventos, embora agentes e outras rotas de ingestão também existam; o **Kibana** apresenta pesquisa, exploração, gráficos e painéis. O Kibana não é, por si, o motor primário de indexação de logs. Campos consistentes (`servico`, `ambiente`, `trace_id`, `versao`) tornam útil o cruzamento de dados. Retenção, ciclo de vida, mascaramento e controle de acesso são essenciais para custo e segurança. O **Sentry** concentra-se especialmente em erros, exceções, stack traces, agrupamento de issues, contexto de versão e recursos de diagnóstico de desempenho. Um erro identificado por Sentry não significa indisponibilidade total: é preciso quantificar usuários afetados e relação com o objetivo do serviço. Breadcrumbs e informações de release podem ajudar a relacionar falhas a interações anteriores ou a implantação recente.\n\n### 4. Amazon CloudWatch e Azure Monitor\nO **Amazon CloudWatch** reúne recursos para observar métricas, logs e outros sinais de cargas na AWS e integrações; alarmes podem avaliar limiares e outras condições. CloudWatch Logs organiza registros em grupos e streams; Logs Insights oferece consultas. Para monitoramento sintético, canaries podem exercitar endpoints. O **Azure Monitor** coleta e analisa telemetria de recursos e aplicações, integra Log Analytics, métricas e recursos de Application Insights para observabilidade de aplicações; dados de logs podem ser consultados com **KQL**, conforme o repositório. Nunca suponha que todo produto de monitoramento de nuvem usa o mesmo mecanismo, sintaxe de consulta ou esquema de retenção. Métricas nativas da plataforma e métricas de negócio customizadas se complementam. Em multicloud, normalize identificadores e taxonomias antes de tentar comparações automáticas.\n\n### 5. Arquitetura de coleta e tratamento\nUma cadeia de observabilidade possui **instrumentação**, agentes/coletores, transporte, tratamento (agregação, filtragem, enriquecimento), armazenamento e consumo por consultas, painéis ou alertas. Um collector de OpenTelemetry pode receber sinais, processar atributos e exportar para destinos diversos; instrumentação é distinta de visualização. Para escalar, projete buffers, filas, retry com backoff, limitação de vazão e metas explícitas de perda aceitável de telemetria. Sampling e retenção reduzem custo, mas podem reduzir o alcance da investigação. Se o próprio observador parar durante um incidente, dashboards podem mostrar apenas dados antigos; exiba atraso de ingestão e saúde do coletor. Separe regras de alerta de métricas de cardinalidade explosiva e não exponha endpoints de observabilidade desprotegidos.\n\n### 6. Escolha por problema, e não por marca\nPrometheus se destaca em métricas multidimensionais e alertas de séries; Zabbix e Nagios atendem verificações de infraestrutura e serviços; ELK/Kibana dá força à pesquisa de logs; Sentry detalha problemas de aplicação; CloudWatch e Azure Monitor integram recursos gerenciados das respectivas nuvens. Uma arquitetura pode combinar produtos: não se trata de alternativas mutuamente exclusivas. Defina caso de uso, confiabilidade do canal, interoperabilidade, volume, custo, resposta a incidentes e responsabilidade de operação antes de escolher. Quando um edital disser que uma ferramenta 'monitora tudo', desconfie: a capacidade depende de instrumentação, permissões, integrações e configuração real."
+    },
+    {
+      "title": "SRE, indicadores e confiabilidade quantitativa",
+      "markdown": "### 1. Engenharia de confiabilidade de sites\n**SRE (Site Reliability Engineering)** aplica engenharia de software à operação de serviços, com automatização, gestão de mudanças, observabilidade e resposta a incidentes. O objetivo não é eliminar toda falha a qualquer custo, mas equilibrar confiabilidade desejada, experiência do usuário, investimento e velocidade de mudança. **Toil** é trabalho operacional manual, repetitivo, automatizável, sem valor duradouro e que cresce com a escala; reduzi-lo libera capacidade para corrigir causas estruturais. Diferencie **monitoramento**, que mede e detecta situações, de **gestão de incidentes**, que coordena mitigação, comunicação e restabelecimento. Postmortems sem culpa pessoal procuram falhas de sistema, sinais ignorados e intervenções eficazes.\n\n### 2. SLI, SLO, SLA e orçamento de erros\n**SLI** é um indicador quantitativo de nível de serviço, como fração de solicitações válidas concluídas dentro de 300 ms. **SLO** é a meta interna para esse indicador em uma janela acordada, por exemplo, pelo menos 99,9% de requisições boas durante 30 dias. **SLA** é acordo formal com expectativas e, quando previsto, consequências contratuais; não é sinônimo de métrica técnica. O **orçamento de erros** é a parcela de falhas permitida pelo SLO: para meta de 99,9%, tolera-se 0,1% de eventos ruins segundo a mesma definição e janela. Se a janela contiver 1.000.000 de requisições elegíveis, o orçamento é 1.000 falhas. Quando o consumo é acelerado, a política pode recomendar congelar mudanças arriscadas e priorizar estabilidade; isso é decisão de governança, não fórmula universal de bloqueio. Meça disponibilidade percebida, não apenas o funcionamento de cada host.\n\n### 3. Cálculo de disponibilidade\nDisponibilidade observada em um intervalo: `A = tempo_em_serviço / tempo_total` quando o critério for temporal. Para 30 dias completos, há 43.200 minutos: uma meta de 99,9% permite **43,2 minutos** de indisponibilidade temporal; 99,95% permite **21,6 minutos**. Em SLIs baseados em requisições, indisponibilidade por minuto e erro por requisição não são automaticamente equivalentes. Um modelo simplificado de componente reparável em regime estacionário usa `A = MTBF / (MTBF + MTTR)`, desde que MTBF represente o tempo médio operacional entre falhas e MTTR, o tempo médio de restauração. Exemplo: MTBF de 990 horas e MTTR de 10 horas implicam disponibilidade de 99%. A fórmula é aproximação de longa duração e depende de hipóteses como comportamento das falhas e reparos. MTBF pode aparecer em literatura com convenções ligeiramente distintas; explicite o que se contabilizou.\n\n### 4. MTTF, MTBF, MTTR, MTTD e MTTA\n**MTTF (Mean Time To Failure)** representa tempo médio até a falha, normalmente empregado para componentes não reparáveis ou vida até a falha. **MTBF (Mean Time Between Failures)** refere-se a intervalo médio entre falhas de um item reparável conforme a convenção adotada. **MTTR** pode significar tempo médio de reparação ou de recuperação; na prova, observe a definição adotada e o ponto de início/fim. **MTTD** mede tempo médio até detectar incidentes e **MTTA** até reconhecer/assumir a ocorrência; detectar rápido não equivale a restaurar rápido. Se ocorreram 4 incidentes com tempos de recuperação de 10, 20, 30 e 40 minutos, o MTTR amostral é 25 minutos. Uma falha pode ser detectada em segundos e recuperar-se somente após longa atuação técnica. Médias sozinhas escondem variabilidade; percentis e distribuição dos tempos complementam as métricas.\n\n### 5. Alertas e resposta por impacto\nUm alerta operacional deve expressar **impacto, urgência e ação**. Um alerta baseado em SLO monitora consumo do orçamento de erros e pode usar taxas de consumo (*burn rate*) em janelas curtas e longas para equilibrar agilidade e ruído. Exemplos: aumento súbito de respostas malsucedidas ou persistência de latência acima da meta. Ajustes de janelas, limiares e agrupamento reduzem tempestades de notificações. Durante o incidente, indique comandante, registro de decisões, responsável por comunicação, linha do tempo e runbooks. Em mitigação, rollback ou retirada de tráfego pode ser mais eficaz que investigação completa imediata; análise de causa raiz continua depois da restauração.\n\n### 6. Métricas relacionadas e pegadinhas\n**Confiabilidade** avalia capacidade de funcionar como esperado durante um período e condições dadas; **disponibilidade** considera possibilidade de usar o serviço quando necessário, influenciada tanto por falhas quanto por recuperação. **Durabilidade** descreve preservação de dados, e **desempenho** refere-se à rapidez e capacidade; os conceitos interagem, mas não são idênticos. Um serviço pode estar disponível, porém lento a ponto de violar SLO de latência. P99 é o valor abaixo ou igual ao qual se situam aproximadamente 99% das observações da amostra; não é a 'latência média dos piores 1%'. Não some disponibilidades percentuais de serviços em série: sob independência e definição compatível, multiplique probabilidades. Não faça média simples de porcentagens de sucesso de períodos com volumes diferentes; use total de eventos bons dividido pelo total elegível."
+    },
+    {
+      "title": "Resiliência, alta disponibilidade e sistemas distribuídos",
+      "markdown": "### 1. Conceitos e mecanismos de resiliência\nResiliência é capacidade de resistir, absorver, adaptar-se e recuperar-se de perturbações preservando ou retomando funções essenciais. **Tolerância a falhas** evita a interrupção de uma função mesmo diante de certos defeitos; **alta disponibilidade** reduz interrupções; **recuperação de desastres** permite restabelecer operações após perdas mais amplas. A simples duplicação de servidores não remove falhas compartilhadas: mesma região, banco, fonte elétrica, configuração defeituosa ou dependência externa podem comprometer ambos. Trabalhe com domínios de falha distintos, isolamento, testes de recuperação e planejamento de capacidade. O princípio de degradação graciosa prioriza funções críticas quando recursos se tornam insuficientes.\n\n### 2. Clusters ativo/passivo e ativo/ativo\nEm **ativo/passivo**, um nó principal atende e um secundário fica preparado para assumir após falha, mediante mecanismo de detecção e promoção (**failover**). Em **ativo/ativo**, múltiplos nós atendem carga; isso melhora distribuição de tráfego, mas não garante ausência de indisponibilidade. Ambos precisam de tratamento explícito de estado, roteamento, health checks e capacidade para picos após falhas. **Split-brain** ocorre quando partes de um sistema acreditam simultaneamente ser a instância autorizada a escrever, com risco de divergência; quorum, fencing e liderança bem definidos ajudam a evitá-lo. Failback é o retorno planejado após o restabelecimento de um nó anterior e não deve ser confundido com failover. Réplicas podem estar atrasadas, portanto promoção e consistência são problemas diferentes da simples troca de IP.\n\n### 3. Disponibilidade composta e dependências\nQuando duas etapas **em série** são necessárias ao sucesso, a probabilidade conjunta de disponibilidade é o produto apenas na aproximação de eventos independentes. Dois componentes com disponibilidade de 99% geram `0,99 × 0,99 = 0,9801`, isto é, 98,01%. Para redundância **em paralelo** em que basta um de dois componentes independentes, `A = 1 − (1−A1)(1−A2)`; duas instâncias com 99% produziriam 99,99%. Esses modelos não consideram causas comuns, falha de balanceador, latência de detecção, dados inconsistentes nem fragilidade do processo de failover. Portanto, não use fórmulas ideais para prometer disponibilidade real sem validar arquitetura e hipóteses. Uma dependência externa pode dominar o resultado, por melhor que seja o restante da infraestrutura.\n\n### 4. RTO, RPO e proteção de dados\n**RTO (Recovery Time Objective)** é o tempo-alvo para restabelecer a função após uma interrupção; **RPO (Recovery Point Objective)** é a perda máxima aceitável de dados medida como janela temporal de recuperação. Um backup diário, por si, não demonstra RPO de minutos. Replicação síncrona pode reduzir exposição à perda de dados em determinados cenários, mas adiciona custo/latência e não dispensa cópia imutável ou proteção contra apagamento lógico. Replicação assíncrona pode atrasar e perder alterações ainda não propagadas em falha catastrófica. Teste restaurações, valide integridade e documente ordem de subida de dependências; um backup que não se consegue restaurar não cumpre a função esperada. RTO é objetivo, diferente da média histórica MTTR, embora ambos usem unidades de tempo.\n\n### 5. Controle de falhas em aplicações distribuídas\nUse **timeouts** finitos para impedir esperas indefinidas; **retries** limitados com backoff e jitter quando falhas forem transitórias; **circuit breakers** para impedir avalanche de chamadas a dependência degradada; **bulkheads** para isolar pools e impedir que um componente consuma todos os recursos. Retries não podem ser aplicados indiscriminadamente a operações com efeitos colaterais: sem idempotência, uma tentativa adicional pode duplicar pedido ou cobrança. Chaves de idempotência e deduplicação minimizam esse risco. **Rate limiting**, filas e **backpressure** protegem serviços saturados; descarte controlado pode preservar a experiência crítica. Em sistemas de mensageria, distinguir entrega pelo menos uma vez, no máximo uma vez e tentativas de efeito exatamente uma vez é fundamental para integridade.\n\n### 6. Testes e arquitetura evolutiva\nExperimentos controlados de **chaos engineering** simulam falhas para verificar hipóteses de resiliência, com escopo, limites de segurança e capacidade de reversão. Faça exercícios de failover, restauração, perda de rede e degradação de terceiros em ambientes apropriados; não provoque riscos sem controle em produção. Balanceamento de carga e autoscaling atendem problemas diferentes: um distribui o tráfego; outro ajusta capacidade com base em indicadores e políticas. Aumento de réplicas pode piorar um banco saturado se multiplicar conexões. **Observabilidade** oferece dados para diagnosticar e comprovar resultados; **SRE** organiza decisões; **resiliência** depende também de arquitetura, processos e testes reais. Em provas, desconfie de frases absolutas como 'garante disponibilidade de 100%' ou 'replicação elimina toda possibilidade de perda'."
+    },
+    {
+      "title": "Segurança, pipelines de dados e inferência de IA",
+      "markdown": "### 1. Observabilidade de segurança e SIEM\nO **SIEM (Security Information and Event Management)** reúne, normaliza, correlaciona e analisa eventos relevantes de segurança oriundos de múltiplas fontes, apoiando detecção e investigação. Exemplos de fontes são autenticação, firewall, EDR, IAM, serviços de nuvem e auditoria de bancos. Regras podem detectar padrões como tentativas de login seguidas de privilégios atípicos; contexto e qualidade do dado são decisivos para reduzir falsos positivos. Diferencie alertas de disponibilidade (por exemplo, aumento de erro HTTP) de achados de segurança (possível exfiltração). Eles podem estar ligados, mas exigem lógica de correlação e resposta específicas. Plataformas como Microsoft Sentinel e Elastic Security oferecem capacidades SIEM. **SOAR** tem foco em orquestração e automação de ações de segurança, não se confunde com repositório de logs nem com SRE.\n\n### 2. Auditoria, privacidade e integridade de telemetria\nLogs de segurança devem registrar quem executou, o quê, quando, de onde e qual foi o resultado, respeitando minimização e restrições legais. Proteja integridade, sincronização de relógio, acesso por papéis e retenção; segredo em log é incidente de exposição, não 'detalhamento de observabilidade'. Dados pseudonimizados ainda podem requerer cuidado se houver risco de reidentificação. Defina taxonomia de eventos para autenticação, autorização, operações administrativas e mudanças críticas. Conserve uma trilha rastreável de resposta a incidentes, mas evite criar alertas por qualquer evento informativo. Caso falte telemetria de uma fonte importante, isso pode constituir sinal de segurança e falha de controle de monitoramento simultaneamente.\n\n### 3. Pipelines de dados: batch, streaming e qualidade\nEm **pipelines batch**, observe execução programada, atraso, sucesso/falha por etapa, duração, volume processado, reprocessamentos e qualidade por partição. Em **streaming**, acompanhe throughput, latência ponta a ponta, backlog/lag, watermark, estados de workers, falhas de checkpoint e tendência de crescimento de filas. Uma rotina pode terminar com código zero e entregar dados incompletos: monitorar apenas a execução técnica é insuficiente. Estabeleça contratos de esquema, verificações de nulidade, unicidade, domínios de valores, completude e frescor. Uma tabela atualizada ontem pode não satisfazer um consumidor que exige atualização a cada dez minutos. **Linhagem de dados (lineage)** permite localizar origens e efeitos a jusante; correlacione job ID, dataset, versão de transformação e momento da carga para diagnóstico. Falhas silenciosas, dados atrasados e duplicações são tão relevantes quanto exceções explícitas.\n\n### 4. Semântica de processamento e recuperação\nSistemas de fluxo podem usar checkpoints e estados para recuperação; o comportamento real de entrega depende de fonte, motor, sink e transação. **At-least-once** tolera reentrega e, portanto, exige deduplicação ou operações idempotentes para evitar duplicações de efeito. **At-most-once** evita reentrega em troca do risco de perda. A expressão **exactly-once** deve ser interpretada no escopo de garantias efetivamente implementadas, não como promessa universal de impossibilidade de mensagens repetidas. Monitore poison messages, dead-letter queues e taxa de retries. Em jobs encadeados, um dashboard por etapa deve mostrar tanto estado da execução quanto impacto em datasets consumidos; atrasos de uma origem propagam-se para relatórios e inferências posteriores.\n\n### 5. Inferência de modelos e observabilidade de ML\nA execução de inferência exige SLIs tradicionais de serviço — disponibilidade, taxa de erros, percentis de latência, tempo de carregamento e capacidade — mais indicadores de **qualidade de entrada, qualidade da predição, uso e custo**. Observe versão do modelo, distribuição de features, proporção de valores ausentes, integridade do schema, tamanhos de payload, timeouts e recursos computacionais. **Data drift** é alteração na distribuição de dados de entrada ao longo do tempo; **concept drift** diz respeito à mudança da relação entre entradas e alvo/resultado. **Training-serving skew** designa diferenças entre dados ou processamento de treinamento e de produção. Nenhum desses fenômenos implica automaticamente queda de acurácia: é necessário avaliar seu efeito, de preferência com rótulos de referência quando disponíveis. Em modelos cujos rótulos só chegam depois, monitore proxies de qualidade e desempenho quando a verdade de terreno puder ser obtida.\n\n### 6. Operação e governança de pipelines e IA\nUm fluxo robusto documenta proprietários de dataset/modelo, SLO de frescor, objetivos de qualidade e critérios de acionamento. Exemplo: se o dado chega com atraso superior a uma hora, degrade com aviso ou suspenda inferências dependentes dessa informação, conforme a criticidade. Na camada de modelo, estabeleça shadow deployment, canário, rollback e comparação de versões sempre que possível. Compare distribuição de predições, calibração quando aplicável, erros por grupo relevante e custos sem coletar dados pessoais desnecessários. Para sistemas generativos, latência inicial e total, falhas de provedor, volume de tokens, custo, segurança de respostas e resultados de avaliações controladas podem orientar a operação. SIEM investiga comportamento potencialmente malicioso; monitoramento de pipeline e de modelo investiga confiabilidade e qualidade; a mesma plataforma pode receber sinais de ambos, mas os objetivos continuam distintos."
+    }
+  ],
+  "summary": "**Observabilidade** é a aptidão para investigar o comportamento interno por métricas, logs, traces e eventos correlacionados; monitoramento testa condições e detecta sintomas. Serviços usam sinais dourados (latência, tráfego, erros e saturação), RED e recursos USE. No **SRE**, SLI mede, SLO estabelece a meta e SLA formaliza compromissos; orçamento de erros quantifica a margem de falhas. Disponibilidade temporal é o tempo em operação dividido pelo intervalo: em 30 dias, 99,9% admite 43,2 minutos de indisponibilidade. Em modelo simplificado reparável, A = MTBF/(MTBF+MTTR). MTTF se refere normalmente a tempo até falha e não deve ser confundido com tempo de restauração. Alta disponibilidade depende de domínios de falha, testes, redundância e recuperação; clusters ativo/passivo requerem failover e prevenção de split-brain. RTO mede prazo-alvo de restauração e RPO, perda temporal de dados tolerável. Prometheus, Zabbix, Nagios, ELK/Kibana, Sentry, CloudWatch e Azure Monitor atendem necessidades complementares. SIEM correlaciona eventos de segurança; pipelines de dados exigem observação de lag, frescor, completude e linhagem; inferência de IA pede acompanhamento de latência, versões, drift e qualidade.",
+  "flashcards": [
+    {
+      "front": "O que diferencia observabilidade de monitoramento?",
+      "back": "Monitoramento verifica condições e indicadores escolhidos; observabilidade permite investigar estados e causas até mesmo em comportamentos não antecipados, mediante sinais correlacionados."
+    },
+    {
+      "front": "Quais são os sinais básicos da observabilidade?",
+      "back": "Métricas, logs e traces distribuídos; eventos de deploy e configuração complementam o contexto."
+    },
+    {
+      "front": "O que é um span em tracing?",
+      "back": "Uma operação com duração, atributos e contexto dentro de um trace que representa uma transação distribuída."
+    },
+    {
+      "front": "Para que serve o trace ID?",
+      "back": "Correlacionar registros e spans pertencentes a uma mesma transação entre serviços e processos."
+    },
+    {
+      "front": "Counter ou gauge para conexões abertas agora?",
+      "back": "Gauge, porque a quantidade pode subir ou descer; counters acumulam ocorrências e tipicamente reiniciam com o processo."
+    },
+    {
+      "front": "O que é cardinalidade de métrica?",
+      "back": "Número de combinações distintas de labels/atributos que originam séries; IDs de usuário ou requisição aumentam muito esse número."
+    },
+    {
+      "front": "Quais são os quatro sinais dourados?",
+      "back": "Latência, tráfego, erros e saturação."
+    },
+    {
+      "front": "O que significam RED e USE?",
+      "back": "RED: Rate, Errors, Duration em serviços. USE: Utilization, Saturation, Errors em recursos."
+    },
+    {
+      "front": "Qual a coleta usual de métricas do Prometheus?",
+      "back": "Pull, por scrapes periódicos de endpoints; o Pushgateway atende usos específicos, como jobs de curta duração."
+    },
+    {
+      "front": "Qual é o papel do Alertmanager?",
+      "back": "Receber, agrupar, deduplicar/inibir/silenciar e encaminhar alertas produzidos por componentes como o Prometheus."
+    },
+    {
+      "front": "O que diferencia Elasticsearch, Logstash e Kibana?",
+      "back": "Elasticsearch indexa/busca; Logstash ingere e transforma; Kibana explora e visualiza dados."
+    },
+    {
+      "front": "Para que o Sentry costuma ser utilizado?",
+      "back": "Diagnóstico de erros e exceções, agrupamento de issues, stack traces, eventos, releases e recursos de desempenho."
+    },
+    {
+      "front": "O que são SLI, SLO e SLA?",
+      "back": "SLI é medição; SLO é objetivo; SLA é acordo formal com compromissos e possíveis consequências."
+    },
+    {
+      "front": "Quanto erro permite um SLO de 99,9%?",
+      "back": "0,1% de unidades elegíveis consideradas ruins na mesma janela e segundo o mesmo critério."
+    },
+    {
+      "front": "Qual a fórmula simplificada da disponibilidade de componente reparável?",
+      "back": "A = MTBF/(MTBF + MTTR), quando MTBF mede tempo médio operacional entre falhas e MTTR mede tempo médio de reparação/recuperação."
+    },
+    {
+      "front": "O que é MTTF?",
+      "back": "Tempo médio até a falha, em geral associado a componentes não reparáveis."
+    },
+    {
+      "front": "Quanto downtime admite 99,9% em 30 dias completos?",
+      "back": "43,2 minutos, se a disponibilidade for medida por tempo e o período tiver 43.200 minutos."
+    },
+    {
+      "front": "O que distinguem RTO e RPO?",
+      "back": "RTO é o tempo-alvo para restaurar o serviço; RPO é a janela temporal de perda de dados tolerável."
+    },
+    {
+      "front": "O que é split-brain?",
+      "back": "Situação em que múltiplos nós assumem indevidamente autoridade de escrita ou liderança, gerando risco de inconsistência."
+    },
+    {
+      "front": "Qual a diferença entre ativo/passivo e ativo/ativo?",
+      "back": "Ativo/passivo prevê um nó de prontidão para failover; ativo/ativo mantém vários nós servindo cargas ao mesmo tempo."
+    },
+    {
+      "front": "Quando um retry é perigoso?",
+      "back": "Quando a ação possui efeito colateral não idempotente, pois repetir pode duplicar a execução, como uma cobrança."
+    },
+    {
+      "front": "O que monitora um SIEM?",
+      "back": "Eventos de segurança normalizados e correlacionados de múltiplas fontes para detectar, investigar e responder a ameaças."
+    },
+    {
+      "front": "Que indicadores importam em pipelines de streaming?",
+      "back": "Lag/backlog, throughput, latência ponta a ponta, checkpoints, erros, dados atrasados e qualidade."
+    },
+    {
+      "front": "Qual a diferença entre data drift e concept drift?",
+      "back": "Data drift muda distribuição das entradas; concept drift muda relação entre entradas e alvo, afetando o significado preditivo."
+    },
+    {
+      "front": "Que é training-serving skew?",
+      "back": "Incompatibilidade entre características dos dados ou transformações no treinamento e no momento de inferência."
+    }
+  ],
+  "tips": [
+    "Em itens de prova, identifique primeiro se a afirmação trata de detectar condição predefinida (monitoramento) ou investigar causas novas (observabilidade).",
+    "Para lembrar os 4 sinais dourados: latência, tráfego, erros e saturação; RED foca serviço, USE foca recurso.",
+    "Nos cálculos, declare a unidade do SLI: minutos em operação não são intercambiáveis com porcentagem de requisições boas.",
+    "SLI mede; SLO mira; SLA pactua. O orçamento de erros é 1 menos a meta de sucesso, aplicado à mesma população.",
+    "Associe Prometheus à consulta de séries com PromQL; ELK à exploração de logs; Sentry a erros de código; Zabbix/Nagios a checks e infraestrutura.",
+    "RTO é quanto tempo se pode levar para voltar; RPO é quanto de histórico pode ser perdido.",
+    "Se a questão mencionar duas réplicas, verifique dependências e causas comuns antes de aplicar a fórmula de disponibilidade em paralelo.",
+    "Em ML e dados, monitorar o job como concluído não garante frescor, completude nem qualidade da inferência."
+  ],
+  "traps": [
+    "Confundir observabilidade com dashboard: visualizar sinais não garante rastreio, contexto ou capacidade de explicar falhas.",
+    "Tratar o p99 como média dos 1% mais lentos; é um quantil da distribuição.",
+    "Usar MTTF como sinônimo de MTTR ou afirmar que MTBF cresce automaticamente quando a restauração fica mais rápida.",
+    "Aplicar produto de disponibilidades sem explicitar independência, dependências em série e modelo de sucesso.",
+    "Achar que failover ativo/passivo torna impossível split-brain ou garante ausência de perda de dados.",
+    "Interpretar RPO como duração do reparo ou RTO como antiguidade do último backup.",
+    "Dizer que o Kibana indexa os documentos primariamente, ignorando o papel do Elasticsearch.",
+    "Supor que drift estatístico, isoladamente, prova queda da acurácia do modelo."
+  ],
+  "activeRecall": [
+    {
+      "question": "Um contador de requisições se reinicia após deploy. Como analisar taxa recente?",
+      "answer": "Consulte a taxa em janela temporal com operação adequada a counters e seus resets, em vez de subtrair medições brutas indiscriminadamente."
+    },
+    {
+      "question": "Com 100.000 requisições elegíveis e SLO de 99,95%, quantas falhas são admitidas?",
+      "answer": "50 falhas: orçamento de 0,05% aplicado às 100.000 requisições."
+    },
+    {
+      "question": "Uma arquitetura demanda banco e API independentes de 99%. Qual a disponibilidade ideal?",
+      "answer": "98,01%, pela multiplicação 0,99 × 0,99, assumindo independência e necessidade das duas etapas."
+    },
+    {
+      "question": "Dois servidores redundantes independentes possuem disponibilidade de 95% cada. Qual a disponibilidade ideal do par?",
+      "answer": "99,75%, pois 1 − (0,05 × 0,05) = 0,9975, desde que qualquer um satisfaça o serviço."
+    },
+    {
+      "question": "Que relação existe entre SLO e alerta por burn rate?",
+      "answer": "O burn rate expressa velocidade de consumo do orçamento de erros; janelas curtas e longas podem sinalizar violações urgentes sem excesso de ruído."
+    },
+    {
+      "question": "Um job termina com sucesso, mas a tabela perdeu metade dos registros. O monitoramento é suficiente?",
+      "answer": "Não. É indispensável monitorar completude, volume esperado, qualidade, frescor e linhagem, além do estado técnico da execução."
+    },
+    {
+      "question": "O que validar antes de permitir failover para uma réplica assíncrona?",
+      "answer": "Atraso de replicação, possível perda de alterações, consistência, liderança, isolamento do antigo primário e requisitos de RPO/RTO."
+    },
+    {
+      "question": "Qual é a ação correta quando a inferência apresenta data drift?",
+      "answer": "Investigar impacto no resultado e a representatividade dos dados; drift não prova por si só redução de desempenho preditivo."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Telemetria sem correlação",
+      "summary": "Métricas, logs e traces isolados mostram sintomas, mas investigação ponta a ponta requer contexto, identificadores, amostragem adequada e qualidade de instrumentação."
+    },
+    {
+      "key": "e2",
+      "title": "SLO e disponibilidade mal calculados",
+      "summary": "Erros comuns são misturar disponibilidade temporal e por requisições, confundir SLI/SLO/SLA e aplicar percentuais a populações ou janelas diferentes."
+    },
+    {
+      "key": "e3",
+      "title": "Métricas de tempo confundidas",
+      "summary": "MTTF, MTBF, MTTR, MTTD, RTO e RPO não são equivalentes: vida até falha, intervalos de falha, recuperação, detecção, objetivo de restauração e perda tolerável."
+    },
+    {
+      "key": "e4",
+      "title": "Redundância idealizada",
+      "summary": "Redundância não garante 100%: há causas comuns, split-brain, atrasos de replicação, falhas de roteamento e custo de recuperação."
+    },
+    {
+      "key": "e5",
+      "title": "Ferramentas tratadas como sinônimas",
+      "summary": "Prometheus, Zabbix, Nagios, ELK/Kibana, Sentry, CloudWatch e Azure Monitor têm camadas e focos diferentes, apesar de integrações possíveis."
+    },
+    {
+      "key": "e6",
+      "title": "Dados e IA observados somente pela infraestrutura",
+      "summary": "Jobs saudáveis podem entregar dados ruins; drift, frescor, schema, custos e qualidade do resultado exigem sinais além de CPU e tempo de resposta."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe quer identificar a operação específica que acrescenta latência à chamada atravessando três microsserviços. Qual artefato oferece a representação mais apropriada do percurso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Contador agregado de CPU por minuto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trace distribuído com spans correlacionados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Inventário estático de servidores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Relatório mensal de capacidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mapa de endereçamento IP sem eventos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O trace mostra a sequência de spans e suas durações ao longo dos serviços, permitindo localizar a etapa lenta. Contadores agregados e inventários ajudam em outros diagnósticos, mas não reconstroem o percurso de uma requisição.",
+      "section": "Fundamentos de observabilidade e instrumentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API apresenta aumento no número total de operações concluídas desde a inicialização do processo. Qual tipo de métrica melhor representa esse acumulado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gauge, por poder assumir valores negativos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Log de texto como única forma válida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Histogram obrigatoriamente sem faixas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Percentil p99 de consumo de memória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Counter, interpretado por taxa ou aumento em janela.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um counter acumula ocorrências e pode reiniciar quando o processo reinicia; por isso é habitual analisar taxa ou incremento em janelas apropriadas. Gauge representa valores instantâneos, e histogramas resumem distribuições de observações.",
+      "section": "Fundamentos de observabilidade e instrumentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao criar uma métrica de requisições, a equipe acrescentou o ID exclusivo de cada cliente como label. Qual risco técnico aparece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Redução necessária do número de séries.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Impossibilidade de correlacionar quaisquer logs.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Explosão de cardinalidade e custo das séries temporais.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Conversão automática do counter em gauge.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativação obrigatória de instrumentação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada valor diferente do identificador pode gerar nova combinação de rótulos e multiplicar séries, encarecendo consulta e retenção. Identificadores de alta variabilidade são melhores em logs ou traces com proteção adequada.",
+      "section": "Fundamentos de observabilidade e instrumentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A área de operações deseja acompanhar atividade de uma API por taxa, erros e duração, sem confundir isso com saturação de recursos. Qual estrutura atende diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Modelo USE, restrito à qualidade de dados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Modelo RED para serviços orientados a requisições.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "RTO como índice de throughput.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MTTF aplicado a qualquer requisição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Inventário de patches sem telemetria.",
+          "correct": false
+        }
+      ],
+      "explanation": "RED focaliza Rate, Errors e Duration, úteis para operação do serviço. USE olha utilização, saturação e erros em recursos; RTO e MTTF tratam de recuperação e falhas, não substituindo indicadores de requisição.",
+      "section": "Fundamentos de observabilidade e instrumentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa avalia se deve manter 100% dos traces de uma plataforma de alto tráfego. Qual decisão é tecnicamente consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Assumir que amostragem mantém todas as requisições raras.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Excluir a propagação de contexto para reduzir custo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adotar amostragem com critérios claros e reconhecer perda potencial de visibilidade.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Registrar segredos em atributos para facilitar busca.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transformar traces em relógios de CPU sem spans.",
+          "correct": false
+        }
+      ],
+      "explanation": "Amostragem reduz volume e custo, mas pode excluir trajetórias necessárias a diagnósticos, exigindo definição de prioridades e taxas. Não preserva automaticamente casos raros; contexto e proteção de dados continuam indispensáveis.",
+      "section": "Fundamentos de observabilidade e instrumentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma investigação, logs de serviços correlacionados mostram horários incompatíveis. Qual controle melhora a análise causal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar apenas a capacidade de disco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Eliminar carimbos de data e hora.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sincronização de relógios e preservação de trace ID.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Trocar o tipo de fonte tipográfica do dashboard.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter cada span em uma métrica anual.",
+          "correct": false
+        }
+      ],
+      "explanation": "Relógios coerentes e IDs propagados permitem alinhar operações entre serviços e explicar eventos. Armazenamento e estética do painel não corrigem a ordem temporal; retirar timestamps piora a investigação distribuída.",
+      "section": "Fundamentos de observabilidade e instrumentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um dashboard com métricas de CPU basta, por si só, para garantir observabilidade das transações entre microsserviços.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A visão de CPU revela um recurso, não o percurso de transações nem a causa de falhas distribuídas. Observabilidade exige instrumentação coerente, contexto e correlação, frequentemente com logs, métricas, traces e eventos de mudança.",
+      "section": "Fundamentos de observabilidade e instrumentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gauge é apropriado para representar a quantidade corrente de conexões abertas de um servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A quantidade de conexões em uso aumenta e diminui, logo corresponde a valor de estado mensurável por gauge. Um counter é adequado a eventos acumulados, como total de conexões iniciadas, e não ao número atual.",
+      "section": "Fundamentos de observabilidade e instrumentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O p99 de latência é igual, por definição, à média de duração das requisições pertencentes ao 1% mais lento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Percentil é um ponto de corte da distribuição e não a média dos valores que ficam acima dele. A distinção importa porque caudas extremas podem ser muito mais lentas que o p99 e distorcer médias.",
+      "section": "Fundamentos de observabilidade e instrumentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um trace distribuído pode conectar spans de serviços diferentes quando o contexto de rastreamento é propagado adequadamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A propagação de trace ID e do contexto permite associar etapas de uma transação e reconstruir dependências. Sem essa ligação, a coleta de spans avulsos pode não mostrar qual requisição originou cada operação.",
+      "section": "Fundamentos de observabilidade e instrumentação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O administrador pretende consultar métricas multidimensionais em intervalos usando a linguagem própria do Prometheus. Qual linguagem é pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "KQL.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SQL obrigatoriamente ANSI.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PromQL.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "CSS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "XML Schema.",
+          "correct": false
+        }
+      ],
+      "explanation": "PromQL é a linguagem de consulta para séries temporais do Prometheus, incluindo seleções, taxas e agregações por rótulos. KQL é amplamente usada em plataformas Microsoft; SQL, CSS e XML Schema não substituem a consulta PromQL.",
+      "section": "Ferramentas e arquitetura de monitoramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um alerta Prometheus deve ser agrupado, silenciado e encaminhado a responsáveis. Qual componente atende à função de roteamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alertmanager.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Kibana exclusivamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Logstash como mecanismo de silenciamento nativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um exporter de banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um agente local do sistema operacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Alertmanager recebe alertas gerados pelo monitoramento e executa agrupamento, silenciamento, inibição e encaminhamento. Exporters expõem métricas; Kibana e Logstash atuam em outras etapas do tratamento de telemetria.",
+      "section": "Ferramentas e arquitetura de monitoramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer templates, itens de monitoramento, triggers e proxies para infraestruturas distribuídas. Qual ferramenta se ajusta diretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sentry dedicado a exceções.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Kibana como agente de host.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Zabbix.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "OpenAPI como motor de checks.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um interpretador isolado de SQL.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Zabbix organiza itens, templates, triggers e proxies para acompanhar hosts e serviços. As demais opções não oferecem esse conjunto nativo de gerenciamento de infraestrutura e, portanto, não substituem automaticamente sua plataforma.",
+      "section": "Ferramentas e arquitetura de monitoramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição da pilha ELK está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Elasticsearch indexa, Logstash pode transformar, e Kibana explora visualmente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Kibana indexa todos os logs e Elasticsearch é somente interface.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Logstash é o servidor de métricas PromQL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sentry é o índice obrigatório do Elasticsearch.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Kibana funciona apenas como serviço de backup.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na arquitetura ELK, indexação e pesquisa são responsabilidades do Elasticsearch; Logstash auxilia ingestão e transformação; Kibana viabiliza exploração e visualização. Inverter os papéis leva a confundir armazenamento com apresentação.",
+      "section": "Ferramentas e arquitetura de monitoramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma versão nova, erros de código passam a afetar parte dos usuários. Qual produto favorece stack traces, issues agrupadas e vínculo com releases?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Nagios, por armazenar código-fonte de cada exceção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Gateway NAT isolado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um servidor DNS secundário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um switch de distribuição sem aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sentry.",
+          "correct": true
+        }
+      ],
+      "explanation": "O Sentry fornece investigação centrada em erros, exceções, contexto e releases, facilitando vincular problemas a alterações. Checks de disponibilidade e componentes de rede são úteis, mas não substituem esse detalhamento por evento.",
+      "section": "Ferramentas e arquitetura de monitoramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao migrar monitoramento entre nuvens, uma equipe compara CloudWatch e Azure Monitor. Qual afirmação é mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambos exigem necessariamente PromQL em todos os logs.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "CloudWatch serve só para contratos e não produz alarmes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ambos reúnem telemetria, mas serviços e consultas variam por plataforma.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Azure Monitor não admite logs de aplicações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ambos são compiladores de código em nuvem.",
+          "correct": false
+        }
+      ],
+      "explanation": "CloudWatch e Azure Monitor integram monitoramento de recursos, métricas e logs, com ferramentas e modelos específicos. Igualar linguagens, componentes e retenção sem verificação cria projetos de integração frágeis.",
+      "section": "Ferramentas e arquitetura de monitoramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na arquitetura usual do Prometheus, o servidor consulta endpoints instrumentados para coletar métricas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O mecanismo usual é pull por scrapes, com exporters quando necessários. Há integração específica para jobs curtos via Pushgateway, mas essa exceção não transforma o desenho dominante de coleta em push irrestrito.",
+      "section": "Ferramentas e arquitetura de monitoramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Kibana é o mecanismo principal responsável por indexar documentos no Elasticsearch, que atua apenas como ferramenta de visualização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A inversão dos componentes está errada: Elasticsearch é o mecanismo de indexação, busca e agregações, enquanto Kibana fornece interface de consulta e painéis. Ingestão e transformação podem ser feitas por Logstash ou outras ferramentas.",
+      "section": "Ferramentas e arquitetura de monitoramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Alertmanager substitui integralmente a coleta de métricas e a avaliação de regras do Prometheus.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Alertmanager organiza e entrega notificações de alertas que recebeu, com funções como agrupamento e silenciamento. Coleta de séries e avaliação das expressões de alerta pertencem a componentes anteriores da arquitetura.",
+      "section": "Ferramentas e arquitetura de monitoramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em plataformas de observabilidade, adicionar logs estruturados com identificadores comuns pode facilitar a correlação com traces.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Campos consistentes de serviço, ambiente e rastreio permitem conectar eventos e caminhos de execução. A prática depende de propagação correta e de políticas para impedir exposição de informações sensíveis.",
+      "section": "Ferramentas e arquitetura de monitoramento",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um serviço de pagamentos, mede-se a proporção de requisições válidas concluídas em até 400 ms. Como classificar essa proporção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SLI de latência e sucesso do serviço.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SLA contratual por definição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MTBF de componente físico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RPO temporal do banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Inventário de ativos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O indicador mede um atributo objetivo da experiência do serviço e pode fundamentar SLO. SLA é compromisso pactuado; MTBF e RPO tratam respectivamente de falhas de componentes e perda temporal de dados.",
+      "section": "SRE, indicadores e confiabilidade quantitativa",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um SLO de 99,9% é aferido sobre 1.000.000 de requisições elegíveis. Qual é o orçamento máximo de requisições ruins?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "100 requisições.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "1.000 requisições.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "10.000 requisições.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "100.000 requisições.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "999.000 requisições.",
+          "correct": false
+        }
+      ],
+      "explanation": "O erro tolerado corresponde a 100% − 99,9% = 0,1% das requisições elegíveis: 0,001 × 1.000.000 = 1.000. O cálculo não se confunde com número de sucessos ou com minutos de indisponibilidade.",
+      "section": "SRE, indicadores e confiabilidade quantitativa",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um período de trinta dias completos, quanto tempo de indisponibilidade temporal é compatível com disponibilidade de 99,95%?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "4,32 minutos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "43,2 minutos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "72 minutos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "216 minutos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "21,6 minutos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Trinta dias somam 43.200 minutos. A fração indisponível é 0,05%, ou 0,0005 × 43.200 = 21,6 minutos. O raciocínio vale para disponibilidade baseada em tempo, e não automaticamente para SLIs por requisição.",
+      "section": "SRE, indicadores e confiabilidade quantitativa",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema reparável apresenta MTBF de 990 horas de operação e MTTR de 10 horas de restauração. No modelo estacionário simplificado, a disponibilidade é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "90%.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "98%.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "99,9%.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "50%.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "99%.",
+          "correct": true
+        }
+      ],
+      "explanation": "Sob a hipótese explicitada, A = MTBF/(MTBF + MTTR) = 990/(990+10) = 0,99. É necessário conhecer o significado adotado para MTBF e MTTR; o resultado é idealizado, não garantia de SLO medido.",
+      "section": "SRE, indicadores e confiabilidade quantitativa",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os tempos de recuperação de quatro incidentes foram 10, 20, 30 e 40 minutos. Qual é o MTTR amostral?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "15 minutos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "20 minutos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "30 minutos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "25 minutos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "40 minutos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A média aritmética dos quatro tempos de restauração é (10+20+30+40)/4 = 25 minutos. MTTD e MTTA tratariam da detecção ou reconhecimento, não do tempo efetivo para recuperar o serviço.",
+      "section": "SRE, indicadores e confiabilidade quantitativa",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um painel informa p99 de latência de 900 ms. Qual interpretação é válida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A média dos 1% mais lentos é exatamente 900 ms.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Todas as chamadas terminam em 900 ms.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O tempo médio de todas as chamadas é 900 ms.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aproximadamente 99% das observações não excedem 900 ms.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Existem exatamente 99 chamadas por minuto.",
+          "correct": false
+        }
+      ],
+      "explanation": "O p99 é um quantil da distribuição: aproximadamente 99% das observações ficam até o valor indicado. Não representa a média de uma cauda nem a média global, e tampouco define diretamente volume de tráfego.",
+      "section": "SRE, indicadores e confiabilidade quantitativa",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um SLA é necessariamente o mesmo objeto técnico que um SLI, pois ambos correspondem apenas ao valor medido de disponibilidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "SLI é indicador mensurável, enquanto SLA é acordo formal de nível de serviço e pode envolver consequências pactuadas. O objetivo SLO ocupa uma posição intermediária: fixa a meta que será avaliada por indicadores.",
+      "section": "SRE, indicadores e confiabilidade quantitativa",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um SLO de 99% deixa orçamento de erro de 1% das unidades elegíveis na janela de avaliação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A parcela admissível é o complemento da meta: 100% − 99% = 1%. O resultado só vale se a definição de sucesso, população de eventos e janela permanecerem consistentes com o SLI escolhido.",
+      "section": "SRE, indicadores e confiabilidade quantitativa",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "RTO especifica a antiguidade máxima de dados que a organização aceita perder durante uma restauração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A antiguidade temporal dos dados perdidos é objetivo RPO. O RTO define quanto tempo pode transcorrer para recuperar a operação, e ambos precisam ser definidos conforme a criticidade do serviço.",
+      "section": "SRE, indicadores e confiabilidade quantitativa",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "MTTF é tipicamente utilizado para a expectativa de tempo até a falha de um item não reparável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "MTTF descreve tempo médio até falhar e é comum em itens que não são reparados. Para itens reparáveis, o MTBF caracteriza os intervalos de funcionamento e o MTTR, a restauração, conforme convenções explicitadas.",
+      "section": "SRE, indicadores e confiabilidade quantitativa",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cluster usa um nó principal e outro de prontidão, que assume após detecção de falha. Qual arranjo está descrito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ativo/passivo com failover.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ativo/ativo necessariamente sem líder.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Balanceamento sem redundância.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Particionamento de índices sem substituição.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Streaming sem checkpoint.",
+          "correct": false
+        }
+      ],
+      "explanation": "No ativo/passivo um nó presta serviço e outro é preparado para substituí-lo após falha. Failover demanda detecção, promoção e roteamento adequados; a presença do nó reserva não garante recuperação instantânea.",
+      "section": "Resiliência, alta disponibilidade e sistemas distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois serviços independentes, ambos essenciais e cada um disponível 99% do tempo, são ligados em série. Qual disponibilidade ideal é esperada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "99%.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "99,99%.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "100%.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "90%.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "98,01%.",
+          "correct": true
+        }
+      ],
+      "explanation": "Se ambos são necessários e as falhas independentes, multiplica-se 0,99 × 0,99 = 0,9801. Somar percentuais ou aplicar fórmula de redundância paralela não corresponde a uma cadeia com dependências obrigatórias.",
+      "section": "Resiliência, alta disponibilidade e sistemas distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas instâncias independentes de 99% de disponibilidade operam em paralelo, sendo suficiente uma delas para prestar serviço. Qual é a disponibilidade ideal conjunta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "98,01%.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "99%.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "99,9%.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "99,99%.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "100%.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se basta uma instância e os eventos de falha são independentes, a indisponibilidade conjunta é 0,01 × 0,01 = 0,0001. A disponibilidade ideal é 0,9999, desconsiderando falhas comuns e problemas de failover.",
+      "section": "Resiliência, alta disponibilidade e sistemas distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após um desastre, a organização pretende voltar a operar em até duas horas e perder no máximo cinco minutos de dados. Como classificar as metas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RPO de duas horas e RTO de cinco minutos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "MTTF de duas horas e MTBF de cinco minutos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MTTD de duas horas e SLA de cinco minutos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RTO de duas horas e RPO de cinco minutos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "RTO e RPO iguais a duas horas.",
+          "correct": false
+        }
+      ],
+      "explanation": "RTO expressa tempo objetivo para restabelecer a capacidade operacional; RPO mede janela temporal aceitável de perda de dados. Inverter conceitos compromete decisões sobre backups, replicação e recuperação.",
+      "section": "Resiliência, alta disponibilidade e sistemas distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API de cobrança sofre timeout após concluir a transação no servidor, e o cliente repete a chamada. Qual mecanismo reduz risco de cobrança duplicada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Retry ilimitado e imediato.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Chave de idempotência com verificação de operações já processadas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Remoção de registros de transação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumento isolado do tempo de DNS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativação da autenticação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Chaves de idempotência permitem reconhecer uma repetição da mesma operação e evitar efeitos financeiros duplicados. Retentativas sem controle em operações não idempotentes ampliam o risco em vez de aumentar a resiliência.",
+      "section": "Resiliência, alta disponibilidade e sistemas distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois nós, isolados por partição de rede, acreditam ser o único líder autorizado a escrever. Qual problema é prioritário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um simples aumento de cache hit rate.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Split-brain e risco de inconsistência de dados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Redução automática do RPO a zero.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Garantia de consistência por falta de conexão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Compressão de logs de aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Split-brain surge quando autoridades concorrentes operam sem coordenação, comprometendo a integridade de escritas. Quorum, fencing e controle de liderança ajudam a tratar o problema; mera duplicação não resolve.",
+      "section": "Resiliência, alta disponibilidade e sistemas distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A existência de duas réplicas em zonas distintas elimina toda possibilidade de falha correlacionada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Redundância reduz certos riscos, mas dependências comuns, erros de configuração, credenciais, roteamento e fornecedores compartilhados ainda podem causar falhas conjuntas. A resiliência deve ser validada por testes e análise de dependências.",
+      "section": "Resiliência, alta disponibilidade e sistemas distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um circuit breaker pode limitar chamadas a dependência degradada, evitando propagação de falhas e consumo desnecessário de recursos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O circuit breaker interrompe temporariamente tentativas segundo seu estado e política, preservando recursos enquanto a dependência falha. Timeouts, backoff e bulkheads complementam o mecanismo; ele não repara a causa externa.",
+      "section": "Resiliência, alta disponibilidade e sistemas distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em cluster ativo/passivo, a promoção de nó reserva garante que o primário antigo nunca continue aceitando escritas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A promoção não impede, por si, que o nó anterior permaneça ativo numa partição de rede. Mecanismos de fencing, quorum e exclusão de autoridade são necessários para reduzir risco de split-brain e divergência.",
+      "section": "Resiliência, alta disponibilidade e sistemas distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em redundância ideal com duas instâncias independentes, cada uma com disponibilidade de 99%, basta uma delas ativa para obter disponibilidade composta de 99,99%.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A chance de indisponibilidade simultânea é 0,01 × 0,01 = 0,0001; subtraindo de 1, obtém-se 0,9999. É um cálculo ideal que ignora falhas comuns e demora de transferência.",
+      "section": "Resiliência, alta disponibilidade e sistemas distribuídos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe centraliza eventos de autenticação, firewall e acesso privilegiado e cria correlações para identificar ataques. Qual categoria de ferramenta é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "APM restrito a p99.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Compilador de aplicações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Orquestrador de containers sem regras.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Serviço exclusivo de CDN.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SIEM.",
+          "correct": true
+        }
+      ],
+      "explanation": "SIEM correlaciona e analisa eventos de segurança de fontes distintas para apoiar detecção, triagem e investigação. APM e CDNs cumprem papéis diferentes e, isoladamente, não substituem a lógica de monitoramento de ameaças.",
+      "section": "Segurança, pipelines de dados e inferência de IA",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pipeline de streaming acumula mensagens mais rápido do que consegue processá-las. Qual sinal melhor evidencia risco de atraso crescente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Crescimento contínuo do backlog ou consumer lag.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Constância do nome da tabela.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quantidade de comentários no código.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Número de repositórios Git na organização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Versão da fonte do dashboard.",
+          "correct": false
+        }
+      ],
+      "explanation": "Backlog/lag crescente indica que o consumidor não acompanha a produção e pode comprometer frescor e latência ponta a ponta. Estado de execução ativo não prova que os dados cheguem dentro da janela exigida.",
+      "section": "Segurança, pipelines de dados e inferência de IA",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma carga ETL encerrou sem exceções, mas entregou apenas metade dos registros esperados. Que verificação detectaria melhor o problema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas estado de processo finalizado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Teste de completude ou volume de dados por partição.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Somente uso de CPU do executor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exclusivamente hora de login do administrador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Contagem de servidores físicos ativos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ausência de erro técnico não garante correção de resultado. Comparar quantidade esperada e entregue, por partição ou origem, identifica perdas silenciosas que monitoramento de processo ou infraestrutura deixa passar.",
+      "section": "Segurança, pipelines de dados e inferência de IA",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A distribuição de entradas de um modelo mudou desde a implantação, sem ainda haver rótulos confiáveis para medir acurácia. Qual diagnóstico é diretamente apoiado pelos dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Data drift nas características de entrada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Queda comprovada da acurácia pela simples mudança.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Split-brain de banco por definição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RPO maior que RTO obrigatoriamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MTBF reduzido em unidades de tokens.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mudança estatística nas entradas caracteriza data drift; não demonstra, sozinha, piora de qualidade preditiva. Aferição de desempenho demanda rótulos ou evidências adicionais e monitoramento adequado do processo de inferência.",
+      "section": "Segurança, pipelines de dados e inferência de IA",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pipeline pode entregar registros mais de uma vez após retomada e usa um consumidor que não deve duplicar efeitos. Qual estratégia é compatível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover qualquer registro persistente de controle.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Assumir que at-least-once proíbe duplicatas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desligar checkpoints permanentemente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Idempotência ou deduplicação no destino.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Considerar retries prova de exactly-once universal.",
+          "correct": false
+        }
+      ],
+      "explanation": "Garantias at-least-once admitem reentrega. Deduplicar eventos ou desenhar operações idempotentes preserva efeitos corretos; desligar recuperação ou pressupor entrega perfeita não resolve duplicidades.",
+      "section": "Segurança, pipelines de dados e inferência de IA",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe observa sucesso dos jobs e latência da API de inferência, mas clientes reclamam de resultados antigos. Qual conjunto adicional ajuda a diagnosticar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente temperatura da sala de servidores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas cor do painel de observabilidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Nome dos operadores da equipe.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Frescor dos dados, versão do modelo, distribuição de features e linhagem.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Troca de labels por IDs pessoais únicos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Inferência correta requer dados recentes e processamento consistente, além de API disponível. Monitorar frescor, linhagem, versão e distribuição de características expõe degradação silenciosa que indicadores de uptime não mostram.",
+      "section": "Segurança, pipelines de dados e inferência de IA",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um SIEM pode combinar eventos de autenticação e rede para investigar uma sequência potencialmente maliciosa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A correlação de eventos de múltiplas fontes é característica de um SIEM e pode revelar padrões que registros isolados não mostram. Resultado depende de qualidade dos dados, regras, contexto e redução de falsos positivos.",
+      "section": "Segurança, pipelines de dados e inferência de IA",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Concluir com sucesso técnico um job de dados comprova automaticamente a completude e a atualidade do dataset produzido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O processo pode encerrar sem erro e mesmo assim omitir registros, gerar dados atrasados ou violar regras de qualidade. Observabilidade de pipelines deve verificar resultado, frescor e integridade, além do estado da tarefa.",
+      "section": "Segurança, pipelines de dados e inferência de IA",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Data drift comprovado é evidência suficiente para afirmar que a acurácia do modelo obrigatoriamente diminuiu.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O deslocamento de distribuição de entradas não determina sozinho a variação do desempenho preditivo. É preciso medir qualidade e resultado com rótulos e critérios apropriados ou reunir evidências adicionais.",
+      "section": "Segurança, pipelines de dados e inferência de IA",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pipeline com semântica at-least-once pode reentregar registros, razão pela qual a deduplicação pode ser necessária no consumidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "At-least-once prioriza não perder mensagens e admite repetições após falhas ou retries. Idempotência e deduplicação no destino ajudam a assegurar que um evento não produza efeitos de negócio duplicados.",
+      "section": "Segurança, pipelines de dados e inferência de IA",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Google SRE — Service Level Objectives",
+      "publisher": "Google",
+      "reference": "https://sre.google/sre-book/service-level-objectives/",
+      "url": "https://sre.google/sre-book/service-level-objectives/",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Signals — OpenTelemetry",
+      "publisher": "OpenTelemetry / CNCF",
+      "reference": "https://opentelemetry.io/docs/concepts/signals/",
+      "url": "https://opentelemetry.io/docs/concepts/signals/",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Prometheus — Overview",
+      "publisher": "Prometheus / CNCF",
+      "reference": "https://prometheus.io/docs/introduction/overview/",
+      "url": "https://prometheus.io/docs/introduction/overview/",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "O que é Zabbix",
+      "publisher": "Zabbix",
+      "reference": "https://www.zabbix.com/documentation/current/pt/manual/introduction/about",
+      "url": "https://www.zabbix.com/documentation/current/pt/manual/introduction/about",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Elastic Observability — Overview",
+      "publisher": "Elastic",
+      "reference": "https://www.elastic.co/docs/solutions/observability",
+      "url": "https://www.elastic.co/docs/solutions/observability",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Sentry — Issue Details",
+      "publisher": "Sentry",
+      "reference": "https://docs.sentry.io/product/issues/issue-details/",
+      "url": "https://docs.sentry.io/product/issues/issue-details/",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "O que é o Amazon CloudWatch?",
+      "publisher": "Amazon Web Services",
+      "reference": "https://docs.aws.amazon.com/pt_br/AmazonCloudWatch/latest/monitoring/WhatIsCloudWatch.html",
+      "url": "https://docs.aws.amazon.com/pt_br/AmazonCloudWatch/latest/monitoring/WhatIsCloudWatch.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Azure Monitor overview",
+      "publisher": "Microsoft Learn",
+      "reference": "https://learn.microsoft.com/en-us/azure/azure-monitor/monitor-azure-monitor",
+      "url": "https://learn.microsoft.com/en-us/azure/azure-monitor/monitor-azure-monitor",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Availability and recovery objectives — Well-Architected",
+      "publisher": "Amazon Web Services",
+      "reference": "https://docs.aws.amazon.com/wellarchitected/latest/framework/rel-availability-and-recovery-objectives.html",
+      "url": "https://docs.aws.amazon.com/wellarchitected/latest/framework/rel-availability-and-recovery-objectives.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "O que é o Microsoft Sentinel SIEM?",
+      "publisher": "Microsoft Learn",
+      "reference": "https://learn.microsoft.com/pt-br/azure/sentinel/overview",
+      "url": "https://learn.microsoft.com/pt-br/azure/sentinel/overview",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Use Cloud Monitoring for Dataflow pipelines",
+      "publisher": "Google Cloud",
+      "reference": "https://docs.cloud.google.com/dataflow/docs/guides/using-cloud-monitoring",
+      "url": "https://docs.cloud.google.com/dataflow/docs/guides/using-cloud-monitoring",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MLOps: Continuous delivery and automation pipelines",
+      "publisher": "Google Cloud",
+      "reference": "https://docs.cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning",
+      "url": "https://docs.cloud.google.com/architecture/mlops-continuous-delivery-and-automation-pipelines-in-machine-learning",
+      "accessedAt": "2026-11-17"
+    }
+  ]
+}

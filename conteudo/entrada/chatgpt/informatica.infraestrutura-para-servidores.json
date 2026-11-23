@@ -1,0 +1,2292 @@
+{
+  "id": "informatica.infraestrutura-para-servidores",
+  "subject": "Informática",
+  "title": "Infraestrutura para servidores, arquivos, automação e alta disponibilidade",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Infraestrutura para servidores, arquivos, automação e alta disponibilidade",
+    "Infraestrutura para servidores, arquivos, automação e alta disponibilidade"
+  ],
+  "scope": {
+    "covers": "Arquitetura de servidores físicos e virtualizados, dimensionamento, redes, serviços de arquivos SMB/NFS, SAN/NAS, iSCSI, objetos, RAID, permissões, automação e IaC, Ansible, Kubernetes, observabilidade, clusters, failover, RTO/RPO, escalabilidade, elasticidade, balanceamento e aceleradores analíticos CPU/GPU/TPU/FPGA, MPP, memória e armazenamento colunar.",
+    "excludes": "Comandos operacionais exaustivos de uma distribuição específica, tabelas de licenciamento por edição, limites de hardware sujeitos a atualização e configurações proprietárias detalhadas não exigidas pelo tema."
+  },
+  "theoryTitle": "Infraestrutura computacional: serviços, automação, resiliência e aceleração de cargas",
+  "chapters": [
+    {
+      "title": "Arquitetura de servidores e infraestrutura computacional",
+      "markdown": "## 1. Funções e camadas de uma infraestrutura\nA infraestrutura de servidores reúne recursos físicos, virtuais e lógicos destinados a executar aplicações, conservar dados e oferecer serviços de rede. Em uma visão de camadas, a base contém instalações, alimentação elétrica, refrigeração, racks e cabeamento; acima ficam CPU, memória, armazenamento e interfaces; em seguida, firmware, sistemas operacionais, hipervisores ou mecanismos de contêiner; por fim, serviços e aplicações. A disponibilidade de um serviço depende da cadeia inteira, inclusive DNS, autenticação, certificados, conectividade e dependências externas. Uma máquina com dois processadores não resolve, por si só, uma falha de energia do rack.\n\n### 1.1 Dimensionamento, desempenho e gargalos\nO dimensionamento parte da carga e dos objetivos mensuráveis: usuários simultâneos, operações por segundo, latência, uso de CPU e RAM, IOPS, vazão de disco, banda, crescimento de dados e janelas de manutenção. **Latência** é o tempo de resposta de uma operação; **throughput** é a quantidade de trabalho concluída por unidade de tempo. Uma alta taxa de transferência não garante baixa latência sob concorrência. Considere percentis de latência (p95 e p99) em vez de depender apenas da média, pois poucas requisições muito lentas podem degradar a experiência do usuário. Sistemas sujeitos a picos exigem margem de capacidade, testes de carga e análise da saturação.\n\nCPU possui núcleos, threads e níveis de cache; RAM alimenta os processos e minimiza acesso a armazenamento lento; interfaces de rede e discos condicionam o fluxo de dados. Arquiteturas NUMA distinguem localidades de memória e podem introduzir custo adicional de acesso remoto entre nós. Virtualizar não torna recursos ilimitados: vCPUs disputam processadores físicos, memória pode sofrer pressão e discos compartilhados podem congestionar. A superalocação exige acompanhamento; a soma de vCPUs de máquinas virtuais não equivale à quantidade de núcleos físicos dedicada de forma exclusiva. Em sistemas transacionais, encontrar o recurso limitante costuma ser mais importante que comprar mais CPU indiscriminadamente.\n\n### 1.2 Bare metal, virtualização e contêineres\nNo servidor **bare metal**, o sistema executa diretamente sobre o hardware. Um **hipervisor** abstrai recursos físicos para hospedar máquinas virtuais com seus próprios sistemas operacionais convidados. Hipervisores do tipo 1 funcionam diretamente sobre a plataforma de virtualização, sem depender de um sistema operacional hospedeiro convencional; os do tipo 2 funcionam sobre um sistema hospedeiro. A VM oferece isolamento robusto entre ambientes, ao custo de recursos extras. Um **contêiner**, em arquitetura usual, compartilha o kernel do sistema hospedeiro e isola processos por mecanismos do sistema operacional; por isso, não é uma pequena VM com kernel exclusivo. A imagem padroniza artefatos, mas dados que precisam sobreviver ao ciclo de vida do contêiner devem estar em volumes ou serviços persistentes adequados.\n\nO servidor pode hospedar serviços de diretório e identidade, DNS, DHCP, web, banco de dados, impressão ou compartilhamento. Uma separação por perfis de carga evita que tarefas analíticas intensivas prejudiquem o controlador de domínio ou a aplicação transacional. Grupos de máquinas com funções similares favorecem padronização e automatização. A decisão entre hospedagem local, nuvem ou ambiente híbrido depende de requisitos de latência, soberania dos dados, conectividade, dependência de fornecedor, segurança e custo total.\n\n### 1.3 Rede, redundância e segurança da base\nSwitches, roteamento, VLANs e sub-redes segmentam domínios de comunicação. Links redundantes somente elevam a resiliência se não dependerem do mesmo ponto físico ou lógico de falha. Agregação de interfaces pode ampliar capacidade e disponibilidade conforme a topologia, mas não garante que um único fluxo usufrua da soma das velocidades. DNS traduz nomes; balanceador distribui requisições ou conexões; firewall controla tráfego segundo políticas. São funções diferentes, ainda que integradas em uma solução.\n\nA segurança começa pelo inventário e pela configuração segura: mínimo privilégio, contas individuais, MFA na administração, correções testadas, desativação de serviços desnecessários, logs protegidos, sincronização de horário, gestão de segredos e redes administrativas segregadas. Arquitetura de referência deve incluir documentação de dependências e plano de atualização. Monitoramento de temperatura, energia, espaço, falhas de disco e interfaces é tão importante quanto observar CPU. **Redundância não equivale a backup**: replicar um arquivo apagado ou criptografado pode replicar o erro imediatamente. A defesa requer controles independentes, cópias recuperáveis e testes.\n\n### 1.4 Custos e gestão operacional\nCapEx relaciona-se, em geral, a investimento em ativos; OpEx, a despesas recorrentes de operação. Em nuvem, provisionamento sob demanda desloca parte do investimento para consumo, mas não elimina custos de tráfego, armazenamento, licenças, suporte nem trabalho de operação. Capacidade ociosa também tem preço, enquanto subdimensionamento produz indisponibilidade ou filas. Procedimentos de mudança, registro de configuração, inventário e planejamento de capacidade compõem a gestão do ciclo de vida da infraestrutura. Em prova, diferencie o recurso físico de seu serviço, o desempenho isolado da disponibilidade fim a fim e a capacidade contratada da capacidade efetivamente utilizada."
+    },
+    {
+      "title": "Servidores de arquivos, protocolos e armazenamento",
+      "markdown": "## 2. Serviços de arquivos e formas de armazenamento\nUm **servidor de arquivos** disponibiliza diretórios e arquivos em rede, com autenticação, autorização, bloqueios e regras de compartilhamento. Os clientes percebem nomes e pastas; o servidor precisa administrar metadados, persistência e integridade. **NAS** designa armazenamento acessado pela rede tipicamente em nível de arquivos, enquanto **SAN** fornece recursos de armazenamento predominantemente em nível de blocos para hosts. O tipo de protocolo importa: compartilhar um diretório por SMB ou NFS difere de apresentar uma unidade de bloco via iSCSI. Um host que recebe um LUN por iSCSI geralmente cria e gerencia o sistema de arquivos; múltiplos hosts não podem gravar simultaneamente nesse volume como se fosse um sistema de arquivos de cluster sem coordenação apropriada.\n\n### 2.1 SMB, NFS e controle de acesso\nO protocolo **SMB** é amplamente empregado para compartilhamento de arquivos e serviços correlatos em redes Windows, embora possua implementações para outros sistemas. Versões modernas oferecem mecanismos de segurança e recursos como multicanais; alguns recursos dependem de configuração, plataforma e versão. O **SMB Multichannel** usa conexões múltiplas apropriadas para desempenho e resiliência; o **SMB Direct** pode aproveitar RDMA em hardware compatível para transferência eficiente. **NFS** é comum em ambientes Linux/Unix e permite montar diretórios remotos; o Windows Server também oferece serviços NFS para interoperabilidade. Em qualquer protocolo, não se deve presumir que o compartilhamento esteja protegido apenas por estar na rede interna.\n\nPermissão de compartilhamento e permissão do sistema de arquivos atuam em camadas diferentes. Em um acesso SMB do Windows, as duas camadas precisam permitir a operação; conceder controle amplo no compartilhamento não neutraliza uma restrição efetiva na ACL do sistema de arquivos. Direitos herdados, grupos, negações explícitas, contexto de identidade e uso local ou remoto podem alterar o acesso. Sempre distinga autenticação (provar a identidade), autorização (o que ela pode fazer) e auditoria (registrar atividades). Criptografia em trânsito protege o tráfego; criptografia em repouso protege dados armazenados, mas não substitui políticas de acesso.\n\n### 2.2 Bloco, arquivo e objeto\n**Armazenamento em bloco** expõe volumes que um host formata e utiliza como dispositivo, indicado para sistemas que exigem esse controle. **Armazenamento de arquivos** oferece hierarquia de diretórios, semântica de abertura e manipulação de arquivos e acesso compartilhado. **Armazenamento de objetos** apresenta objetos com identificadores e metadados, normalmente acessíveis por API; não é, por definição, uma unidade POSIX convencional montada com as mesmas garantias de um sistema local. Interfaces e consistência variam por implementação. O Ceph ilustra a convergência de interfaces distribuídas: RADOS como base, RBD para blocos, CephFS para arquivos e gateways para objetos. Não confunda o produto de armazenamento distribuído com a promessa automática de latência mínima.\n\n**RAID 0** distribui dados entre discos sem redundância; a falha de uma unidade pode tornar todo o conjunto indisponível. **RAID 1** espelha dados. Arranjos com paridade permitem continuar operando diante de determinadas falhas, porém sofrem sobrecargas e riscos durante a reconstrução. RAID é mecanismo de disponibilidade ou desempenho, **não uma cópia histórica independente**. Falhas lógicas, exclusões e ataques ainda atingem dados redundantes. Snapshot registra um estado lógico para recuperação ou clonagem, com semântica e duração dependentes da tecnologia; se permanecer no mesmo domínio de falha, não substitui backup isolado. A política de proteção combina cópias separadas, retenção, verificação de integridade e recuperação testada.\n\n### 2.3 I/O, cache, redundância e compartilhamento contínuo\nIOPS mede operações de entrada/saída por segundo; throughput mede volume transferido; latência mede a duração. SSDs e NVMe podem reduzir gargalos de acesso em certas cargas, mas rede, fila, controladora, padrão de acesso e aplicação limitam o resultado efetivo. Cache aumenta desempenho de leituras recorrentes, porém exige cuidado com expiração e consistência. Provisionamento fino aloca capacidade física progressivamente, demandando monitoramento para evitar esgotamento inesperado. Deduplicação e compressão podem economizar espaço, com custos de CPU e condições de aplicabilidade.\n\nServiços de arquivos altamente disponíveis podem usar clusters com failover, nomes virtuais, volumes compartilhados ou armazenamento distribuído. O **Scale-Out File Server** em ecossistemas compatíveis permite acesso por múltiplos nós e integra recursos como SMB e volumes de cluster. Não se deve confundir múltiplos caminhos de rede com cópias independentes de dados. Projetos precisam considerar quorum, integridade dos metadados, tolerância à falha de disco, limites de concorrência e capacidade de restauração. Na administração cotidiana, boas práticas incluem aplicar quota quando necessária, classificar compartilhamentos, usar grupos em vez de permissões individuais indiscriminadas e auditar acessos sensíveis."
+    },
+    {
+      "title": "Automação, infraestrutura como código e observabilidade",
+      "markdown": "## 3. Da operação manual à operação reproduzível\nAutomação transforma procedimentos repetíveis em execuções controladas e verificáveis, reduzindo erros humanos e tempo de provisionamento. Pode ser baseada em scripts imperativos, em que se descreve passo a passo, ou em estado desejado, em que se declara a configuração final. **Infraestrutura como código (IaC)** utiliza arquivos versionados para definir recursos, configurações e dependências, favorecendo revisão por pares, rastreabilidade e reexecução. A infraestrutura resultante ainda exige controles de acesso, aprovação de mudanças, análise de custos e tratamento de desvios (*drift*). Uma execução idêntica em ambiente diferente não é automaticamente segura se os parâmetros e credenciais estiverem incorretos.\n\n### 3.1 Inventários, playbooks e idempotência\nNo **Ansible**, inventário descreve os alvos gerenciados e seus agrupamentos; *playbooks* em YAML organizam ações e módulos para aplicar configurações. Uma tarefa **idempotente** pode ser executada repetidamente sem produzir efeitos adicionais indesejados quando o estado desejado já foi atingido. Isso não significa que todo script é idempotente: um comando que acrescenta a mesma linha a cada execução pode gerar duplicatas. A idempotência diminui risco em reaplicações e em recuperação após interrupções. Armazenar senhas em texto claro no repositório é inadequado; devem-se utilizar controles de segredos e permissões. Git permite registrar versões e revisar alterações, mas versionar um arquivo não garante por si só correção ou segurança.\n\nFerramentas de provisionamento declarativo avaliam diferenças entre o estado especificado e o ambiente e planejam alterações. O estado gerenciado, quando existir, pode conter informação sensível e requer proteção. **Orquestração** coordena várias ações ou serviços e suas dependências; **automação** também abrange uma única tarefa. Pipelines de CI/CD podem testar configurações, validar sintaxe e políticas, aprovar e implantar mudanças gradualmente. Um *rolling update* substitui instâncias em etapas; uma estratégia *blue-green* mantém dois conjuntos de ambiente e transfere tráfego controladamente. Nenhuma dessas estratégias elimina a necessidade de compatibilidade de esquemas de banco e capacidade de retorno.\n\n### 3.2 Contêineres, configuração e execução declarativa\nUma **imagem de contêiner** empacota aplicativo e dependências; a instância executada é o contêiner. Em Kubernetes, **Pod** é a unidade básica de execução, que pode conter um ou mais contêineres; **Deployment** expressa estado desejado para determinadas cargas e orienta atualizações e réplicas. **Service** fornece uma forma estável de acessar um conjunto variável de Pods por descoberta e encaminhamento. **ConfigMap** e **Secret** são objetos diferentes, mas o nome Secret não dispensa criptografia, controle de acesso e gestão segura. Disponibilizar um serviço externamente exige configuração apropriada de rede e ingresso, e não decorre automaticamente de criar um Deployment.\n\nO escalonador considera requisitos e recursos dos nós ao posicionar Pods; requisições e limites de CPU e memória influenciam agendamento e consumo. Volumes persistentes separam dados duráveis do ciclo de vida efêmero dos contêineres. É crítico verificar se cada aplicação suporta múltiplas réplicas e se sessões, arquivos temporários, cache e filas foram externalizados ou sincronizados. Um sistema monolítico com estado local, ao ser replicado sem adaptação, pode perder consistência mesmo se o orquestrador reportar as réplicas como disponíveis.\n\n### 3.3 Métricas, logs e rastros\n**Observabilidade** combina sinais para investigar o comportamento de sistemas: métricas (séries numéricas), logs (eventos registrados) e rastros distribuídos (caminho de requisições entre componentes). Indicadores de nível de serviço (**SLI**) medem características como taxa de sucesso e latência; **SLO** define o objetivo operacional mensurável; SLA é um compromisso de serviço, frequentemente contratual, cuja forma concreta depende do acordo. Painel não substitui alerta baseado em sintoma com ação possível. Alertas de CPU alta podem ser úteis para capacidade, mas elevaram custos sem necessariamente indicar que o usuário sofreu degradação.\n\nCorrelacionar relógios, identificadores de requisição, mudanças de configuração e falhas ajuda a distinguir causa de consequência. Um plano de resposta a incidentes define severidade, contato, comunicação, mitigação, coleta de evidência e análise posterior sem busca de culpados. Testes de restauração, reexecução de automações em ambiente isolado, inventário atualizado e rotação de credenciais fazem parte do processo operacional. No edital, diferencie configuração declarativa de script imperativo, idempotência de simples repetição, implantação de monitoramento e métrica de compromisso contratual."
+    },
+    {
+      "title": "Alta disponibilidade, tolerância a falhas e recuperação",
+      "markdown": "## 4. Confiabilidade como propriedade de arquitetura\n**Alta disponibilidade (HA)** procura manter um serviço acessível mesmo quando parte da infraestrutura falha. A abordagem combina detecção, isolamento, redundância, capacidade reserva, recuperação automatizada e testes. Um cluster de dois nós no mesmo circuito de energia pode resistir à falha isolada de um servidor, mas não à interrupção do circuito compartilhado. O princípio é eliminar ou reduzir **pontos únicos de falha (SPOF)** em energia, rede, armazenamento, controladores, balanceadores, autenticação e software. Um desenho disponível exige também capacidade do nó sobrevivente para processar a demanda após a falha; duplicidade de equipamentos sem capacidade suficiente pode apenas trocar a indisponibilidade por saturação.\n\n### 4.1 Ativo-passivo, ativo-ativo e failover\nNo **ativo-passivo**, uma instância atende e outra aguarda ativação; o tempo de troca depende de detecção, configuração e reinicialização ou promoção. No **ativo-ativo**, múltiplas instâncias atendem, mas exigem tratamento adequado para estado compartilhado, afinidade de sessão e concorrência. O **failover** desloca a carga após falha; **failback** retorna, quando planejado, ao arranjo preferencial. Balanceamento de carga distribui tráfego entre destinos considerados saudáveis; não é sinônimo de replicação de dados, nem garante tolerância a perda de uma região inteira. Verificações de saúde devem refletir a capacidade efetiva de servir solicitações, e não apenas a existência de um processo ou porta TCP aberta.\n\nUm cluster utiliza mecanismos de **quorum** para decidir quais membros podem operar e evitar decisões concorrentes perigosas. O termo *split-brain* descreve partições que passam a agir como autoridades simultâneas e podem provocar corrupção ou divergência de dados; testemunha (*witness*), regras de votação e fencing ajudam a mitigá-lo conforme a tecnologia. Adicionar nós sem compreender votação e distribuição de domínios de falha não resolve automaticamente partições. Replicação **síncrona** usualmente confirma gravações após requisitos de persistência nos destinos relevantes, reduzindo a janela de perda de dados, mas pode aumentar a latência e depender da conectividade; a **assíncrona** costuma permitir menor impacto no caminho de escrita ao aceitar defasagem e algum risco de perda das últimas alterações.\n\n### 4.2 RTO, RPO, backup e continuidade\n**RTO** (Recovery Time Objective) é o tempo-alvo de recuperação depois da interrupção. **RPO** (Recovery Point Objective) é a perda de dados tolerável expressa como janela temporal anterior ao incidente. Um RPO de quinze minutos não significa restaurar o serviço em quinze minutos: esse é assunto do RTO. Requisitos estritos elevam custo e exigem testes. **Backup** cria uma capacidade de restauração em caso de perda, exclusão, corrupção ou incidente; **replicação** mantém cópias sincronizadas ou quase sincronizadas para continuidade, mas pode propagar erros; **snapshot** materializa um ponto no tempo dentro de determinada plataforma, frequentemente sem isolamento físico. A combinação depende das ameaças, retenção, imutabilidade, isolamento e tempo de restauração.\n\nNo plano de continuidade, identifique processos críticos, dependências, sequência de retorno e responsáveis. Um ambiente de recuperação geograficamente separado protege contra certas falhas de sítio; sua eficácia depende de redes, dados, credenciais e procedimentos independentes. Recuperação de desastres não é o mesmo que HA local: pode aceitar tempo de acionamento e execução maior. Exercícios devem testar falha parcial, indisponibilidade de datacenter, corrupção de dados e restauração com verificação de integridade; um backup cuja restauração nunca foi testada é uma proteção não validada.\n\n### 4.3 Medidas e armadilhas de disponibilidade\nDisponibilidade observada pode ser expressa como proporção do período em que o serviço cumpriu a condição definida. Não confunda disponibilidade de cada componente com disponibilidade do sistema; em dependências estritamente em série, falhas individuais podem somar riscos. Disponibilidade nominal contratada não é prova de desempenho real. **MTTR** expressa tempo médio de reparo ou restauração segundo a definição adotada; **MTBF** representa tempo médio entre falhas de equipamentos reparáveis no contexto apropriado, e não equivale a vida útil garantida. Confiabilidade aumenta com redução de frequência de falhas e de tempo de recuperação.\n\nO modelo de responsabilidade compartilhada requer definir quem atualiza aplicações, configura acesso, restaura dados e responde a incidentes quando se contrata uma plataforma. Redundância deve respeitar domínios independentes, como zonas de disponibilidade, quando o risco demanda. A arquitetura altamente disponível é um conjunto de escolhas e compromissos: consistência, custo, latência, complexidade e tolerância a falhas devem ser avaliados juntos. Em questões, desconfie de frases absolutas como 'replicação elimina a necessidade de backup' e 'balanceador garante alta disponibilidade mesmo que todas as instâncias dependam do mesmo banco'."
+    },
+    {
+      "title": "Escalabilidade, elasticidade e distribuição de cargas",
+      "markdown": "## 5. Crescer capacidade não é o mesmo que adaptar consumo\n**Escalabilidade** é a aptidão de uma arquitetura para comportar aumento de demanda mediante expansão de recursos ou instâncias, mantendo metas de desempenho em condições definidas. **Elasticidade** é a capacidade de ajustar recursos à variação da demanda, ampliando-os e também reduzindo-os, preferencialmente de modo automático e com tempos compatíveis com a carga. Um sistema pode ser escalável sem ser elástico: suporta duplicar a capacidade por intervenção manual programada, mas não a devolve quando a procura cai. A elasticidade depende de políticas, telemetria, provisão eficiente, limites contratuais, custo, aquecimento de instâncias e desenho da aplicação.\n\n### 5.1 Vertical versus horizontal\n**Escala vertical (scale up)** adiciona CPU, RAM ou outros recursos a uma instância; costuma simplificar sistemas com estado local, mas enfrenta limites físicos, custos e possíveis janelas de intervenção. **Escala horizontal (scale out)** adiciona instâncias de serviço e distribui solicitações; tende a favorecer resiliência e crescimento modular, porém exige arquitetura que gerencie estado, consistência, sessões e dados compartilhados. Nem toda carga pode ser paralelizada: um banco com transações fortemente dependentes, por exemplo, exige planejamento específico. Dimensionar somente os front-ends sem ampliar o banco, fila ou armazenamento pode deslocar o gargalo e piorar a latência.\n\n**Balanceador de carga** pode aplicar critérios de encaminhamento, sondas de saúde e remoção de alvos indisponíveis. Em aplicações sem estado (*stateless*), qualquer réplica saudável pode responder se depender de recursos compartilhados consistentes. Sistemas *stateful* mantêm estado que precisa sobreviver ao redirecionamento: sessões locais, arquivos temporários e escrita em disco do próprio nó merecem análise. Afinidade de sessão pode reduzir migração de contexto, mas introduz dependência do nó e não substitui armazenamento de sessão adequado. Camada de cache e CDN reduzem solicitações repetidas a origens, com riscos de obsolescência e políticas de invalidação a considerar.\n\n### 5.2 Autoescalonamento e políticas\nEscalonamento automático **reativo** usa medições como utilização de CPU, tráfego ou profundidade de fila; **programado** considera horários conhecidos; **preditivo** utiliza previsões. Definir apenas um limiar instantâneo tende a provocar oscilações: janelas de estabilização, limites mínimo/máximo, histerese, períodos de inicialização e taxas de ajuste devem ser calibrados. No Kubernetes, o **HorizontalPodAutoscaler (HPA)** ajusta o número de réplicas de objetos compatíveis com o subrecurso de escala com base em métricas. O **escalonamento de nós** trata a capacidade computacional disponível para receber Pods e é uma camada distinta. Aumentar réplicas sem nós com recursos suficientes deixa Pods pendentes; aumentar nós sem ampliar réplicas não resolve sempre a demanda na aplicação.\n\nA **lei de Amdahl** recorda que a fração não paralelizável limita o ganho máximo ao acrescentar unidades de execução. Filas e processamento assíncrono desacoplam produtores de consumidores, amortecem picos e tornam algumas cargas escaláveis. Entretanto, ao elevar consumidores, surgem problemas de idempotência de processamento, reordenação, entrega duplicada e garantias de transação. Estratégias como particionamento de dados (*sharding*), réplicas de leitura e processamento distribuído têm benefícios e custos de coordenação. Bancos de dados e cache precisam ser monitorados como partes do caminho crítico.\n\n### 5.3 Planejamento, custos e limites\nObserve taxa de chegada, taxa de atendimento, duração de requisições e tamanho das filas. Quando a procura excede a capacidade sustentada, filas crescem e a latência aumenta. Capacidade de pico raramente deve ser confundida com a média diária; percentis e sazonalidade ajudam a definir segurança. Em serviços sob consumo, elasticidade viabiliza reduzir gasto em períodos ociosos, mas instâncias ociosas, serviços mínimos, tráfego e volumes persistentes continuam custando. Dimensionamento orientado apenas ao menor preço pode violar SLO ou tornar a recuperação inviável. **Load test** mede desempenho sob carga esperada; **stress test** investiga comportamento além de limites; **soak test** observa operação prolongada. Em provas, enfatize que escala é potencial de crescer e elasticidade é adaptação dinâmica, não sinônimos perfeitos."
+    },
+    {
+      "title": "Aceleradores para soluções analíticas e engenharia de desempenho",
+      "markdown": "## 6. Aceleradores: hardware, software e arquitetura de dados\nSoluções analíticas percorrem ingestão, validação, armazenamento, transformação, consulta, modelagem e apresentação de resultados. O ganho de desempenho pode vir de **aceleradores de hardware**, otimizações de software ou arquitetura de dados: usar GPU em um algoritmo que aguarda principalmente transferência de dados pela rede não remove o gargalo. O primeiro passo é caracterizar a carga: operações vetoriais ou matriciais, consultas seletivas, leituras sequenciais, junções volumosas, treinamento e inferência de modelos, consultas interativas, grandes volumes de dados e tolerância a atraso. Depois, compare tempo fim a fim, custo por tarefa concluída e requisitos de precisão e governança.\n\n### 6.1 CPU, SIMD, GPU, TPU e FPGA\nA **CPU** é versátil, executa controle de fluxo e tarefas sequenciais, e pode explorar vários núcleos, caches e instruções vetoriais como SIMD. A **GPU** possui arquitetura de paralelismo massivo, útil em operações com muitas tarefas semelhantes, como álgebra linear, simulações e determinados estágios de aprendizagem de máquina. **CUDA** é uma plataforma e modelo de programação para computação acelerada em GPUs NVIDIA; não transforma qualquer aplicação em código paralelo automaticamente. É necessário adaptar algoritmos, transferir dados e considerar memória disponível e largura de banda. Ganhos variam conforme tamanho do lote, localidade dos dados, divergência de execução e custos de envio entre CPU e GPU.\n\n**TPU** é um circuito especializado para cargas de aprendizado de máquina, particularmente operações matriciais usadas em redes neurais. **FPGA** é um circuito reconfigurável que permite implementar pipelines especializados com potencial de eficiência e baixa latência em cargas adequadas, em troca de complexidade de desenvolvimento. **ASIC** é projetado para uma finalidade específica; não deve ser entendido como processador universal reprogramável nos mesmos moldes de uma CPU. Em análises de escolha, use custo total, compatibilidade de bibliotecas, precisão numérica, consumo de energia, tempo de implantação e portabilidade. Para muitas pequenas consultas com dependências sequenciais, uma CPU bem configurada pode ser mais eficiente que uma GPU de alto desempenho.\n\n### 6.2 Memória, armazenamento rápido e formatos analíticos\n**In-memory computing** mantém conjuntos de trabalho e índices em RAM, reduzindo acessos a meios mais lentos; porém não elimina o problema de durabilidade, capacidade nem a necessidade de backup. **SSD/NVMe** favorece certos perfis de I/O, mas não substitui uma arquitetura de consulta eficiente. Em tabelas analíticas, **armazenamento colunar** tende a beneficiar leituras de poucas colunas e operações agregadas, enquanto organização por linhas costuma favorecer acesso a registros completos em transações. **Compressão**, **vectorização** e execução em lote reduzem dados transferidos e custo por elemento quando aplicáveis; a compressão pode introduzir custo de CPU. **Partition pruning** evita ler partições irrelevantes se os filtros e o layout permitirem.\n\nSistemas de processamento **MPP** distribuem partes de consultas e dados por vários nós. O escalonamento depende de distribuição, embaralhamento de dados (*shuffle*), inclinação de chaves (*data skew*) e volume de comunicação. Sistemas de arquivos distribuídos, armazenamento de objetos e formatos colunares podem integrar um ambiente analítico, mas não equivalem uns aos outros. **ETL** transforma dados antes de carregá-los no destino; **ELT** carrega dados e transforma depois, conforme a plataforma. **Processamento em lote** privilegia conjuntos de eventos; **streaming** trata fluxos continuamente com semânticas específicas de janelas, reprocessamento e atrasos. Streaming não garante por si só 'tempo real' sem latência ou entrega exatamente uma vez.\n\n### 6.3 Cache, índices e integração com infraestrutura\nCache de resultados economiza consultas repetidas, mas exige política de expiração, invalidação, proteção de dados e dimensionamento. Índices podem acelerar filtros e junções, ao custo de armazenamento e manutenção. Materializações pré-calculadas antecipam resultados de alto consumo, mas precisam ser atualizadas para não entregar informação desatualizada. Em aprendizado de máquina, servir um modelo em GPU pode ser proveitoso em lotes ou inferências muito paralelas; para baixo volume e requisitos simples, a inicialização e a comunicação com o acelerador podem superar a vantagem. A observabilidade precisa medir utilização de dispositivo, consumo de memória, saturação de I/O, tamanho de lote, tempo de enfileiramento e custo por consulta ou inferência.\n\n### 6.4 Disponibilidade, elasticidade e segurança das plataformas analíticas\nPlataformas analíticas podem usar pools de processamento efêmeros, armazenamento durável separado e filas de trabalhos, escalando trabalhadores quando entram tarefas e recolhendo recursos após o pico. Essa arquitetura tem elasticidade se for possível ajustar recursos nas duas direções, de forma controlada; manter permanentemente um grande cluster com capacidade fixa é apenas superprovisionamento. Aceleradores compartilhados requerem isolamento de cargas, permissões e monitoramento, pois a concorrência pode produzir degradação. Criptografia, classificação dos dados, trilhas de auditoria, mascaramento quando aplicável e controle de segredos continuam necessários mesmo em clusters dedicados a análise. A otimização correta considera SLA/SLO, precisão dos resultados, custo e recuperação de falhas, não somente a velocidade bruta do processador.\n\n**Raciocínio recorrente de concurso:** GPU, TPU e FPGA não são sinônimos; escalabilidade não implica elasticidade; armazenamento colunar não é sistema de arquivos distribuído; RAID não substitui cópias recuperáveis; HA, RPO e RTO descrevem aspectos distintos. Compare sempre a propriedade que se pretende garantir com o mecanismo técnico efetivamente capaz de garanti-la."
+    }
+  ],
+  "summary": "**Visão integrada:** a infraestrutura de servidores depende da combinação de capacidade de CPU, RAM, rede e armazenamento com controle de acesso, gestão de configuração e operação observável. **Arquivos:** SMB e NFS compartilham arquivos; iSCSI expõe blocos; objetos oferecem APIs; RAID ajuda diante de falhas de discos, mas não dispensa backup testado. **Automação:** inventários, playbooks, IaC, revisão e idempotência permitem reproduzir configurações com controle. **Alta disponibilidade:** redundância de nós e enlaces deve eliminar pontos únicos de falha; quorum e fencing tratam risco de split-brain. RTO mede tempo para restaurar o serviço e RPO mede a janela aceitável de perda de dados. **Escala:** vertical amplia recursos de uma instância, horizontal acrescenta réplicas; elasticidade ajusta capacidade aos picos e vales de demanda. HPA cuida de réplicas de workloads, diferentemente da expansão de nós. **Analytics:** GPUs, TPUs e FPGAs aceleram tarefas adequadas, mas dados, transferências, memória, formatos colunares e processamento MPP podem dominar o resultado. Compare desempenho fim a fim, custo, disponibilidade e segurança.",
+  "flashcards": [
+    {
+      "front": "Qual diferença essencial existe entre latência e throughput?",
+      "back": "Latência mede o tempo de atendimento de uma operação; throughput mede o volume de trabalho completado por unidade de tempo."
+    },
+    {
+      "front": "O que revela o percentil p99 de latência?",
+      "back": "Um limiar abaixo do qual se encontram aproximadamente 99% dos tempos medidos, indicando a cauda de requisições lentas."
+    },
+    {
+      "front": "O que diferencia hipervisor e contêiner?",
+      "back": "Hipervisor apresenta máquinas virtuais com sistemas convidados; contêineres tipicamente isolam processos e compartilham o kernel do host."
+    },
+    {
+      "front": "Por que redundância não é sinônimo de backup?",
+      "back": "A redundância mantém a operação frente a falhas selecionadas; backups preservam versões recuperáveis contra perdas lógicas e outros incidentes."
+    },
+    {
+      "front": "NAS e SAN oferecem qual interface predominante?",
+      "back": "NAS costuma fornecer acesso em nível de arquivos pela rede; SAN, em nível de blocos para hosts."
+    },
+    {
+      "front": "Qual é a distinção entre SMB/NFS e iSCSI?",
+      "back": "SMB e NFS compartilham arquivos ou diretórios; iSCSI transporta acesso a dispositivos de blocos."
+    },
+    {
+      "front": "O que é acesso efetivo em compartilhamentos SMB?",
+      "back": "A operação precisa atender às permissões aplicáveis do compartilhamento e às ACLs do sistema de arquivos, conforme identidade e contexto."
+    },
+    {
+      "front": "O que é um armazenamento de objetos?",
+      "back": "Modelo que trata dados como objetos identificados, com metadados e acesso por APIs, sem exigir a semântica de um sistema de arquivos local."
+    },
+    {
+      "front": "Quais interfaces o Ceph fornece para arquivos e blocos?",
+      "back": "CephFS é a interface de arquivos; RBD apresenta dispositivos de blocos; a plataforma também permite objetos via gateway."
+    },
+    {
+      "front": "O que define idempotência em automação?",
+      "back": "Aplicar a operação novamente não deve produzir alterações adicionais indesejadas quando o estado esperado já estiver presente."
+    },
+    {
+      "front": "Qual o papel do inventário e do playbook no Ansible?",
+      "back": "Inventário identifica hosts e grupos gerenciados; playbook descreve tarefas e configurações aplicadas aos alvos."
+    },
+    {
+      "front": "Qual a função típica do Deployment no Kubernetes?",
+      "back": "Gerenciar o estado desejado e as atualizações de aplicações replicadas, operando sobre controladores e Pods."
+    },
+    {
+      "front": "Quais os três sinais clássicos da observabilidade?",
+      "back": "Métricas, logs e rastros distribuídos, usados conjuntamente para medir, contextualizar e seguir operações."
+    },
+    {
+      "front": "Qual diferença entre SLI, SLO e SLA?",
+      "back": "SLI é uma medição de serviço; SLO é a meta operacional para o indicador; SLA é compromisso acordado, frequentemente contratual."
+    },
+    {
+      "front": "O que diferencia RTO de RPO?",
+      "back": "RTO indica tempo-alvo de recuperação do serviço; RPO indica janela de perda de dados que se admite recuperar."
+    },
+    {
+      "front": "Por que o quorum é importante em clusters?",
+      "back": "Ajuda a evitar que partições rivais assumam simultaneamente autoridade sobre recursos e dados."
+    },
+    {
+      "front": "Ativo-passivo e ativo-ativo: qual a diferença?",
+      "back": "Ativo-passivo mantém instância de espera; ativo-ativo atende simultaneamente em múltiplas instâncias, exigindo coordenação adequada."
+    },
+    {
+      "front": "Escalabilidade é o mesmo que elasticidade?",
+      "back": "Não. Escalabilidade é capacidade de crescer com a carga; elasticidade é ajustar capacidade a flutuações, inclusive redução."
+    },
+    {
+      "front": "Escala vertical e horizontal: como distinguir?",
+      "back": "Vertical amplia recursos da instância; horizontal acrescenta instâncias para repartir o trabalho."
+    },
+    {
+      "front": "O que o HPA modifica no Kubernetes?",
+      "back": "A quantidade desejada de réplicas de workloads compatíveis, segundo métricas; não a capacidade física dos nós por si só."
+    },
+    {
+      "front": "Por que escalonar somente front-ends pode fracassar?",
+      "back": "Porque banco, fila, disco, serviço de identidade ou outra dependência compartilhada pode permanecer como gargalo."
+    },
+    {
+      "front": "Quando GPUs oferecem vantagem em análise?",
+      "back": "Principalmente quando há paralelismo suficiente, dados adequadamente organizados e custo de transferência menor que o ganho computacional."
+    },
+    {
+      "front": "Qual uso típico das TPUs?",
+      "back": "Acelerar operações de aprendizado de máquina, especialmente operações matriciais."
+    },
+    {
+      "front": "Qual vantagem comum do armazenamento colunar?",
+      "back": "Ler apenas atributos relevantes em consultas analíticas e agregações, reduzindo leitura em cargas adequadas."
+    },
+    {
+      "front": "O que limita uma arquitetura MPP?",
+      "back": "Distribuição desigual, comunicação entre nós, movimentos de dados e partes não paralelizáveis do trabalho."
+    },
+    {
+      "front": "Qual diferença entre ETL e ELT?",
+      "back": "ETL transforma antes de carregar no destino; ELT carrega dados e executa as transformações na plataforma de destino."
+    }
+  ],
+  "tips": [
+    "Organize cada problema em camadas: recurso físico, virtualização, rede, armazenamento, aplicação e dependências. A falha pode estar fora do servidor aparentemente afetado.",
+    "Em questões de arquivos, separe SMB/NFS (arquivos), iSCSI (blocos), objetos (API) e RAID (arranjo de discos). O nome do produto não substitui essa classificação.",
+    "Para memorizar objetivos de recuperação: RTO é tempo para voltar; RPO é ponto do histórico de dados até o qual se admite perder alterações.",
+    "Diferencie escala vertical (mais recursos por instância), horizontal (mais instâncias) e elasticidade (ajuste a flutuações, inclusive redução).",
+    "Em automação, procure termos como inventário, estado desejado, idempotência, revisão, deriva de configuração e teste de reversão.",
+    "Para acelerar analytics, identifique se o gargalo é CPU, transferência, RAM, disco ou dados distribuídos antes de escolher GPU, TPU ou MPP.",
+    "Leia afirmações absolutas como “sempre”, “automaticamente” e “dispensa” com cuidado: HA, replicação e contêineres não garantem todos os atributos da operação."
+  ],
+  "traps": [
+    "RAID 1 ou replicação não substituem backup: erros e exclusões podem ser propagados às cópias redundantes.",
+    "SMB Direct usa RDMA compatível; SMB Multichannel aproveita múltiplas conexões. Nenhum deles é uma tecnologia RAID.",
+    "HPA ajusta réplicas de workload, não garante automaticamente que haja capacidade nos nós para executar novos Pods.",
+    "Uma aplicação ativo-ativo pode continuar tendo ponto único de falha no banco, no DNS, na energia ou no serviço de autenticação.",
+    "RPO não mede tempo para religar a aplicação; esse tempo é definido pelo RTO.",
+    "GPU não acelera qualquer código por simples instalação, e TPU não é um dispositivo de armazenamento.",
+    "Ser escalável não significa ser elástico; também não implica tolerância automática a falhas.",
+    "Observabilidade exige interpretar sinais e dependências; ter um painel de métricas não assegura nem SLA nem recuperação."
+  ],
+  "activeRecall": [
+    {
+      "question": "Ao identificar lentidão, em que ordem devem ser consideradas CPU, RAM, I/O e rede?",
+      "answer": "Primeiro mapeie o caminho crítico da operação; depois meça saturação, fila, latência e vazão em cada recurso para tratar o gargalo real."
+    },
+    {
+      "question": "Uma pasta em SMB permite edição no compartilhamento, mas somente leitura na ACL do arquivo. Qual o acesso efetivo?",
+      "answer": "A gravação é negada, porque uma camada de autorização não elimina a restrição da outra."
+    },
+    {
+      "question": "Se um playbook idempotente encontra o serviço já configurado corretamente, que efeito é esperado?",
+      "answer": "Deve preservar o estado desejado sem mudanças desnecessárias e sem duplicar resultados."
+    },
+    {
+      "question": "O que ocorre com um cluster se dois nós isolados se declararem líderes de gravação?",
+      "answer": "Há risco de split-brain e divergência de dados; quorum e fencing compatíveis ajudam a impedir a escrita concorrente."
+    },
+    {
+      "question": "Qual mecanismo permite restaurar arquivo de ontem após uma exclusão que se replicou?",
+      "answer": "Uma cópia histórica ou backup recuperável que retenha o estado anterior, e cuja restauração tenha sido validada."
+    },
+    {
+      "question": "Como demonstrar que uma aplicação é elástica e não apenas escalável?",
+      "answer": "Verifique sua capacidade de provisionar e remover recursos em resposta à demanda, com tempo de ajuste e custo controlados."
+    },
+    {
+      "question": "Por que 30 réplicas criadas pelo HPA não garantem 30 Pods em execução?",
+      "answer": "Pode faltar capacidade nos nós ou haver restrições de agendamento; o HPA e o autoescalonamento de nós são mecanismos distintos."
+    },
+    {
+      "question": "Quando a GPU pode perder para a CPU em uma carga analítica?",
+      "answer": "Em tarefas pequenas, sequenciais ou limitadas por transferências de dados e inicialização, o tempo total na GPU pode ser maior."
+    },
+    {
+      "question": "Que arquitetura analítica favorece consultas que acessam somente poucas colunas?",
+      "answer": "Um formato colunar pode ler atributos relevantes e reduzir I/O, conforme o mecanismo e a organização da tabela."
+    },
+    {
+      "question": "Que atributos deveriam orientar a escolha entre ativo-passivo e ativo-ativo?",
+      "answer": "Metas de disponibilidade e recuperação, carga, coerência de estado, concorrência, custo, testes de failover e domínios de falha."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Virtualização e contenção de recursos",
+      "summary": "Tratar vCPU como núcleo dedicado ou contêiner como VM completa leva a dimensionamento equivocado e erros sobre isolamento e persistência."
+    },
+    {
+      "key": "e2",
+      "title": "Protocolos de arquivos e proteção dos dados",
+      "summary": "Confundir SMB/NFS, iSCSI, objetos, RAID e backup mistura interfaces de acesso com redundância e mecanismos de recuperação."
+    },
+    {
+      "key": "e3",
+      "title": "Automação e operação reproduzível",
+      "summary": "Supor que scripts sejam idempotentes ou que Git substitua segurança e testes enfraquece a confiabilidade de IaC e mudanças."
+    },
+    {
+      "key": "e4",
+      "title": "Disponibilidade e objetivos de recuperação",
+      "summary": "Inverter RTO e RPO, ignorar split-brain ou imaginar que replicação guarda histórico impede projetar continuidade adequada."
+    },
+    {
+      "key": "e5",
+      "title": "Escala versus elasticidade",
+      "summary": "Confundir expansão horizontal, aumento vertical, HPA e crescimento da capacidade dos nós oculta gargalos e limitações do sistema."
+    },
+    {
+      "key": "e6",
+      "title": "Aceleração analítica e gargalos",
+      "summary": "Supor que GPU ou TPU resolvem toda lentidão ignora transferências, organização de dados, memória, comunicação e paralelismo efetivo."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um ambiente virtualizado, atribuir oito vCPUs a uma máquina virtual significa necessariamente reservar oito núcleos físicos exclusivos durante toda sua execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "vCPU é unidade virtual apresentada ao convidado, e sua correspondência com recursos físicos depende do hipervisor e da política de alocação. A atribuição não cria reserva exclusiva nem elimina contenção entre máquinas.",
+      "section": "Arquitetura de servidores e infraestrutura computacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A latência observada no percentil 99 pode revelar degradações que ficam ocultas quando a equipe analisa apenas a latência média das requisições.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O percentil 99 caracteriza a cauda da distribuição de tempos de resposta; a média pode mascarar experiências muito lentas de parte dos usuários. O indicador deve ser interpretado com volume de amostras e SLO.",
+      "section": "Arquitetura de servidores e infraestrutura computacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um contêiner Linux, na configuração típica, executa obrigatoriamente um kernel próprio e independente, da mesma maneira que uma máquina virtual completa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Em geral, contêineres compartilham o kernel do host e isolam processos por mecanismos do sistema operacional. Máquinas virtuais hospedam sistemas convidados e podem executar seus próprios kernels.",
+      "section": "Arquitetura de servidores e infraestrutura computacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A redundância de duas fontes de alimentação no servidor pode ser insuficiente contra falta de energia se ambas estiverem conectadas ao mesmo circuito sem proteção independente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Redundância exige avaliar domínios de falha. Fontes distintas dependentes de um único circuito permanecem vulneráveis ao evento comum; caminhos elétricos independentes e proteção adequada reduzem o risco.",
+      "section": "Arquitetura de servidores e infraestrutura computacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao investigar lentidão causada por espera de disco, adicionar apenas CPU pode não melhorar a resposta da aplicação, pois é necessário identificar o gargalo dominante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando a aplicação aguarda I/O, CPU adicional pode continuar ociosa sem diminuir a fila de disco. O diagnóstico deve relacionar métricas do caminho crítico a intervenções que alterem o recurso efetivamente limitado.",
+      "section": "Arquitetura de servidores e infraestrutura computacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instituição vai substituir servidores físicos por VMs e deseja evitar confusões entre os recursos mostrados ao sistema convidado e os efetivamente disponíveis. Qual interpretação é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A vCPU é um recurso lógico cujo atendimento depende do hipervisor e da capacidade física disponível.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Toda vCPU exige um núcleo físico permanentemente exclusivo, sem compartilhamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A virtualização elimina disputa por RAM e disco entre máquinas hospedadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma VM dispensa sistema operacional convidado em qualquer arquitetura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Recursos virtualizados garantem desempenho idêntico, quaisquer que sejam as cargas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O hipervisor faz a mediação do consumo dos recursos subjacentes, de modo que a configuração virtual precisa ser acompanhada de capacidade e contenção reais. As outras proposições atribuem exclusividade ou garantias inexistentes.",
+      "section": "Arquitetura de servidores e infraestrutura computacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço registra médias de 90 ms, mas usuários relatam picos de segundos de espera. Para caracterizar essa cauda de latência, o administrador deve observar preferencialmente:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "apenas a soma da memória RAM instalada nas máquinas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "percentis altos dos tempos de resposta, como p95 e p99.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "somente o espaço livre do volume de backup noturno.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "a contagem de processadores físicos, sem métricas de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "o número nominal de portas de rede habilitadas no rack.",
+          "correct": false
+        }
+      ],
+      "explanation": "Percentis altos revelam a parcela de requisições mais lentas, que pode ficar oculta em médias agregadas. Recursos físicos são contexto, mas não medem diretamente a experiência observada no atendimento.",
+      "section": "Arquitetura de servidores e infraestrutura computacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante a revisão de riscos, percebeu-se que dois servidores redundantes usam a mesma fonte de energia predial. Que medida combate especificamente essa falha comum?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar a quantidade de vCPUs de cada máquina virtual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter todos os arquivos compartilhados para o protocolo NFS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Separar caminhos de alimentação e proteger os respectivos circuitos conforme o projeto de continuidade.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Reduzir a frequência de coleta dos registros de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir os nomes DNS por endereços IP estáticos nas estações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os dois servidores ainda dependem do mesmo domínio de falha elétrica. A mitigação exige independência e proteção de alimentação; as demais ações não alteram o evento comum capaz de interromper ambos.",
+      "section": "Arquitetura de servidores e infraestrutura computacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe pretende empacotar um microsserviço em contêineres Linux e pergunta qual é a diferença típica em relação a VMs. A resposta correta é que os contêineres:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "emulam obrigatoriamente uma BIOS física exclusiva para cada processo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "conservam automaticamente arquivos efêmeros após exclusão do contêiner.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "não precisam de imagens nem de mecanismos de configuração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "isolam processos compartilhando normalmente o kernel do hospedeiro, enquanto VMs executam sistemas convidados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "substituem mecanismos de isolamento e autorização no sistema operacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "O isolamento de processos por recursos do kernel caracteriza contêineres tradicionais, enquanto VMs virtualizam um ambiente de sistema completo. Persistência, imagens e segurança continuam exigindo planejamento.",
+      "section": "Arquitetura de servidores e infraestrutura computacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um servidor de aplicação, o monitoramento revela CPU ociosa, mas consultas aguardam por leituras lentas. A ação inicial mais coerente é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "duplicar o número de vCPUs e ignorar o subsistema de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "desabilitar logs de erro porque eles causam toda espera por disco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "remover o balanceador de carga mesmo que ele não esteja saturado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "trocar a arquitetura de autenticação sem analisar o tempo das consultas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "investigar latência e filas de I/O antes de simplesmente adicionar processadores.",
+          "correct": true
+        }
+      ],
+      "explanation": "A observação aponta espera em armazenamento, e o diagnóstico deve medir o recurso saturado antes de expandir outros componentes. Adicionar CPU em condição de ociosidade não ataca necessariamente a fila de I/O.",
+      "section": "Arquitetura de servidores e infraestrutura computacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No acesso a um compartilhamento SMB com ACLs do sistema de arquivos, uma permissão ampla no compartilhamento não assegura acesso caso o sistema de arquivos negue a operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O acesso efetivo depende das camadas aplicáveis de autorização, incluindo compartilhamento e sistema de arquivos. Liberar uma camada não contorna restrições válidas da outra nem dispensa identidade autenticada.",
+      "section": "Servidores de arquivos, protocolos e armazenamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura SAN, o protocolo iSCSI apresenta ao host um compartilhamento de arquivos já organizado em diretórios, de modo idêntico ao NFS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "iSCSI disponibiliza armazenamento em bloco; o host normalmente gerencia seu sistema de arquivos. NFS oferece acesso a arquivos e diretórios remotos. Confundir bloco e arquivo altera o modelo de concorrência.",
+      "section": "Servidores de arquivos, protocolos e armazenamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O RAID 1, por espelhar gravações em unidades distintas, elimina a necessidade de backups e protege integralmente contra exclusão acidental e ransomware.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Espelhamento reproduz alterações e exclusões, inclusive aquelas indesejadas, e não oferece automaticamente histórico isolado. Backup recuperável, retenção e testes de restauração atendem a ameaças diferentes das falhas físicas.",
+      "section": "Servidores de arquivos, protocolos e armazenamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema de armazenamento de objetos normalmente expõe dados e metadados por uma interface de objetos, não necessariamente com a semântica POSIX de um diretório local.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A interface de objetos opera com identificadores, APIs e metadados, enquanto sistemas de arquivos preservam convenções próprias de hierarquia e operações. Gateways e montagens não tornam semânticas iguais automaticamente.",
+      "section": "Servidores de arquivos, protocolos e armazenamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "SMB Direct e SMB Multichannel são nomes de modalidades de RAID destinadas a recuperar discos defeituosos em servidores Windows.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Ambos são recursos relacionados à comunicação SMB: Multichannel pode usar múltiplas conexões e SMB Direct usa RDMA em ambientes compatíveis. RAID pertence à organização e redundância de discos, não ao protocolo de compartilhamento.",
+      "section": "Servidores de arquivos, protocolos e armazenamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação necessita acessar um volume em nível de blocos para formatá-lo com seu próprio sistema de arquivos. Qual solução corresponde melhor a essa exigência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apresentar um LUN de armazenamento por iSCSI ao host.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Mapear uma pasta compartilhada via NFS como diretório remoto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Publicar arquivos por SMB com permissões de compartilhamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Enviar objetos por uma API de armazenamento de objetos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar um atalho de pasta local dentro da aplicação cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "iSCSI expõe armazenamento em blocos ao host, que pode formatar o volume conforme o sistema empregado. SMB e NFS oferecem semântica de arquivos; API de objetos não equivale a LUN de blocos.",
+      "section": "Servidores de arquivos, protocolos e armazenamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conta consegue autenticar-se no domínio, mas recebe acesso negado ao editar documento por SMB. O compartilhamento permite alteração e a ACL do arquivo permite somente leitura. Que conclusão procede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A autenticação bem-sucedida concede automaticamente direito de edição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A ACL do arquivo restringe a gravação apesar da permissão do compartilhamento.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O compartilhamento prevalece sempre sobre quaisquer ACLs do volume.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O protocolo SMB ignora permissões locais no acesso remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permissão de leitura é necessariamente permissão de escrita em sistemas Windows.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na avaliação do acesso remoto, as permissões de compartilhamento e do sistema de arquivos devem ser satisfeitas. Autenticação comprova identidade, mas não concede uma autorização negada pela ACL aplicável.",
+      "section": "Servidores de arquivos, protocolos e armazenamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma autarquia usa RAID 1 para seus documentos. Após exclusão equivocada, o arquivo desaparece dos discos espelhados. Qual controle deveria complementar o espelhamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mais um espelho sincronizado sem histórico independente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente monitoramento da temperatura ambiente do rack.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Backups com retenção apropriada e restauração periodicamente testada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ampliação do número de portas de rede do servidor de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativação de autenticação de usuários para agilizar consultas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Espelhamento acompanha operações lógicas, inclusive exclusões. Retenção de versões independentes e restauração testada protegem contra perda lógica; multiplicar cópias idênticas não cria histórico de recuperação.",
+      "section": "Servidores de arquivos, protocolos e armazenamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma solução distribuída precisa oferecer APIs de objetos e, separadamente, volumes de bloco e sistema de arquivos. No Ceph, quais interfaces correspondem a essas funções, respectivamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CephFS, SSH e servidor de impressão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SMB Direct, BIOS e RDP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RBD, DNS e DHCP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gateway de objetos, RBD e CephFS.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Multipath I/O, FTP e RAID 0.",
+          "correct": false
+        }
+      ],
+      "explanation": "A arquitetura Ceph distingue interfaces de objeto, dispositivo de bloco e sistema de arquivos. Confundir serviços de rede genéricos ou mecanismos físicos com essas interfaces distorce a função de cada camada.",
+      "section": "Servidores de arquivos, protocolos e armazenamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma análise aponta muitas leituras pequenas e aleatórias em um servidor de arquivos. Que combinação de métricas é mais útil para comparar alternativas de armazenamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente quantidade de gabinetes e de racks ocupados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas tamanho nominal do endereço IPv6 atribuído ao servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Exclusivamente o número de nomes de compartilhamento cadastrados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Somente a frequência de rotação de senhas de operadores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "IOPS e latência de I/O, acompanhadas da vazão quando relevante.",
+          "correct": true
+        }
+      ],
+      "explanation": "Operações pequenas e aleatórias são sensíveis à quantidade de operações e ao tempo de atendimento, não apenas à capacidade em terabytes. A vazão complementa a análise, mas métricas administrativas não a substituem.",
+      "section": "Servidores de arquivos, protocolos e armazenamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa automatizada idempotente pode ser reaplicada sem repetir mudanças desnecessárias caso o estado desejado já esteja estabelecido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Idempotência diz respeito ao resultado estável após execuções repetidas, não apenas à possibilidade de executar sem intervenção humana. É relevante em correções, reimplantações e recuperação de falhas parciais.",
+      "section": "Automação, infraestrutura como código e observabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O inventário do Ansible define somente a ordem dos comandos e não possui relação com a identificação dos hosts que receberão as configurações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O inventário representa máquinas e grupos gerenciados, e pode incluir variáveis relevantes. A sequência de tarefas e as ações são descritas pelos playbooks; trocar os papéis confunde seleção de alvos e execução.",
+      "section": "Automação, infraestrutura como código e observabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A criação de um Deployment no Kubernetes, por si só, garante que seus Pods possam armazenar dados duráveis no sistema de arquivos local de cada contêiner, mesmo após substituições.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O ciclo de vida de contêineres e Pods não assegura permanência de dados escritos em camadas efêmeras. Persistência requer volumes ou serviços adequados, além de políticas de acesso e recuperação.",
+      "section": "Automação, infraestrutura como código e observabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Métricas, logs e rastros distribuídos fornecem perspectivas complementares da operação de serviços e ajudam na investigação de incidentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Métricas mostram tendências quantitativas; logs registram eventos; rastros acompanham a passagem das requisições por componentes. A correlação melhora o diagnóstico, sem substituir critérios de alerta e resposta.",
+      "section": "Automação, infraestrutura como código e observabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Registrar a infraestrutura em Git torna desnecessário proteger segredos e revisar as permissões das ferramentas de implantação, porque o histórico de versões já assegura a segurança.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Controle de versão permite histórico e revisão, mas não é controle suficiente de identidade nem cofre de credenciais. É indispensável proteger segredos, credenciais de implantação, estado e permissões de alteração.",
+      "section": "Automação, infraestrutura como código e observabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A administração quer aplicar a mesma configuração a vinte servidores, com possibilidade de reexecução segura quando alguns já estiverem corretos. Qual propriedade é desejável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Idempotência, para manter o estado final sem alterações adicionais desnecessárias.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aleatoriedade dos comandos executados em cada host gerenciado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ausência de controle de versão sobre as configurações produzidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alteração compulsória de todos os parâmetros a cada execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativação da auditoria para evitar diferenças entre servidores.",
+          "correct": false
+        }
+      ],
+      "explanation": "A idempotência facilita reaplicar tarefas após falhas ou mudanças parciais, preservando o resultado esperado quando já alcançado. Modificações repetidas sem necessidade ampliam deriva e risco operacional.",
+      "section": "Automação, infraestrutura como código e observabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um projeto Ansible, qual associação entre artefato e finalidade está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Inventário contém o código binário da aplicação; playbook roteia pacotes IP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Inventário identifica alvos; playbook organiza tarefas e parâmetros de configuração.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Inventário define credenciais públicas por obrigação; playbook substitui controle de acesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Inventário equivale ao backup de dados; playbook é um disco espelhado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Inventário trata apenas da ordem das tarefas; playbook é a lista física de cabos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Ansible utiliza inventários para representar hosts ou grupos de hosts e playbooks para descrever automações. Essa separação não autoriza guardar segredos em claro nem confundir configuração com armazenamento de dados.",
+      "section": "Automação, infraestrutura como código e observabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço em Kubernetes precisa de três réplicas e atualizações graduais. Qual recurso expressa normalmente esse estado desejado para aplicação compatível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ConfigMap, que replica sozinho a aplicação executável e seus Pods.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Secret, que monitora os nós e realiza failover de todo o cluster.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Deployment, que administra réplicas e a atualização de Pods por controladores.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "PersistentVolume, que substitui integralmente o escalonador e o Deployment.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Namespace, que balanceia automaticamente conexões externas por instância.",
+          "correct": false
+        }
+      ],
+      "explanation": "Deployment descreve estado desejado de workloads e gerencia atualizações por recursos controladores. ConfigMap, Secret, volumes e namespaces exercem funções distintas e não substituem essa coordenação.",
+      "section": "Automação, infraestrutura como código e observabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma falha intermitente atravessa API, serviço de autenticação e banco. Para enxergar a trajetória de uma requisição específica entre componentes, a ferramenta conceitual mais adequada é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "apenas um relatório de capacidade instalada da memória RAM.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "um arquivo de inventário de máquinas sem informações de execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "uma única medição de consumo agregado de energia por edifício.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "rastreamento distribuído com correlação de requisições.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "a lista de extensões dos arquivos existentes no servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Rastros distribuídos mostram a sequência e os tempos das operações relacionadas a uma requisição. Métricas agregadas e inventários fornecem contexto, mas não reconstituem por si só o percurso individual.",
+      "section": "Automação, infraestrutura como código e observabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe adota IaC e armazenará configurações no Git. Qual prática completa corretamente a abordagem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publicar credenciais administrativas no repositório para facilitar auditoria.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar todos os commits diretamente à produção sem testes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar o estado real dos recursos provisionados após a primeira execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar controle de acesso, pois o histórico do Git já substitui autenticação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Revisar mudanças, proteger segredos e validar os efeitos antes da implantação.",
+          "correct": true
+        }
+      ],
+      "explanation": "Versionar fornece rastreabilidade, mas não dispensa segurança de credenciais, validação de políticas nem análise da alteração planejada. A execução controlada reduz o risco de aplicar mudanças nocivas em produção.",
+      "section": "Automação, infraestrutura como código e observabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O RPO especifica quanto tempo o serviço pode levar para retornar à operação após um desastre; já o RTO mede a janela tolerável de perda de dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Os conceitos estão invertidos: RTO é o tempo-alvo de recuperação do serviço e RPO é a janela de perda de dados admitida. Confundi-los leva a escolhas inadequadas de replicação, backup e planos de retorno.",
+      "section": "Alta disponibilidade, tolerância a falhas e recuperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um cluster ativo-passivo, a existência do nó reserva não garante continuidade instantânea: detecção da falha, promoção e reconexão podem consumir tempo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O failover possui etapas cuja duração varia com mecanismo de monitoramento, configuração e estado da aplicação. Redundância reduz a exposição, mas não assegura tempo de recuperação nulo.",
+      "section": "Alta disponibilidade, tolerância a falhas e recuperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma configuração ativo-ativo dispensa automaticamente coordenação dos dados e controle de concorrência, pois todas as instâncias atendem requisições ao mesmo tempo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Atendimento simultâneo aumenta a necessidade de planejar estado, sessões, dados compartilhados e semântica de escrita. Ausência de coordenação pode gerar divergências mesmo com instâncias saudáveis.",
+      "section": "Alta disponibilidade, tolerância a falhas e recuperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A perda de comunicação entre participantes de um cluster pode gerar risco de split-brain; estratégias de quorum e isolamento de membros ajudam a evitá-lo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Partições podem criar decisões concorrentes sobre quem está autorizado a servir e gravar. Votação, testemunhas e fencing, quando compatíveis com a plataforma, reduzem o risco de múltiplos líderes ativos.",
+      "section": "Alta disponibilidade, tolerância a falhas e recuperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Cópias replicadas para um segundo servidor são, por definição, suficientes para recuperar qualquer versão anterior de um banco após uma exclusão incorreta propagada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Replicação pode transmitir o erro aos destinos; recuperar versões anteriores exige mecanismos como backups ou histórico apropriado com retenção suficiente. Disponibilidade e recuperação lógica são objetivos diferentes.",
+      "section": "Alta disponibilidade, tolerância a falhas e recuperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema de documentos tolera perder no máximo dez minutos de alterações, embora aceite ficar indisponível por uma hora. Quais metas devem orientar a recuperação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RPO de dez minutos e RTO de uma hora.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "RTO de dez minutos e RPO de uma hora.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RPO de uma hora e impossibilidade de definir RTO.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RTO de uma hora e RPO obrigatoriamente igual a zero.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apenas o tempo médio entre falhas, sem definir objetivos de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "RPO representa a janela temporal máxima admitida de perda de dados, enquanto RTO expressa o tempo-alvo de retomada do serviço. A troca dos termos compromete o desenho de cópias e procedimentos.",
+      "section": "Alta disponibilidade, tolerância a falhas e recuperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois nós de banco perdem a comunicação e ambos podem tentar aceitar escrita como primários. Qual mecanismo é diretamente relevante para impedir decisões conflitantes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumento da resolução da tela dos consoles administrativos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Quorum e mecanismos de isolamento/fencing apropriados à plataforma.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Expansão de espaço em um servidor de impressão independente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitação de todos os logs de auditoria do cluster.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Inclusão de um endereço DNS sem política de eleição ou isolamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "O risco é split-brain, com autoridade concorrente e potencial divergência. Quorum e isolamento orientam qual partição pode prosseguir; medidas cosméticas ou isoladas de DNS não controlam a escrita.",
+      "section": "Alta disponibilidade, tolerância a falhas e recuperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API mantém duas instâncias ativas atrás de um balanceador, mas o único banco de dados fica no mesmo servidor físico. Qual risco persiste?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A presença do balanceador converte automaticamente o banco em cluster.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Dois front-ends eliminam qualquer dependência de armazenamento comum.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A falha do banco único pode derrubar o serviço apesar da redundância da API.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O modo ativo-ativo torna desnecessária a recuperação de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Qualquer falha do banco é corrigida pelo aumento de RAM dos clientes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Alta disponibilidade é avaliada fim a fim. O banco isolado segue como ponto único de falha, e replicar somente a camada de aplicação não resolve essa dependência crítica.",
+      "section": "Alta disponibilidade, tolerância a falhas e recuperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização precisa resistir à indisponibilidade de todo um datacenter. Qual medida está mais alinhada ao risco descrito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Instalar mais memória em servidores situados exclusivamente no mesmo local.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar duas VLANs que dependem do mesmo edifício e da mesma energia.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ampliar somente a quantidade de discos do servidor principal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Projetar recuperação em local independente, com dados, conectividade e procedimentos testados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Substituir o protocolo HTTP por HTTPS sem plano de continuidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "Falhas de sítio exigem pensar em independência geográfica e operacional, não apenas em redundância local. O plano também deve comprovar restauração dos dados e cumprimento das metas de recuperação.",
+      "section": "Alta disponibilidade, tolerância a falhas e recuperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação apresenta replicação assíncrona para outro local. Qual afirmação descreve corretamente um compromisso dessa escolha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A replicação assíncrona garante RPO igual a zero em qualquer incidente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Todas as escritas são reconhecidas somente após durabilidade remota síncrona.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A técnica torna dispensáveis backup e mecanismos de detecção de corrupção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O local de destino jamais precisará ser promovido em cenário de desastre.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pode haver defasagem de dados no destino, embora a gravação de origem não espere todas as confirmações remotas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Replicação assíncrona pode reduzir impacto de latência no caminho de gravação, mas o atraso entre origem e destino introduz janela de perda de alterações recentes. Não substitui proteção contra falhas lógicas.",
+      "section": "Alta disponibilidade, tolerância a falhas e recuperação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação que aceita novas réplicas mediante implantação manual, mas não diminui recursos quando a demanda cai, pode ser escalável sem ser elástica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Escalabilidade se refere ao potencial de atender cargas maiores; elasticidade se refere a ajustar capacidade à demanda nas duas direções. O ajuste pode depender de políticas automáticas e provisão ágil.",
+      "section": "Escalabilidade, elasticidade e distribuição de cargas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O HPA do Kubernetes amplia automaticamente a capacidade de CPU e memória física de cada nó do cluster sempre que aumenta as réplicas de um Deployment.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O HPA altera o número desejado de réplicas do workload. Acrescentar ou remover capacidade de nós é atribuição de outros mecanismos; Pods podem permanecer pendentes se os nós estiverem saturados.",
+      "section": "Escalabilidade, elasticidade e distribuição de cargas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Adicionar réplicas de uma aplicação com sessões mantidas exclusivamente no disco local pode exigir adaptações para preservar a continuidade da experiência após falhas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O usuário pode ser redirecionado a outra réplica sem o estado local necessário. Armazenamento de sessão compartilhado, desenho sem estado e tratamento de consistência viabilizam melhor escala horizontal.",
+      "section": "Escalabilidade, elasticidade e distribuição de cargas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Escalar horizontalmente servidores web garante ganho ilimitado de vazão mesmo quando todas as réplicas dependem de um único banco já saturado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O banco pode permanecer gargalo compartilhado e limitar o ganho total; a expansão do front-end não remove sua saturação. É preciso analisar a cadeia de dependências e a parcela paralelizável da carga.",
+      "section": "Escalabilidade, elasticidade e distribuição de cargas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política de autoescalonamento com janelas de estabilização e limites de ajuste pode reduzir oscilações diante de métricas que variam rapidamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Parâmetros de estabilização, limites e histerese evitam parte do sobe-e-desce provocado por flutuações curtas. A calibragem deve considerar o tempo de inicialização e a velocidade real das mudanças de carga.",
+      "section": "Escalabilidade, elasticidade e distribuição de cargas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma plataforma cresce com a instalação manual de novas instâncias, porém mantém o mesmo número delas em horários ociosos. O diagnóstico correto é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "há capacidade de escala, mas falta ajuste elástico de recursos à redução da demanda.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "há elasticidade comprovada apenas porque os servidores usam virtualização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "há escala vertical obrigatória, mesmo com novas instâncias de serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "não existe escalabilidade porque o aumento depende de intervenção humana.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "a alta disponibilidade é garantida pelo excesso de capacidade em qualquer cenário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Expandir capacidade por novas instâncias demonstra potencial de escala horizontal; elasticidade exige adaptar aprovisionamento à demanda, inclusive para baixo. A automação costuma facilitar essa resposta.",
+      "section": "Escalabilidade, elasticidade e distribuição de cargas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Kubernetes, um HPA aumenta réplicas de uma API, mas vários Pods permanecem pendentes por falta de recursos dos nós. Qual providência trata essa limitação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar indefinidamente o número de réplicas desejadas, sem novos nós.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Avaliar expansão da capacidade de nós e as requisições de recursos dos Pods.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Eliminar o arquivo de logs para converter Pods em discos de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir o HPA por um registro DNS, sem mudança de capacidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Configurar apenas uma senha adicional no painel de controle do cluster.",
+          "correct": false
+        }
+      ],
+      "explanation": "O HPA dimensiona réplicas, não cria automaticamente capacidade física ou virtual de nós. É preciso examinar solicitações de recursos, escalonabilidade dos nós e limites da infraestrutura.",
+      "section": "Escalabilidade, elasticidade e distribuição de cargas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe compara aumentar CPU de um servidor existente com adicionar dois servidores de aplicação independentes. Quais técnicas são, respectivamente, utilizadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escala horizontal e escala vertical.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Elasticidade e backup incremental.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escala vertical e escala horizontal.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Replicação assíncrona e replicação síncrona.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alta disponibilidade e deduplicação de blocos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Aumentar recursos de uma instância é scale up, ou escala vertical; acrescentar instâncias que dividem trabalho é scale out, ou escala horizontal. A distinção não depende de qual ferramenta de nuvem foi escolhida.",
+      "section": "Escalabilidade, elasticidade e distribuição de cargas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um balanceador envia cada requisição a uma réplica diferente, mas a aplicação armazena sessão somente em RAM local. Qual redesign favorece continuidade e escala?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desabilitar qualquer controle de autenticidade nas sessões de usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar cópias locais independentes sem política de sincronização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Excluir todas as réplicas, mantendo somente a primeira instância.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Externalizar ou compartilhar o estado da sessão com mecanismos seguros e consistentes.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Substituir métricas de latência por contagem de arquivos locais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sessão local cria afinidade e vulnerabilidade quando o usuário muda de réplica ou ocorre falha. Armazenar estado de forma coordenada ou tornar o serviço sem estado reduz esse acoplamento.",
+      "section": "Escalabilidade, elasticidade e distribuição de cargas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após ampliar servidores web, a taxa de requisições concluídas permanece estável e o banco apresenta filas crescentes. Qual explicação é mais provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Toda escala horizontal sempre reduz a quantidade de consultas ao banco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A lei de Amdahl garante ganho ilimitado com réplicas adicionais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um servidor web adicional transforma consultas em processamento paralelo sem limites.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ausência de ganho prova que as métricas de banco não têm utilidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O gargalo foi mantido no banco, limitando o benefício do aumento de front-ends.",
+          "correct": true
+        }
+      ],
+      "explanation": "O desempenho total é limitado pelos estágios críticos e pelas partes que não acompanham o paralelismo. Escalar apenas a camada web não amplia automaticamente a capacidade do banco compartilhado.",
+      "section": "Escalabilidade, elasticidade e distribuição de cargas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Operações matriciais massivamente paralelas podem se beneficiar de GPUs, mas o custo de transferência de dados e as características do algoritmo influenciam o ganho real.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "GPUs exploram paralelismo em determinadas cargas; inicialização, transferências e acesso à memória podem dominar tarefas pequenas ou sequenciais. A avaliação correta mede tempo e custo fim a fim.",
+      "section": "Aceleradores para soluções analíticas e engenharia de desempenho",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma TPU é um dispositivo de armazenamento em bloco que acelera exclusivamente a leitura de diretórios SMB usados por ferramentas de ciência de dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "TPUs são aceleradores especializados em computação, sobretudo operações matriciais ligadas a aprendizado de máquina. Não são protocolos de arquivos nem dispositivos voltados ao compartilhamento SMB.",
+      "section": "Aceleradores para soluções analíticas e engenharia de desempenho",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de armazenamento colunar pode reduzir a leitura de dados quando uma consulta analítica necessita de poucas colunas de uma tabela extensa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Organização colunar favorece projeções e agregações que acessam apenas certos atributos. Isso não significa superioridade universal: consultas transacionais por registro podem favorecer outros layouts.",
+      "section": "Aceleradores para soluções analíticas e engenharia de desempenho",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Manter índices e conjuntos de trabalho em RAM elimina a necessidade de mecanismos de persistência e recuperação porque a memória volátil sobrevive a qualquer falha de energia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "RAM volátil não garante manutenção dos dados após falhas de energia; a solução precisa de persistência e restauração compatíveis com requisitos. Ganho de acesso não equivale a durabilidade.",
+      "section": "Aceleradores para soluções analíticas e engenharia de desempenho",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "FPGAs permitem implementar circuitos ou pipelines especializados reconfiguráveis, mas sua utilização eficiente costuma demandar ferramentas e desenvolvimento específicos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "FPGAs oferecem lógica programável adequada a determinadas tarefas especializadas. Essa flexibilidade de hardware não os torna equivalentes a uma CPU comum nem dispensa projeto, validação e análise de portabilidade.",
+      "section": "Aceleradores para soluções analíticas e engenharia de desempenho",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe analítica avalia acelerar multiplicações de matrizes volumosas, com muitos cálculos paralelos semelhantes. Qual recurso de hardware é candidato natural, sujeito a testes de custo e transferência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "GPU dedicada à computação paralela.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Placa de rede que não suporta a largura de banda necessária.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Unidade óptica de leitura de mídias removíveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Controlador de impressão do setor administrativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Módulo básico de relógio de tempo real do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Operações matriciais paralelizáveis frequentemente se beneficiam de GPUs, mas o ganho depende de implementação, memória e transferência de dados. Os demais itens não são aceleradores adequados de cálculo matricial.",
+      "section": "Aceleradores para soluções analíticas e engenharia de desempenho",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa escolher entre GPUs generalistas para computação paralela e TPUs para modelos de aprendizado de máquina. Qual afirmação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "TPUs são interfaces de rede destinadas a implementar somente NFS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "TPUs são circuitos especializados em operações de aprendizado de máquina, especialmente matrizes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "GPU e TPU equivalem a backups imutáveis de memória de servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "TPU é o nome genérico de qualquer armazenamento magnético com RAID.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "GPUs não podem ser usadas para nenhuma operação matemática paralela.",
+          "correct": false
+        }
+      ],
+      "explanation": "TPUs foram concebidas para acelerar cargas de ML com operações matriciais, enquanto GPUs oferecem paralelismo em um conjunto amplo de tarefas. Elas não são protocolos de armazenamento nem políticas de proteção.",
+      "section": "Aceleradores para soluções analíticas e engenharia de desempenho",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um banco analítico consulta dez atributos entre centenas de colunas e realiza agregações volumosas. Qual organização pode reduzir leitura desnecessária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Obrigatoriamente arquivos de imagem, independentemente do formato da tabela.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Duplicação de todos os registros em texto simples sem nenhum índice.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenamento colunar com leitura seletiva dos atributos usados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Conversão dos campos numéricos para mensagens de correio eletrônico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cópias de segurança integrais antes de cada operação de agregação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em formato colunar, é possível acessar apenas as colunas projetadas em muitos cenários analíticos, reduzindo I/O. O ganho depende do mecanismo e da consulta; formatos alheios não atacam essa característica.",
+      "section": "Aceleradores para soluções analíticas e engenharia de desempenho",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer acelerar transformação de dados com uma arquitetura MPP, mas grande parte das tarefas é transferir dados entre nós. Qual variável deve ser analisada prioritariamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas a cor dos gabinetes dos servidores envolvidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O número de monitores de vídeo existentes no escritório.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Exclusivamente a velocidade do mouse do operador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Custo do embaralhamento de dados, particionamento e distribuição da carga.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O idioma padrão de cada terminal de acesso remoto.",
+          "correct": false
+        }
+      ],
+      "explanation": "MPP divide computação, mas a comunicação, o skew e o shuffle podem se tornar gargalos. Avaliar distribuição e movimentação de dados é indispensável antes de presumir escalabilidade linear.",
+      "section": "Aceleradores para soluções analíticas e engenharia de desempenho",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma carga de inferência contém solicitações pequenas e estritamente sequenciais, com alto custo de inicialização do acelerador. Qual decisão de engenharia é mais defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Exigir GPU em todo caso, ainda que a espera por transferência domine a execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desabilitar verificação dos resultados para aumentar a taxa nominal de operação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Presumir que toda inferência se torna gratuita após a compra do hardware.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escolher o dispositivo com maior memória sem qualquer teste de desempenho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Comparar CPU e acelerador pelo tempo fim a fim e pelo custo por inferência efetiva.",
+          "correct": true
+        }
+      ],
+      "explanation": "O hardware mais potente em paralelismo não vence necessariamente em tarefas pequenas ou sequenciais. Benchmarks representativos devem incluir transferência, inicialização, precisão e custo total da execução.",
+      "section": "Aceleradores para soluções analíticas e engenharia de desempenho",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "What is SMB File Sharing for Windows and Windows Server?",
+      "publisher": "Microsoft",
+      "reference": "Documentação Microsoft Learn sobre o protocolo SMB e os recursos de servidores de arquivos.",
+      "url": "https://learn.microsoft.com/en-us/windows-server/storage/file-server/file-server-smb-overview",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Network File System (NFS) Overview in Windows Server",
+      "publisher": "Microsoft",
+      "reference": "Documentação Microsoft Learn sobre acesso a arquivos via NFS e interoperabilidade.",
+      "url": "https://learn.microsoft.com/en-us/windows-server/storage/nfs/nfs-overview",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Failover Clustering in Windows Server and Azure Local",
+      "publisher": "Microsoft",
+      "reference": "Documentação de clustering, failover e alta disponibilidade.",
+      "url": "https://learn.microsoft.com/en-us/windows-server/failover-clustering/failover-clustering-overview",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Ceph Architecture",
+      "publisher": "Ceph Documentation",
+      "reference": "Arquitetura RADOS e interfaces de armazenamento em bloco, arquivo e objeto.",
+      "url": "https://docs.ceph.com/en/squid/architecture/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Ansible Playbooks",
+      "publisher": "Ansible Community Documentation",
+      "reference": "Guias oficiais sobre inventários, playbooks e automação em YAML.",
+      "url": "https://docs.ansible.com/projects/ansible/latest/playbook_guide/index.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Horizontal Pod Autoscaling",
+      "publisher": "Kubernetes Documentation",
+      "reference": "Definição e funcionamento do escalonamento horizontal automático de workloads.",
+      "url": "https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Node Autoscaling",
+      "publisher": "Kubernetes Documentation",
+      "reference": "Distinção entre escala de workloads e capacidade disponível nos nós.",
+      "url": "https://kubernetes.io/docs/concepts/cluster-administration/node-autoscaling/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Design to Scale Out",
+      "publisher": "Microsoft Azure Architecture Center",
+      "reference": "Princípios arquiteturais de escala horizontal e distribuição de cargas.",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/guide/design-principles/scale-out",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Availability and Recovery Objectives",
+      "publisher": "Amazon Web Services",
+      "reference": "Definição de objetivos de disponibilidade, RTO e RPO na arquitetura confiável.",
+      "url": "https://docs.aws.amazon.com/wellarchitected/latest/framework/rel-availability-and-recovery-objectives.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "CUDA Programming Guide: Introduction",
+      "publisher": "NVIDIA",
+      "reference": "Introdução oficial à computação acelerada com GPU e plataforma CUDA.",
+      "url": "https://docs.nvidia.com/cuda/cuda-programming-guide/01-introduction/introduction.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Introduction to Cloud TPU",
+      "publisher": "Google Cloud",
+      "reference": "Hardware acelerador para operações matriciais de aprendizado de máquina.",
+      "url": "https://docs.cloud.google.com/tpu/docs/intro-to-tpu",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "What is a container?",
+      "publisher": "Docker Documentation",
+      "reference": "Conceitos de imagem, contêiner e compartilhamento de kernel.",
+      "url": "https://docs.docker.com/learn/content/what-is-a-container/",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

@@ -1,0 +1,2224 @@
+{
+  "id": "telecomunicacoes.telefonia-pabx-fxo-fxs-e1-isdn",
+  "subject": "Telecomunicações",
+  "title": "Telefonia: PABX, FXO/FXS, E1/R2, ISDN e Asterisk",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Telefonia corporativa e Asterisk",
+    "Telefonia: PABX, FXO, FXS, E1/R2 e ISDN"
+  ],
+  "scope": {
+    "covers": "Arquiteturas PABX TDM/IP, ramais e troncos, DDR/DID, sinalização SIP e mídia RTP; interfaces analógicas FXO/FXS, supervisão e gateways; E1/PCM, CAS, R2/MFC, sincronismo; ISDN BRI e PRI, camadas e Q.931; Asterisk: extensions.conf, padrões, aplicações, pjsip.conf, URA, filas, voicemail, AMI/AGI e CLI; diagnóstico e segurança.",
+    "excludes": "Dimensionamento econômico com fórmulas avançadas de Erlang, implementação elétrica detalhada de E1, procedimentos de concessionárias específicos, instalações dependentes de hardware e versões não verificadas."
+  },
+  "theoryTitle": "Telefonia corporativa e Asterisk — teoria aplicada para concursos",
+  "chapters": [
+    {
+      "title": "Fundamentos de telefonia e arquiteturas de PABX",
+      "markdown": "## 1. Central privada, rede pública e lógica de comutação\n\n**PABX** (Private Automatic Branch Exchange) é uma central privada que organiza chamadas entre ramais e interliga a instituição à rede telefônica pública, a outras centrais ou a um provedor de telefonia IP. Uma chamada **interna** pode ser completada sem ocupar tronco externo; uma chamada **externa** depende da política de roteamento e do meio de saída. Em arquitetura tradicional, circuitos e matrizes de comutação conectam portas de assinante e troncos. No **IP-PBX**, a sinalização usualmente passa por SIP, enquanto a mídia de voz normalmente segue em RTP, conforme a negociação de codec e endereços. É erro clássico tratar SIP, protocolo de estabelecimento de sessões, como sinônimo de transporte de áudio.\n\nUm PABX pode ofertar numeração abreviada, plano de discagem, transferência assistida ou cega, retenção, grupos de captura, conferências, bloqueio de categorias de chamada, correio de voz, filas, relatórios e atendimento automático. **Ramal** é o ponto lógico/terminal de usuário; **tronco** interliga centrais ou o PABX a uma operadora, sendo analógico, digital TDM ou IP. **DDR/DID** permite encaminhar uma chamada de fora diretamente a um ramal ou destino interno quando a rede entrega os dígitos de destino. Uma URA pode mediar o atendimento mesmo quando existe DDR; portanto são recursos independentes.\n\n## 2. Chamada e seus planos de controle\n\nNo fluxo **ramal → central → tronco → rede**, o plano de discagem valida número, permissões, horário e prefixo, escolhe rota e estabelece a conexão. Chamadas de entrada chegam por tronco, recebem identificação de origem e/ou destino quando disponível e são tratadas pelo contexto ou tabela de entrada. A discagem de uma cifra para obter linha externa é uma convenção configurável, não uma exigência técnica universal. Planos coerentes previnem conflito entre ramais, códigos de serviço, emergência e numeração pública.\n\n**Sinalização** indica solicitação de chamada, progresso, atendimento, liberação e informações de roteamento. **Mídia** é o fluxo de voz. Em uma central IP, um firewall pode permitir mensagens SIP, mas bloquear RTP: nesse caso o telefone toca e a chamada é estabelecida, porém a voz fica ausente ou unidirecional. Um equipamento de borda de sessão (SBC) pode ajudar a controlar interconexões, políticas, NAT e segurança, mas não substitui a correta configuração dos terminais e da rede.\n\n## 3. Tecnologias e conversão\n\nA telefonia analógica transporta a conversação em um par de fios e emprega sinais elétricos de corrente, toque e ocupação. A telefonia digital TDM amostra e codifica voz, agregando vários canais em um meio síncrono. Em uma rede IP, a voz é encapsulada em pacotes; a qualidade sofre influência de atraso, variação de atraso (*jitter*), perdas e congestionamento. Gateways são usados para interfuncionar TDM/analógico e SIP/RTP; a simples presença de porta RJ-45 ou RJ-11 não define todo o protocolo usado.\n\nA voz PCM de referência em canais digitais telefônicos emprega **8.000 amostras/s com 8 bits por amostra**, resultando em **64 kbit/s por canal de voz**, antes de sobrecargas de transporte. Em telefonia IP, codecs e intervalo de empacotamento determinam a taxa efetiva na rede. A escolha entre G.711 A-law/μ-law e codecs com compressão depende de interoperabilidade, licença, capacidade e política; G.711 pode evitar uma etapa de transcodificação em enlaces PCM compatíveis. Em território brasileiro, o enquadramento técnico-regulatório da rede pública e a homologação aplicável exigem consulta às regras atuais, sem confundir especificação de interface e autorização do serviço.\n\n## 4. Dimensionamento e resiliência\n\nO número de ramais **não** determina automaticamente o número de canais simultâneos para chamadas externas. Uma instituição com centenas de ramais pode contratar menos canais, dimensionados pelo tráfego e bloqueio aceitável; já uma central de atendimento necessita considerar picos de chamadas, distribuição temporal, taxas de abandono e redundância. Um único tronco FXO tende a admitir uma chamada por porta; um E1 pode transportar vários canais simultâneos; um tronco SIP pode ter limite contratual distinto da sua conectividade física.\n\nResiliência envolve múltiplas rotas, proteção elétrica, redundância de links, alimentação, estratégia de fallback para emergência, logs e sincronismo nos meios digitais. Interconectar equipamento analógico à telefonia IP não transforma, por si, a interface analógica em um enlace digital. Em prova, separe: **função do PABX** (comutar e aplicar regras), **tipo de acesso** (analógico, E1, SIP), **sinalização** (R2, ISDN/Q.931, SIP) e **suporte da conversação** (circuito ou mídia RTP). Essa separação explica a maioria das diferenças de arquitetura cobradas."
+    },
+    {
+      "title": "Interfaces analógicas FXO, FXS e gateways",
+      "markdown": "## 1. A regra de ouro: quem fornece e quem recebe o serviço analógico\n\n**FXS (Foreign Exchange Station)** é a interface que simula o lado da central prestadora do serviço ao assinante: alimenta o circuito, pode gerar tensão de toque e fornece tom de discar ao equipamento terminal. Conecta, por exemplo, um telefone analógico, fax ou porta FXO de outro equipamento. **FXO (Foreign Exchange Office)** comporta-se como terminal perante a central: recebe a linha analógica entregue pela operadora ou por uma porta FXS e detecta o toque. A conexão típica é **porta FXS ↔ porta FXO**. O erro mais frequente é dizer que FXO fornece tom ao telefone ou que FXS deve receber a linha da operadora; os papéis são inversos.\n\nExemplo prático: uma instituição precisa manter quatro telefones analógicos em um PABX IP. Pode instalar um gateway de **quatro portas FXS**, cada qual alimentando um telefone. Se possui três linhas analógicas da operadora para chamadas externas, usa **três portas FXO** no gateway, conectadas às linhas da operadora. Um ATA comum voltado a telefone de assinante disponibiliza FXS; a sigla ATA, sozinha, não garante a existência de FXO. Uma porta física não recebe automaticamente a função oposta por mudança de parâmetro de software.\n\n## 2. Supervisão e sinalização de linha\n\nNo estado **on-hook**, o terminal está no gancho e o laço tipicamente permanece aberto; no **off-hook**, ao retirar o fone, fecha-se o laço e há circulação de corrente detectável pela central/FXS. A central pode então fornecer tom de discar. Uma chamada recebida é anunciada por sinal de toque; o atendimento altera a condição de supervisão. A sinalização **loop-start** usa esse fechamento do laço; outros métodos, como **ground-start**, existem em contextos específicos e exigem suporte nas pontas. A presença de tom não comprova, sozinha, que todas as condições de chamada de entrada e saída estejam corretas.\n\nA discagem pode utilizar **DTMF** (*dual-tone multifrequency*), no qual cada tecla representa combinação de duas frequências, ou sistemas antigos de pulsos. DTMF é método de envio de dígitos, não codec de voz. Nos gateways, parâmetros de país, impedância, detecção de ocupado, identificação de chamadas e desligamento precisam ser compatíveis com a central. Problemas de desconexão podem ocorrer quando a interface não detecta adequadamente a condição de liberação da chamada; a solução depende da sinalização efetivamente fornecida.\n\n## 3. Distinções importantes no projeto\n\n**FXS e FXO são interfaces de assinante/linha analógica**, não o mesmo que CAS/MFC-R2 em E1 e nem o mesmo que SIP em um enlace Ethernet. **E&M** identifica outra família de sinalização de troncos analógicos entre equipamentos; não é sinônimo de FXO. Um gateway FXO pode converter uma chamada analógica vinda da operadora em sessão SIP para o PABX IP, que então aplica regras de entrada, URA ou fila. O caminho inverso permite chamadas SIP saírem pela linha telefônica analógica.\n\nUma porta FXO usualmente atende a **uma conversação por vez** em uma linha analógica simples. Adicionar muitos ramais ao PABX não aumenta a simultaneidade de uma porta FXO. DDR automático por múltiplos números não é característica inerente de uma linha FXO convencional: ela pode não transportar o número chamado ao equipamento, ao contrário de um tronco digital/sinalização adequada que entrega essa informação. Um identificador de chamadas (caller ID) informa, quando disponibilizado, o número de origem, e não deve ser confundido com o número de destino (DNIS).\n\n## 4. Diagnóstico sistemático e riscos\n\nQuando um ramal analógico não recebe tom, verifique alimentação do gateway/FXS, cabo/par, condições do telefone, estado administrativo da porta e logs. Quando a linha pública não é alcançada, verifique a presença e integridade da linha na FXO, sinal de discagem, regras de rota e eventuais conflitos de ocupação. Se a chamada toca mas não atende, examine detecção do sinal de toque e estados de laço; se não encerra, examine supervisão de desconexão antes de alterar temporizações aleatoriamente. Linhas telefônicas podem apresentar tensões elétricas relevantes: manutenção e medições devem ser executadas com procedimento técnico seguro.\n\nNa integração com SIP, diagnostique separadamente a **camada analógica** e a **camada IP**. Uma chamada vinda da FXO pode entrar corretamente no PABX e ainda sofrer perda de áudio por NAT/RTP. Do mesmo modo, uma ligação SIP correta não implica que o gateway esteja detectando ocupação da linha analógica. A lógica de concurso costuma apresentar uma afirmação parcialmente verdadeira sobre gateway e acrescentar um papel elétrico trocado entre FXS e FXO; desmonte o enunciado identificando de qual lado vem o tom, a corrente e o toque."
+    },
+    {
+      "title": "Enlaces E1, PCM, CAS e sinalização MFC/R2",
+      "markdown": "## 1. Estrutura física e enquadramento do E1\n\nO **E1** é um fluxo digital síncrono de **2,048 Mbit/s**. Sua estrutura clássica organiza **32 intervalos de tempo (time slots, TS0 a TS31)**, cada um equivalente a 64 kbit/s: 32 × 64 = 2.048 kbit/s. O **TS0** é associado a alinhamento de quadro e informações de manutenção. Em arranjos E1 de telefonia com sinalização associada a canal, o **TS16** costuma carregar sinalização; os demais 30 intervalos são utilizados para voz. Consequentemente, um E1 configurado para **30 canais de voz com CAS** não oferece 32 canais de voz. O mesmo meio físico E1 pode ser usado com diferentes sinalizações, e não se deve inferir R2 apenas pela taxa do circuito.\n\nNa transmissão PCM telefônica, cada canal de 64 kbit/s é formado por 8.000 amostras por segundo de oito bits. No E1, o enquadramento organiza amostras de múltiplos canais no tempo. **HDB3** é codificação de linha associada a interfaces E1; não é o protocolo de sinalização telefônica. A sincronização precisa estar corretamente definida: dois equipamentos configurados como fonte de relógio sem projeto de temporização podem produzir escorregamentos (*slips*), falhas intermitentes de áudio ou erros de quadro.\n\n## 2. CAS, R2 e MFC: não misturar camadas\n\n**CAS** (*channel-associated signaling*) significa sinalização associada a canais; no E1 com CAS, informações de estado de canais são estruturadas no espaço de sinalização da multitrama, tradicionalmente vinculado ao TS16. **R2** é uma família de sinalização entre centrais, tradicional em enlaces E1, que articula sinais de linha e sinais de registro. A parte **MFC (multifrequência compelida)** emprega combinações de frequências em troca de sinais de registro, com interação entre emissor e receptor. Isso **não é DTMF** do teclado do usuário, embora ambos usem tons multifrequenciais.\n\nA sinalização de linha trata de ocupação, estados e liberação; a sinalização de registro permite trocar informações para o encaminhamento de chamadas. As variantes nacionais de R2 alteram características operacionais: um equipamento deve ser configurado conforme os parâmetros acordados com a outra ponta, sem supor interoperabilidade automática entre variantes. O R2 **não é sinônimo de ISDN/PRI**: o primeiro é um conjunto de sinalização de centrais associado a CAS/MFC, enquanto o segundo emprega canal D e sinalização ISDN em arquitetura PRI.\n\n## 3. E1 com PRI e E1 com R2: semelhança de portadora, diferença de sinalização\n\nUm enlace físico E1 de 2,048 Mbit/s pode suportar **R2/CAS** ou **ISDN PRI**, conforme equipamentos e serviço contratado. No **PRI sobre E1**, a composição comum é **30B+D**: 30 canais B de 64 kbit/s para serviços e um canal D de 64 kbit/s para sinalização; o intervalo de enquadramento não constitui canal B. No **E1 R2**, a sinalização não utiliza Q.931 no canal D: usa o arranjo CAS/registro próprio. É enganoso afirmar que toda porta E1 tem necessariamente a mesma pilha de sinalização.\n\nHá aplicações E1 com alocações diferentes, portanto valores de canais simultâneos dependem da configuração e do padrão do serviço; em concursos, as expressões **E1 R2 de 30 canais** e **PRI E1 30B+D** delimitam claramente as arquiteturas usuais. Mesmo quando dois sistemas transportam 30 vozes, a compatibilidade física não implica compatibilidade de chamada. Gateways ou placas E1 devem suportar o método de sinalização específico, além do enquadramento e sincronismo.\n\n## 4. Testes, alarmes e análise por camada\n\nEm indisponibilidade de E1, comece pelo estado físico e sincronismo: perda de sinal (**LOS**), perda de alinhamento de quadro (**LOF**), indicação de alarme (**AIS**) e indicação remota (**RAI**) são exemplos de estados/alertas cujo significado operacional depende de equipamento e especificação de interface. Depois valide enquadramento, codificação, CRC quando aplicável, configuração de TS e a camada de sinalização. Não tente resolver ausência de quadro apenas alterando contextos do dialplan Asterisk.\n\nNo Asterisk, integrações TDM com placas E1 podem depender de **DAHDI/chan_dahdi**, componentes instalados e configuração compatível; para variantes MFC/R2, a implementação frequentemente envolve OpenR2. A versão do Asterisk, o suporte compilado e o hardware precisam ser verificados. Operação adequada não é garantida só por existir o arquivo `chan_dahdi.conf` ou pela inclusão textual de `mfcr2`. Uma chamada que sinaliza e não apresenta áudio requer investigação de timeslot de portadora, codec, cross-connect e gateway, não apenas da troca de dígitos.\n\n**Roteiro de revisão**: memorize 2,048 Mbit/s; 32 intervalos × 64 kbit/s; TS0 = quadro; TS16 = CAS ou D conforme serviço; 30 canais de voz no arranjo de telefonia tradicional mais cobrado; R2 envolve estados de linha e registro MFC; HDB3 pertence à linha; DTMF pertence à discagem de usuário. A banca costuma misturar propositalmente conceitos corretos de níveis distintos."
+    },
+    {
+      "title": "ISDN: acesso básico, acesso primário e protocolos",
+      "markdown": "## 1. Rede digital de serviços integrados\n\nA **ISDN/RDSI** foi concebida para prover serviços integrados sobre interfaces digitais padronizadas. Em seus acessos de telefonia, diferenciam-se **canais B**, normalmente de **64 kbit/s** para transporte de informação do usuário, e o **canal D**, empregado principalmente para sinalização e controle de chamadas. O acesso básico **BRI** é conhecido por **2B+D**: dois canais B de 64 kbit/s e um canal D de 16 kbit/s. A soma das taxas lógicas desses canais, **144 kbit/s**, não deve ser confundida com a taxa total na linha física, que inclui estrutura e overhead da interface.\n\nO acesso primário **PRI**, na estrutura E1 típica adotada em diversos países, é **30B+D**, com canal D de **64 kbit/s** e portadora E1 de 2,048 Mbit/s. Em estrutura T1 de 1,544 Mbit/s, frequentemente se encontra **23B+D**. A diferença não decorre de uma simples troca de nomenclatura da operadora: está relacionada à estrutura digital de transporte. O canal D existe para sinalização; não deve ser tratado como trigésimo primeiro canal de voz para simultaneidade em PRI/E1.\n\n## 2. Camadas e mensagens de estabelecimento\n\nNa camada física, a especificação **ITU-T I.431** trata da interface de acesso primário. No plano de sinalização, o canal D utiliza mecanismos de enlace associados à família **Q.921/LAPD** e controle de chamada de camada 3 associado à **Q.931**. Nas operações usuais de Q.931, mensagens como **SETUP** iniciam estabelecimento, **ALERTING** informa alerta no destino, **CONNECT** sinaliza conexão, e mensagens de desconexão/liberação tratam do encerramento. Nem todo evento de uma chamada produz um fluxo simplificado e idêntico: configurações, recursos suplementares e mensagens adicionais podem variar.\n\nO uso de sinalização em **canal comum** dentro do acesso ISDN não deve ser confundido com CAS de R2. O PRI mantém um canal lógico D específico para administrar vários canais B. Embora a portadora E1 de PRI e a de R2/CAS compartilhem aspectos físicos, não há interoperabilidade de chamada por equivalência automática: precisa existir compatibilidade de perfil, papel de rede/usuário, relógio, camada de enlace e protocolo de controle.\n\n## 3. Terminais, fronteira com rede e comparação operacional\n\nEm interfaces ISDN, as siglas **TE (terminal equipment)** e **NT (network termination)** ajudam a designar funções nos lados do acesso. O operador técnico deve observar parâmetros compatíveis de papel e de enlace; duas pontas configuradas para assumir o mesmo papel podem impedir a ativação correta. Em um PABX com PRI, números DDR são tipicamente encaminhados por informações de sinalização, possibilitando direcionamento mais preciso para ramais ou serviços; o encaminhamento final ainda depende da configuração do PABX.\n\nChamadas podem entrar no PABX por PRI e sair por SIP: para isso, um gateway ou a própria plataforma precisa traduzir a sinalização e fazer interconexão de mídia. A tradução de sinalização não significa que Q.931 seja encapsulado e compreendido automaticamente por um ramal SIP; são pilhas diferentes. A operação deve respeitar as capacidades negociadas, manipulação de número, cause codes e recursos de apresentação/privacidade.\n\n## 4. Diagnóstico de PRI e distinções em prova\n\nEm falha de chamada PRI, uma triagem consistente verifica **camada 1** (sinal E1, quadro, relógio), **camada 2** (estabelecimento do enlace de sinalização) e **camada 3** (mensagens de estabelecimento e causas). Uma camada 1 estável não prova que Q.931 esteja operacional. Uma mensagem SETUP recebida tampouco garante que haja canal B disponível, destino autorizado ou mídia corretamente conectada. Alarmes do enlace físico, falha de enlace D e rejeição por roteamento são falhas de naturezas distintas.\n\nCompare de modo estruturado: **FXO/FXS** são interfaces analógicas; **E1** é portadora digital; **R2** é sinalização de tronco tradicional; **ISDN PRI** utiliza canal D com sinalização de controle de chamada; **SIP** é sinalização de sessões IP. O fato de R2 e PRI aparecerem ambos em enlaces E1 não transforma CAS em canal D nem faz um canal B transportar Q.931. Em elaboração de questões, termos como `2B+D`, `30B+D`, `Q.931`, `TS16` e `R2` devem ser lidos junto da arquitetura para não misturar funções."
+    },
+    {
+      "title": "Asterisk: dialplan, aplicações, padrões e PJSIP",
+      "markdown": "## 1. Elementos essenciais da configuração\n\n**Asterisk** é uma plataforma de comunicações que implementa recursos de PABX por módulos, drivers de canal, aplicações de dialplan e interfaces de integração. No plano de discagem tradicional, **`extensions.conf`** organiza **contextos**, **extensões** e **prioridades**. Em `exten => 1001,1,NoOp(Inicio)`, o destino é `1001`, a prioridade é `1` e a aplicação é `NoOp`. `same => n,Aplicacao(...)` avança na sequência da extensão. Um contexto **delimita alcance e política**: uma chamada originada por terminal do contexto `interno` não deve conseguir entrar em destinos de saída tarifada de outro contexto sem autorização de roteamento apropriada. `include => nome` inclui regras de outro contexto, podendo ampliar privilégios; por isso deve ser auditado.\n\nExemplo didático no `extensions.conf`:\n\n```ini\n[interno]\nexten => 1001,1,Dial(PJSIP/1001,20)\n same => n,VoiceMail(1001@empresa,u)\n same => n,Hangup()\nexten => 700,1,Answer()\n same => n,Playback(boas-vindas)\n same => n,Hangup()\n```\n\nA aplicação **`Dial()`** tenta alcançar destino e, quando atendido, estabelece a ponte de canais; o timeout de exemplo é um limite de tentativa de discagem. **`VoiceMail()`** permite gravar mensagem em caixa configurada; **`VoiceMailMain()`** permite ao titular consultar mensagens. **`Answer()`** atende; **`Playback()`** reproduz áudio; **`Hangup()`** encerra. `NoOp()` é útil para diagnóstico, não para estabelecer conexão. A efetividade do exemplo pressupõe endpoint, contatos, módulo de voicemail e arquivos de som configurados.\n\n## 2. Padrões de extensão e limites de segurança\n\nUm padrão começa com `_` e permite casar vários números: **`X`** significa qualquer dígito 0–9; **`Z`**, 1–9; **`N`**, 2–9. A notação **`[2-5]`** representa um conjunto/faixa de dígitos. Um **`.`** consome um ou mais caracteres adicionais e **`!`** funciona como curinga de zero ou mais caracteres, com comportamento de correspondência antecipada: padrões excessivamente permissivos podem criar discagem prematura ou rotas indevidas. Exemplos: `_9XXXXXXX` casa um 9 inicial seguido de sete dígitos; `_NXX` pode aceitar um número de três dígitos começando de 2 a 9. A precedência entre correspondências considera regras do Asterisk; não se deve supor que a mera ordem textual dos padrões governa tudo.\n\nAs aplicações centrais do dialplan incluem **`Goto()`**, que salta para prioridade/extensão/contexto; **`GotoIf()`**, que condiciona salto; **`Gosub()`**, que executa subrotina; **`Set()`**, que define variável; **`Read()`**, que lê dígitos; **`Background()`**, que toca mídia admitindo interrupção por DTMF conforme contexto, e **`WaitExten()`**, que aguarda um destino discado. O uso de `GotoIf($[... ]?...:...)` exige sintaxe correta de expressão. Validação de entrada, limites de comprimento e rotas explícitas protegem contra uso de dialplan como discador aberto.\n\n## 3. Anatomia do `pjsip.conf`\n\nO driver **`res_pjsip`** usa objetos de configuração distintos. **`endpoint`** representa características de um interlocutor SIP, incluindo codecs, contexto e vínculos; **`auth`** guarda configuração de autenticação; **`aor`** mantém endereços de contato alcançáveis e parâmetros de registro; **`transport`** configura aspectos do transporte SIP; **`identify`** pode associar mensagens de origem por IP a um endpoint; **`registration`** é usado em cenários de registro de saída. Esses objetos não são equivalentes entre si. Exemplo mínimo conceitual de ramal com registro:\n\n```ini\n[1001]\ntype=endpoint\ncontext=interno\ndisallow=all\nallow=alaw,ulaw\nauth=auth1001\naors=1001\n\n[auth1001]\ntype=auth\nauth_type=userpass\nusername=1001\npassword=SUBSTITUIR_POR_SEGREDO_FORTE\n\n[1001]\ntype=aor\nmax_contacts=1\n```\n\nNa implantação real, credenciais não devem ser reutilizadas ou expostas e é preciso validar objetos, transporte, contexto, codecs e dispositivo. A opção **`auth=`** no endpoint se relaciona à autenticação recebida; **`outbound_auth=`** é típica de autenticação que Asterisk fornece ao equipamento/servidor remoto. `identify` por IP é frequente em troncos quando o cabeçalho `From` não identifica univocamente o prestador. **`aors=`** referencia um ou mais objetos de endereço de registro; `max_contacts` limita contatos dinâmicos na AoR. `registration` não substitui endpoint nem AoR.\n\n## 4. Direcionamento de SIP e resolução de problemas\n\nA chamada para ramal geralmente usa `Dial(PJSIP/1001)`, se configurado o endpoint e houver contatos alcançáveis. Para cenários com múltiplos contatos, a função **`PJSIP_DIAL_CONTACTS()`** auxilia na construção do destino de discagem segundo a configuração. Uma chamada recebida entra no contexto indicado para o endpoint identificado; a seleção não deve depender apenas da identidade fornecida pelo chamador sem autenticação ou correspondência confiável.\n\nEm NAT e redes segmentadas, recursos como mapeamento adequado de sinalização, `rewrite_contact`, `rtp_symmetric`, `force_rport`, transportes corretos e políticas de firewall podem ser necessários **conforme topologia**; nenhuma combinação única serve a todos os casos. `pjsip show endpoints`, `pjsip show contacts` e `pjsip set logger on` ajudam a diagnosticar, respectivamente, estado dos endpoints, contatos e trocas de sinalização SIP; a visualização de SIP não prova a presença de RTP. Para validar alterações de contexto e prioridades, utilize `dialplan show` e `dialplan reload`, conforme permissão operacional e versão. Trate o contexto de entrada como fronteira de segurança e bloqueie rotas internacionais, especiais ou custosas quando não explicitamente autorizadas."
+    },
+    {
+      "title": "Asterisk avançado: URA, filas, voicemail, AMI, AGI e CLI",
+      "markdown": "## 1. URA e interação com o chamador\n\nA **URA** (unidade de resposta audível, IVR) organiza mensagens e escolhas por teclas DTMF ou outros mecanismos de interação. Em dialplan, **`Background()`** costuma ser usado para reproduzir um menu permitindo que o usuário escolha uma extensão durante a reprodução, enquanto **`Playback()`** apenas toca arquivo de áudio segundo sua semântica; **`Read()`** pode coletar entrada em variável e **`WaitExten()`** aguarda nova discagem. Uma URA funcional prevê destino inválido (`i`), timeout (`t`), limites de tentativas e escape para atendimento humano. A coleta de DTMF pode depender do método negociado com endpoints e gateways; som do menu audível não comprova que as teclas sejam detectadas.\n\nExemplo didático no `extensions.conf`:\n\n```ini\n[ura-principal]\nexten => s,1,Answer()\n same => n,Background(menu-principal)\n same => n,WaitExten(6)\nexten => 1,1,Goto(atendimento,s,1)\nexten => 2,1,Goto(suporte,s,1)\nexten => i,1,Playback(opcao-invalida)\n same => n,Goto(s,1)\nexten => t,1,Hangup()\n```\n\nAs gravações indicadas pressupõem a existência de arquivos de mídia e os contextos `atendimento` e `suporte` precisam estar definidos. Em produção, evite repetição infinita em `i`; estabeleça contadores ou políticas de fallback. Para direcionamento por horário, **`GotoIfTime()`** pode selecionar fluxo expediente/fora de horário. Não confunda URA, que decide caminhos, com fila de atendimento, que gerencia espera por agentes.\n\n## 2. Filas e estratégia de distribuição\n\nO módulo de filas utiliza configurações em **`queues.conf`** e a aplicação **`Queue()`** para colocar chamadores em espera e distribuí-los a agentes/membros. Entre estratégias comuns, **`ringall`** tenta tocar todos os membros elegíveis, **`leastrecent`** prioriza quem há mais tempo não recebe chamadas, e **`fewestcalls`** considera quem atendeu menos chamadas. Estratégias como **`rrmemory`** tratam de distribuição rotativa com memória de posição. O comportamento exato depende de estado dos membros, pausas, penalidades, limites, versão e configuração.\n\n```ini\n[suporte]\nstrategy=ringall\nmusicclass=default\ntimeout=15\nretry=5\nmember => PJSIP/1001\nmember => PJSIP/1002\n```\n\nNo dialplan: `same => n,Queue(suporte,t,,,90)` ilustra a entrada na fila com limite de espera parametrizado segundo a sintaxe da aplicação, que deve ser conferida na versão instalada. O recurso **`AddQueueMember()`** adiciona membro dinamicamente; **`RemoveQueueMember()`** o remove; pausas administrativas podem retirar temporariamente agentes da distribuição. O arquivo de log de filas e os eventos da central permitem estudar abandono, atendimento e tempo de espera. Uma fila pode existir sem URA, e a URA pode direcionar a vários destinos, inclusive filas diferentes.\n\n## 3. Voicemail e persistência de mensagens\n\nO **correio de voz** usa caixas postais configuradas, normalmente em **`voicemail.conf`**, e aplicações no dialplan. **`VoiceMail(1001@empresa,u)`** encaminha a gravação à caixa `1001` no contexto `empresa`, com tratamento de saudação segundo a opção; **`VoiceMailMain(1001@empresa)`** dá acesso à consulta/gestão da caixa. A caixa de correio de voz não é idêntica ao endpoint PJSIP, embora possam compartilhar o mesmo número de ramal. É necessário prever armazenamento, retenção, privacidade dos recados, credenciais e regras de acesso.\n\nUma chamada sem atendimento pode seguir para `VoiceMail()`; contudo o comportamento de continuação após `Dial()` depende de retorno da aplicação, opções e estado da chamada. Não se deve afirmar que toda ligação que não recebe resposta sempre cai em voicemail automaticamente: isso requer sequência explícita do dialplan e configuração da caixa.\n\n## 4. AMI, AGI e controle externo\n\n**AMI** (*Asterisk Manager Interface*) fornece canal de gerenciamento **orientado a ações e eventos**: aplicações externas podem consultar estado, originar chamadas e receber eventos de canais e filas segundo permissões configuradas em **`manager.conf`**. **AGI** (*Asterisk Gateway Interface*) liga execução do dialplan a um programa externo que interage com o canal; **FastAGI** permite serviço remoto via protocolo apropriado. A distinção decisiva em prova é a finalidade: AMI para integração de gerenciamento/monitoramento e comandos orientados a eventos; AGI para executar lógica externa incorporada ao fluxo de chamada. Não são sinônimos e não substituem indiscriminadamente o dialplan. **ARI** é outra interface, voltada a controle de aplicações de comunicação, distinta das duas.\n\nNo dialplan, `AGI(script.py)` exige script acessível e permissões adequadas. Para AMI, uma integração deve operar com usuário próprio de menor privilégio, `read`/`write` mínimos, restrição de origem de rede e canal protegido; expor a interface de gerenciamento à internet com credenciais previsíveis é risco operacional sério. Eventos gerenciais e dados de chamadas podem conter informações pessoais, exigindo controle de acesso e políticas de retenção.\n\n## 5. CLI e troubleshooting por evidências\n\nA **CLI** do Asterisk é o console de diagnóstico/administração, acessado localmente conforme instalação, por exemplo com `asterisk -rvvv` para conexão ao processo em execução. Comandos práticos: **`core show channels`** (canais ativos), **`dialplan show`** (destinos e contextos), **`dialplan reload`** (recarrega dialplan), **`pjsip show endpoints`** (endpoints), **`pjsip show contacts`** (contatos), **`pjsip set logger on`** (mensagens SIP) e **`queue show`** (informações das filas). `core show application Dial` permite consultar sintaxe real de aplicação carregada; `core show version` identifica a versão instalada.\n\nPara falha de registro SIP, valide endpoint/AoR/auth, credenciais, conectividade e mensagens de autenticação. Para telefone tocar sem voz, inspecione SDP, RTP, NAT, firewall e codecs, além de eventuais gateways FXO/FXS. Para fila sem atendimento, confira membros, pausas, estado, `queues.conf` e percurso da URA. Para E1 sem completamento, investigue DAHDI, sincronismo, alarmes e camada R2 ou PRI, conforme a assinatura contratada. **Boa prática**: logs por camada, teste controlado, backup antes de alteração, gestão de segredos e observação de diferenças entre versões, evitando generalizar um comando antigo como universal."
+    }
+  ],
+  "summary": "**PABX** interliga ramais e troncos e aplica plano de discagem, permissões, DDR/DID, transferência, filas, URA e correio de voz. **FXS** alimenta e fornece tom/toque ao telefone analógico, enquanto **FXO** recebe a linha da operadora ou de uma FXS; uma linha analógica simples costuma permitir apenas uma conversação simultânea. **E1** tem 2,048 Mbit/s, 32 intervalos de 64 kbit/s; em telefonia CAS, TS0 cuida do enquadramento e TS16 da sinalização, restando 30 canais típicos de voz. **R2/MFC** é sinalização entre centrais e não é DTMF. **ISDN BRI = 2B+D**; **PRI E1 = 30B+D**, com Q.931 no controle de chamada e canal D separado dos canais B. **SIP** sinaliza sessões e **RTP** carrega a mídia. No **Asterisk**, `extensions.conf` define contextos, extensões, prioridades e aplicações como `Dial`, `GotoIf`, `Background`, `Read`, `Queue` e `VoiceMail`. Em `pjsip.conf`, diferencie `endpoint`, `auth`, `aor`, `identify` e `registration`. **AMI** provê ações/eventos gerenciais; **AGI** integra lógica externa ao canal; a **CLI** oferece diagnóstico. A regra central para questões é jamais confundir interface física, sinalização, mídia e serviço de alto nível.",
+  "flashcards": [
+    {
+      "front": "Qual a função básica de um PABX?",
+      "back": "Comutar e controlar chamadas internas e externas conforme regras de numeração, roteamento e serviços."
+    },
+    {
+      "front": "O que distingue ramal de tronco?",
+      "back": "Ramal representa terminal/usuário interno; tronco conecta a central à rede pública ou a outra central."
+    },
+    {
+      "front": "SIP e RTP executam a mesma função?",
+      "back": "Não. SIP negocia/controle sessões; RTP transporta mídia de voz/vídeo em tempo real."
+    },
+    {
+      "front": "O que é DDR ou DID?",
+      "back": "Recurso de encaminhamento de ligação externa diretamente ao destino interno a partir do número chamado disponibilizado."
+    },
+    {
+      "front": "Qual interface fornece alimentação e tom ao telefone analógico?",
+      "back": "FXS: conecta terminal analógico, alimenta a linha e fornece tom/toque."
+    },
+    {
+      "front": "Qual interface recebe a linha analógica da operadora?",
+      "back": "FXO: comporta-se como terminal perante FXS/central, recebendo sinalização e tom."
+    },
+    {
+      "front": "O que significa off-hook?",
+      "back": "Terminal fora do gancho; tipicamente fecha o laço e possibilita circulação de corrente sinalizando atendimento/ocupação."
+    },
+    {
+      "front": "DTMF é codec?",
+      "back": "Não. DTMF transmite informação de teclas pela combinação de duas frequências."
+    },
+    {
+      "front": "Qual é a taxa nominal de um E1?",
+      "back": "2,048 Mbit/s: 32 intervalos de tempo de 64 kbit/s."
+    },
+    {
+      "front": "Quais são funções habituais de TS0 e TS16 em E1 com CAS?",
+      "back": "TS0: enquadramento/manutenção; TS16: sinalização associada a canais; sobram 30 intervalos de voz."
+    },
+    {
+      "front": "R2 e DTMF são iguais?",
+      "back": "Não. R2/MFC sinaliza entre centrais, incluindo troca de registros; DTMF costuma representar teclas do usuário."
+    },
+    {
+      "front": "Como diferenciar E1 R2 de E1 PRI?",
+      "back": "Compartilham portadora E1; R2 usa CAS e registro MFC, enquanto PRI usa canal D e sinalização ISDN/Q.931."
+    },
+    {
+      "front": "Como é composto o ISDN BRI?",
+      "back": "2B+D: dois canais B de 64 kbit/s e um D de 16 kbit/s."
+    },
+    {
+      "front": "Como é composto o ISDN PRI usual sobre E1?",
+      "back": "30B+D: 30 canais B e um canal D de sinalização, com fluxo E1 de 2,048 Mbit/s."
+    },
+    {
+      "front": "Qual recomendação trata do controle de chamada ISDN?",
+      "back": "ITU-T Q.931, sobre sinalização de controle de chamada na interface usuário-rede."
+    },
+    {
+      "front": "Quais são os elementos do dialplan em extensions.conf?",
+      "back": "Contexto, extensão e prioridade; cada passo invoca uma aplicação."
+    },
+    {
+      "front": "Quais dígitos representam X, Z e N em padrões do Asterisk?",
+      "back": "X = 0 a 9; Z = 1 a 9; N = 2 a 9."
+    },
+    {
+      "front": "Para que serve Dial()?",
+      "back": "Tentar estabelecer chamada com destino(s) e interligar os canais quando atendido."
+    },
+    {
+      "front": "Para que serve o objeto aor em pjsip.conf?",
+      "back": "Manter informação de contato/endereço necessária para alcançar endpoint SIP."
+    },
+    {
+      "front": "O que fazem auth e outbound_auth no PJSIP?",
+      "back": "auth trata credenciais para autenticação recebida; outbound_auth trata autenticação fornecida pelo Asterisk ao servidor remoto."
+    },
+    {
+      "front": "Qual a diferença entre Background() e Playback()?",
+      "back": "Background pode admitir entrada por dígitos durante o áudio; Playback reproduz áudio sem construir esse menu por si."
+    },
+    {
+      "front": "Qual arquivo e aplicação estruturam fila no Asterisk?",
+      "back": "queues.conf define filas e Queue() insere chamadas na fila pelo dialplan."
+    },
+    {
+      "front": "Para que servem VoiceMail() e VoiceMailMain()?",
+      "back": "VoiceMail grava recados em caixa; VoiceMailMain permite acesso à caixa para consulta e configuração."
+    },
+    {
+      "front": "Qual é a distinção AMI versus AGI?",
+      "back": "AMI expõe ações/eventos para gerenciamento; AGI executa programa externo integrado ao processamento do canal no dialplan."
+    }
+  ],
+  "tips": [
+    "Monte a tabela mental interface/sinalização: FXS/FXO (analógico); E1 (portadora); R2/MFC (sinalização de central); PRI/Q.931 (ISDN); SIP/RTP (sessão/mídia).",
+    "Para E1, faça a conta: 32 × 64 kbit/s = 2.048 kbit/s; no arranjo tradicional com 30 chamadas, TS0 não é voz e TS16 não é voz.",
+    "Em pjsip.conf, diferencie os objetos endpoint, auth, aor, identify e registration, que cumprem papéis complementares.",
+    "No dialplan, priorize segurança dos contextos e padrões; um _X. indiscriminado associado a rota externa pode abrir chamadas não autorizadas.",
+    "Associe URA a Background/Read/WaitExten; fila a Queue e queues.conf; voicemail a VoiceMail/VoiceMailMain e voicemail.conf.",
+    "Para diagnosticar E1 ou SIP, caminhe das camadas inferiores para as superiores; a conexão de chamada não prova fluxo de mídia.",
+    "Use a CLI para confirmar a configuração carregada: dialplan show, pjsip show endpoints, pjsip show contacts e queue show."
+  ],
+  "traps": [
+    "Inverter FXO e FXS: quem fornece tom e alimentação é a FXS, não a FXO.",
+    "Dizer que E1 oferece 32 conversas telefônicas simultâneas no arranjo de 30 canais com sinalização.",
+    "Tratar E1 como protocolo de sinalização: ele é portadora e pode servir a PRI ou R2.",
+    "Confundir DTMF das teclas com multifrequência compelida da sinalização R2.",
+    "Equiparar SIP a RTP ou imaginar que sinalização bem-sucedida garante áudio bidirecional.",
+    "Dizer que uma caixa voicemail é automaticamente criada junto com qualquer endpoint PJSIP.",
+    "Tratar AMI e AGI como interfaces idênticas ou com a mesma função principal.",
+    "Confundir canal D de PRI com canal B de tráfego e contabilizá-lo como voz."
+  ],
+  "activeRecall": [
+    {
+      "question": "Uma empresa conecta um telefone analógico ao gateway IP: qual porta escolher e por quê?",
+      "answer": "FXS, porque fornece alimentação, tom de discagem e sinal de toque ao terminal analógico."
+    },
+    {
+      "question": "Uma linha analógica da operadora deve ser ligada ao gateway: qual porta?",
+      "answer": "FXO, porque ela recebe a linha fornecida pela central/FXS do prestador."
+    },
+    {
+      "question": "O que muda no controle de chamada entre E1 R2 e E1 PRI?",
+      "answer": "R2 associa sinais de linha e registro MFC; PRI transporta sinalização ISDN/Q.931 em canal D."
+    },
+    {
+      "question": "Por que BRI 2B+D não significa três conversas simultâneas?",
+      "answer": "Porque os dois canais B transportam informação do usuário; o D destina-se à sinalização."
+    },
+    {
+      "question": "Como reduzir chamadas externas não autorizadas em Asterisk?",
+      "answer": "Defina contextos restritos, padrões de discagem específicos e validação explícita das rotas permitidas."
+    },
+    {
+      "question": "Como construir ramal PJSIP que se registra no Asterisk?",
+      "answer": "Configure endpoint, auth e aor vinculados, além do contexto e de transporte/rede compatíveis."
+    },
+    {
+      "question": "Como uma URA encaminha tecla 1 para a fila suporte?",
+      "answer": "Use aplicação de reprodução com coleta/espera de dígitos, destino da tecla 1 e chamada Queue(suporte) no contexto de atendimento."
+    },
+    {
+      "question": "Como separar AMI de AGI numa integração com CRM?",
+      "answer": "AMI é apropriada para eventos e comandos gerenciais; AGI conecta um script à lógica executada no canal durante a chamada."
+    },
+    {
+      "question": "Quais comandos CLI ajudam quando o ramal SIP está indisponível?",
+      "answer": "pjsip show endpoints e pjsip show contacts, seguidos de inspeção de sinalização com pjsip set logger on conforme ambiente."
+    },
+    {
+      "question": "O que investigar se SIP completa a chamada, mas há áudio em só uma direção?",
+      "answer": "SDP, endereçamento RTP, NAT, firewall, codecs, negociação de mídia e eventuais gateways."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Papel elétrico de FXO e FXS",
+      "summary": "O lado FXS alimenta o terminal e fornece tom/toque; o lado FXO recebe a linha. A troca dos papéis torna errada a identificação do ponto de conexão."
+    },
+    {
+      "key": "e2",
+      "title": "Portadora E1 versus sinalização",
+      "summary": "A taxa de 2,048 Mbit/s e os 32 slots caracterizam a portadora. R2/CAS e PRI/Q.931 definem modos de sinalização diferentes sobre infraestrutura E1."
+    },
+    {
+      "key": "e3",
+      "title": "Canais de tráfego e controle no ISDN",
+      "summary": "B transporta informação do usuário e D faz sinalização. BRI 2B+D e PRI 30B+D não têm três ou 31 canais de voz, respectivamente."
+    },
+    {
+      "key": "e4",
+      "title": "Dialplan, contexto e padrões",
+      "summary": "Contextos limitam alcance; padrões X, Z e N possuem faixas distintas. Uso imprudente de curingas pode permitir rotas indevidas ou discagem antecipada."
+    },
+    {
+      "key": "e5",
+      "title": "Objetos e autenticação PJSIP",
+      "summary": "endpoint, aor, auth, identify e registration não são intercambiáveis; registro, contato, identificação e autenticação são etapas diferentes."
+    },
+    {
+      "key": "e6",
+      "title": "Aplicações e interfaces do Asterisk",
+      "summary": "URA, fila e correio de voz têm funções próprias; AMI gerencia ações/eventos, AGI integra programa ao fluxo de chamada e CLI serve à operação e diagnóstico."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em uma instituição, qual função caracteriza a central PABX?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Organizar ligações entre ramais e a interligação com troncos externos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar roteamento IP sem estabelecer chamadas telefônicas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir o acesso à internet pela modulação da voz no par metálico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fornecer obrigatoriamente um canal externo exclusivo para cada ramal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Realizar apenas a alimentação elétrica dos telefones analógicos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O PABX faz comutação, controle e encaminhamento de chamadas, inclusive entre ramais e por troncos. Não se limita a alimentar terminais, nem exige correspondência de um tronco externo por ramal.",
+      "section": "Fundamentos de telefonia e arquiteturas de PABX",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ligação entre dois ramais da mesma central exige necessariamente a ocupação de um tronco externo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A comutação interna do PABX permite estabelecer chamadas entre ramais sem consumir canal contratado com a operadora. A necessidade de tronco surge na interconexão externa ou em arquiteturas especiais.",
+      "section": "Fundamentos de telefonia e arquiteturas de PABX",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada SIP é estabelecida e os telefones tocam, mas os usuários não conseguem ouvir a voz. Qual distinção orienta a investigação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O atendimento SIP impede a aplicação de regras de firewall sobre a mídia.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SIP sinaliza a sessão, enquanto a mídia normalmente circula por RTP.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O codec é utilizado apenas antes da chamada, nunca durante o áudio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SIP e RTP são dois nomes para a mesma sequência de pacotes de voz.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ausência de voz demonstra, por si só, que o PABX não recebeu INVITE.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma sessão pode ser sinalizada por SIP e ainda falhar na entrega de mídia RTP por NAT, firewall, SDP ou codecs. O estabelecimento da chamada não constitui prova de áudio bidirecional.",
+      "section": "Fundamentos de telefonia e arquiteturas de PABX",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O serviço DDR/DID pressupõe que a central receba informação suficiente sobre o destino, permitindo encaminhar a ligação externa a um ramal ou serviço sem intervenção manual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "DDR utiliza a identificação do número chamado entregue pela rede para selecionar um destino interno. Não é obrigatoriamente uma URA nem decorre automaticamente de qualquer linha analógica comum.",
+      "section": "Fundamentos de telefonia e arquiteturas de PABX",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização possui 180 ramais e contrata capacidade para 24 chamadas externas simultâneas. Qual conclusão é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O PABX perde a capacidade de efetuar chamadas entre ramais internos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O número de ramais define obrigatoriamente 180 canais RTP para o provedor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A simultaneidade externa pode ser inferior ao total de ramais por dimensionamento de tráfego.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O uso de um tronco SIP elimina todos os limites contratuais de simultaneidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A contratação é impossível, pois cada ramal exige canal externo individual.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ramal e canal simultâneo de tronco são grandezas diferentes. O dimensionamento leva em conta demanda, picos e bloqueio aceitável; ligações internas não consomem necessariamente capacidade externa.",
+      "section": "Fundamentos de telefonia e arquiteturas de PABX",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um IP-PBX, a recepção de mensagem SIP de atendimento assegura que o fluxo RTP poderá atravessar NAT e firewall sem configuração adicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Sinalização e mídia usam fluxos distintos. Mesmo com atendimento SIP correto, endereços SDP incorretos, políticas de firewall ou NAT podem bloquear RTP e produzir ausência de áudio.",
+      "section": "Fundamentos de telefonia e arquiteturas de PABX",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No vocabulário de centrais telefônicas, um tronco é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O número de acesso local usado para ouvir mensagens de voz.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma extensão obrigatória destinada ao operador humano.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O par de fones de um mesmo terminal analógico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A conexão da central com rede externa ou outra central.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O software responsável por reproduzir o menu da URA.",
+          "correct": false
+        }
+      ],
+      "explanation": "Troncos fornecem meios de interconexão entre a central e operadora ou outras centrais. Já os ramais representam destinos de usuários ou equipamentos internos; URA é serviço de atendimento.",
+      "section": "Fundamentos de telefonia e arquiteturas de PABX",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa deseja converter sua ligação analógica de telefonia em comunicação com ramais SIP. Qual equipamento cumpre essa função?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um repetidor Wi-Fi que preserve apenas acesso sem fio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um dispositivo apenas de comutação Ethernet sem interface de telefonia.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um conversor óptico que não execute protocolo de voz ou sinalização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um distribuidor passivo de cabos com conectores padronizados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um gateway que interfuncione sinais analógicos e SIP/RTP.",
+          "correct": true
+        }
+      ],
+      "explanation": "O gateway traduz interfaces e os fluxos necessários ao estabelecimento da chamada, interligando analógico e IP. Um elemento de rede puramente passivo não executa essa conversão funcional.",
+      "section": "Fundamentos de telefonia e arquiteturas de PABX",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No planejamento do serviço de voz IP, qual parâmetro está diretamente relacionado à qualidade temporal da mídia recebida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Jitter, que expressa variação do atraso entre pacotes de mídia.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ordem alfabética dos nomes dos canais nos logs.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quantidade de portas FXO ainda sem cabo conectado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quantidade de extensões descritas no contexto de entrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Número de comandos de recarga do dialplan por dia.",
+          "correct": false
+        }
+      ],
+      "explanation": "Variação de atraso impacta a regularidade de reprodução do áudio e pode exigir buffer de jitter. A contagem de ramais e a escrita dos arquivos de configuração não medem essa variação.",
+      "section": "Fundamentos de telefonia e arquiteturas de PABX",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para conectar um telefone convencional a um gateway de voz IP, é necessária, em regra, uma interface que forneça tom e alimentação ao aparelho. Essa porta é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "E1, por transportar individualmente uma linha analógica em cada quadro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "FXS, por apresentar ao telefone o lado de serviço da linha.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "PRI, por ser um conector de assinante analógico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RTP, por oferecer tensão elétrica ao par metálico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "FXO, por receber o circuito ofertado pela operadora.",
+          "correct": false
+        }
+      ],
+      "explanation": "A FXS fornece alimentação, tom de discagem e toque à estação analógica. A FXO ocupa o papel de terminal diante da FXS ou da central telefônica e, portanto, não desempenha essa alimentação.",
+      "section": "Interfaces analógicas FXO, FXS e gateways",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma porta FXO de gateway é apropriada para fornecer tom e alimentação diretamente a um telefone analógico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A interface FXO se comporta como equipamento terminal da linha fornecida pela central da operadora. Para conectar um telefone analógico diretamente ao gateway, em regra, utiliza-se FXS.",
+      "section": "Interfaces analógicas FXO, FXS e gateways",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma central IP precisa receber três linhas analógicas da operadora e manter quatro telefones analógicos. Qual configuração corresponde aos papéis das interfaces?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Três FXS para as linhas e quatro FXO para os telefones.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sete interfaces PRI, pois telefones analógicos usam canal D.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Três FXO para as linhas e quatro FXS para os telefones.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Quatro interfaces R2 para o terminal e três ISDN para a operadora.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apenas uma porta FXO, que admite simultaneamente as sete conexões.",
+          "correct": false
+        }
+      ],
+      "explanation": "As linhas externas entram por interfaces FXO e os aparelhos analógicos recebem serviço de interfaces FXS. A quantidade de portas deve acompanhar os pontos físicos a conectar.",
+      "section": "Interfaces analógicas FXO, FXS e gateways",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A discagem por DTMF é uma forma de sinalização por tons de teclas e não se confunde com a codificação digital da voz.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "DTMF carrega os dígitos digitados, combinando frequências. Um codec atua sobre amostras de áudio; tratar DTMF como codec ou como a sinalização R2 entre centrais mistura funções distintas.",
+      "section": "Interfaces analógicas FXO, FXS e gateways",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gateway com uma porta FXO conecta-se a uma linha convencional da operadora. Considerando essa linha analógica simples, o limite usual é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conferências ilimitadas com várias chamadas externas independentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Até 30 chamadas por porta, como se o acesso fosse E1 com R2.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Até 31 chamadas por porta, com canal D independente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma conversação simultânea pela linha e pela porta FXO.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma chamada por ramal cadastrado no contexto SIP da central.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma linha telefônica analógica convencional e a respectiva porta FXO normalmente transportam uma conversação por vez. Multiplicar os ramais internos não multiplica canais da mesma linha.",
+      "section": "Interfaces analógicas FXO, FXS e gateways",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma porta FXS destinada a telefone analógico deve ser conectada diretamente à porta FXS da central pública, pois ambas fornecem sinais equivalentes e complementares.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Duas portas FXS são lados fornecedores de alimentação e toque, não os extremos funcionais complementares de uma linha analógica. Em geral, conectam-se FXS e FXO, respeitando especificações.",
+      "section": "Interfaces analógicas FXO, FXS e gateways",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No cenário analógico, o estado off-hook do telefone significa que:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O canal D de um tronco ISDN está ativo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O gateway está encaminhando RTP sem sinalização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O terminal está no gancho com laço aberto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A linha externa está obrigatoriamente desconectada da central.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O fone foi retirado do gancho, tipicamente fechando o laço.",
+          "correct": true
+        }
+      ],
+      "explanation": "Off-hook indica retirada do gancho e alteração do estado do laço elétrico para solicitar ou atender ligação. On-hook corresponde ao estado em repouso, em que o aparelho está no gancho.",
+      "section": "Interfaces analógicas FXO, FXS e gateways",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um gateway com FXO, a chamada externa é atendida e permanece presa após o outro lado desligar. Qual ponto da interface deve ser investigado primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A detecção das condições de supervisão e liberação na linha analógica.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O enquadramento CRC da interface Ethernet do ramal SIP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A cor do cabo de rede conectado ao servidor de correio eletrônico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O tamanho do identificador de contexto do dialplan, independentemente da linha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O número máximo de canais B configurados no canal D.",
+          "correct": false
+        }
+      ],
+      "explanation": "A detecção de desligamento em interface analógica depende de supervisão oferecida pela rede e interpretada pelo gateway. Ajustar parâmetros IP não substitui a verificação do estado de linha.",
+      "section": "Interfaces analógicas FXO, FXS e gateways",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operadora instala acesso analógico simples numa porta FXO. O PABX pretende selecionar automaticamente múltiplos ramais pelo número público chamado. Qual cautela é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Toda linha FXO fornece nativamente o número de destino completo em cada ligação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O número chamado pode não ser entregue nesse tipo de linha, limitando DDR automático.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A indicação DTMF originada pelo usuário equivale sempre à identidade do número discado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O identificador de chamadas do assinante externo é necessariamente o DNIS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O gateway FXO converte toda linha em PRI com 30B+D sem contratação.",
+          "correct": false
+        }
+      ],
+      "explanation": "O número de destino não é necessariamente sinalizado numa linha FXO convencional. O identificador de origem é informação diferente do número chamado; DDR requer dados de destino utilizáveis.",
+      "section": "Interfaces analógicas FXO, FXS e gateways",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a taxa de transmissão nominal de um enlace E1?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "30 Mbit/s.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "64 kbit/s.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "2,048 Mbit/s.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "1,544 Mbit/s.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "10 Mbit/s.",
+          "correct": false
+        }
+      ],
+      "explanation": "O enlace E1 transporta 32 intervalos de 64 kbit/s, totalizando 2,048 Mbit/s. A taxa de 1,544 Mbit/s é associada ao T1, e 64 kbit/s corresponde apenas a um intervalo.",
+      "section": "Enlaces E1, PCM, CAS e sinalização MFC/R2",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na estrutura E1 clássica, há 32 intervalos de tempo de 64 kbit/s, totalizando 2,048 Mbit/s.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A estrutura de enquadramento do E1 agrega 32 slots de 64 kbit/s. A existência desses 32 slots não permite classificá-los todos como canais de voz em um acesso telefônico com sinalização.",
+      "section": "Enlaces E1, PCM, CAS e sinalização MFC/R2",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um enlace E1 com sinalização associada a canal e 30 canais de voz, qual uso é usualmente atribuído aos intervalos TS0 e TS16?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "TS0 suporta controle SIP e TS16 armazena mensagens de correio de voz.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os dois intervalos devem sempre transmitir áudio de 64 kbit/s.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "TS0 e TS16 ficam reservados exclusivamente a dois canais de voz.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "TS0 é usado para enquadramento, e TS16 para sinalização CAS.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "TS0 carrega a sinalização R2 e TS16 transporta o fluxo de relógio Ethernet.",
+          "correct": false
+        }
+      ],
+      "explanation": "No E1 telefônico com CAS, o TS0 atende a enquadramento e informações correlatas, enquanto TS16 suporta sinalização associada a canais. Restam trinta slots usuais de voz.",
+      "section": "Enlaces E1, PCM, CAS e sinalização MFC/R2",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A sinalização R2/MFC entre centrais deve ser considerada idêntica ao DTMF produzido pelas teclas de um aparelho telefônico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "R2 inclui mecanismos de sinalização de linha e troca de registros MFC entre centrais. DTMF é usado na representação das teclas do usuário e não substitui automaticamente a sinalização R2.",
+      "section": "Enlaces E1, PCM, CAS e sinalização MFC/R2",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas empresas possuem interfaces físicas E1 e desejam interconexão. Uma usa MFC/R2; a outra, ISDN PRI. Qual análise está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas a codificação HDB3 determina se a sinalização será PRI ou R2.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Qualquer enlace E1 é obrigatoriamente configurado com canal D e Q.931.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O canal B do PRI executa diretamente as funções de registro MFC/R2.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A coincidência de 2,048 Mbit/s assegura estabelecimento de chamadas entre elas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É necessário compatibilizar a sinalização ou utilizar equipamento de interfuncionamento.",
+          "correct": true
+        }
+      ],
+      "explanation": "E1 descreve a estrutura de transporte, não um único protocolo de chamada. R2/CAS e PRI/Q.931 têm sinalizações distintas, de modo que compatibilidade física é insuficiente.",
+      "section": "Enlaces E1, PCM, CAS e sinalização MFC/R2",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A codificação de linha HDB3 empregada em interfaces E1 substitui a necessidade de sinalização de estabelecimento e liberação das chamadas telefônicas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "HDB3 trata da representação do fluxo digital no meio físico. Estabelecer e liberar chamadas exige mecanismos próprios, como MFC/R2/CAS ou ISDN PRI, conforme o serviço configurado.",
+      "section": "Enlaces E1, PCM, CAS e sinalização MFC/R2",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No contexto de E1 com 30 canais e CAS, a quantidade de slots usualmente empregada para voz é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trinta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Trinta e dois.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trinta e um.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Vinte e três.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dois.",
+          "correct": false
+        }
+      ],
+      "explanation": "No arranjo telefônico E1 CAS, TS0 destina-se ao enquadramento e TS16 à sinalização, deixando trinta intervalos de 64 kbit/s para voz. Os 32 slots incluem também controle.",
+      "section": "Enlaces E1, PCM, CAS e sinalização MFC/R2",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um enlace E1 apresenta perda de alinhamento de quadro. Qual etapa é mais adequada antes de modificar regras de chamadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Habilitar AMI para obter mais ramais simultâneos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Verificar sinal físico, relógio e parâmetros de enquadramento E1.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Recriar todas as caixas voicemail do PBX.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar a estratégia da fila de ringall para leastrecent.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o timeout da aplicação Read da URA.",
+          "correct": false
+        }
+      ],
+      "explanation": "Problemas de quadro e sincronismo pertencem às camadas de transporte. Ajustar aplicações do dialplan não corrige perda do enquadramento que impede a transmissão correta dos canais.",
+      "section": "Enlaces E1, PCM, CAS e sinalização MFC/R2",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao integrar MFC/R2 a um Asterisk com placa E1, qual verificação melhor evita supor suporte apenas pela existência de arquivos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir DTMF como único protocolo de sinalização do E1.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Eliminar todos os intervalos de tempo reservados à sinalização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Checar compatibilidade da placa, DAHDI/chan_dahdi e implementação R2, quando exigidos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Confirmar somente que a porta RJ-11 do telefone está conectada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar apenas uma extensão com o nome MFC no dialplan.",
+          "correct": false
+        }
+      ],
+      "explanation": "A integração R2 depende de suporte real da placa, drivers, módulos e da variante de sinalização, com configurações de sincronismo e timeslots corretas. Um arquivo textual isolado não instala esse suporte.",
+      "section": "Enlaces E1, PCM, CAS e sinalização MFC/R2",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O acesso básico ISDN BRI é comumente representado por:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "23B+D, com portadora T1.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um canal B e nenhum canal de sinalização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dois canais D para mídia e um B para controle.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "2B+D, com dois canais B e um canal D.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "30B+D, com portadora E1.",
+          "correct": false
+        }
+      ],
+      "explanation": "BRI utiliza dois canais B de 64 kbit/s e um canal D de 16 kbit/s. A representação 30B+D refere-se ao PRI sobre E1, que é um acesso de maior capacidade.",
+      "section": "ISDN: acesso básico, acesso primário e protocolos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No acesso ISDN BRI, os canais B são destinados ao transporte de informação do usuário, enquanto o canal D realiza funções de sinalização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A separação B/D define as funções típicas de transporte de informação e controle. Logo, dois canais B de BRI não se transformam em três canais de conversação pelo acréscimo do D.",
+      "section": "ISDN: acesso básico, acesso primário e protocolos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instituição recebe um PRI sobre E1. Qual configuração de canais de controle e de serviço é a convencional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "32 canais B, sem estrutura de sinalização.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "31 canais B e canal de sinalização analógica externo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "2 canais B e canal D de 16 kbit/s.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "23 canais B e canal D na taxa total de 2,048 Mbit/s.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "30 canais B e um canal D de 64 kbit/s.",
+          "correct": true
+        }
+      ],
+      "explanation": "O acesso primário baseado em E1 costuma empregar 30B+D: trinta canais de informação mais um canal de sinalização. O enquadramento do fluxo ocupa função própria.",
+      "section": "ISDN: acesso básico, acesso primário e protocolos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Q.931 está relacionado ao controle de chamadas ISDN e não deve ser considerado o protocolo de enquadramento físico do E1.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Q.931 define elementos de sinalização de controle de chamada em camada 3 da interface ISDN. O enquadramento E1 pertence à estrutura física, regulada por especificações de transmissão.",
+      "section": "ISDN: acesso básico, acesso primário e protocolos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um técnico diagnostica PRI com sinal E1 presente e alinhado, mas observa que chamadas não se completam. Qual abordagem por camadas é mais correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Examinar o enlace de sinalização do canal D e as mensagens de controle de chamada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir o canal D por um canal B sem alteração de configuração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Concluir que o meio físico está estável e, portanto, Q.931 opera perfeitamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o número de todos os ramais antes de verificar as mensagens ISDN.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Assumir que a falha só pode estar no codec de mídia dos terminais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Camada física ativa não assegura enlace e controle de chamada ISDN operacionais. É necessário verificar o estabelecimento do canal D, mensagens Q.931, estado dos canais B e possíveis causas de rejeição.",
+      "section": "ISDN: acesso básico, acesso primário e protocolos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um PRI E1 30B+D, o canal D de 64 kbit/s é contabilizado como um dos trinta canais B disponíveis ao transporte de conversações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O canal D de PRI é destinado à sinalização, em separado dos trinta canais B de informação. Contá-lo como canal de voz adicionaria capacidade inexistente ao serviço 30B+D.",
+      "section": "ISDN: acesso básico, acesso primário e protocolos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual mensagem de sinalização Q.931 está associada ao início de solicitação de estabelecimento de chamada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ALERTING, que significa liberação de canais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SETUP, que contém a solicitação inicial de estabelecimento.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "RTP, que estabelece o canal D em camada de enlace.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RELEASE, que sempre inaugura a chamada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CONNECT, que obrigatoriamente antecede qualquer chamada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na sinalização ISDN, SETUP é mensagem de estabelecimento, enquanto ALERTING, CONNECT e mensagens de liberação correspondem a outros estados do ciclo de chamada.",
+      "section": "ISDN: acesso básico, acesso primário e protocolos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comparação entre BRI e PRI está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O BRI oferece trinta canais B quando conectado ao E1.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O PRI sobre E1 exige que o canal D transmita a conversação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O BRI típico é 2B+D, e o PRI sobre E1 típico é 30B+D.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "As expressões BRI e PRI identificam exclusivamente tipos de codecs.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "BRI e PRI sempre dispõem da mesma quantidade de canais B.",
+          "correct": false
+        }
+      ],
+      "explanation": "BRI e PRI diferem na capacidade e no tipo de acesso ISDN. O BRI usual oferece 2B+D e o PRI em E1, 30B+D, preservando a distinção entre tráfego B e sinalização D.",
+      "section": "ISDN: acesso básico, acesso primário e protocolos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ligação entra por PRI E1 e sai para um terminal SIP. Qual afirmação explica a integração correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Q.931 é o mesmo que SIP, bastando copiar bytes entre interfaces.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma chamada PRI já é RTP antes da conversão pelo gateway.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os sinais MFC/R2 de registro tornam dispensável a sinalização SIP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O PABX/gateway traduz o controle de chamada e interliga os fluxos de mídia.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O canal D é um tronco FXO que deve ser ligado a uma porta FXS.",
+          "correct": false
+        }
+      ],
+      "explanation": "As sinalizações PRI/Q.931 e SIP têm formatos e semânticas próprias; o interfuncionamento mapeia estados e informações e estabelece caminho de mídia apropriado, sem igualdade de protocolos.",
+      "section": "ISDN: acesso básico, acesso primário e protocolos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em extensions.conf, a expressão [interno] identifica:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um comando para abrir canal B de ISDN.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um codec instalado para canais de voz.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma caixa postal individual de voicemail.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um AOR do PJSIP com senha embutida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um contexto que agrupa regras do plano de discagem.",
+          "correct": true
+        }
+      ],
+      "explanation": "Colchetes com nome em extensions.conf definem contextos que contêm extensões e suas prioridades. A escolha do contexto ajuda a limitar o conjunto de destinos alcançáveis por um canal.",
+      "section": "Asterisk: dialplan, aplicações, padrões e PJSIP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um padrão de extensão do Asterisk, o símbolo X corresponde a qualquer dígito de 0 a 9.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Nos padrões de discagem do Asterisk, X cobre 0–9, enquanto Z cobre 1–9 e N cobre 2–9. Essa diferença é frequentemente explorada em regras de roteamento e validação.",
+      "section": "Asterisk: dialplan, aplicações, padrões e PJSIP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O administrador quer cadastrar o ramal SIP 2001 com registro dinâmico. Qual associação de objetos do pjsip.conf é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "endpoint para parâmetros do ramal, auth para credenciais e aor para contatos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma seção de fila para configurar endereço de registro e codecs.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas registration de saída, sem endpoint ou objeto de contato.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma seção identify como substituto obrigatório de endpoint, auth e aor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um único objeto voicemail, que fornece autenticação SIP automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "No res_pjsip, endpoint reúne características do interlocutor, auth define autenticação e aor organiza contatos. Objetos têm papéis distintos e os vínculos precisam ser coerentes.",
+      "section": "Asterisk: dialplan, aplicações, padrões e PJSIP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No pjsip.conf, uma seção do tipo aor pode manter contatos que permitem alcançar um terminal, não sendo equivalente à seção do tipo auth.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "AoR trata de endereços/contatos e regras pertinentes ao registro. Auth representa configuração de credenciais, de modo que não se substitui um objeto pelo outro apenas por compartilhar o nome.",
+      "section": "Asterisk: dialplan, aplicações, padrões e PJSIP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra do dialplan utiliza o padrão _NXX. Quais números atendem ao trecho N e aos dois X imediatamente seguintes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "N e X aceitam somente as teclas de 1 a 9.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "N aceita 2 a 9; cada X aceita qualquer dígito de 0 a 9.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "N aceita qualquer letra e X representa canal externo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "N é canal de controle ISDN e X é um intervalo de tempo E1.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "N aceita apenas 0 e 1, enquanto X aceita apenas 2 a 9.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em padrões Asterisk, N casa 2–9, X casa 0–9, e o ponto representa continuação de um ou mais caracteres. A notação inicial de sublinhado indica regra de casamento.",
+      "section": "Asterisk: dialplan, aplicações, padrões e PJSIP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As opções auth e outbound_auth do endpoint PJSIP são sempre sinônimas; ambas representam exclusivamente o registro de saída no provedor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Auth é usado para autenticação exigida pelo Asterisk ao receber comunicação do endpoint; outbound_auth refere-se a credenciais usadas quando o Asterisk se autentica perante outra ponta.",
+      "section": "Asterisk: dialplan, aplicações, padrões e PJSIP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual aplicação do Asterisk é empregada para chamar um destino e conectar os canais quando atendidos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "NoOp().",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Set().",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dial().",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Playback().",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "WaitExten().",
+          "correct": false
+        }
+      ],
+      "explanation": "Dial() inicia tentativa de ligação ao destino e estabelece a ponte após atendimento. NoOp auxilia o diagnóstico; Set altera variáveis, Playback reproduz mídia e WaitExten aguarda dígitos.",
+      "section": "Asterisk: dialplan, aplicações, padrões e PJSIP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um tronco SIP recebe chamadas de um provedor cujo cabeçalho From varia de usuário para usuário. Qual objeto de res_pjsip pode vincular origem por IP ao endpoint?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O arquivo queues.conf, cujo membro representa o IP de origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um objeto voice_mail do contexto de mensagens.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um padrão da URA que substitui a identificação de transporte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma seção identify configurada com endereço de origem compatível.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O canal B do PRI mapeado diretamente no RTP.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma seção identify pode fazer a associação de mensagens SIP de IP conhecido ao endpoint. Essa técnica exige controle de origem e não deve dispensar segurança ou validação da interconexão.",
+      "section": "Asterisk: dialplan, aplicações, padrões e PJSIP",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra usa _X! para saída externa de um contexto acessível a visitantes. Qual risco de projeto merece especial atenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Redução do E1 de 2,048 Mbit/s para 64 kbit/s.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativação do registro de todos os contatos da AoR.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Impossibilidade técnica de casar qualquer sequência de dígitos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conversão automática das chamadas para MFC/R2 sem gateway.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Casamento muito permissivo/antecipado, permitindo rotas não autorizadas.",
+          "correct": true
+        }
+      ],
+      "explanation": "O curinga de exclamação pode casar zero ou mais caracteres de modo antecipado. Associado a regras de saída amplas e contextos fracos, cria risco de encaminhamento indevido e fraude.",
+      "section": "Asterisk: dialplan, aplicações, padrões e PJSIP",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual aplicação do dialplan envia o chamador para uma fila de atendimento do Asterisk?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Queue().",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "NoOp().",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Hangup().",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Playback().",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "VoiceMailMain().",
+          "correct": false
+        }
+      ],
+      "explanation": "Queue() insere a chamada em fila configurada, cuja distribuição depende de membros e estratégia. VoiceMailMain consulta correio de voz; os demais comandos desempenham funções distintas.",
+      "section": "Asterisk avançado: URA, filas, voicemail, AMI, AGI e CLI",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A aplicação VoiceMailMain() permite ao titular da caixa acessar e gerenciar mensagens armazenadas, desde que a funcionalidade esteja configurada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "VoiceMailMain é a interface de acesso à caixa postal. VoiceMail é usada para deixar recados; possuir um endpoint PJSIP não cria, por si só, caixa postal nem autoriza acesso sem configuração.",
+      "section": "Asterisk avançado: URA, filas, voicemail, AMI, AGI e CLI",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma URA precisa reproduzir um menu aceitando que uma tecla seja reconhecida durante a locução. Que aplicação é tipicamente apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Hangup(), porque encerra a chamada antes do menu.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Background(), com destinos e tratamento de dígitos no contexto.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "NoOp(), porque interpreta DTMF sem passo adicional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Queue(), porque sempre reproduz os dígitos digitados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "VoiceMailMain(), porque gerencia qualquer menu de atendimento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Background permite reprodução com possibilidade de interação por dígitos no dialplan. É diferente de Playback, que não constitui sozinho uma URA com roteamento interativo.",
+      "section": "Asterisk avançado: URA, filas, voicemail, AMI, AGI e CLI",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na estratégia ringall de uma fila do Asterisk, o objetivo é tentar os membros elegíveis em conjunto, respeitados seus estados e as regras configuradas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Ringall busca tocar simultaneamente os membros que podem receber chamadas. Estados, pausas, penalidades e limites impedem interpretar a estratégia como chamada irrestrita a qualquer ramal.",
+      "section": "Asterisk avançado: URA, filas, voicemail, AMI, AGI e CLI",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema externo deve receber eventos de mudança de estado dos canais e originar chamadas por comandos de gerenciamento. Qual interface é a mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "FXS, por oferecer conexão direta aos eventos do PABX.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "AGI, obrigatoriamente inserida em cada segundo da mídia RTP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "AMI, orientada a ações de gerenciamento e eventos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "VoiceMailMain, com autenticação de correio de voz.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "DTMF, usado como interface TCP de controle externo.",
+          "correct": false
+        }
+      ],
+      "explanation": "AMI é projetada para integração gerencial e entrega de eventos, com ações como origem de chamadas sujeitas a privilégios. AGI tem foco na execução de lógica externa vinculada ao canal.",
+      "section": "Asterisk avançado: URA, filas, voicemail, AMI, AGI e CLI",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "AMI e AGI são protocolos intercambiáveis: ambos executam necessariamente scripts externos no próprio ponto do dialplan, com o mesmo mecanismo de entrada e saída.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "AGI integra um programa à execução do dialplan em um canal; AMI disponibiliza interface orientada a ações e eventos para gerenciamento. Finalidades e formas de integração são distintas.",
+      "section": "Asterisk avançado: URA, filas, voicemail, AMI, AGI e CLI",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para consultar os canais ativos na CLI do Asterisk, qual comando é usualmente utilizado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "fxo status offhook.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "pri set codec alaw.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "voicemail.conf show.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "core show channels.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "r2 dialplan monitor.",
+          "correct": false
+        }
+      ],
+      "explanation": "O comando core show channels apresenta canais ativos e auxilia na observação de chamadas. A CLI também disponibiliza comandos de diagnóstico específicos por módulo, se carregados.",
+      "section": "Asterisk avançado: URA, filas, voicemail, AMI, AGI e CLI",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada destinada ao ramal 1001 não foi atendida e deve permitir gravação de recado. Qual aplicação deve ser prevista na sequência apropriada do dialplan?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "AMI, pois ela cria obrigatoriamente o correio de voz do endpoint.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Queue(1001), porque toda fila é uma caixa de correio individual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Answer(1001@empresa), que escreve mensagens no disco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "VoiceMailMain(1001@empresa), para gravar recado do chamador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "VoiceMail(1001@empresa), associada a caixa previamente configurada.",
+          "correct": true
+        }
+      ],
+      "explanation": "VoiceMail encaminha o chamador para depósito de mensagem na caixa configurada; VoiceMailMain atende ao titular da caixa. O envio após Dial depende do fluxo e das condições de retorno.",
+      "section": "Asterisk avançado: URA, filas, voicemail, AMI, AGI e CLI",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma integração de CRM precisa consultar banco de dados durante o processamento de uma chamada e decidir o próximo destino no dialplan. Qual mecanismo atende melhor a esse papel?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "AGI, executando lógica externa associada ao canal em seu fluxo de chamada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "TS0 do E1, programando consultas ao CRM na camada de enquadramento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "FXO, armazenando dados do CRM na sinalização analógica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "G.711, que interpreta SQL e executa redirecionamentos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Canal D ISDN, convertendo consultas em regras de chamadas SIP.",
+          "correct": false
+        }
+      ],
+      "explanation": "AGI integra programas externos à lógica do canal, o que pode incluir consulta a banco de dados e decisão de roteamento. AMI não substitui essa execução síncrona do dialplan por equivalência.",
+      "section": "Asterisk avançado: URA, filas, voicemail, AMI, AGI e CLI",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Solucionar problemas e monitorar portas analógicas",
+      "publisher": "Cisco",
+      "reference": "FXS/FXO — funções e troubleshooting",
+      "url": "https://www.cisco.com/c/pt_br/support/docs/voice/analog-signaling-e-m-did-fxs-fxo/214636-troubleshoot-and-monitor-analog-ports.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Dialup Technology: Overviews and Explanations",
+      "publisher": "Cisco",
+      "reference": "ISDN BRI 2B+D e PRI 30B+D/23B+D",
+      "url": "https://www.cisco.com/c/en/us/support/docs/dial-access/dial-on-demand-routing-ddr/10202-chapter16.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ITU-T G.704 — Synchronous frame structures",
+      "publisher": "ITU-T",
+      "reference": "G.704 (10/1998), enquadramento 2048 kbit/s",
+      "url": "https://www.itu.int/rec/T-REC-G.704-199810-I/en",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ITU-T I.431 — Primary rate user-network interface",
+      "publisher": "ITU-T",
+      "reference": "I.431 (03/1993), camada física PRI",
+      "url": "https://www.itu.int/rec/T-REC-I.431-199303-I/en",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ITU-T Q.931 — ISDN user-network interface layer 3",
+      "publisher": "ITU-T",
+      "reference": "Q.931, controle de chamadas ISDN",
+      "url": "https://www.itu.int/rec/T-REC-Q.931",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PJSIP Configuration Sections and Relationships",
+      "publisher": "Asterisk Project",
+      "reference": "pjsip.conf: endpoint/auth/aor/identify/registration",
+      "url": "https://docs.asterisk.org/Configuration/Channel-Drivers/SIP/Configuring-res_pjsip/PJSIP-Configuration-Sections-and-Relationships/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Pattern Matching",
+      "publisher": "Asterisk Project",
+      "reference": "Sintaxe dos padrões X, Z, N, ponto e exclamação",
+      "url": "https://docs.asterisk.org/Configuration/Dialplan/Pattern-Matching/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Contexts, Extensions, and Priorities",
+      "publisher": "Asterisk Project",
+      "reference": "Modelo de organização de extensions.conf",
+      "url": "https://docs.asterisk.org/Configuration/Dialplan/Contexts-Extensions-and-Priorities/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Building Queues",
+      "publisher": "Asterisk Project",
+      "reference": "queues.conf e membros de filas",
+      "url": "https://docs.asterisk.org/Configuration/Applications/Asterisk-Queues/Building-Queues/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Voicemail — Overview",
+      "publisher": "Asterisk Project",
+      "reference": "Aplicações VoiceMail e VoiceMailMain",
+      "url": "https://docs.asterisk.org/Configuration/Applications/Voicemail/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Asterisk Manager TCP IP API",
+      "publisher": "Asterisk Project",
+      "reference": "AMI, eventos, ações e manager.conf",
+      "url": "https://docs.asterisk.org/Configuration/Interfaces/Asterisk-Manager-Interface-AMI/The-Asterisk-Manager-TCP-IP-API/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Asterisk Gateway Interface (AGI)",
+      "publisher": "Asterisk Project",
+      "reference": "AGI, programa externo e execução no canal",
+      "url": "https://docs.asterisk.org/Configuration/Interfaces/Asterisk-Gateway-Interface-AGI/",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

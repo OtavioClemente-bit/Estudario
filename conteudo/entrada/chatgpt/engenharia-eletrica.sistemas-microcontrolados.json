@@ -1,0 +1,2025 @@
+{
+  "id": "engenharia-eletrica.sistemas-microcontrolados",
+  "subject": "Engenharia Elétrica — Sistemas Digitais e Computação Embarcada",
+  "title": "Sistemas microcontrolados e embarcados",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Sistemas microcontrolados e embarcados",
+    "Sistemas microcontrolados e embarcados"
+  ],
+  "scope": {
+    "covers": "Fundamentos de sistemas embarcados; MCU, memória, temporização e arquitetura; sistemas de numeração, máscaras e complemento de dois; Arduino Nano clássico, ESP32 e programação Wiring; GPIO, ADC, PWM, interrupções; interface paralela, barramentos e handshake; UART, I²C, SPI; escalonamento, integração e segurança de firmware.",
+    "excludes": "Dimensionamento de sistemas elétricos de potência, projeto de placas multicamadas em nível de fabricação, projeto físico de circuitos integrados, exploração ofensiva de rádio e características de versões de placas não especificadas."
+  },
+  "theoryTitle": "Sistemas Microcontrolados e Embarcados — Teoria Completa e Aplicações",
+  "chapters": [
+    {
+      "title": "Fundamentos de sistemas embarcados e arquitetura de microcontroladores",
+      "markdown": "## 1. O que caracteriza um sistema embarcado\nUm **sistema embarcado** executa uma função definida dentro de um equipamento maior ou de um produto autônomo: controlar a temperatura de uma estufa, amostrar vibração, acionar uma válvula, instrumentar um inversor ou supervisionar sensores. Não se confunde com um computador de propósito geral: costuma operar com restrições de energia, memória, custo, espaço, latência, confiabilidade e interfaces elétricas. Um equipamento embarcado pode executar firmware sem sistema operacional, usar escalonador de tempo real ou até incorporar um sistema operacional completo. A distinção decorre da finalidade e das restrições de projeto, não de o dispositivo possuir ou não uma tela.\n\n**Microcontrolador (MCU)** integra núcleo de processamento, memória e periféricos em um único circuito integrado. Uma **CPU ou microprocessador** designa principalmente o elemento que executa instruções, podendo depender de memórias e controladores externos. **SoC** é expressão mais ampla: sistema integrado em chip com múltiplos blocos funcionais, podendo incluir processador, rádio, periféricos e aceleradores. O termo não determina sozinho o sistema operacional utilizado. Na arquitetura de Von Neumann, instruções e dados compartilham um espaço lógico de memória; na Harvard clássica, há separação de memórias/caminhos para instruções e dados. Implementações modernas e microcontroladores específicos podem combinar características, como barramentos separados e memória mapeada.\n\n## 2. Fluxo de dados, registradores e execução\nO firmware lê entradas, processa estados e comanda saídas. **GPIO** é uma porta digital configurável como entrada ou saída: uma chave gera nível lógico; uma saída pode comandar um transistor, mas não deve ser considerada fonte de potência para qualquer carga. Periféricos expõem **registradores** de configuração, status e dados, frequentemente mapeados no espaço de endereços do processador. **Bit de direção** estabelece o sentido de um pino; **bit de saída** define o nível aplicado; **bit de entrada** informa o sinal amostrado. O acesso direto a registradores exige consultar mapa de memória e documentação do MCU, já que nomes e endereços variam de família.\n\nO ciclo de controle típico é adquirir grandeza física por transdutor, adaptar sinal elétrico, converter quando necessário, tomar decisão e atuar. Sensores analógicos entregam tensão ou corrente contínua em valores; sensores digitais disponibilizam níveis ou pacotes de comunicação. Um ADC não mede automaticamente qualquer tensão: requer faixa de entrada e referência compatíveis, cuidados com ruído, impedância e calibração. Um DAC gera um nível analógico a partir de um código digital, quando disponível. PWM altera a razão entre tempo ligado e período de uma onda digital, podendo produzir efeito médio em cargas ou, com filtro, uma aproximação de sinal analógico. **PWM não é equivalente à presença de um DAC físico**.\n\n## 3. Memórias, boot e energia\n**Flash** guarda o firmware de forma não volátil; **SRAM** armazena variáveis e pilha em execução; **EEPROM**, quando existe como hardware dedicado, preserva configurações com granularidade e resistência próprias. Em plataformas distintas, a persistência pode ser simulada por regiões de flash; não se deve supor EEPROM física em todos os modelos. A vida útil de flash/EEPROM é limitada por ciclos de escrita, o que recomenda evitar persistência em cada iteração de um laço.\n\nApós reset, a lógica de inicialização prepara relógios e periféricos e transfere controle ao firmware. **Bootloader** pode receber atualizações sem programador externo, sujeito ao hardware e às políticas de gravação. **Watchdog** detecta ausência de progresso segundo uma janela temporal e pode promover recuperação; ele não corrige sozinho defeitos lógicos ou condições perigosas. Um **brown-out detector** identifica queda de tensão abaixo de limiar configurado/suportado. Em aplicações críticas, watchdog, verificações de integridade, estados seguros de atuadores e diagnóstico de sensores devem ser pensados em conjunto.\n\n## 4. Temporização e tempo real\nUm requisito **de tempo real** exige resposta dentro de prazo especificado; não significa simplesmente executar operações com grande velocidade. Uma tarefa de prioridade alta sem limites de execução pode bloquear outras atividades; tempo máximo de resposta, jitter e pior caso de execução importam. **Polling** consulta periodicamente o estado de um periférico; **interrupção** desvia a execução para um tratador quando ocorre evento autorizado. Ambas as técnicas são válidas conforme criticidade, frequência de eventos e orçamento de CPU.\n\nUm temporizador de hardware pode contar pulsos de clock, gerar eventos periódicos e sustentar PWM. Se o clock do temporizador vale 1 MHz, cada incremento corresponde a 1 µs antes de prescalers adicionais. Com período de 1 ms, o sistema pode atualizar uma máquina de estados sem travar o restante do processamento. O relógio de CPU, por sua vez, não é uma medida direta de desempenho de toda a aplicação: instruções por ciclo, memória, periféricos, tarefas e comunicações alteram o resultado. Em prova, diferencie **latência** (tempo até o início da reação), **período** (intervalo entre ativações), **jitter** (variação temporal) e **deadline** (prazo máximo).\n\n## 5. Projeto verificável\nUm projeto robusto registra requisitos, diagrama de blocos, consumo por estado, mapa de pinos, protocolo de interfaces, fluxo de inicialização, estratégia de falha segura e plano de testes. Bancadas exigem terras de referência compatíveis, proteção contra sobretensões, desacoplamento próximo dos circuitos e dimensionamento adequado de transistores e fontes. Um LED de teste precisa de resistor limitador; motor, relé e solenóide tipicamente exigem estágio de potência e proteção contra surtos, conforme a carga. A pinagem deve ser validada na placa concreta e no datasheet: um nome impresso no conector não garante que todos os GPIO do chip estejam disponíveis."
+    },
+    {
+      "title": "Sistemas de numeração, lógica digital e representação de dados",
+      "markdown": "## 1. Bases posicionais\nEm um sistema posicional, o valor depende da base e do peso de cada dígito: em base \\(b\\), o algarismo na posição \\(i\\) contribui \\(d_i b^i\\). Em decimal (base 10), `253` vale 2×100 + 5×10 + 3. Em binário (base 2), `101101₂` vale 32 + 8 + 4 + 1 = **45₁₀**. Octal (base 8) agrupa **3 bits** por algarismo; hexadecimal (base 16) agrupa **4 bits**. Assim, `1111 0010₂ = F2₁₆ = 242₁₀`. Letras A a F representam, em hexadecimal, 10 a 15. O prefixo `0b` é usual para binário e `0x` para hexadecimal em linguagens e ferramentas que os suportam; anotações com índices identificam matematicamente a base.\n\nPara converter decimal inteiro em binário, efetue divisões sucessivas por 2 e leia os restos de baixo para cima. Para converter de binário em hexadecimal, separe os bits da direita para a esquerda em grupos de quatro, completando o grupo mais à esquerda com zeros quando necessário. Exemplo: `1101011₂` torna-se `0110 1011₂`, portanto `6B₁₆`. A notação não altera a quantidade representada: `10₂`, `2₁₀` e `2₁₆` denotam o mesmo valor decimal 2, enquanto `20₁₆` equivale a 32 decimal.\n\n## 2. Bits, máscaras e operações\nUm **bit** assume 0 ou 1; um byte usual reúne oito bits. Um registro de 8 bits admite **256 combinações** (`2^8`) e valores sem sinal de 0 a 255. Operações bit a bit são fundamentais: `AND (&)` serve para isolar bits; `OR (|)` para ativar bits mantendo os demais; `XOR (^)` alterna bits selecionados; `NOT (~)` inverte bits na representação definida pela largura do operando. Para ativar o bit 3 de `reg`, usa-se conceitualmente `reg | (1 << 3)`; para apagá-lo, `reg & ~(1 << 3)`; para testá-lo, `reg & (1 << 3)` diferente de zero. Contagens de bits geralmente começam em zero: bit 3 tem peso decimal 8.\n\n**Deslocamento à esquerda** em valores inteiros sem sinal corresponde à multiplicação por 2 por posição, desde que não haja perda de bits significativos e a operação seja válida para o tipo; deslocamento à direita de inteiro sem sinal efetua divisão inteira por potência de 2. Não extrapole essas regras para deslocamentos de números negativos em todas as linguagens e versões de compilador. Operadores **lógicos** (`&&`, `||`) avaliam condições e devem ser diferenciados dos operadores bit a bit (`&`, `|`), usados para manipulação de máscaras. Em C/C++, precedência exige parênteses para evitar comparação indevida entre máscara e zero.\n\n## 3. Inteiros com sinal e complemento de dois\nEm **complemento de dois**, inteiro de \\(n\\) bits representa faixa de `−2^(n−1)` até `2^(n−1)−1`. Para 8 bits: **−128 a +127**; a faixa sem sinal vai de 0 a 255. Para representar −5 em 8 bits: escreva +5 (`00000101`), inverta (`11111010`) e some 1 (`11111011`). O mesmo padrão de bits pode indicar **251 sem sinal** ou **−5 com sinal**: interpretar depende do tipo. Sign extension preserva valor ao estender número com sinal para mais bits, repetindo o bit mais significativo, na convenção de complemento de dois.\n\nOverflow de aritmética inteira sem sinal em C/C++ é definido módulo `2^n`; overflow com sinal não deve ser tratado como comportamento portável. É diferente de **saturação**, que limita valor ao extremo representável quando expressamente implementada. Números reais também possuem limites: representação em ponto flutuante introduz arredondamentos, de modo que comparação direta de duas medidas calculadas pode demandar tolerância. Sistemas embarcados de pequena memória às vezes preferem escala inteira, por exemplo temperatura armazenada em décimos de grau, desde que as unidades sejam documentadas.\n\n## 4. Portas e álgebra booleana\n**AND** resulta 1 apenas se ambas as entradas são 1; **OR** resulta 1 quando ao menos uma é 1; **NOT** complementa a entrada; **XOR** resulta 1 quando as entradas diferem; **NAND** e **NOR** são suas negações correspondentes. A expressão `A & B` não é intercambiável com `A | B`. Lei de De Morgan: `NOT(A AND B) = (NOT A) OR (NOT B)`; a regra dual também vale. Na implementação de intertravamentos, lógica positiva e lógica ativa em nível baixo devem ser explicitadas para não inverter comportamento de segurança.\n\nUm mapa de Karnaugh ou transformação algébrica minimiza expressões booleanas de circuitos combinacionais. Já **circuitos sequenciais** dependem de estado anterior, guardado em flip-flops, registradores ou memória. Um contador, por exemplo, combina lógica com armazenamento; uma máquina de estados associa transições a condições e saídas. **Debounce** impede que transições elétricas repetidas, causadas pelo contato mecânico, sejam interpretadas como vários apertos; pode ser realizado por filtro físico ou lógica temporal.\n\n## 5. Aplicação: registradores, endereços e pacotes\nEndereços, identificadores e dados frequentemente aparecem em hexadecimal por legibilidade: `0x20` é decimal 32; `0xFF` é decimal 255. **Endianess** trata da ordem de bytes na memória/transmissão de valores multibyte: big-endian mantém o byte mais significativo primeiro, enquanto little-endian coloca o menos significativo primeiro. Endianess não altera a ordem matemática dos bits de um número escrito no papel e não deve ser confundida com a ordem de envio de bits em interfaces seriais.\n\nPara ler um sensor de 16 bits distribuído em dois registradores, o firmware precisa saber qual contém o byte de maior peso, aplicar deslocamento adequado e combinar os dois. Exemplo, se `alto=0x12` e `baixo=0x34`, a composição `((alto << 8) | baixo)` produz `0x1234`. Se um dispositivo transmite `0x3412` por convenção de bytes inversa, a aplicação deve interpretar corretamente o protocolo antes de calcular a grandeza. Em questões de concurso, traduza a especificação em operação, valide base e unidade e só então selecione a resposta."
+    },
+    {
+      "title": "Arduino Nano, ESP32 e programação Wiring",
+      "markdown": "## 1. Placas e famílias: não confundir nomes\nO **Arduino Nano clássico**, equipado com microcontrolador ATmega328 da família AVR, opera com lógica de **5 V**, frequência típica de **16 MHz**, memória flash nominal de **32 KB** e SRAM de **2 KB**. A linha Nano inclui outras placas com processadores e níveis elétricos distintos: **Nano ESP32** não é o Nano clássico. Em concursos, somente associe pinagem, memória, alimentação e periféricos à versão efetivamente nomeada. A placa oferece reguladores, conexão USB-serial, oscilador e conectores, mas o MCU não deve ser confundido com a totalidade do circuito.\n\nO **ESP32 original** integra CPU, memória interna, controladores digitais e rádio **Wi-Fi/Bluetooth** em um sistema no chip, disponível em módulos e placas de desenvolvimento diferentes. Características como número de núcleos, periféricos, memória externa e compatibilidade de GPIO variam entre **ESP32 original, S2, S3, C3, C6** e demais famílias. Não atribua a toda a linha características específicas do primeiro modelo; consulte o módulo e a revisão da placa. Em placas baseadas no ESP32, GPIO opera em domínio lógico **de 3,3 V**: não é seguro aplicar 5 V diretamente a um pino sem adequação específica prevista pelo fabricante. Terra comum e adaptação de nível com componentes apropriados são frequentemente indispensáveis ao integrar Nano clássico e ESP32.\n\n## 2. Linguagem Wiring e estrutura do sketch\nA expressão **Wiring** remete a um modelo de programação simplificado de hardware, que inspira a API do ambiente Arduino. O código de um **sketch**, em C/C++ com bibliotecas da plataforma, normalmente define `void setup()` para inicialização e `void loop()` para processamento repetido. Exemplo:\n\n```cpp\nconst int led = 13;\nvoid setup() { pinMode(led, OUTPUT); }\nvoid loop() {\n  digitalWrite(led, HIGH);\n  delay(200);\n  digitalWrite(led, LOW);\n  delay(200);\n}\n```\n\nO pino 13 é **exemplo dependente da placa**, e não escolha universal para toda variante de ESP32. `pinMode(pino, OUTPUT)` configura direção; `digitalWrite()` escreve nível lógico; `digitalRead()` consulta nível digital; `analogRead()` lê valor convertido por ADC; `analogWrite()` pode comandar PWM em plataformas nas quais o recurso é assim implementado. A faixa numérica de `analogRead` e a resolução de PWM **dependem da placa/configuração**, não constituem constantes universais.\n\n## 3. Temporização cooperativa sem bloqueio\nO exemplo acima usa `delay()`, útil para ensino, mas bloqueia o andamento sequencial daquele trecho de `loop()`. Em um projeto que precisa amostrar sensor, atualizar comunicação e acionar alarme, a solução clássica usa `millis()` e comparação por intervalo transcorrido. Exemplo conceitual:\n\n```cpp\nconst unsigned long periodo = 100;\nunsigned long anterior = 0;\nvoid loop() {\n  unsigned long agora = millis();\n  if (agora - anterior >= periodo) {\n    anterior = agora;\n    amostrarSensor();\n  }\n  atenderComunicacao();\n}\n```\n\nA subtração entre valores `unsigned long` é a estratégia típica para lidar com a passagem do contador pelo valor máximo, se os intervalos escolhidos forem coerentes com a faixa do tipo. Esse padrão executa tarefas cooperativamente; não transforma o sketch, por si só, em um escalonador de tempo real preemptivo. Um temporizador de hardware ou tarefa escalonada pode ser necessário para requisitos mais estritos.\n\n## 4. Entradas, saídas, interrupções e PWM\nChaves ligadas a uma entrada podem usar `INPUT_PULLUP`, quando o hardware disponibiliza resistência interna adequada. Nesse arranjo comum, pino aberto tende a nível alto e botão pressionado pode conectar ao GND, produzindo nível baixo; a lógica da aplicação fica **ativa em zero**. Resistência de pull-up evita entrada flutuante, mas **não elimina necessariamente bouncing**. Ao usar `attachInterrupt(digitalPinToInterrupt(pin), rotina, modo)` observe compatibilidade de pinos e mantenha a ISR curta. Rotinas interrompidas podem compartilhar variáveis com o laço; `volatile` ajuda visibilidade de acessos, mas **não garante atomicidade de operações compostas** nem substitui sincronização.\n\nNo Nano clássico, saídas PWM encontram-se apenas em pinos suportados pelo hardware. No ESP32, um periférico como **LEDC** produz PWM mediante canal/temporizador e configuração apropriados; API exata pode mudar entre versões do núcleo Arduino-ESP32. Portanto, copiar chamadas de versão antiga sem verificar a documentação atual pode gerar erros de compilação. Controle de brilho por PWM exige cálculo de duty cycle, frequência compatível com a aplicação e acionamento elétrico correto. Para cargas indutivas, use etapa de potência e proteção; não ligue motor diretamente a pino de MCU.\n\n## 5. Programação, bibliotecas e depuração\nA Arduino IDE e a Arduino CLI realizam seleção de placa/porta, compilação, vinculação e upload. O suporte ESP32 costuma requerer instalação do pacote de placas correspondente; em **ESP-IDF**, o ciclo de projeto usa framework, toolchain, build, flash e monitor. **Serial.begin(baud)** configura comunicação serial na API Arduino, mas o monitor deve usar taxa compatível; além disso, TX/RX e USB serial podem depender da placa e da interface selecionada. Bibliotecas encapsulam drivers e protocolos, porém não dispensam validação de pinagem e nível elétrico.\n\nFalhas típicas: porta serial ocupada; placa escolhida incorretamente; alimentação insuficiente; GPIO usado no boot; entradas ADC com amplitude indevida; discrepância de nível lógico; ausência de resistores; erro de mapeamento de pinos; watchdog disparando em operação bloqueante. A depuração eficiente observa primeiro **fonte e aterramento**, depois fiação e níveis, configuração de firmware e comunicação, e por fim lógica funcional. Essa ordem reduz falsas conclusões baseadas apenas na saída do programa."
+    },
+    {
+      "title": "Interface paralela, GPIO e interligação de periféricos",
+      "markdown": "## 1. Conceito de interface paralela\nUma **interface paralela** usa várias linhas de dados que representam bits distintos de uma palavra em uma mesma janela de transferência. Um barramento paralelo de **8 linhas** pode apresentar 8 bits simultaneamente; outro de 16 linhas, 16 bits, sem que isso, isoladamente, garanta desempenho superior. Além das linhas de dados, o projeto pode exigir endereço, seleção de dispositivo, sentido de leitura/escrita e sinal de validação (strobe, enable ou clock). A taxa útil depende de setup, hold, propagação, sincronismo, quantidade de pinos e capacitância elétrica; aumentar a largura também amplia custo de roteamento e possibilidade de desalinhamento temporal entre linhas (**skew**).\n\nNo modelo conceitual de microprocessadores externos, **barramento de dados** transfere conteúdo, **barramento de endereços** identifica posições e **barramento de controle** carrega sinais como leitura e escrita. Um barramento de endereços com \\(n\\) linhas seleciona teoricamente até **2^n endereços distintos**, antes de considerar organização, mapeamento e linhas reservadas. Se cada endereço aponta para um byte, 12 linhas permitem endereçar **4096 bytes** no modelo ideal. Não confunda capacidade de endereçamento com quantidade de memória efetivamente instalada.\n\n## 2. Portas paralelas de GPIO\nUma porta de E/S digital é representada por registradores de direção e dados ou por APIs de abstração. Para transmitir um byte, uma aplicação pode colocar seus bits em oito GPIO e depois pulsar o sinal **enable**, instruindo o dispositivo externo a capturar o valor. Na leitura, configura as linhas como entradas, aguarda o periférico disponibilizar dados e coleta o valor conforme a temporização especificada. Se a aplicação escrever cada pino um de cada vez com funções de alto nível, **não há simultaneidade perfeita de comutação**; quando disponível, escrita atômica em registrador de porta permite atualizar vários bits de uma vez. A temporalidade entre dado e estrobo deve respeitar as exigências do periférico.\n\nMúltiplos circuitos compartilhando linhas devem ter regras para evitar **contenção de barramento**: dois dispositivos dirigindo níveis opostos podem causar correntes excessivas. **Tri-state** permite saída em nível alto, baixo ou alta impedância, se implementada no hardware; o dispositivo não selecionado libera a linha. Um sinal de **chip select** identifica o participante ativo, mas seu efeito depende do protocolo. Quando há saídas open-drain, o nível alto é produzido por resistência de pull-up; não se deve tratá-las como drivers push-pull.\n\n## 3. Handshake e temporização\nUma interface paralela simples pode ter `D0...D7` (dados), `WR` (comando de escrita) e `CS` (seleção). Para escrita, o controlador seleciona o dispositivo, estabiliza dados, ativa `WR` respeitando largura mínima de pulso, mantém dados após a borda de captura pelo tempo requerido e então desativa controle. Esses requisitos recebem nomes **setup time** e **hold time**. Em interfaces assíncronas, sinais como **READY**, **BUSY** ou **ACK** estabelecem handshake para evitar perda de dados. Em interfaces síncronas, o clock define instantes de amostragem, mas os tempos de setup e hold continuam relevantes.\n\nUm display alfanumérico com controlador compatível com **HD44780** ilustra transferência em modo de **8 bits** ou **4 bits**, conforme interface e sequência de inicialização. No modo de 4 bits, um byte é transmitido em duas etapas (nibbles), economizando quatro linhas de dados em comparação com modo 8 bits; a economia de pinos implica mais ciclos de controle. Esse exemplo distingue **largura da interface** de **resolução do conteúdo apresentado**.\n\n## 4. Latches, buffers e expansão\nUm **latch** pode preservar o valor de um barramento compartilhado durante outra operação; um **buffer tri-state** pode isolar barramentos; um **transceptor** bidirecional auxilia a definir o sentido de transferência. **Registradores de deslocamento** como os da família 74HC595 costumam transformar dados transmitidos serialmente em várias saídas paralelas após sinal de armazenamento: economizam pinos do MCU, embora a entrada de controle do componente seja serial. Dispositivos de entrada paralela e saída serial realizam operação complementar. É incorreto chamar todo sistema que controla oito saídas de barramento paralelo nativo do microcontrolador, sem observar como os bits chegam ao dispositivo.\n\nNo **multiplexamento** de teclado matricial, linhas são excitadas e colunas lidas para identificar posições, reduzindo a quantidade de GPIO em comparação com um fio dedicado por tecla. Deve-se tratar ghosting em configurações com múltiplas teclas e ausência de diodos quando o sistema exigir detecção simultânea inequívoca. Barramentos longos em paralelo podem sofrer crosstalk, reflexão e ruído; blindagem, comprimento, terminação e taxas são decisões de projeto, não formalidades.\n\n## 5. Comparação com interfaces seriais\nEm **UART**, dados percorrem normalmente caminhos seriais TX/RX e há enquadramento e acordo de taxa, sem linha de clock compartilhada no caso assíncrono. **SPI** usa clock e linhas de dados e pode operar full-duplex em implementações usuais; chip select delimita participante. **I²C** usa SDA e SCL, linhas open-drain com pull-ups e endereçamento de dispositivos. Essas interfaces reduzem fios em relação a muitos barramentos paralelos, mas acrescentam overhead, características temporais e regras de protocolo. Uma interface serial **não é inferior em todos os cenários**: dependendo de frequência, comprimento, interferência e implementação, pode alcançar taxa útil maior e uso de pinos muito menor.\n\nA escolha correta considera vazão, latência, determinismo, distâncias, número de dispositivos, imunidade a ruído e facilidade de manutenção. Em provas, a palavra “simultaneamente” diz respeito à representação de bits no meio físico; ela não dispensa handshaking nem significa velocidade de aplicação sempre superior. Para evitar erros, desenhe as linhas necessárias e acompanhe os instantes em que dado e controle são válidos."
+    },
+    {
+      "title": "Conversão de sinais, comunicações e temporização de periféricos",
+      "markdown": "## 1. Amostragem, ADC e condicionamento\nO **conversor analógico-digital (ADC)** traduz uma amplitude analógica em código discreto. Com **N bits**, dispõe de \\(2^N\\) códigos. Em modelo ideal unipolar com faixa de entrada de 0 a `Vref`, o tamanho aproximado de um **LSB** é `Vref / 2^N`. Se `Vref = 3,3 V` e `N = 10`, LSB aproximado é **3,22 mV**. Isso expressa a quantização ideal, não a exatidão garantida: offset, ganho, não linearidade, ruído e referência alteram a medição. Quando a especificação toma o máximo código `2^N−1` como ponto da faixa, a fórmula de conversão pode usar esse denominador; deixe clara a convenção adotada.\n\nUm sensor não deve ser ligado diretamente sem verificar impedância de entrada, modo comum e faixa de tensão. **Filtro antialiasing** antes do ADC atenua componentes acima da faixa de frequências pretendida. O teorema de amostragem estabelece que, para sinal limitado em banda e reconstrução ideal, taxa de amostragem deve exceder o dobro da frequência máxima de interesse; em aplicações físicas, costuma-se prever margem e filtragem. **Oversampling** pode reduzir efeitos de ruído sob hipóteses adequadas, mas não suprime erro sistemático nem aumenta automaticamente a precisão física do sensor.\n\nNo **ESP32 original**, o recurso ADC2 compartilha hardware com funções de Wi-Fi e pode apresentar limitações de uso concorrente; a documentação do driver e da versão escolhida deve ser consultada. Para amostragem de sensor analógico com rede ativa, a escolha de canais de **ADC1**, quando suportados pela placa, é prática comum. Evite extrapolar esse detalhe para todas as variantes de ESP32. No Nano clássico, a faixa de leitura depende da referência de ADC selecionada e da resolução; não confundir `analogRead()` com medida de tensão calibrada em volts.\n\n## 2. PWM, temporizadores e captura\nEm PWM de período `T`, frequência `f = 1/T`; o **duty cycle** é `ton/T`. Para período de 2 ms e condução durante 0,5 ms, duty cycle é **25%**, e frequência **500 Hz**. O valor médio ideal de onda retangular entre zero e `Vcc` vale aproximadamente `duty × Vcc`, mas a carga e o filtro determinam a resposta real. Controlar motor ou atuador exige considerar corrente, recirculação e saturação do estágio de potência. Não conclua que uma frequência de PWM mais alta é sempre melhor: perdas de comutação, resolução e resposta da carga entram no compromisso.\n\nUm timer pode gerar interrupção periódica, contar pulsos de sensor e capturar o instante de bordas. **Input capture** grava a contagem do temporizador no evento de entrada; **output compare** provoca ação quando há igualdade com referência configurada. **Prescaler** reduz a taxa efetiva do contador. Para timer alimentado a 8 MHz com prescaler 8, o contador avança a 1 MHz: uma contagem corresponde a 1 µs. O período de interrupções precisa levar em conta recarga, largura do registrador e modo de operação real do periférico.\n\n## 3. UART, SPI e I²C\n**UART assíncrona** troca caracteres serialmente, usualmente com bit de início, bits de dados e bit(s) de parada. Os participantes precisam ajustar parâmetros compatíveis (baud rate, paridade, quantidade de bits e paradas). UART é periférico/convenção de quadros; **RS-232 e RS-485** designam características elétricas distintas e geralmente requerem transceptores apropriados. Não ligue níveis de RS-232 diretamente a GPIO TTL/CMOS. Distinga ainda barramento multiponto (RS-485 com topologia e controle adequados) de uma UART de placa isolada.\n\n**SPI** utiliza tipicamente `SCLK`, `MOSI`, `MISO` e `CS`, embora nomenclatura moderna possa adotar `COPI`/`CIPO`. Na transmissão full-duplex, envio e recepção podem ocorrer simultaneamente. `CPOL` e `CPHA` definem polaridade e fase de captura; modo errado pode corromper dados. **I²C** possui `SDA` e `SCL` open-drain, pull-ups e endereços; o controlador inicia e encerra transações, e o receptor pode sinalizar reconhecimento (ACK) ou ausência (NACK). Velocidade efetiva depende de endereços, confirmações e forma das transações, não apenas da frequência nominal de clock.\n\n## 4. Protocolos de aplicação e rádio\nWi-Fi e Bluetooth são **tecnologias de comunicação** integradas em determinados SoCs ESP32, não garantias de comunicação segura por padrão. Em redes IoT, protocolo de aplicação como **MQTT** pode oferecer publicação/assinatura por intermédio de broker; HTTP emprega arquitetura requisição/resposta, e ambos podem ser empregados sobre transportes e mecanismos de segurança apropriados. **TLS** protege canais quando corretamente configurado e validado; chaves embutidas em texto puro e atualizações sem autenticação criam exposição. Controle remoto de equipamento deve definir comportamento seguro na perda de conexão, evitando que conectividade dite sozinha a segurança física.\n\n## 5. Controle, integridade e dimensionamento\nUm processo de controle amostra entrada, filtra, calcula decisão e aciona saída. Em controle on-off, a **histerese** evita comutação excessiva próxima a limiar; um PID combina componentes proporcional, integral e derivativa com parametrização e limites da planta. Não aplique uma receita de ganhos sem conhecer dinâmica, intervalo de amostragem e saturações. O projeto também pode exigir checksum/CRC para detecção de erros de transmissão; **CRC não é mecanismo criptográfico de autenticação**, embora ajude a detectar corrupção acidental.\n\nExercícios frequentemente combinam tempo, resolução e vazão. Para dados de 12 bits coletados a 1.000 amostras/s, conteúdo bruto ideal é **12 kbit/s**, antes de enquadramento, metadados e codificação. Para guardar cada amostra em uma variável de 16 bits, o consumo sobe para **16 kbit/s**, isto é, 2.000 bytes/s. Não confunda bits por amostra com bytes efetivamente armazenados ou transmitidos. A estimativa deve considerar buffers, acesso concorrente, latência máxima e tratamento de erro."
+    },
+    {
+      "title": "Firmware confiável, integração, testes e tópicos de prova",
+      "markdown": "## 1. Máquinas de estados e organização\nUm firmware reativo pode ser expresso como **máquina de estados finitos**, com estado atual, eventos, ações e condições de transição. Uma bomba de dosagem, por exemplo, pode ter estados `INICIALIZANDO`, `AGUARDANDO`, `DOSANDO` e `FALHA`; a saída do atuador é definida para cada um. Esse desenho evidencia falhas de sensor, intertravamentos e tratamento de desligamento. Em vez de espalhar vários `delay()` em rotinas, um laço cooperativo pode atualizar máquinas de estados por marcações de tempo, deixando comunicação e diagnóstico progredirem.\n\nFunções pequenas, tipos com largura definida quando necessário, separação entre driver e aplicação e interfaces bem especificadas facilitam testes. **Portabilidade** requer evitar premissas de tamanho de `int`, endereço de registrador, endianess e nível de tensão; características podem variar entre AVR e ESP32. `uint8_t`, `uint16_t` e demais tipos de largura explícita são úteis para formatos de dados, quando disponíveis. A otimização prematura por acesso direto a registradores pode reduzir clareza, mas também pode ser necessária se a API de alto nível introduzir latência incompatível com o requisito.\n\n## 2. Concorrência e execução previsível\nEm sistemas com RTOS, tarefas dividem tempo de CPU segundo regras de escalonamento; prioridades, filas, semáforos, mutexes e temporizadores são mecanismos diferentes. **Fila** transporta eventos/dados; **mutex** protege acesso compartilhado, de acordo com as regras de uso da plataforma; **semáforo** pode sinalizar disponibilidade ou ocorrência. Uma tarefa de alta prioridade que nunca bloqueia ou cede CPU pode prejudicar tarefas menos prioritárias. **Inversão de prioridade** ocorre quando tarefa prioritária aguarda recurso mantido por tarefa menos prioritária, eventualmente agravada por execução de outras tarefas; mecanismos como herança de prioridade podem mitigar o problema.\n\nNo **ESP-IDF** o FreeRTOS é adaptado ao ambiente Espressif e, conforme alvo, suporta múltiplos núcleos e políticas próprias. Não presuma que instruções genéricas de iniciar escalonador são aplicáveis sem adaptação: o framework inicializa infraestrutura de execução. Uma rotina de interrupção deve evitar operação longa, comunicação bloqueante e manipulação insegura de recursos compartilhados. Dados acessados entre ISR e contexto normal precisam de estratégia coerente de sincronização e restrições de atomicidade.\n\n## 3. Robustez elétrica e proteção\nConfiabilidade começa na **alimentação**: corrente de pico de rádio, queda em cabos, reguladores insuficientes e ruído de motores podem provocar reset ou medidas falsas. Capacitores de desacoplamento próximos aos pinos de alimentação fornecem caminho local para transientes de alta frequência; aterramento e layout minimizam acoplamento. Entradas externas podem requerer resistores de série, filtragem, proteção ESD e isolamento, conforme ambiente. Em interfaces entre Nano clássico 5 V e ESP32 3,3 V, a simples conexão de uma saída de 5 V ao GPIO de 3,3 V não deve ser presumida segura.\n\n**Fail-safe** significa projetar resposta segura frente a falha definida, como desenergizar contatores quando o controlador reinicia, desde que isso corresponda à análise de risco. O estado padrão dos pinos durante reset/boot importa tanto quanto seu estado depois de `setup()`. Alguns GPIO de módulos ESP32 têm restrições de inicialização, ligação a flash ou função apenas de entrada; consulte o pinout do chip e a placa antes de ligar cargas. O watchdog é barreira complementar, não substituto de circuito independente de segurança quando necessário.\n\n## 4. Validação, medição e manutenção\nUm **teste unitário** verifica função isolada; **teste de integração** avalia interação entre módulos; **teste de sistema** confronta equipamento completo com requisitos; **teste de aceitação** confirma critérios acordados em condições representativas. Em engenharia, convém testar valores extremos, perda de sensores, ruído, reconexão de rede, falta de energia e reinicialização. Osciloscópio examina tempo de subida, amplitude, frequência e relação temporal entre sinais; analisador lógico observa níveis digitais e decodifica protocolos, sem substituir a medição analógica de integridade elétrica. Multímetro é útil para continuidade, tensão e corrente, observados limites do instrumento e segurança da instalação.\n\nA manutenção de campo requer identificação de firmware, configuração de hardware, registros de falha e plano de atualização. Atualização remota (**OTA**) exige autenticação, integridade, energia suficiente e possibilidade de recuperação. Um CRC isolado é inadequado para garantir autoria de firmware. **Registro de eventos** facilita detectar resets recorrentes, falhas de comunicação e saturação de filas, mas deve respeitar armazenamento e privacidade quando pertinente.\n\n## 5. Roteiro de resolução de questões\nLeia primeiro o cenário: variante da placa, tensão, faixa do ADC, modo da porta, convenção de bits e prazos temporais. Depois identifique se a questão aborda **arquitetura** (CPU, memória, registrador), **lógica** (máscaras e bases), **periférico** (ADC/PWM/timer), **interface** (paralela, SPI, I²C, UART) ou **software** (Wiring, interrupção, escalonamento). Para cálculo, escreva unidades: `2^N` códigos, `f = 1/T`, `duty = ton/T`, taxa de dados = amostras/s × bits/amostra. A alternativa que mistura grandezas ou universaliza propriedade de uma placa costuma ser distratora.\n\nArmadilhas recorrentes incluem: confundir Nano clássico e Nano ESP32; supor que `analogWrite` é sempre DAC; equiparar `volatile` a seção crítica; declarar que interface paralela sempre supera serial; converter `0x10` como dez decimal; admitir ligação direta de 5 V a todos os GPIO ESP32; afirmar que RTOS garante por si só deadlines; e esquecer que o ADC necessita referência, faixa e condicionamento. Uma explicação técnica correta nomeia a hipótese sob a qual o resultado vale. Essa cautela distingue conhecimento de cursinho de memorização de exemplos."
+    }
+  ],
+  "summary": "# Revisão rápida — sistemas microcontrolados e embarcados\n\nUm sistema embarcado executa funções dedicadas sob restrições de energia, memória, tempo e confiabilidade. O microcontrolador integra CPU, memória e periféricos. Flash retém firmware; SRAM armazena dados voláteis; watchdog supervisiona progresso e brown-out supervisiona condições de tensão. Tempo real significa cumprir prazos de resposta no pior caso admissível, e não ter apenas clock elevado.\n\nEm **sistemas de numeração**, binário usa pesos de 2, hexadecimal usa grupos de quatro bits e octal grupos de três. Oito bits codificam 256 padrões; complemento de dois de oito bits abrange −128 a +127. Para registradores, `AND` isola/limpa, `OR` ativa e `XOR` alterna bits.\n\nNo **Arduino Nano clássico**, ATmega328 e lógica de 5 V diferem de placas **ESP32**, cujos GPIO usam domínio de 3,3 V. A programação Wiring/Arduino organiza inicialização em `setup()` e repetição em `loop()`. `pinMode`, `digitalRead`, `digitalWrite`, `analogRead` e `millis` são fundamentais. Programação com `millis` permite períodos sem bloqueios longos.\n\nA **interface paralela** apresenta vários bits em linhas de dados simultâneas; exige atenção a sinais de seleção, leitura/escrita, setup, hold e contenção de barramento. O modo 4 bits de um display envia cada byte em duas etapas, economizando pinos. Registrador de deslocamento pode converter transmissão serial em saídas paralelas.\n\nPara periféricos, **ADC de N bits possui 2^N códigos**, sem prometer exatidão equivalente. **PWM** é onda digital cujo duty cycle vale `ton/T` e cuja frequência vale `1/T`; não é necessariamente um DAC. UART é serial assíncrona; SPI emprega clock e pode ser full-duplex; I²C usa SDA/SCL open-drain com pull-up. No ESP32 original, avalie interação do ADC2 com Wi-Fi.\n\nEm firmware confiável, máquinas de estados tornam transições verificáveis, mutexes protegem recursos e watchdogs ajudam a recuperar falhas. `volatile` não garante operação atômica, CRC não autentica autor e atualização OTA requer verificação segura. Em prova, confirme sempre a **versão da placa**, as unidades, o hardware disponível e os limites elétricos.",
+  "flashcards": [
+    {
+      "front": "O que é sistema embarcado?",
+      "back": "Equipamento computacional dedicado a funções específicas, geralmente sujeito a restrições de recursos, energia, custo e prazos."
+    },
+    {
+      "front": "Microcontrolador e CPU são sinônimos?",
+      "back": "Não. O microcontrolador integra CPU, memória e periféricos; CPU designa o núcleo de execução."
+    },
+    {
+      "front": "Flash e SRAM: quais persistem sem energia?",
+      "back": "Flash é não volátil; SRAM é memória volátil para dados de execução."
+    },
+    {
+      "front": "Watchdog e brown-out: como diferenciar?",
+      "back": "Watchdog monitora progresso temporal; brown-out identifica tensão de alimentação inadequada."
+    },
+    {
+      "front": "O que faz um requisito de tempo real?",
+      "back": "Exige resposta dentro de prazo especificado, inclusive diante do pior caso previsto, não apenas grande velocidade média."
+    },
+    {
+      "front": "Como converter 1101011₂ em hexadecimal?",
+      "back": "Agrupe 0110 1011: resulta 6B₁₆."
+    },
+    {
+      "front": "Quantos padrões existem em 10 bits?",
+      "back": "2^10 = 1024 padrões."
+    },
+    {
+      "front": "Faixa de 8 bits com sinal em complemento de dois?",
+      "back": "−128 a +127."
+    },
+    {
+      "front": "Como ativar o bit 3 mantendo os outros?",
+      "back": "Operação OR com máscara 1 << 3."
+    },
+    {
+      "front": "Como apagar o bit 3 mantendo os outros?",
+      "back": "Operação AND com o complemento da máscara: reg & ~(1U << 3)."
+    },
+    {
+      "front": "Qual a diferença entre `&` e `&&` em C/C++?",
+      "back": "`&` é bit a bit; `&&` é operador lógico AND com avaliação booleana de expressões."
+    },
+    {
+      "front": "Nano clássico e Nano ESP32 usam necessariamente a mesma tensão lógica?",
+      "back": "Não. Nano clássico é associado à lógica de 5 V; plataformas ESP32 utilizam domínio de GPIO de 3,3 V."
+    },
+    {
+      "front": "Quando executam `setup()` e `loop()`?",
+      "back": "`setup()` inicializa; `loop()` executa repetidamente o processamento do sketch."
+    },
+    {
+      "front": "O que significa INPUT_PULLUP com botão ligado ao GND?",
+      "back": "A entrada tende a HIGH quando aberta e LOW ao pressionar, ressalvadas condições de fiação."
+    },
+    {
+      "front": "Por que usar `millis()` no lugar de um delay longo?",
+      "back": "Permite testar intervalos e seguir atendendo atividades do laço enquanto aguarda a próxima execução."
+    },
+    {
+      "front": "O que é interface paralela de 8 bits?",
+      "back": "Oito linhas de dados que apresentam posições distintas da palavra em uma mesma janela de transferência."
+    },
+    {
+      "front": "O que significam setup time e hold time?",
+      "back": "Tempos mínimos de estabilidade dos dados antes e depois do instante de amostragem."
+    },
+    {
+      "front": "O que é contenção de barramento?",
+      "back": "Conflito elétrico, como duas saídas dirigindo níveis opostos na mesma linha."
+    },
+    {
+      "front": "Como o modo de 4 bits do HD44780 envia um byte?",
+      "back": "Transmite dois grupos sucessivos de quatro bits, economizando quatro linhas de dados."
+    },
+    {
+      "front": "Um ADC com N bits tem quantos códigos?",
+      "back": "2^N códigos distintos; a exatidão física depende de outras fontes de erro."
+    },
+    {
+      "front": "Qual é a fórmula básica do duty cycle?",
+      "back": "duty = ton/T; a frequência PWM é f = 1/T."
+    },
+    {
+      "front": "UART, SPI e I²C: diferença central?",
+      "back": "UART é serial assíncrona; SPI usa clock e linhas de dados selecionadas; I²C usa SDA/SCL open-drain com pull-ups."
+    },
+    {
+      "front": "ESP32 original: qual ressalva na leitura do ADC2?",
+      "back": "O ADC2 compartilha recursos com Wi-Fi; é necessário verificar restrições e avaliar ADC1 quando apropriado."
+    },
+    {
+      "front": "CRC garante autoria de firmware?",
+      "back": "Não. CRC detecta corrupção acidental; autenticação segura requer mecanismo criptográfico adequado."
+    }
+  ],
+  "tips": [
+    "Antes de calcular, identifique base e prefixos: 0b para binário e 0x para hexadecimal; cada algarismo hexadecimal corresponde a quatro bits.",
+    "Em questões sobre placas, verifique se se trata de Nano clássico, Nano ESP32, ESP32 original ou outra variante antes de afirmar tensão, pinagem e periféricos.",
+    "Para mascaramento de registrador, memorize a tríade: AND testa/isola, OR seta, XOR alterna; confira sempre se o bit 0 é o menos significativo.",
+    "Em cálculos, escreva unidades e fórmulas: códigos do ADC = 2^N; frequência PWM = 1/período; duty = tempo alto/período.",
+    "Ao comparar barramentos, verifique número de linhas, sinais de controle, temporização, vazão real e compatibilidade elétrica.",
+    "Em firmware concorrente, separe latência máxima, atomicidade, prioridade e risco de bloqueio: termos distintos com efeitos distintos.",
+    "Nos projetos com ADC ESP32 e rádio ativo, confira os canais do SoC exato; não extrapole restrições do ESP32 original para toda a família."
+  ],
+  "traps": [
+    "Tratar Arduino Nano clássico e Arduino Nano ESP32 como se tivessem mesmo processador, nível lógico e pinagem.",
+    "Afirmar que `analogWrite()` implementa sempre um DAC de tensão contínua; em várias placas ele controla PWM.",
+    "Trocar 0x20 por 20 decimal ou esquecer que o bit 3 corresponde à máscara decimal 8.",
+    "Supor que barramento paralelo de maior largura sempre transfere dados mais rápido, independentemente de setup/hold e handshake.",
+    "Declarar que `volatile` torna uma atualização compartilhada atômica ou que uma ISR longa é desejável.",
+    "Confundir as 2^N combinações de um ADC com sua precisão garantida em volts.",
+    "Considerar CRC equivalente a assinatura criptográfica ou watchdog equivalente a projeto de segurança completo."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique a relação entre bits de endereço e espaço endereçável por byte.",
+      "answer": "Com n linhas independentes de endereço há até 2^n combinações; se cada combinação endereça um byte, são 2^n bytes, não necessariamente de memória instalada."
+    },
+    {
+      "question": "Converta 0xF2 para decimal e binário.",
+      "answer": "F2₁₆ = 15×16+2 = 242₁₀ = 11110010₂."
+    },
+    {
+      "question": "Descreva o procedimento para zerar somente o bit 3 de um registrador.",
+      "answer": "Faça reg = reg & ~(1U << 3), garantindo tipos e largura adequados à arquitetura."
+    },
+    {
+      "question": "Por que ligar um Nano clássico de 5 V diretamente a GPIO de um ESP32 pode ser perigoso?",
+      "answer": "Os limites de nível de entrada dos GPIO ESP32 pertencem ao domínio de 3,3 V; o sinal de 5 V pode exceder o permitido. Verifique datasheet e adapte o nível."
+    },
+    {
+      "question": "Monte o raciocínio para temporizar leitura a cada 100 ms sem bloquear o loop.",
+      "answer": "Registre o tempo anterior e compare `millis() - anterior >= 100`; quando verdadeiro, atualize a marca e faça a leitura, mantendo outras tarefas atendidas."
+    },
+    {
+      "question": "Por que uma transmissão paralela requer tempos de setup e hold?",
+      "answer": "Para que o receptor capture uma palavra estável ao redor do evento de amostragem, evitando erros apesar de os bits lógicos parecerem corretos."
+    },
+    {
+      "question": "Calcule f e duty de PWM com T=4 ms e ton=1 ms.",
+      "answer": "f=1/0,004 s = 250 Hz; duty=1/4=25%."
+    },
+    {
+      "question": "Qual a diferença entre ADC de 12 bits e ADC de 12 bits exato?",
+      "answer": "Doze bits definem 4096 códigos; exatidão depende também de ruído, referência, erros de ganho, offset, não linearidade e calibração."
+    },
+    {
+      "question": "Por que `volatile` não substitui sincronização em dado compartilhado entre ISR e loop?",
+      "answer": "Ele afeta tratamento de acesso pelo compilador, mas uma operação com leitura, modificação e escrita pode ser interrompida; atomicidade exige mecanismo adequado."
+    },
+    {
+      "question": "Compare a utilidade de CRC e assinatura digital numa atualização OTA.",
+      "answer": "CRC detecta erros acidentais na transmissão/armazenamento; assinatura digital verificada autentica a origem e ajuda a impedir instalação de firmware adulterado."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Arquitetura, memória e requisitos temporais",
+      "summary": "Distinguir MCU, processador, memórias voláteis/não voláteis, watchdog e prazo determinístico. Clock elevado não assegura atendimento ao pior caso."
+    },
+    {
+      "key": "e2",
+      "title": "Conversão de bases, máscaras e sinal",
+      "summary": "Calcular pesos posicionais e interpretar complemento de dois; AND isola, OR ativa, XOR alterna, e 0x identifica base hexadecimal."
+    },
+    {
+      "key": "e3",
+      "title": "Placas e API Wiring",
+      "summary": "Separar Nano clássico de Nano ESP32, respeitar lógica elétrica, compreender setup/loop e evitar que temporização bloqueante atrapalhe tarefas."
+    },
+    {
+      "key": "e4",
+      "title": "Barramentos paralelos e sincronismo",
+      "summary": "Distinguir largura de interface e vazão efetiva; considerar setup/hold, seleção, contenção, direção e expansão serial-paralela."
+    },
+    {
+      "key": "e5",
+      "title": "ADC, PWM e protocolos de comunicação",
+      "summary": "Reconhecer quantização versus precisão, duty cycle versus frequência, compartilhamento ADC2/Wi-Fi e características de I²C, SPI e UART."
+    },
+    {
+      "key": "e6",
+      "title": "Concorrência e confiabilidade",
+      "summary": "Distinguir volatile de atomicidade, CRC de autenticação, prioridades de mutex e segurança elétrica e funcional em firmware."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em uma estação de medição autônoma, qual característica distingue corretamente um microcontrolador de uma CPU tomada isoladamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Integrar núcleo de processamento, memória e periféricos no mesmo circuito integrado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Exigir sistema operacional de uso geral para cada leitura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenar dados apenas em memória externa e nunca em SRAM.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar exclusivamente instruções analógicas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Impedir a utilização de interrupções de hardware.",
+          "correct": false
+        }
+      ],
+      "explanation": "O microcontrolador concentra processamento, memória e periféricos, o que favorece integração e baixo custo. As demais descrições atribuem limitações inexistentes: MCU pode operar sem sistema operacional, usar SRAM e atender interrupções.",
+      "section": "Fundamentos de sistemas embarcados e arquitetura de microcontroladores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um dispositivo deve continuar guardando seu programa após a remoção da bateria, mas armazena variáveis temporárias durante a execução. A associação correta é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "SRAM para firmware permanente e registrador GPIO para armazenamento de longo prazo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "flash para firmware persistente e SRAM para dados voláteis de execução.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "ADC para código executável e PWM para dados temporários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "watchdog para firmware e EEPROM para instruções em processamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "pilha volátil para preservar firmware e cache como substituta garantida de flash.",
+          "correct": false
+        }
+      ],
+      "explanation": "A flash é não volátil e normalmente preserva o firmware; a SRAM, volátil, hospeda variáveis e pilha em execução. ADC e PWM são periféricos de sinal, e watchdog monitora progresso: não substituem as funções de memória.",
+      "section": "Fundamentos de sistemas embarcados e arquitetura de microcontroladores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um controlador de proteção precisa reagir a um evento em até 2 ms em todas as condições de projeto. Qual propriedade é decisiva?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adotar a CPU com maior frequência nominal, sem medir atrasos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar interrupções por polling sem examinar período de consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Comprovar limite superior de latência de resposta inferior ou igual ao prazo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Impor máxima taxa de transmissão serial, independentemente do processamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Demonstrar apenas que a latência média é inferior a 2 ms.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tempo real diz respeito ao cumprimento de deadlines mesmo sob condições críticas previstas. Frequência de CPU e médias de resposta não asseguram pior caso; polling e comunicação devem ser avaliados frente à latência máxima exigida.",
+      "section": "Fundamentos de sistemas embarcados e arquitetura de microcontroladores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um equipamento industrial, a função predominante do watchdog de hardware é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "converter corrente de sensor em tensão digital codificada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "gerar chave de criptografia para atualização do software.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "substituir o estágio de potência de um motor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "detectar falta de progresso esperado e possibilitar ação de recuperação, como reset.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "garantir que todo defeito de programação seja corrigido automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O watchdog verifica se o programa mantém sinais de atividade dentro da janela admitida e pode reinicializar o sistema. Ele não é ADC, circuito de potência ou corretor universal de bugs; segurança exige outras barreiras.",
+      "section": "Fundamentos de sistemas embarcados e arquitetura de microcontroladores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao ligar um motor de corrente contínua a uma placa microcontrolada, a solução recomendável é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "ligar o motor diretamente ao GPIO, pois o software limita toda corrente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ligar o motor ao pino analógico sem fonte de energia.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "remover o terra comum em qualquer interface de comando de nível lógico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "usar apenas um resistor pull-up como substituto de transistor de potência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "usar driver ou estágio de potência dimensionado e proteção adequada à carga.",
+          "correct": true
+        }
+      ],
+      "explanation": "GPIO controla sinal, não é saída universal de potência. Um driver apropriado fornece corrente e suporta transientes da carga indutiva. Pull-up, pino ADC e programação isolada não eliminam exigências elétricas da comutação.",
+      "section": "Fundamentos de sistemas embarcados e arquitetura de microcontroladores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O valor decimal do número binário 101101₂ é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "45.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "41.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "43.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "53.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "61.",
+          "correct": false
+        }
+      ],
+      "explanation": "Somam-se os pesos dos bits em 1: 2^5 + 2^3 + 2^2 + 2^0 = 32 + 8 + 4 + 1 = 45. Os demais resultados decorrem de pesos trocados ou da contagem inadequada das posições binárias.",
+      "section": "Sistemas de numeração, lógica digital e representação de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para representar o valor hexadecimal 0x6B em binário com oito bits, escreve-se",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "01100101.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "01101011.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "11010110.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "01111011.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "10110100.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada dígito hexadecimal corresponde a quatro bits: 6 vira 0110 e B (onze) vira 1011. A concatenação gera 01101011. Outras sequências alteram os nibbles ou invertem posições de bits.",
+      "section": "Sistemas de numeração, lógica digital e representação de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em C/C++, para ativar o bit de índice 3 de uma variável inteira sem sinal `reg`, preservando os demais, a expressão adequada é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`reg & (1U << 3)`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`reg ^ (1U << 3)`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`reg | (1U << 3)`.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`reg & ~(1U << 3)`.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`reg == (1U << 3)`.",
+          "correct": false
+        }
+      ],
+      "explanation": "A operação OR com máscara coloca o bit 3 em 1 e conserva os demais. AND com máscara isola bits, XOR alterna, AND com complemento limpa e igualdade somente testa condição; nenhuma dessas operações ativa o bit.",
+      "section": "Sistemas de numeração, lógica digital e representação de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quantas combinações distintas podem ser codificadas em uma palavra de 8 bits?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "8.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "16.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "128.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "256.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "512.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada bit oferece dois estados; logo a palavra contém 2^8 = 256 padrões diferentes. O intervalo sem sinal é de zero a 255, com 256 valores ao todo. A contagem não deve ser confundida com o maior código.",
+      "section": "Sistemas de numeração, lógica digital e representação de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao interpretar a sequência 11111011 em complemento de dois de 8 bits, o valor decimal é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "−123.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "5.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "123.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "251.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "−5.",
+          "correct": true
+        }
+      ],
+      "explanation": "O bit mais significativo indica número negativo em complemento de dois. Invertendo 11111011 obtém-se 00000100; somando um, 00000101, magnitude 5. O mesmo padrão seria 251 se interpretado sem sinal.",
+      "section": "Sistemas de numeração, lógica digital e representação de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No ambiente Arduino/Wiring, o papel habitual da função `setup()` é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "executar inicialização normalmente uma vez após a entrada no sketch.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "executar continuamente enquanto houver alimentação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "atuar como interrupção exclusiva do temporizador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "transmitir bytes automaticamente pelo SPI.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "salvar o conteúdo da SRAM em flash a cada ciclo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em um sketch Arduino típico, `setup()` prepara pinos, comunicação e bibliotecas na inicialização; `loop()` repete o processamento. Não se trata de ISR nem de operação automática de armazenamento ou de protocolo.",
+      "section": "Arduino Nano, ESP32 e programação Wiring",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe pretende ligar diretamente uma saída digital de 5 V do Nano clássico à entrada de um ESP32 que trabalha com GPIO de 3,3 V. O procedimento tecnicamente prudente é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "admitir automaticamente tolerância de 5 V em todos os pinos ESP32.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "verificar especificações e empregar adaptação de níveis quando necessária, evitando 5 V diretos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "eliminar a referência de terra e manter conexão direta de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "substituir a entrada por pino PWM de saída e manter os 5 V.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "selecionar `INPUT_PULLUP` e presumir que isso limita sobretensão.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Nano clássico usa níveis de 5 V e o ESP32 opera com domínio de GPIO de 3,3 V. Pull-up não é proteção de sobretensão; tampouco mudança para PWM resolve incompatibilidade elétrica. Devem-se validar limites absolutos e usar conversão adequada.",
+      "section": "Arduino Nano, ESP32 e programação Wiring",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sketch precisa ler sensor a cada 100 ms e simultaneamente atender comandos seriais. Qual organização evita bloqueio desnecessário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "executar `delay(100)` no início de toda recepção, sem examinar buffers.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "reinicializar o MCU a cada leitura para sincronizar o relógio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "comparar `millis()` com marca temporal anterior e executar a amostragem quando o intervalo transcorrer.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "usar apenas uma ISR longa que aguarde o recebimento completo de comandos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "desativar todos os temporizadores e medir tempo por quantidade de `digitalWrite`.",
+          "correct": false
+        }
+      ],
+      "explanation": "A comparação de tempo transcorrido permite que o laço continue atendendo outras tarefas entre amostras. A espera bloqueante atrasa serviços; reset periódico e ISR longa prejudicam previsibilidade e comunicação.",
+      "section": "Arduino Nano, ESP32 e programação Wiring",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Arduino Nano clássico, qual associação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Placa com processador exclusivamente Wi-Fi e GPIO de 1,8 V.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Placa baseada em ESP32-S3, idêntica ao Nano ESP32.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Placa sem capacidade de interface serial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Placa com ATmega328, lógica de 5 V e clock típico de 16 MHz.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Placa com ADC obrigatoriamente de 24 bits e CPU de 1 GHz.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Nano clássico é uma placa AVR com ATmega328, alimentação lógica de 5 V e frequência típica de 16 MHz. Ele não é a placa Nano ESP32 nem incorpora rádio Wi-Fi por definição; periféricos dependem da versão.",
+      "section": "Arduino Nano, ESP32 e programação Wiring",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chave liga um pino configurado em `INPUT_PULLUP` ao terra quando pressionada. A leitura típica enquanto a chave está pressionada é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`HIGH`, por ser entrada com resistor interno.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "valor analógico aleatório sempre igual a 1023.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "nível necessariamente flutuante mesmo com conexão ao GND.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "pulso PWM de 50% produzido automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`LOW`, desde que a ligação esteja correta.",
+          "correct": true
+        }
+      ],
+      "explanation": "O resistor de pull-up mantém a entrada alta quando aberta; ao fechar o botão até o terra, o nível passa a baixo. É lógica ativa em zero; o bounce mecânico ainda pode provocar transições extras e requer tratamento.",
+      "section": "Arduino Nano, ESP32 e programação Wiring",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma interface que disponibiliza simultaneamente oito bits por oito condutores distintos de dados é classificada como",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "interface paralela de 8 bits.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "UART assíncrona de um único fio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "canal analógico sem quantização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "interface I²C de oito endereços.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "sequência serial de oito quadros temporais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em interface paralela, cada linha corresponde a uma posição da palavra na mesma transferência. UART e I²C transmitem informações serialmente, ainda que transportem bytes. Largura não determina, isoladamente, vazão final.",
+      "section": "Interface paralela, GPIO e interligação de periféricos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma escrita paralela, qual é a finalidade dos requisitos de setup e hold?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "definir o total de memória flash acessível por endereço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "garantir estabilidade dos dados antes e depois do instante de captura.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "prover proteção criptográfica durante o boot.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "eliminar a necessidade de sinais de seleção de dispositivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "converter automaticamente a palavra paralela em representação analógica.",
+          "correct": false
+        }
+      ],
+      "explanation": "Setup e hold são janelas temporais necessárias para que o receptor registre dados corretos. Não dimensionam flash, não fazem criptografia nem dispensam a seleção e as regras específicas do protocolo.",
+      "section": "Interface paralela, GPIO e interligação de periféricos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processador apresenta 12 linhas de endereços, e cada endereço refere-se a um byte. Na hipótese de todas as combinações disponíveis, o espaço diretamente endereçável é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "12 bytes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "1024 bytes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "4096 bytes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "2048 bytes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "8192 bytes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com n linhas de endereço há 2^n combinações possíveis; 2^12 = 4096. Se cada endereço referencia um byte, há 4096 bytes de espaço endereçável. Isso não comprova igual quantidade de memória instalada.",
+      "section": "Interface paralela, GPIO e interligação de periféricos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um display compatível com controlador HD44780 pode operar com dados em quatro ou oito linhas. No modo de 4 bits, para transferir um byte, a interface",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "passa a transmitir oito bits simultaneamente em quatro fios.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "dispensa todos os sinais de controle e temporização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "transforma a interface obrigatoriamente em rádio sem fio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "envia dois grupos de quatro bits, reduzindo o número de linhas de dados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "dobram-se os bits de resolução do caractere apresentado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O modo de 4 bits usa dois nibbles sequenciais para representar um byte. A economia de linhas físicas exige mais ciclos de transferência, mantendo sinais e tempos de controle da interface.",
+      "section": "Interface paralela, GPIO e interligação de periféricos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas saídas push-pull de dispositivos distintos estão ligadas à mesma linha: uma força nível alto e outra, nível baixo. O risco principal é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "aumento automático de imunidade a ruído sem custo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "conversão de ambos os pinos para entrada de alta impedância.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "comunicação segura por ausência de clock.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "duplicação da largura útil do barramento de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "contenção elétrica, com corrente elevada entre os drivers.",
+          "correct": true
+        }
+      ],
+      "explanation": "Drivers push-pull opostos podem conduzir corrente excessiva e danificar componentes. Barramento compartilhado requer controle de direção, seleção ou alta impedância, conforme hardware; ligar saídas não cria mais bits úteis.",
+      "section": "Interface paralela, GPIO e interligação de periféricos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ADC ideal de 10 bits dispõe de quantos códigos digitais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "1024.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "10.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "100.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "512.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "2048.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um ADC de N bits possui 2^N níveis codificados; com N=10, são 1024 códigos, de 0 até 1023. Resolução em bits não representa diretamente tensão medida ou exatidão do sensor.",
+      "section": "Conversão de sinais, comunicações e temporização de periféricos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma onda PWM tem período de 2 ms e permanece alta durante 0,5 ms. A frequência e o duty cycle são, respectivamente,",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "250 Hz e 25%.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "500 Hz e 25%.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "500 Hz e 50%.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "2 kHz e 25%.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "500 Hz e 75%.",
+          "correct": false
+        }
+      ],
+      "explanation": "A frequência é o inverso de 0,002 s, resultando em 500 Hz; duty cycle é 0,5/2 = 0,25, ou 25%. Distratores confundem duração do estado alto com período ou invertem a fração.",
+      "section": "Conversão de sinais, comunicações e temporização de periféricos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto com ESP32 original usa Wi-Fi continuamente e necessita ADC. Qual cuidado de seleção de recurso é pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "assumir ADC2 sempre imune a toda concorrência com o rádio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "atribuir a leitura analógica ao bloco PWM LEDC.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "considerar o compartilhamento do ADC2 com Wi-Fi e avaliar canais ADC1 disponíveis.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "forçar entrada de 5 V no ADC por ser placa com rádio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "desligar permanentemente os drivers digitais de GPIO de toda a placa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na implementação original, ADC2 possui interação com o subsistema Wi-Fi, com restrições conforme driver. ADC1 pode ser opção mais adequada, desde que a pinagem e a disponibilidade sejam verificadas no módulo.",
+      "section": "Conversão de sinais, comunicações e temporização de periféricos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Entre os barramentos abaixo, qual emprega tipicamente duas linhas open-drain denominadas SDA e SCL, com resistores de pull-up?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "UART assíncrona simples.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Interface paralela de 8 bits.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PWM mono-canal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "I²C.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "SPI de quatro sinais.",
+          "correct": false
+        }
+      ],
+      "explanation": "I²C comunica por SDA e SCL e requer definição adequada dos resistores de subida. SPI usa sinais distintos de clock/dados/seleção, enquanto UART é serial assíncrona sem o mesmo barramento open-drain endereçado.",
+      "section": "Conversão de sinais, comunicações e temporização de periféricos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aquisição de 1.000 amostras por segundo, com 12 bits úteis por amostra, produz qual taxa bruta de informação, ignorado o enquadramento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "1.000 bits por segundo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "2.000 bits por segundo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "12.000 bytes por segundo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "24.000 bytes por segundo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "12.000 bits por segundo.",
+          "correct": true
+        }
+      ],
+      "explanation": "A taxa informacional é 1.000 × 12 = 12.000 bits/s. Esse valor não inclui cabeçalhos nem desperdício de armazenamento por alinhamento, e não deve ser confundido com bytes por segundo.",
+      "section": "Conversão de sinais, comunicações e temporização de periféricos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um firmware que percorre os estados AGUARDANDO, DOSANDO e FALHA, a representação conceitual mais apropriada é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "máquina de estados finitos, com transições condicionadas a eventos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "ADC com tensão fixa para determinar cada estado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "uma ligação de oito vias sem sinais de controle.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CRC de autenticação criptográfica de firmware.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "um único resistor de polarização para toda lógica.",
+          "correct": false
+        }
+      ],
+      "explanation": "A máquina de estados registra modos operacionais e define quando transições acontecem, melhorando teste e previsibilidade. Os demais conceitos são circuitos ou mecanismos específicos e não substituem modelagem de comportamento.",
+      "section": "Firmware confiável, integração, testes e tópicos de prova",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No uso concorrente de tarefas, um mutex é empregado principalmente para",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "aumentar resolução física do ADC de maneira automática.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "coordenar acesso exclusivo a recurso compartilhado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "gravar qualquer firmware com assinatura confiável.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "gerar onda PWM sem periférico ou software.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "eliminar todas as situações de deadlock por definição.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mutex é mecanismo de exclusão mútua para evitar conflito em recursos compartilhados, obedecendo às regras da plataforma. Não é conversor, autenticador ou garantia universal de ausência de bloqueios.",
+      "section": "Firmware confiável, integração, testes e tópicos de prova",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa de alta prioridade aguarda um mutex mantido por tarefa de baixa prioridade, que é preterida por atividade de prioridade intermediária. A situação caracteriza",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "quantização de um conversor analógico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "colisão de endereços I²C sem interrupção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "inversão de prioridade.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "aceleração legítima por PWM.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "redução do clock por divisor de frequência.",
+          "correct": false
+        }
+      ],
+      "explanation": "A inversão de prioridade surge quando tarefa urgente depende de recurso controlado por tarefa menos prioritária; tarefas intermediárias podem atrasar a liberação. Herança de prioridade é uma estratégia de mitigação.",
+      "section": "Firmware confiável, integração, testes e tópicos de prova",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual instrumento é especialmente indicado para verificar forma de onda, amplitude e tempo de subida de um sinal digital real?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "editor de código sem instrumentação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "compilador C++ usado isoladamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "planilha de conversão de bases.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "osciloscópio.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "analisador de pacotes de rede desligado do circuito.",
+          "correct": false
+        }
+      ],
+      "explanation": "O osciloscópio permite visualizar tensão ao longo do tempo, capturando transientes e qualidade elétrica. Ferramentas de software ajudam em outras etapas, mas não medem, sozinhas, o sinal na placa.",
+      "section": "Firmware confiável, integração, testes e tópicos de prova",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma atualização remota de firmware inclui CRC para detectar corrupção acidental. Para verificar autoria e impedir instalação maliciosa, o projeto deve priorizar",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "apenas um CRC maior, independentemente de sua construção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "o aumento da frequência de PWM durante a gravação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "o uso de `volatile` sobre o buffer recebido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "o envio sem TLS acompanhado de resistor de pull-up.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "mecanismo criptográfico de autenticação/assinatura e validação segura da atualização.",
+          "correct": true
+        }
+      ],
+      "explanation": "CRC detecta erros acidentais, não prova a origem de uma imagem contra atacante. Assinaturas e verificação de autenticidade, juntamente com integridade, canal e recuperação, sustentam atualização segura.",
+      "section": "Firmware confiável, integração, testes e tópicos de prova",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por integrar núcleo, memória e periféricos, o microcontrolador pode executar firmware dedicado sem exigir sistema operacional de propósito geral.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A integração de recursos permite desenvolver aplicações embarcadas que executam laços, interrupções e rotinas especializadas sem sistema operacional completo. Sistemas com RTOS também existem, mas não são requisito universal.",
+      "section": "Fundamentos de sistemas embarcados e arquitetura de microcontroladores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A presença de uma CPU de alta frequência garante, por si, que qualquer dispositivo embarcado cumpra o prazo máximo de resposta especificado para seu controle.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Frequência de CPU não prova limite de latência, que também depende de interrupções, bloqueios, memória, escalonamento e caminho de execução. Um requisito de tempo real deve ser verificado no pior caso admitido.",
+      "section": "Fundamentos de sistemas embarcados e arquitetura de microcontroladores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um detector de brown-out e um watchdog têm papéis complementares: o primeiro reage a condições de alimentação insuficiente e o segundo pode reagir à falta de progresso do programa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Brown-out supervisiona tensão e watchdog supervisiona progresso temporal conforme configurações. Eles ajudam na robustez, mas não substituem análise de risco, estados seguros ou proteção elétrica exigida pela aplicação.",
+      "section": "Fundamentos de sistemas embarcados e arquitetura de microcontroladores",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O valor 0x20 corresponde a 20 decimal, pois o prefixo 0x apenas identifica que o número é um endereço de memória.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O prefixo 0x representa base hexadecimal. Assim, 0x20 vale 2×16 + 0 = 32 decimal, qualquer que seja o uso como dado ou endereço. Confundir a aparência de decimal com a base gera erro de conversão.",
+      "section": "Sistemas de numeração, lógica digital e representação de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um registrador de oito bits, a máscara 00001000₂ permite isolar o bit de índice 3 por operação AND, mas não o ativa obrigatoriamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O AND com máscara conserva o valor do bit 3 se ele já estiver em 1 e zera os demais; se o bit 3 for zero, o resultado continua zero. Para forçá-lo a 1 sem alterar os outros, emprega-se OR com a máscara.",
+      "section": "Sistemas de numeração, lógica digital e representação de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em complemento de dois de oito bits, o número −128 é irrepresentável, pois um bit é reservado exclusivamente ao sinal e restam sete bits para números positivos e negativos simétricos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A faixa em complemento de dois de oito bits é de −128 a +127, portanto é assimétrica. A frase descreve equivocadamente uma representação de sinal e magnitude e despreza a convenção efetiva usada na aritmética binária.",
+      "section": "Sistemas de numeração, lógica digital e representação de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`digitalWrite()` é uma operação tipicamente usada para atribuir nível lógico a pino configurado como saída no ambiente Arduino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Na API Arduino, `digitalWrite()` escreve nível lógico; `pinMode()` define a direção pretendida. A escrita não transforma automaticamente qualquer pino em driver de potência nem garante níveis elétricos de outra placa.",
+      "section": "Arduino Nano, ESP32 e programação Wiring",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Arduino Nano clássico e em todas as placas denominadas Nano, os GPIO necessariamente operam a 5 V e possuem o mesmo processador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O nome Nano abrange placas de gerações e arquiteturas distintas. O Nano clássico com ATmega328 usa lógica de 5 V, mas Nano ESP32 e outras variantes diferem em processador, tensão e mapa de pinos.",
+      "section": "Arduino Nano, ESP32 e programação Wiring",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sketch que recebe dados periodicamente, trocar um `delay()` prolongado por um controle temporal baseado em `millis()` pode permitir atender comunicação entre as amostragens.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O controle não bloqueante por tempo transcorrido libera as iterações de `loop()` para outras funções. O benefício depende de todas as tarefas também evitarem bloqueios excessivos; não cria automaticamente escalonamento preemptivo.",
+      "section": "Arduino Nano, ESP32 e programação Wiring",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma interface paralela de 16 bits garante taxa útil exatamente duas vezes superior à de uma interface de 8 bits em qualquer circuito e distância.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A largura informa quantos bits são apresentados por transferência, mas vazão útil depende de ciclo, handshake, sinais de controle, roteamento e integridade elétrica. Uma interface mais larga pode exigir clock mais lento.",
+      "section": "Interface paralela, GPIO e interligação de periféricos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao transferir dados com sinal de escrita, a estabilidade da palavra antes e depois da borda de captura é condição temporal que pode ser exigida pelo dispositivo receptor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Tempos de setup e hold delimitam a janela de dados válidos em torno da captura. Ignorá-los causa leituras imprevisíveis, mesmo quando o firmware calcula o byte correto e os cabos estão conectados.",
+      "section": "Interface paralela, GPIO e interligação de periféricos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um registrador de deslocamento com entrada serial e saídas paralelas demonstra que toda expansão de GPIO do microcontrolador exige barramento paralelo nativo de oito condutores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O expansor pode receber bits em sequência por poucos fios e atualizar múltiplas saídas ao final. Isso economiza GPIO justamente porque a entrada não requer um barramento paralelo nativo de oito linhas no MCU.",
+      "section": "Interface paralela, GPIO e interligação de periféricos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ADC ideal de 8 bits apresenta 256 códigos possíveis, mas essa contagem não assegura, por si, precisão de medida equivalente a um sensor ideal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Resolução nominal determina o número de códigos, enquanto erro de referência, ruído, linearidade e condicionamento influenciam exatidão. Converter sinais em 256 níveis não elimina incertezas físicas.",
+      "section": "Conversão de sinais, comunicações e temporização de periféricos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como PWM fornece uma tensão média variável à carga, toda saída PWM é necessariamente um conversor digital-analógico físico de tensão contínua sem ondulação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "PWM produz pulsos digitais com razão cíclica controlada. O valor médio pode ser útil, mas ondulações e resposta da carga dependem de filtro e dinâmica; um DAC dedicado é outro tipo de periférico.",
+      "section": "Conversão de sinais, comunicações e temporização de periféricos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "I²C utiliza SDA e SCL com saídas do tipo open-drain e resistores de pull-up, razão pela qual o dimensionamento das resistências influencia a subida do sinal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Nas linhas open-drain, os participantes puxam o sinal para baixo e o resistor estabelece o nível alto. Capacitância e resistência determinam o tempo de subida, podendo limitar a velocidade e a confiabilidade.",
+      "section": "Conversão de sinais, comunicações e temporização de periféricos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em operação full-duplex de SPI, envio e recepção podem ocorrer durante a mesma transação sincronizada por clock; isso não significa que todas as implementações de periféricos forneçam dados úteis simultaneamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A arquitetura SPI suporta caminhos simultâneos de envio e recepção em hardware adequado, mas comando, fase de resposta e datasheet definem quando os bytes recebidos têm significado. A operação depende do dispositivo.",
+      "section": "Conversão de sinais, comunicações e temporização de periféricos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O modificador `volatile` torna operações de incremento compartilhadas entre ISR e laço principal automaticamente atômicas, dispensando qualquer proteção de concorrência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "`volatile` limita certas otimizações e informa que o valor pode mudar fora do fluxo visível, mas não faz de uma leitura-modificação-escrita uma operação indivisível. A sincronização deve atender à arquitetura.",
+      "section": "Firmware confiável, integração, testes e tópicos de prova",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema com prioridades, a herança de prioridade pode ajudar a limitar o bloqueio causado por inversão de prioridade em mutexes, conforme implementação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando uma tarefa urgente aguarda mutex mantido por tarefa menos prioritária, elevar temporariamente a prioridade da detentora pode acelerar liberação. Essa técnica não elimina todas as formas de bloqueio.",
+      "section": "Firmware confiável, integração, testes e tópicos de prova",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma imagem de firmware recebida possui CRC correto, sua autoria está criptograficamente comprovada e não é necessária qualquer verificação adicional antes de instalá-la.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "CRC foi projetado para detectar corrupção acidental, não para autenticar autores contra falsificações deliberadas. Atualização segura exige mecanismo apropriado de autenticação, integridade e recuperação.",
+      "section": "Firmware confiável, integração, testes e tópicos de prova",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analisador lógico substitui integralmente o osciloscópio na medição de amplitude, overshoot e tempo de subida de sinais digitais reais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Analisador lógico privilegia estados binários, transições e decodificação de protocolos; em geral não substitui osciloscópio para observar forma de onda, amplitude, overshoot, integridade do sinal e tempos de subida.",
+      "section": "Firmware confiável, integração, testes e tópicos de prova",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Arduino Nano — hardware e documentação",
+      "publisher": "Arduino",
+      "reference": "Ficha da placa Nano clássico, pinout e documentação técnica",
+      "url": "https://docs.arduino.cc/hardware/nano/",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Designing Arduino Nano Hardware",
+      "publisher": "Arduino",
+      "reference": "Comparação de variantes Nano, processadores, tensão e memória",
+      "url": "https://docs.arduino.cc/learn/hardware/nano-pcb-guide/",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Arduino Language Reference",
+      "publisher": "Arduino",
+      "reference": "Estrutura e APIs do ecossistema Arduino/Wiring",
+      "url": "https://docs.arduino.cc/language-reference/",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Arduino CLI — Sketch Build Process",
+      "publisher": "Arduino",
+      "reference": "Compilação e montagem de sketches",
+      "url": "https://docs.arduino.cc/arduino-cli/sketch-build-process",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ESP-IDF Programming Guide — Get Started (ESP32)",
+      "publisher": "Espressif Systems",
+      "reference": "Arquitetura da ferramenta ESP-IDF e ciclo de desenvolvimento",
+      "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/index.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ESP-IDF — GPIO & RTC GPIO",
+      "publisher": "Espressif Systems",
+      "reference": "Configuração e restrições dos pinos GPIO do ESP32 original",
+      "url": "https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/peripherals/gpio.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ESP-IDF — ADC Oneshot (ESP32)",
+      "publisher": "Espressif Systems",
+      "reference": "Conversão analógica e interação ADC2/Wi-Fi",
+      "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/adc/adc_oneshot.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ESP-IDF — I2C Driver (ESP32)",
+      "publisher": "Espressif Systems",
+      "reference": "Interligação I²C por SDA/SCL e pull-ups",
+      "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/i2c.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ESP-IDF — SPI Master (ESP32)",
+      "publisher": "Espressif Systems",
+      "reference": "Transações SPI e full-duplex",
+      "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/spi_master.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ESP-IDF — FreeRTOS Overview",
+      "publisher": "Espressif Systems",
+      "reference": "Tarefas e execução com RTOS na plataforma",
+      "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/freertos.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Arduino ESP32 — LED Control API",
+      "publisher": "Espressif Systems",
+      "reference": "Uso do periférico de PWM LEDC no núcleo Arduino-ESP32",
+      "url": "https://docs.espressif.com/projects/arduino-esp32/en/latest/api/ledc.html",
+      "accessedAt": "2026-11-17"
+    }
+  ]
+}

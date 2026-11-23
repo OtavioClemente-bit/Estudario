@@ -1,0 +1,1887 @@
+{
+  "id": "informatica.linux-kernel-drivers",
+  "subject": "Informática — Sistemas Operacionais e Programação de Sistemas",
+  "title": "Kernel Linux, módulos e drivers",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Kernel Linux, módulos e drivers",
+    "Kernel Linux, módulos e drivers"
+  ],
+  "scope": {
+    "covers": "Arquitetura Linux; interfaces e processos; Kbuild; módulos .ko; parâmetros; dependências; driver model; PCI, USB e platform; sysfs/udev; dispositivos de caractere/bloco; ioctl; DMA, MMIO, sincronização e interrupções; instrumentação, segurança e testes; comparação pontual com IRP, IRQL, PnP, ServiceMain, assinatura de drivers e WinDbg no Windows.",
+    "excludes": "Desenvolvimento aprofundado de aplicações Win32, COM, interface gráfica Windows, documentação exaustiva de WDM/KMDF/UMDF e programação específica de hardware proprietário."
+  },
+  "theoryTitle": "Kernel Linux e drivers: arquitetura, módulo, E/S e comparativo Windows",
+  "chapters": [
+    {
+      "title": "Arquitetura do kernel Linux e suas interfaces",
+      "markdown": "# Arquitetura do kernel Linux e suas interfaces\n\n## Kernel, distribuições e espaço de execução\nO **kernel Linux** é o núcleo responsável por gerir processos, memória, escalonamento, sistemas de arquivos, comunicação entre processos, redes, segurança e interação com dispositivos. Uma distribuição combina esse núcleo com bibliotecas, ferramentas, serviços e programas de usuário. Por isso, **Linux não é sinônimo de uma distribuição específica**. O projeto do kernel é predominantemente escrito em C, com trechos em outras linguagens, inclusive montagem e componentes modernos em Rust em contextos suportados; essa diversidade não converte aplicações de usuário em código do núcleo.\n\nA distinção entre **espaço de usuário** e **espaço de kernel** é um limite de proteção. Processos comuns não podem ler ou escrever arbitrariamente estruturas internas do kernel. As **chamadas de sistema**, como `open`, `read`, `write`, `ioctl` e `mmap`, fornecem portas controladas para solicitar operações; frequentemente são chamadas por meio de funções de biblioteca, que podem aplicar tratamento adicional. Uma instrução de transição para o kernel não significa que a lógica completa de uma aplicação passou a executar com privilégios permanentes. Drivers integrados ao núcleo e módulos carregados compartilham o espaço privilegiado e, por isso, uma falha grave pode comprometer todo o sistema.\n\n## Núcleo monolítico e modularidade\nO Linux é classificado, em termos arquiteturais, como **kernel monolítico modular**: serviços essenciais e drivers podem executar no mesmo espaço privilegiado, mas diversos componentes podem ser compilados separadamente e carregados como módulos. Isso não o torna um micronúcleo, no qual serviços são tipicamente deslocados para processos de usuário. Um driver pode ser **embutido** na imagem do kernel ou existir como arquivo de módulo, usualmente `.ko`; embutir reduz a necessidade de inserção posterior, enquanto modularizar permite gerir o ciclo de vida do componente quando a configuração e o uso permitirem.\n\nA compilação do kernel usa a configuração `Kconfig`, materializada frequentemente em `.config`, e o sistema de construção **Kbuild**. Valores tradicionais de configuração são `y` (incorporado à imagem), `m` (módulo, quando a opção admite) e `n` (desabilitado). Essas letras não descrevem se o hardware está fisicamente presente. A compatibilidade de um módulo envolve versão, configuração, arquitetura e interfaces exportadas; não é prudente presumir que um `.ko` compilado para outro kernel funcionará.\n\n## Inicialização e subsistemas\nNa inicialização, o carregador entrega o controle ao kernel e, conforme a arquitetura e a configuração, podem ser usados initramfs e outros recursos para montar o sistema de arquivos raiz. O kernel cria mecanismos fundamentais de execução e, então, o ambiente de usuário assume a gestão de serviços. **PID 1** é um processo de usuário responsável por funções de inicialização no ambiente habitual; não é um módulo do kernel. O `systemd` é uma implementação comum de gerência de serviços, não uma exigência arquitetural do núcleo Linux.\n\nO escalonador decide qual tarefa usar uma CPU; memória virtual isola endereços de processos e permite gerenciar páginas; VFS fornece abstrações para sistemas de arquivos; a pilha de rede encaminha pacotes; subsistemas de blocos, entrada, USB e PCI organizam categorias de dispositivos. Um driver correto costuma usar essas interfaces, em vez de reinventar gerenciamento de recursos. A presença de um dispositivo físico não implica que todo acesso passe por um arquivo de dispositivo: sistemas de rede e outras classes contam com APIs próprias.\n\n## Interfaces observáveis\n`/proc` é um sistema de arquivos virtual que apresenta informações sobre processos e estado do kernel; `/sys` é a interface **sysfs** ligada ao modelo de dispositivos, objetos do kernel e atributos exportados. Ambos são interfaces virtuais, e não diretórios de arquivos comuns persistidos em disco. `/dev` reúne nós de dispositivos, como os de caractere ou bloco, normalmente geridos por mecanismos de espaço de usuário em conjunto com eventos do kernel. Um nó existente em `/dev` **não prova**, por si só, que o hardware conectado funciona.\n\nComandos operacionais: `uname -r` informa a versão de kernel em execução; `dmesg` consulta mensagens do buffer do kernel conforme permissões; `journalctl -k` consulta mensagens de kernel em sistemas com journald; `lsmod` lista módulos carregados. `lspci` e `lsusb` são ferramentas de identificação de dispositivos nos respectivos barramentos, e sua presença depende do ambiente. Uma prova pode trocar os papéis de `/proc`, `/sys`, `/dev` e `/lib/modules`; a função de cada interface deve ser reconhecida pelo **tipo de informação** que ela expõe.\n\n## Limite de responsabilidade\nO kernel deve fornecer mecanismos estáveis e seguros aos programas; aplicativos, bibliotecas e daemons elaboram políticas e fluxos de negócio no espaço de usuário. Não se deve carregar um módulo simplesmente para executar um cálculo, manipular uma interface gráfica ou iniciar um serviço em segundo plano. Sempre que uma API de usuário atender à necessidade, ela tende a reduzir risco e complexidade em relação ao código privilegiado. Essa é uma distinção decisiva em questões que misturam aplicações, serviços, drivers e módulos."
+    },
+    {
+      "title": "Módulos, compilação Kbuild e gerenciamento",
+      "markdown": "# Módulos, compilação Kbuild e gerenciamento\n\n## O que é um módulo carregável\nUm **Loadable Kernel Module (LKM)** é código compilado para integração ao kernel em execução, usualmente empacotado em arquivo `.ko`. Pode implementar driver, protocolo, funcionalidade de sistema de arquivos ou outra capacidade. Nem todo driver é módulo: muitos são embutidos na imagem de kernel, sobretudo os indispensáveis à inicialização. E nem todo módulo é driver de hardware. Ao entrar no núcleo, um módulo herda os riscos da execução privilegiada e deve verificar dados, proteger recursos e sincronizar acessos concorrentes.\n\nEm um exemplo didático, `module_init(funcao_inicio)` declara a rotina de inicialização e `module_exit(funcao_fim)` declara a saída quando aplicável. A inicialização registra o componente ou prepara recursos; a saída deve desfazer registros, liberar recursos e aguardar/cancelar trabalhos pendentes. `MODULE_LICENSE`, `MODULE_AUTHOR` e `MODULE_DESCRIPTION` fornecem metadados. `pr_info()` e `pr_err()` emitem mensagens com níveis distintos, sujeitas a filtros de visualização. Um módulo real precisa de tratamento de erro por etapas: se falhar depois de obter um recurso, deve devolver os já adquiridos.\n\n## Kbuild e Makefile\n**Kbuild** organiza a compilação do kernel e de módulos externos. Para um módulo simples, a diretriz `obj-m += meu_modulo.o` instrui a geração de objeto modular. Um padrão conhecido para construção externa usa o diretório de construção do kernel em execução: `make -C /lib/modules/$(uname -r)/build M=$PWD modules`. Esse comando ilustra a estrutura; cabe verificar se cabeçalhos e artefatos correspondentes estão disponíveis. Quando o mesmo recurso é configurado com `obj-y`, a intenção é incorporá-lo à compilação do kernel, não gerar automaticamente um módulo independente.\n\nCompilar não instala nem carrega o componente. A instalação pode posicionar arquivos no diretório de módulos correspondente ao kernel; ferramentas de indexação de dependências, como `depmod`, participam da preparação para buscas automáticas. Um binário compilado com sucesso ainda pode falhar no carregamento por incompatibilidade, falta de símbolo, política de assinatura ou falta de recurso. `vermagic` e informações correlatas ajudam no diagnóstico, mas não fornecem garantia absoluta de compatibilidade.\n\n## Inserção, remoção e resolução de dependências\n`insmod arquivo.ko` solicita a inserção de um arquivo específico e **não resolve automaticamente dependências** da mesma maneira que `modprobe`; este utiliza índices e configurações para carregar módulos por nome e tratar dependências. `rmmod nome` remove um módulo quando a remoção é permitida e o uso não impede; `modprobe -r nome` pode remover módulos relacionados segundo as regras da ferramenta. `lsmod` mostra módulos carregados e informações de uso; `modinfo` consulta metadados disponíveis, inclusive parâmetros e dependências declaradas. `depmod` gera informações de dependência para a árvore de módulos; não é um substituto de `modprobe`.\n\nOs diretórios da família `/lib/modules/<versao-do-kernel>/` armazenam módulos e arquivos auxiliares em muitas distribuições, sujeitos a detalhes de organização específicos. `modprobe.d` permite opções, aliases ou restrições, mas a política exata depende da configuração e do ambiente. **Autoload** frequentemente começa com identificação/modalias de dispositivo e solicitação de carregamento em espaço de usuário: não significa que o arquivo do módulo sempre se carregará, independentemente de políticas, assinaturas e dependências.\n\n## Parâmetros e símbolos\n`module_param()` pode declarar parâmetros de módulos, com tipo e permissões definidas no código. Parâmetros podem ser informados no carregamento; alguns aparecem em `/sys/module/<nome>/parameters/`, conforme as permissões e a implementação. `modinfo -p` ajuda a listá-los. Não se deve concluir que todos podem ser alterados em tempo real. Símbolos usados por diferentes módulos precisam estar disponíveis e, quando aplicável, exportados com mecanismos como `EXPORT_SYMBOL`; a falta de símbolos ou divergência de versões impede operações.\n\nÉ essencial distinguir **ABI de aplicação** e **interfaces internas do kernel**. A interface de chamadas de sistema oferecida a programas tem compromissos relevantes de compatibilidade, mas o kernel Linux não promete uma ABI interna estável para qualquer driver externo entre versões. Distribuidores podem oferecer convenções e mecanismos próprios de manutenção; isso não cria uma garantia geral de que módulos de terceiros sejam portáveis sem reconstrução e testes.\n\n## Módulos e segurança operacional\nO mecanismo de **assinatura de módulos** permite verificar assinaturas criptográficas durante o carregamento; a exigência de assinatura válida depende da configuração e da política efetiva. A existência de assinatura **não garante qualidade, ausência de falhas ou segurança funcional**. Ambientes com inicialização segura e políticas de bloqueio podem impor restrições adicionais; descreva-as como dependentes da implantação, evitando universalizá-las a todo Linux. Executar `insmod`, manipular drivers e remover módulos exige cautela, pois pode derrubar interfaces de rede, volumes, dispositivos críticos ou o sistema inteiro.\n\nEm estudo de concurso, relacione cada comando ao efeito: `lsmod` = observar; `modinfo` = consultar metadados; `depmod` = construir dependências; `insmod` = inserir arquivo; `modprobe` = resolver e carregar/remover módulos; `rmmod` = solicitar remoção. Um distrator frequente atribui ao `modinfo` o papel de carregar drivers ou ao `lsmod` a função de recompilá-los."
+    },
+    {
+      "title": "Modelo de dispositivos, barramentos e interfaces de E/S",
+      "markdown": "# Modelo de dispositivos, barramentos e interfaces de E/S\n\n## Dispositivo, driver, barramento e classe\nO **driver model** separa os objetos que descrevem dispositivos (`struct device`), drivers (`struct device_driver`), barramentos e classes. Barramentos, como PCI, USB e platform, fornecem mecanismos de identificação e casamento (*matching*) adequados a cada família. Classes ajudam a agrupar dispositivos com funções semelhantes para visibilidade no espaço de usuário. A correspondência entre um dispositivo e um driver não é simplesmente igualdade de nome de arquivo `.ko`: depende de tabelas de IDs, propriedades de firmware, mecanismo de barramento e outras regras de associação.\n\nQuando o núcleo encontra um par elegível, a operação de **binding** associa driver e dispositivo, com chamada de `probe()` para inicialização daquele dispositivo. Retorno de sucesso permite concluir a ligação; falha impede a inicialização bem-sucedida. Quando falta um fornecedor de recurso que poderá aparecer posteriormente, alguns drivers usam **probe deferido** (`-EPROBE_DEFER`), permitindo tentativa em momento adequado. O ciclo de desligamento ou desvinculação pode executar `remove()` ou, em certos subsistemas, callback específico como `disconnect()`; a forma concreta depende da API e da versão do kernel.\n\n## PCI, USB, platform e firmware\nEm PCI, identificadores de fornecedor/dispositivo e recursos do barramento auxiliam o reconhecimento; o driver precisa lidar com regiões de memória/registradores, interrupções, DMA e estado de energia conforme a arquitetura. Em USB, interfaces e endpoints são relevantes: um driver USB de interface tipicamente declara `id_table`, `probe()` e `disconnect()`. A retirada física pode ocorrer com operações ainda pendentes, razão pela qual é crucial cancelar transferências, impedir novos acessos e proteger a vida útil das estruturas.\n\n**Platform devices** representam dispositivos que não são necessariamente enumerados por barramentos autodescritivos, comuns em sistemas embarcados; informações podem vir de Device Tree, ACPI ou registro explícito, a depender da plataforma. Device Tree descreve topologia e propriedades de hardware; ele **não** é driver executável. ACPI fornece mecanismos de descrição e controle de plataforma em sistemas que o adotam. Em provas, afirmar que todo Linux usa Device Tree para identificar qualquer periférico é incorreto.\n\n## Dispositivos de caractere e bloco\nOs **dispositivos de caractere** expõem operações como abrir, ler e escrever sequências de bytes, conforme a implementação; são comuns em terminais e dispositivos especializados. Dispositivos **de bloco** são abstrações adequadas a armazenamento endereçável em blocos, integradas à pilha de blocos. Na interface tradicional de nó, os números **major/minor** identificam respectivamente o tipo de driver/encaminhamento e uma instância ou distinção interna; a interpretação concreta pertence ao subsistema. `/dev` contém os nós acessados por processos, ao passo que sysfs expõe estrutura e atributos do kernel.\n\nUm driver de caractere pode registrar operações por `struct file_operations`, incluindo callbacks para leitura, gravação, abertura, liberação e, se necessário, `unlocked_ioctl`. O framework **misc** simplifica a criação de certos dispositivos de caractere; `cdev` fornece mecanismos gerais. Expor um nó não substitui autorização por permissões, validação de buffers e controle de concorrência. Nunca se deve desreferenciar diretamente um ponteiro não confiável fornecido por aplicativo como se fosse endereço seguro do núcleo.\n\n## ioctl, sysfs e fluxo de dados\n`ioctl` permite operações de controle específicas que não se expressam convenientemente como `read`/`write`; códigos como `_IO`, `_IOR`, `_IOW` e `_IOWR` indicam convenções de direção e argumentos. A **direção é avaliada da perspectiva da aplicação**, não é uma ordem para o dispositivo. Uma API mal desenhada cria problemas de compatibilidade entre arquiteturas e versões, especialmente no tamanho e na disposição de estruturas. Para atributos simples, sysfs pode ser interface mais apropriada; para fluxo de dados, dispositivos, sockets e APIs de subsistema são preferíveis ao uso indevido de atributos.\n\n**udev** e outros gerenciadores de dispositivos no espaço de usuário podem reagir a eventos do kernel, ajustar permissões e criar nomes persistentes. O kernel anuncia dispositivos e fornece informações, mas não se deve atribuir ao udev a execução de código de driver no modo kernel. `sysfs`, `udev` e `/dev` são complementares: o primeiro representa objetos e atributos; o segundo realiza políticas e ações de usuário; o terceiro expõe nós para acesso a interfaces de dispositivo.\n\n## Desenho robusto\nNo `probe()`, aloque somente o necessário, use recursos gerenciados quando adequados (`devm_*`), configure hardware e registre interfaces após estarem prontas. Se uma etapa falhar, desfaça aquisições na ordem apropriada. No `remove()` ou `disconnect()`, evite novos acessos, esvazie trabalhos pendentes, retire interfaces visíveis e libere recursos respeitando contagens de referência. O ponto central é a diferença entre **registrar um driver** e **ter um dispositivo efetivamente ligado a ele**: o primeiro habilita o sistema a tentar associações, mas não significa que qualquer hardware foi reconhecido."
+    },
+    {
+      "title": "Memória, DMA, interrupções e sincronização no kernel",
+      "markdown": "# Memória, DMA, interrupções e sincronização no kernel\n\n## Endereços e regiões de memória\nDrivers trabalham com memória virtual de kernel, buffers de aplicativos, memória física e endereços visíveis aos dispositivos. Tais espaços **não devem ser tratados como intercambiáveis**. `kmalloc` reserva memória de kernel apropriada a vários usos, com propriedades determinadas pelo alocador e flags; `vmalloc` obtém região virtualmente contígua que não exige contiguidade física geral. Chamadas como `copy_to_user()` e `copy_from_user()` ajudam a transferir dados entre kernel e usuário com verificações próprias. Elas podem demandar contexto apropriado e tratamento de falhas; jamais se deve copiar supondo que um ponteiro de usuário é sempre válido.\n\nAcesso a registradores mapeados em memória (**MMIO**) utiliza operações próprias, por exemplo `readl()` e `writel()` quando aplicáveis, e mapeamento controlado de recursos. Acessar um endereço de registrador como ponteiro ordinário pode violar ordenação, largura de acesso e regras de arquitetura. APIs como `ioremap` ou recursos gerenciados abstraem etapas; a posse da faixa e a sincronização devem seguir a documentação do subsistema. **Barreiras de memória** tratam exigências de ordenação e visibilidade; não equivalem a locks nem eliminam races por si sós.\n\n## DMA e IOMMU\n**Direct Memory Access (DMA)** permite que dispositivos transfiram dados com menor intervenção direta da CPU. A API DMA do Linux distingue mapeamentos **coerentes**, convenientes a regiões de uso compartilhado, e **streaming**, destinados a transferências delimitadas, com mapeamento, sincronização e desmontagem conforme o fluxo. `dma_alloc_coherent()` e `dma_map_single()` exemplificam caminhos distintos. O endereço entregue ao dispositivo pode diferir do endereço físico visto pela CPU devido a **IOMMU** e mapeamentos de barramento.\n\nA máscara DMA define restrições de endereçamento do dispositivo; falhas de mapeamento precisam ser verificadas. A coerência não dispensa necessariamente barreiras e protocolos de ordenação; um buffer de streaming não deve ser usado pela CPU e pelo dispositivo sem as sincronizações exigidas. Uma afirmação de prova que iguale 'endereço virtual da CPU' a 'endereço DMA' em todas as arquiteturas está errada.\n\n## Interrupções e trabalho adiado\nInterrupções permitem que hardware sinalize eventos de forma assíncrona. O **tratador de interrupção** deve ser curto e respeitar limitações de contexto: não se pode presumir que seja permitido dormir, aguardar indefinidamente por locks que bloqueiam ou executar operações pesadas. O Linux dispõe de mecanismos para dividir o trabalho: interrupções com thread, workqueues e outros recursos de diferimento, conforme a API e a configuração. Um **workqueue worker** executa tarefas em contexto de processo e pode permitir operações que dormem, desde que seguidas as regras próprias da função; isso não equivale a acesso sem sincronização.\n\nEm drivers USB, por exemplo, transferências podem ser assíncronas e retornar por callbacks; em PCI, MSI/MSI-X podem substituir linhas legadas quando suportados. A escolha de mecanismo de interrupção deve refletir a capacidade do dispositivo e da plataforma. Tratar o hardware exclusivamente por polling nem sempre é inviável, mas pode ser ineficiente. Uma questão típica coloca `mutex_lock()` em interrupt handler de contexto atômico como se fosse sempre seguro: a premissa é falsa.\n\n## Concorrência, mutexes e spinlocks\n**Mutexes** permitem bloqueio com espera e, portanto, são adequados a trechos que podem dormir em contextos apropriados. **Spinlocks** protegem regiões críticas curtas e têm regras próprias quanto a interrupções e preempção. Nas configurações convencionais, não se deve dormir mantendo spinlock ou dentro de contexto atômico. Variantes como `spin_lock_irqsave()` ajudam a preservar o estado de interrupções locais quando necessário. Em kernels de tempo real (`PREEMPT_RT`), alguns detalhes de implementação e contexto mudam; logo, argumentos sobre spinlocks exigem atenção à configuração específica.\n\nAcesso concorrente exige avaliar quem compartilha os dados: processos, threads de kernel, softirqs e interrupções. **Atomics** oferecem operações indivisíveis para casos adequados, mas não substituem automaticamente proteção de invariantes complexas. **RCU** é útil para padrões de leitura concorrente com atualizações controladas; contagens de referência impedem a liberação enquanto objetos ainda são usados. A ordem de aquisição de locks evita deadlocks; proteção correta de estado não significa necessariamente segurança da vida útil do objeto.\n\n## Recursos e limpeza\nOperações assíncronas podem sobreviver ao encerramento do callback que as lançou. Antes de liberar estruturas, o driver deve garantir que interrupções, temporizadores, trabalhos agendados ou transferências que as acessam estejam cancelados ou sincronizados. `devm_*` facilita a gestão de vários recursos vinculados ao dispositivo, mas não elimina a obrigação de respeitar ordem, concorrência e semântica do subsistema. Problemas de **use-after-free**, double free, race e deadlock são riscos especialmente graves no kernel e merecem testes com cargas concorrentes, desligamento e reconexão de dispositivos."
+    },
+    {
+      "title": "Assinatura, diagnóstico, testes e manutenção de drivers Linux",
+      "markdown": "# Assinatura, diagnóstico, testes e manutenção de drivers Linux\n\n## Carregamento confiável e superfície de ataque\nCódigo em modo kernel tem grande poder e um erro pode permitir escalonamento de privilégios, vazamento de informações, travamento ou corrupção de memória. Medidas de segurança incluem validar tamanhos e ponteiros, restringir permissões, tratar estados de dispositivo, verificar dependências e reduzir a exposição de operações privilegiadas. A **assinatura criptográfica de módulos** pode autenticar a origem e integridade de binários aceitos segundo uma política, mas não demonstra que seu comportamento é seguro. A exigência de assinatura depende de opções do kernel e políticas da máquina, não devendo ser afirmada como obrigatória para qualquer instalação Linux.\n\nO recurso denominado **taint** registra circunstâncias relevantes para análise do estado do kernel, como carregamento de certos módulos externos ou proprietários, dependendo das condições. Taint não é um diagnóstico definitivo de invasão ou defeito; tampouco é apagado necessariamente apenas com a descarga do módulo que o ocasionou. Diferencie também o módulo 'fora da árvore' (*out-of-tree*) do código desenvolvido dentro da árvore oficial: localização e manutenção afetam atualização e suporte, mas não servem por si só como certificação de qualidade.\n\n## Observabilidade básica\n`dmesg` consulta registros do kernel, muitas vezes conforme privilégios; `journalctl -k` pode fornecer a visão do journal. `pr_info`, `pr_debug` e funções correlatas registram mensagens de acordo com severidade e configuração. O excesso de logging pode perturbar temporização e ocultar problemas concorrentes. **Dynamic debug** permite selecionar determinados pontos de depuração em código que oferece suporte, sem recompilar tudo; não transforma, por mágica, cada mensagem desabilitada em rastreamento ativo. `ftrace` permite traçar funções e eventos do kernel; **tracepoints** são locais estruturados de instrumentação.\n\n**kprobes** permite instrumentação dinâmica em pontos apropriados de código; **eBPF** é utilizado em vários mecanismos de observação e políticas, de acordo com tipos de programa e controles de segurança. Nenhum desses recursos significa que depuração está livre de custo ou disponível indistintamente em toda compilação. Uma boa estratégia é começar com reproduções pequenas, verificar logs, examinar associação entre hardware e driver e, só então, aplicar rastreamento mais invasivo.\n\n## Erros, depuradores e ferramentas de teste\nUm **oops** é um relato de falha séria no kernel; um **panic** interrompe a operação normal em condições graves ou conforme política. A análise de backtraces, símbolos de depuração, módulo afetado e versão do kernel é essencial. **KGDB** e ferramentas relacionadas podem auxiliar em depuração do kernel quando configuradas. `KASAN` ajuda a detectar certas falhas de acesso à memória; `KCSAN` auxilia na detecção de races; `lockdep` inspeciona padrões problemáticos de locks; **KUnit** fornece infraestrutura de testes unitários em kernel. A ativação e o custo dessas facilidades variam.\n\nEm vez de testar um driver experimental em um servidor produtivo, utilize ambientes isolados, máquinas de teste e, quando apropriado, máquinas virtuais com hardware simulado. Teste cenários felizes e falhas: alocação negada, `probe()` interrompido, remoção durante I/O, hardware desconectado, timeouts e dados malformados de usuário. A presença de logs sem erro não prova ausência de race; defeitos concorrentes podem depender de timing ou carga.\n\n## Atualizações e compatibilidade\nO desenvolvimento de drivers deve acompanhar APIs do kernel e a versão-alvo. O **Kbuild** pode verificar símbolos necessários na compilação, porém uma árvore externa desatualizada pode exigir mudanças de código mesmo que já compilasse em versão antiga. Nem toda alteração de estrutura interna é ABI estável. O administrador deve planejar reinicialização ou recarga quando aplicável e verificar se arquivos instalados correspondem à imagem de kernel em uso. A compatibilidade de usuário via chamadas de sistema não autoriza concluir compatibilidade binária ilimitada entre módulos de kernel.\n\n## Procedimento de triagem para concursos\nDiante de uma placa que aparece no inventário mas não funciona, diferencie: (1) dispositivo detectado no barramento; (2) módulo disponível; (3) módulo carregado; (4) driver efetivamente associado; (5) criação de interface para usuário; e (6) comunicação operacional. `lspci`/`lsusb`, `/sys/bus`, `lsmod`, `modinfo` e logs ajudam a examinar etapas diferentes. Se um módulo falha ao carregar, investigar incompatibilidade de versão, assinatura ou símbolos pode ser mais adequado do que alterar permissões de `/dev`. Se o nó de dispositivo está presente, ainda restam configuração, alimentação, permissões e estado real do hardware."
+    },
+    {
+      "title": "Comparativo com Windows: drivers, serviços e aplicativos",
+      "markdown": "# Comparativo com Windows: drivers, serviços e aplicativos\n\n## Delimitação: três categorias distintas\nA comparação com o Windows serve para distinguir arquiteturas, **sem deslocar o eixo da matéria do Linux**. Um **aplicativo Windows** é, em geral, programa de espaço de usuário que usa APIs de sistema para executar uma finalidade. Um **serviço Windows** também executa, tipicamente, em modo usuário, mas possui ciclo de vida coordenado pelo **Service Control Manager (SCM)**, com estados, operações de partida e parada. Um **driver de kernel Windows** executa código privilegiado que interage com a pilha de E/S, dispositivos e mecanismos do sistema; pode se integrar aos modelos WDM/KMDF. Há também drivers UMDF em modo usuário, de modo que 'driver' não é sinônimo universal de execução no kernel.\n\nA analogia apropriada: no Linux, um daemon controlado por gerenciador de serviços se aproxima funcionalmente de um serviço Windows; um módulo de kernel Linux se aproxima, quanto ao privilégio e ao tipo de responsabilidade, de um driver de kernel Windows — mas suas APIs, formatos, assinaturas e ciclo de implantação **não são intercambiáveis**. Um serviço não recebe automaticamente privilégios de kernel por executar em segundo plano; e uma aplicação GUI não se torna driver por acessar um dispositivo por API apropriada.\n\n## IRP e pilha de I/O no Windows\nNo modelo WDM, o **I/O Request Packet (IRP)** representa solicitações de E/S que atravessam uma **pilha de dispositivos/drivers**, com rotinas de despacho e, conforme o caso, conclusão. Códigos como `IRP_MJ_READ`, `IRP_MJ_WRITE` e `IRP_MJ_PNP` identificam classes de operações. O fluxo inclui encaminhamento a drivers inferiores e conclusão coordenada; não deve ser reduzido a 'arquivo copiado do disco'. No Linux, existem chamadas de sistema, operações de arquivos e APIs de subsistema, mas **não existe obrigação de implementar IRP do Windows** em drivers Linux. Comparações devem considerar o papel geral de tratar pedidos, não a identidade de estruturas.\n\n## IRQL, interrupções e execução\nO Windows emprega **Interrupt Request Level (IRQL)** como mecanismo de prioridade e restrição da execução em kernel. Em `PASSIVE_LEVEL`, certas operações que aguardam podem ser possíveis conforme o contexto; em `DISPATCH_LEVEL` e níveis mais altos, as rotinas sofrem restrições importantes, inclusive relativas a espera e memória paginável. **DPCs** tradicionais executam em `DISPATCH_LEVEL`, reduzindo trabalho executado em interrupções mais prioritárias; recursos específicos como DPCs threaded possuem particularidades. No Linux, também existem contextos atômicos e mecanismos de diferimento, mas **não se deve atribuir valores IRQL do Windows ao núcleo Linux**. Uma questão que equipare `spin_lock_irqsave()` a 'elevar IRQL para DISPATCH_LEVEL' ignora diferenças entre plataformas.\n\n## Plug and Play e ciclo de vida\nO **Plug and Play (PnP)** do Windows identifica dispositivos, administra recursos e coordena solicitações de inicialização, remoção e energia. Drivers WDM recebem IRPs de PnP como `IRP_MJ_PNP`, com códigos menores específicos; KMDF abstrai parte desse tratamento por callbacks e objetos do framework. Um pacote de driver pode incluir arquivo **INF** (informações de instalação), binários e catálogo de assinatura. O Linux também realiza enumeração, matching, `probe()` e remoção, mas usa mecanismos próprios de barramento, sysfs, uevents e políticas de usuário. **INF não é um arquivo de configuração obrigatório para qualquer driver Linux**.\n\n## ServiceMain e gerência de serviços\nNo Windows, a aplicação de serviço se conecta ao SCM por `StartServiceCtrlDispatcher` e apresenta uma **ServiceMain** que executa a inicialização do serviço, registra um handler de controle e reporta seu estado por APIs como `SetServiceStatus` quando aplicável. ServiceMain pertence ao ciclo de vida de um **serviço em modo usuário**, não à rotina de entrada de um driver de kernel. Em modelos de driver Windows, **DriverEntry** é ponto de entrada pertinente; nos drivers baseados em WDF, callbacks apoiam a inicialização e eventos. No Linux, `module_init()` não é ServiceMain e não coordena um serviço do SCM.\n\n## Assinatura de drivers Windows e implantação\nO Windows aplica políticas de **assinatura de drivers** e de pacotes PnP, variáveis conforme edição, arquitetura, versão e cenário de distribuição/teste. Um pacote pode usar catálogo digital assinado, e há processos de assinatura para produção e para teste. Não é correto dizer que toda compilação local não assinada pode ser instalada e carregada indistintamente, nem que a simples assinatura elimina defeitos. O Linux dispõe de sua própria infraestrutura de assinatura de módulos, com políticas próprias; os mecanismos não são literalmente o mesmo formato ou processo.\n\n## Depuração: WinDbg e Linux\n**WinDbg** é ferramenta oficial importante para inspecionar falhas do Windows em modo usuário ou kernel, com símbolos, pilhas e dumps. Um comando ilustrativo de análise de bugcheck é `!analyze -v`; extensões específicas permitem examinar estruturas e IRPs quando adequadas. A investigação em Windows costuma empregar símbolos de depuração e ambientes de teste compatíveis com o WDK. No Linux, a combinação de logs, ftrace, dynamic debug, KGDB e sanitizers oferece caminhos próprios. **WinDbg não é o nome genérico do ftrace** e `dmesg` não interpreta automaticamente a estrutura IRP do Windows.\n\n## Quadro mental para questões\nCompare o **propósito**, depois a **camada** e por último a **API**: `IRP` = solicitação de E/S no modelo Windows; `IRQL` = prioridade/restrição de execução Windows; `PnP` = descoberta e ciclo de vida de dispositivos; `ServiceMain` = rotina de entrada de serviço Windows; **assinatura** = controle de integridade e confiança sujeito a política; `WinDbg` = depuração Windows. Para o Linux, as correspondências conceituais são modelos de driver, callbacks, contextos de execução, infraestrutura de módulos e ferramentas próprias, nunca equivalência binária entre APIs."
+    }
+  ],
+  "summary": "O kernel Linux é o núcleo do sistema operacional e utiliza arquitetura monolítica modular: drivers podem estar integrados à imagem ou ser carregados como módulos `.ko`. Kbuild permite sua compilação; `insmod` insere arquivo específico, enquanto `modprobe` consulta dependências e políticas. O modelo de dispositivos associa barramentos, dispositivos e drivers por matching e executa callbacks como `probe()`, `remove()` ou `disconnect()`. `/proc`, `/sys` e `/dev` não são sinônimos. Interfaces de E/S exigem validação de buffers, sincronização, cuidado com MMIO, DMA e interrupções; mutexes não podem ser empregados indistintamente em contexto atômico. Assinaturas podem ser exigidas conforme a configuração e não comprovam ausência de falhas. Para diagnosticar problemas, diferencie detecção, carregamento, binding e operação real, usando logs e rastreamento. No Windows, IRPs representam requisições de E/S, IRQL disciplina restrições de execução, PnP coordena dispositivos, ServiceMain inicia serviços vinculados ao SCM e WinDbg auxilia na depuração; são conceitos comparativos, não APIs equivalentes às do Linux.",
+  "flashcards": [
+    {
+      "front": "O que distingue o kernel Linux de uma distribuição?",
+      "back": "O kernel gerencia recursos e hardware; a distribuição agrega bibliotecas, programas, ferramentas e políticas de atualização."
+    },
+    {
+      "front": "O que significa kernel monolítico modular?",
+      "back": "Componentes privilegiados compartilham o espaço de kernel; parte pode ser inserida ou retirada como módulo."
+    },
+    {
+      "front": "Qual é a função de uma chamada de sistema?",
+      "back": "Oferecer entrada controlada para que programas solicitem serviços ao kernel sem acesso irrestrito à memória privilegiada."
+    },
+    {
+      "front": "Como diferenciar /proc, /sys e /dev?",
+      "back": "/proc: processos e estado; /sys: objetos e atributos do kernel; /dev: nós de dispositivos para acesso por aplicativos."
+    },
+    {
+      "front": "O que faz module_init()?",
+      "back": "Registra a rotina de inicialização do módulo; não substitui o probe de cada dispositivo."
+    },
+    {
+      "front": "Como se diferenciam insmod e modprobe?",
+      "back": "insmod insere arquivo .ko específico; modprobe usa índices/configuração para localizar módulos e tratar dependências."
+    },
+    {
+      "front": "Para que serve obj-m no Kbuild?",
+      "back": "Indica objetos que devem ser construídos como módulos, quando a configuração e a árvore de compilação permitem."
+    },
+    {
+      "front": "Por que compilação de .ko não assegura seu carregamento?",
+      "back": "Podem existir incompatibilidade de ABI interna/versão, símbolos ausentes, política de assinatura ou outras falhas."
+    },
+    {
+      "front": "Qual a diferença entre registrar um driver e executar probe?",
+      "back": "Registrar disponibiliza o driver ao barramento; probe inicializa a associação com um dispositivo compatível."
+    },
+    {
+      "front": "O que são major e minor em nós tradicionais?",
+      "back": "Identificadores utilizados pelo kernel no encaminhamento de operações e distinção de dispositivos/instâncias."
+    },
+    {
+      "front": "Qual o papel típico de udev?",
+      "back": "Processar eventos no espaço de usuário, aplicando regras e podendo administrar nomes e permissões em /dev."
+    },
+    {
+      "front": "Quando um driver USB executa disconnect?",
+      "back": "Quando uma interface ligada ao driver está sendo desligada/desconectada, exigindo cessar acesso e liberar recursos."
+    },
+    {
+      "front": "Por que endereço DMA não é sempre endereço físico da CPU?",
+      "back": "O barramento e a IOMMU podem aplicar mapeamentos próprios, fornecendo endereço visível ao dispositivo."
+    },
+    {
+      "front": "Qual diferença geral entre mutex e spinlock?",
+      "back": "Mutex pode colocar tarefa em espera; spinlock protege região curta com restrições a operações que dormem."
+    },
+    {
+      "front": "O que é um workqueue?",
+      "back": "Mecanismo para executar trabalho diferido em workers de kernel, tipicamente em contexto de processo."
+    },
+    {
+      "front": "Para que servem copy_to_user e copy_from_user?",
+      "back": "Transferir dados entre kernel e usuário com verificações da interface apropriada, tratando falhas de acesso."
+    },
+    {
+      "front": "O que a assinatura de módulo permite verificar?",
+      "back": "Autenticidade/integridade conforme chaves e política configuradas; não certifica correção lógica."
+    },
+    {
+      "front": "O que é taint do kernel?",
+      "back": "Registro de condições relevantes ao diagnóstico, por exemplo certos módulos externos; não prova invasão."
+    },
+    {
+      "front": "Qual a diferença entre ftrace e dynamic debug?",
+      "back": "ftrace rastreia execução/eventos; dynamic debug controla mensagens de depuração compiladas com suporte."
+    },
+    {
+      "front": "Para que servem KASAN e lockdep?",
+      "back": "KASAN auxilia na detecção de bugs de memória; lockdep ajuda a analisar problemas de sincronização por locks."
+    },
+    {
+      "front": "O que é IRP no Windows?",
+      "back": "Pacote de solicitação de E/S que percorre a pilha de drivers no modelo correspondente."
+    },
+    {
+      "front": "O que é IRQL no Windows?",
+      "back": "Mecanismo de prioridade/restrições de execução de rotinas de kernel, não uma API do Linux."
+    },
+    {
+      "front": "ServiceMain é entrada de driver de kernel?",
+      "back": "Não. É rotina vinculada ao ciclo de vida de serviço Windows; DriverEntry é exemplo de entrada de driver Windows."
+    },
+    {
+      "front": "Quando usar WinDbg no comparativo?",
+      "back": "Em análise de falhas e depuração Windows, inclusive dumps e drivers; no Linux, usar ferramentas próprias."
+    }
+  ],
+  "tips": [
+    "Associe a cadeia de diagnóstico: hardware visível → driver disponível → módulo carregado → binding → interface de usuário → operação real.",
+    "Diferencie comandos: modinfo consulta, lsmod lista, depmod indexa, insmod insere arquivo e modprobe gerencia dependências.",
+    "Em questão de programação, procure o contexto de execução antes de escolher mutex, spinlock ou operação que pode dormir.",
+    "Na prova, não confunda barramento e classe: o barramento decide matching, enquanto a classe categoriza a função exposta.",
+    "Sublinhe a plataforma: IRP, IRQL, PnP/INF, ServiceMain e WinDbg são termos Windows, não funções do kernel Linux.",
+    "Quando citar assinaturas, sempre acrescente a condição: política de carga configurada e diferença entre autenticidade e correção."
+  ],
+  "traps": [
+    "“Linux usa micronúcleo porque tem módulos”: falso; é um kernel monolítico modular.",
+    "“modinfo instala automaticamente dependências”: falso; é consulta de metadados.",
+    "“Arquivo em /dev garante periférico funcional”: falso; nó e hardware em operação são etapas diferentes.",
+    "“DMA usa sempre o mesmo endereço virtual de CPU”: falso; existem mapeamentos próprios e IOMMU.",
+    "“Mutex é permitido em qualquer interrupção”: falso; operações que dormem não são adequadas ao contexto atômico.",
+    "“ServiceMain é a entrada universal de driver no Windows”: falso; descreve serviço Windows, não DriverEntry."
+  ],
+  "activeRecall": [
+    {
+      "question": "Por que não se deve presumir uma ABI interna estável para módulos externos do Linux?",
+      "answer": "A evolução de estruturas e símbolos do kernel pode exigir recompilação e mudanças de código, apesar da preocupação com compatibilidade das interfaces oferecidas aos aplicativos."
+    },
+    {
+      "question": "Um dispositivo aparece em lsusb, mas não funciona. Que camadas devem ser verificadas?",
+      "answer": "Matching e associação, disponibilidade/carga do driver, mensagens de probe, interface exposta, permissões, estado do hardware e transferências reais."
+    },
+    {
+      "question": "O que diferencia probe de module_init?",
+      "answer": "module_init inicializa o módulo/registro do driver; probe é chamado no vínculo com um dispositivo compatível, podendo ocorrer múltiplas vezes."
+    },
+    {
+      "question": "Como proteger uma estrutura compartilhada com ISR e processo no Linux convencional?",
+      "answer": "Analisar contexto e concorrência; usar mecanismo apropriado, muitas vezes spinlock com controle de interrupção local, sem operações que durmam dentro da região protegida."
+    },
+    {
+      "question": "Quais diferenças entre DMA coerente e streaming?",
+      "answer": "Coerente fornece região compartilhada com propriedades de coerência; streaming mapeia buffers para transferências e requer sincronização/desmapeamento conforme uso."
+    },
+    {
+      "question": "Como distinguir udev, sysfs e arquivo de dispositivo?",
+      "answer": "udev aplica regras no espaço de usuário; sysfs expõe objetos/atributos; arquivo em /dev é ponto de acesso às operações de um dispositivo."
+    },
+    {
+      "question": "O que IRP e IRQL significam no Windows e qual o erro ao transferi-los literalmente ao Linux?",
+      "answer": "IRP é unidade de solicitação de E/S; IRQL é nível de prioridade/restrições. O Linux implementa mecanismos próprios e não utiliza essas estruturas do Windows como suas APIs nativas."
+    },
+    {
+      "question": "Por que ServiceMain não deve ser comparada com module_init?",
+      "answer": "ServiceMain pertence a um serviço de usuário sob SCM; module_init executa a inicialização de um módulo de kernel, com proteção e ambiente distintos."
+    },
+    {
+      "question": "Qual a utilidade e limitação de assinatura de drivers em Linux e Windows?",
+      "answer": "Ajuda a verificar a integridade e autoria segundo políticas de carga; não valida a segurança ou funcionamento do código."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Kernel, módulo, daemon e aplicativo",
+      "summary": "Confundir limites de privilégio e concluir que um processo em segundo plano ou aplicativo é módulo de kernel. Reforce espaço de execução, inicialização e APIs."
+    },
+    {
+      "key": "e2",
+      "title": "Carregamento de módulo e dependências",
+      "summary": "Atribuir a insmod resolução automática de dependências ou presumir que compilar .ko garante carregar. Verifique modprobe, versões, símbolos e assinatura."
+    },
+    {
+      "key": "e3",
+      "title": "Binding e interfaces de dispositivo",
+      "summary": "Misturar detecção de barramento, registro de driver, probe, /dev e sysfs. Cada etapa possui função distinta, e a presença de uma não comprova as outras."
+    },
+    {
+      "key": "e4",
+      "title": "Contexto atômico, DMA e sincronização",
+      "summary": "Usar mutex indiscriminadamente em interrupções, igualar endereços DMA e CPU ou confiar em barreiras como substitutas de locks."
+    },
+    {
+      "key": "e5",
+      "title": "Observabilidade e confiança de módulos",
+      "summary": "Interpretar assinatura ou ausência de logs como prova de segurança, ou atribuir ao ftrace a função de carregar um módulo."
+    },
+    {
+      "key": "e6",
+      "title": "Transferência indevida de conceitos Windows para Linux",
+      "summary": "Confundir IRP/IRQL com APIs Linux; atribuir ServiceMain a drivers e considerar PnP, INF, assinatura e WinDbg idênticos às ferramentas Linux."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um computador Linux, a equipe quer consultar a versão do núcleo que está em execução. Qual comando atende diretamente a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "uname -r",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "lsmod -a",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "depmod -a",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "modprobe -r",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "journalctl --vacuum-time",
+          "correct": false
+        }
+      ],
+      "explanation": "uname -r apresenta a identificação do release do kernel em execução. Os demais comandos tratam de módulos, índices, remoção ou manutenção de registros e não substituem essa consulta.",
+      "section": "Arquitetura do kernel Linux e suas interfaces",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao explicar a divisão entre kernel e aplicações, um professor descreve qual interface conecta um programa comum a serviços privilegiados. Assinale a caracterização correta.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acesso direto irrestrito da aplicação à memória do kernel.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Chamadas de sistema fornecem entrada controlada a operações do núcleo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Execução permanente de toda biblioteca em modo kernel.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituição automática de processos por módulos carregáveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uso obrigatório de um nó /dev para qualquer operação de sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "A chamada de sistema preserva a separação de privilégios e oferece operação controlada. Aplicações não recebem acesso irrestrito; biblioteca, módulo e nó de dispositivo têm papéis distintos.",
+      "section": "Arquitetura do kernel Linux e suas interfaces",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma banca afirma que /proc, /sys e /dev são sinônimos. Qual correspondência corrige essa afirmação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "/proc: drivers compilados; /sys: arquivos executáveis; /dev: logs de auditoria.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "/proc: discos de bloco; /sys: rede externa; /dev: apenas processos em execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "/proc: processos/estado; /sys: objetos/atributos; /dev: nós de dispositivos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "/proc: bibliotecas de sistema; /sys: binários do kernel; /dev: fonte do Kbuild.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "/proc: instalação do Windows; /sys: memória física; /dev: configuração do bootloader.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada sistema de arquivos tem uso próprio: procfs apresenta informações virtuais sobre processos e núcleo; sysfs representa objetos; devfs no sentido de nós em /dev fornece interfaces de acesso.",
+      "section": "Arquitetura do kernel Linux e suas interfaces",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma funcionalidade precisa estar presente já na imagem do kernel, sem exigir carga de módulo separado. Na configuração tradicional de Kconfig, qual escolha é compatível com esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Selecionar m, que significa obrigatoriamente memória física.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Selecionar n, que exige autoload na inicialização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Editar apenas permissões de /dev sem recompilar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Selecionar y para a funcionalidade quando essa opção estiver disponível.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Executar modinfo, que converte módulos em código embutido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na configuração clássica, y solicita compilação integrada, m solicita construção como módulo e n desabilita. As ferramentas de inspeção e permissões não alteram essa escolha de build.",
+      "section": "Arquitetura do kernel Linux e suas interfaces",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador precisa inserir um módulo por nome e deixar a ferramenta resolver dependências conhecidas. Qual comando é o mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "insmod /caminho/nome.ko",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "lsmod nome_do_modulo",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "modinfo nome_do_modulo",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "uname -a",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "modprobe nome_do_modulo",
+          "correct": true
+        }
+      ],
+      "explanation": "modprobe utiliza o índice de módulos e informações de dependências. insmod insere arquivo específico sem atuar como resolvedor automático equivalente; lsmod e modinfo apenas consultam.",
+      "section": "Módulos, compilação Kbuild e gerenciamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um Makefile de módulo externo do Linux, qual diretiva indica que determinado objeto deve ser compilado como módulo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "obj-m += exemplo.o",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "obj-y := nenhum.ko",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "sysfs = exemplo.o",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MODULE_LICENSE += exemplo.o",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "insmod := exemplo.c",
+          "correct": false
+        }
+      ],
+      "explanation": "A variável obj-m é convenção do Kbuild para objeto modular; obj-y indica incorporação quando aplicável. Metadados de código e comandos de inserção não substituem a configuração de compilação.",
+      "section": "Módulos, compilação Kbuild e gerenciamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após compilar corretamente o arquivo driver.ko, sua carga falha por símbolo desconhecido. Qual conclusão é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A simples presença de /dev garante que o símbolo será resolvido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É preciso verificar símbolos exportados e compatibilidade com a árvore de kernel utilizada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A falha prova, sem outras verificações, que o hardware está fisicamente ausente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A recompilação de um aplicativo gráfico resolve toda dependência de kernel.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O módulo está funcional e o erro pode ser ignorado com segurança.",
+          "correct": false
+        }
+      ],
+      "explanation": "Módulos dependem de interfaces e símbolos disponíveis no núcleo e em outros módulos. O sucesso da compilação isolada não prova que o ambiente de execução fornecerá todas as referências.",
+      "section": "Módulos, compilação Kbuild e gerenciamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para consultar parâmetros publicizados por metadados de um módulo Linux, sem carregá-lo, qual escolha se ajusta à finalidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "rmmod -f nome_do_modulo",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "depmod --remove nome_do_modulo",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "modinfo -p nome_do_modulo",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "mount /dev/nome_do_modulo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "systemctl isolate nome_do_modulo",
+          "correct": false
+        }
+      ],
+      "explanation": "modinfo -p consulta parâmetros presentes nos metadados do módulo. Remover, indexar, montar ou alterar alvo de serviços não são formas equivalentes de investigar parâmetros declarados.",
+      "section": "Módulos, compilação Kbuild e gerenciamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um driver já foi registrado em um barramento Linux, e um dispositivo compatível acaba de ser detectado. Qual callback é usualmente chamado no processo de associação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "ServiceMain()",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "StartServiceCtrlDispatcher()",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SetServiceStatus()",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "probe()",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "IRP_MJ_PNP()",
+          "correct": false
+        }
+      ],
+      "explanation": "probe é o callback de inicialização do dispositivo no driver model Linux. As demais designações pertencem a serviços ou ao modelo de E/S do Windows, e não a essa associação.",
+      "section": "Modelo de dispositivos, barramentos e interfaces de E/S",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante a retirada física de interface USB, um driver Linux precisa interromper operações pendentes. Qual callback é característico desse evento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "module_param()",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "copy_to_user()",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "kmalloc()",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "modinfo()",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "disconnect()",
+          "correct": true
+        }
+      ],
+      "explanation": "No subsistema USB, disconnect participa do desligamento da interface associada. Os demais itens correspondem a parâmetro, cópia de dados, alocação e consulta, sem substituir a limpeza da retirada.",
+      "section": "Modelo de dispositivos, barramentos e interfaces de E/S",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em sistema embarcado Linux, a documentação descreve o hardware por Device Tree. Qual é a interpretação correta desse recurso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descreve dispositivos e propriedades para orientar a enumeração e associação quando a plataforma o utiliza.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É um depurador obrigatório que substitui ftrace.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É o arquivo binário .ko executado como driver.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É o gerenciador de serviços do Windows.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É um arquivo regular dentro de /dev que armazena pacotes de rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Device Tree carrega descrição da topologia e de características de hardware, não lógica executável do driver. A vinculação ainda depende do subsistema e de driver adequado.",
+      "section": "Modelo de dispositivos, barramentos e interfaces de E/S",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa solicitar uma operação específica a um driver de caractere, distinta da simples leitura ou escrita de bytes. Qual mecanismo pode ser apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atribuir sempre IRQL DISPATCH_LEVEL ao processo Linux.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma operação ioctl implementada e validada pelo driver.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Chamar DriverEntry do Windows pelo terminal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar o código-fonte do kernel sem expor nenhuma interface.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tratar um arquivo de configuração comum como acesso privilegiado irrestrito.",
+          "correct": false
+        }
+      ],
+      "explanation": "ioctl é uma interface de controle para operações específicas, desde que definida com cuidado e segurança. Isso não elimina validação de argumentos nem justifica importar APIs Windows.",
+      "section": "Modelo de dispositivos, barramentos e interfaces de E/S",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um dispositivo faz DMA e recebe endereço de transferência diferente do endereço virtual da CPU. Qual recurso explica adequadamente essa situação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A conversão automática de qualquer driver em serviço Windows.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A garantia de igualdade entre endereços de todos os espaços.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mapeamento da API DMA, possivelmente com IOMMU.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma ligação simbólica obrigatória em /proc para memória física.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A aplicação da diretiva obj-m em lugar de DMA.",
+          "correct": false
+        }
+      ],
+      "explanation": "A API de DMA define endereços visíveis ao dispositivo e pode envolver IOMMU. A igualdade de endereços entre CPU, barramento e periférico não é hipótese segura.",
+      "section": "Memória, DMA, interrupções e sincronização no kernel",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao proteger região crítica acessada em contexto de interrupção atômico, qual conduta deve orientar o desenvolvimento no Linux convencional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adotar mutex com espera bloqueante em qualquer circunstância.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar chamadas de aplicativo para zerar o IRQL do Linux.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter o lock durante cópia de usuário sem avaliar possibilidade de dormir.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Evitar operações que possam dormir e escolher sincronização compatível com o contexto.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Dispensar sincronização porque uma CPU executa sempre uma única tarefa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Interrupções atômicas impõem restrições a espera e sono; spinlocks e suas variantes podem ser adequados em seções curtas, desde que se analisem as formas concretas de concorrência.",
+      "section": "Memória, DMA, interrupções e sincronização no kernel",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao programar transferências esporádicas de dados em buffers já existentes, qual classe de mapeamento DMA é comumente empregada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Arquivo de texto comum em /dev sem mapeamento de dispositivo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma chamada ServiceMain de serviço do Windows.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Acesso direto a endereço virtual de usuário como endereço DMA universal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Execução obrigatória de todo trabalho por polling sem interrupções.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mapeamento streaming com sincronização e desmapeamento adequados.",
+          "correct": true
+        }
+      ],
+      "explanation": "Mapeamentos streaming são apropriados a transferências com ciclo de mapeamento e desmapeamento. São diferentes de buffers coerentes e exigem atenção à direção, ao cache e ao hardware.",
+      "section": "Memória, DMA, interrupções e sincronização no kernel",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um driver agendou tarefa em workqueue e o dispositivo foi removido. Qual medida é coerente para evitar use-after-free?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sincronizar ou cancelar trabalho pendente antes de liberar os dados que ele utiliza.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Liberar imediatamente todas as estruturas, pois workqueue não executa código após o agendamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Recriar uma ServiceMain para finalizar o processo Linux.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar toda validação de referência no kernel.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar mutex por comentário de código sem alterar sincronização.",
+          "correct": false
+        }
+      ],
+      "explanation": "Workqueues podem executar de modo assíncrono, inclusive após retornar o callback que agendou o trabalho. A limpeza deve considerar referências, cancelamento e concorrência.",
+      "section": "Memória, DMA, interrupções e sincronização no kernel",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe precisa rastrear funções de kernel para localizar um defeito intermitente em um driver Linux. Que recurso tem essa finalidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "modinfo",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ftrace",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "depmod",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ServiceMain",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PnP Manager",
+          "correct": false
+        }
+      ],
+      "explanation": "ftrace fornece mecanismos de rastreamento de execução no núcleo. modinfo consulta metadados e depmod indexa dependências; os outros termos descrevem componentes Windows.",
+      "section": "Assinatura, diagnóstico, testes e manutenção de drivers Linux",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador encontra a indicação tainted em relatório de erro do kernel. Qual interpretação é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A máquina foi necessariamente invadida pela rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O sistema comprovadamente não carrega nenhum módulo externo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O kernel registrou uma condição relevante ao diagnóstico; é necessário examinar o motivo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A assinatura de todos os módulos foi automaticamente revogada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O travamento foi causado, com certeza, por um aplicativo gráfico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Taint registra estados como certos módulos proprietários ou externos; seu significado depende do indicador envolvido. Não é prova automática de ataque nem aponta sozinho uma causa única.",
+      "section": "Assinatura, diagnóstico, testes e manutenção de drivers Linux",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante testes de um módulo, busca-se detectar erros de acesso à memória do kernel. Qual recurso se relaciona diretamente a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "ServiceMain",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "INF",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "modprobe -r",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "KASAN",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "udev",
+          "correct": false
+        }
+      ],
+      "explanation": "KASAN instrumenta a detecção de determinadas classes de defeitos de memória. Os demais elementos tratam de serviços Windows, pacotes, remoção de módulos ou regras de dispositivos.",
+      "section": "Assinatura, diagnóstico, testes e manutenção de drivers Linux",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um módulo está assinado digitalmente e foi aceito pela política configurada. Qual inferência é tecnicamente válida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A execução será sempre isenta de race e deadlock.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O carregamento garante funcionamento de qualquer hardware.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O módulo torna-se automaticamente compatível com todas as versões de kernel.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A assinatura substitui testes de segurança e verificação de ponteiros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A assinatura apoia a verificação de autenticidade/integridade, mas não garante correção do código.",
+          "correct": true
+        }
+      ],
+      "explanation": "A assinatura é mecanismo de confiança no artefato e não prova ausência de defeitos lógicos ou segurança. Testes, validação de buffers e controle de concorrência permanecem necessários.",
+      "section": "Assinatura, diagnóstico, testes e manutenção de drivers Linux",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um desenvolvedor analisa requisições de leitura, escrita e Plug and Play na pilha de E/S de drivers Windows WDM. Qual estrutura se relaciona a essas requisições?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "IRP",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "sysfs",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "module_init",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Kbuild",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "workqueue",
+          "correct": false
+        }
+      ],
+      "explanation": "No Windows WDM, IRP carrega pedidos de E/S pelas rotinas de despacho e pela pilha de drivers. Os demais termos designam interfaces ou estruturas do desenvolvimento Linux.",
+      "section": "Comparativo com Windows: drivers, serviços e aplicativos",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina de driver Windows opera em DISPATCH_LEVEL. Qual limitação é coerente com o conceito de IRQL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Deve invocar ServiceMain para cada solicitação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Não pode depender de espera bloqueante arbitrária nem acessar indiscriminadamente memória paginável.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Pode realizar qualquer espera longa sem restrições.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É obrigada a compilar um módulo Linux .ko.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Funciona como simples nome alternativo do arquivo /dev.",
+          "correct": false
+        }
+      ],
+      "explanation": "IRQL estabelece restrições de execução no kernel Windows. Em DISPATCH_LEVEL há limites relevantes a bloqueio e paginação; o conceito não pode ser transposto literalmente aos contextos Linux.",
+      "section": "Comparativo com Windows: drivers, serviços e aplicativos",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço Windows criado para executar em segundo plano precisa integrar-se ao SCM. Qual rotina faz parte de seu ciclo de vida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "probe do barramento PCI Linux",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "module_exit de um módulo Linux",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ServiceMain",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "_IOR para uma ioctl Linux",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "dma_map_single",
+          "correct": false
+        }
+      ],
+      "explanation": "ServiceMain participa da inicialização do serviço sob o SCM, ao contrário de DriverEntry, típica de driver Windows. As demais opções pertencem a subsistemas Linux.",
+      "section": "Comparativo com Windows: drivers, serviços e aplicativos",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante análise de um dump de falha em um driver do Windows, o desenvolvedor pretende utilizar símbolos e recursos de diagnóstico. Qual ferramenta é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "depmod",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "lsmod",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "udevadm",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "WinDbg",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Kbuild",
+          "correct": false
+        }
+      ],
+      "explanation": "WinDbg oferece depuração de usuário e kernel Windows, inclusive análise de dumps. As ferramentas Linux listadas se relacionam a módulos, eventos e compilação, não a esse depurador.",
+      "section": "Comparativo com Windows: drivers, serviços e aplicativos",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Linux pode ser considerado um kernel monolítico modular, pois componentes executam no espaço privilegiado e certos recursos são carregáveis separadamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A modularidade não transforma o projeto em micronúcleo: módulos e partes embutidas podem operar no mesmo espaço privilegiado, usando subsistemas comuns e exigindo cautela equivalente com falhas.",
+      "section": "Arquitetura do kernel Linux e suas interfaces",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O diretório /dev é o local em que o kernel mantém, em arquivos persistentes comuns, a configuração completa de seus subsistemas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O diretório /dev reúne nós de dispositivos usados por processos. Configurações e atributos do modelo de dispositivos são normalmente observados em sysfs; /proc expõe outras informações virtuais.",
+      "section": "Arquitetura do kernel Linux e suas interfaces",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo de usuário solicita serviços ao kernel por interfaces controladas, sem que toda a aplicação passe a executar permanentemente com privilégio de kernel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "As chamadas de sistema estabelecem a passagem controlada entre modos de execução. Bibliotecas podem encapsular essas chamadas, mas o código ordinário da aplicação permanece isolado.",
+      "section": "Arquitetura do kernel Linux e suas interfaces",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A presença do systemd é obrigatória para que o kernel Linux ofereça escalonamento e memória virtual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Escalonamento e memória virtual são funções do próprio núcleo. systemd é uma implementação de gerência de serviços no espaço de usuário; a arquitetura do kernel não depende dela.",
+      "section": "Arquitetura do kernel Linux e suas interfaces",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando insmod e o modprobe possuem rigorosamente a mesma forma de resolver dependências de módulos, diferenciando-se apenas pela sintaxe.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "insmod solicita inserção de um arquivo .ko específico; modprobe consulta índices e configuração da árvore de módulos para lidar com dependências, aliases e políticas.",
+      "section": "Módulos, compilação Kbuild e gerenciamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na construção externa de módulos, Kbuild pode usar a variável M para apontar a pasta onde estão os arquivos de código do módulo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O padrão de construção externa envolve a árvore de compilação do kernel com M apontando para o diretório do módulo. Isso organiza a compilação, não garante carga ou instalação.",
+      "section": "Módulos, compilação Kbuild e gerenciamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um módulo que compilou corretamente será carregado em qualquer versão posterior do Linux, porque a ABI interna do kernel é permanentemente estável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O núcleo não promete ABI binária interna estável para módulos externos em geral. Mudanças de símbolos, estruturas e opções, além de regras de assinatura, podem impedir o carregamento.",
+      "section": "Módulos, compilação Kbuild e gerenciamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um parâmetro declarado por module_param pode ser informado durante a carga, e sua exposição em sysfs depende da implementação e das permissões definidas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Parâmetros têm tipo e permissões, podem ser informados na inserção e não são necessariamente alteráveis em tempo de execução. A disponibilidade em /sys/module varia conforme o caso.",
+      "section": "Módulos, compilação Kbuild e gerenciamento",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O registro bem-sucedido de um driver no barramento comprova que o callback probe foi executado e que existe um dispositivo físico funcional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Registrar o driver apenas o torna elegível a tentativas de associação. A execução de probe depende de dispositivo compatível, e mesmo binding bem-sucedido não comprova operação física sem testes.",
+      "section": "Modelo de dispositivos, barramentos e interfaces de E/S",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um driver USB pode receber callbacks de probe e disconnect em relação às interfaces para as quais foi associado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O subsistema USB oferece callbacks de inicialização e desconexão ligados às interfaces. O driver deve limpar transferências pendentes e proteger a vida útil das estruturas na retirada.",
+      "section": "Modelo de dispositivos, barramentos e interfaces de E/S",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Device Tree constitui um executável obrigatório carregado como módulo para todo dispositivo PCI conectado ao Linux.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Device Tree é uma forma de descrição de hardware, especialmente usada em várias plataformas embarcadas. Não é módulo executável nem mecanismo universal de enumeração PCI.",
+      "section": "Modelo de dispositivos, barramentos e interfaces de E/S",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um nó de dispositivo de caractere em /dev pode encaminhar operações a callbacks da estrutura file_operations do driver correspondente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Drivers de caractere podem disponibilizar abertura, leitura, gravação e controles por file_operations. O nó de dispositivo é interface e não substitui validação e permissões.",
+      "section": "Modelo de dispositivos, barramentos e interfaces de E/S",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Mutexes são escolha sempre segura para proteger dados compartilhados dentro de um tratador de interrupção em contexto atômico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Mutex pode dormir enquanto aguarda, o que conflita com restrições de contexto atômico. A escolha de sincronização depende dos executores e das regras de preempção e interrupção.",
+      "section": "Memória, DMA, interrupções e sincronização no kernel",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O endereço DMA apresentado a um dispositivo pode diferir do endereço virtual do buffer utilizado pelo processador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "APIs DMA podem estabelecer mapeamento para o endereço visível ao dispositivo, inclusive via IOMMU. Igualar automaticamente endereço DMA, virtual e físico gera erro de portabilidade.",
+      "section": "Memória, DMA, interrupções e sincronização no kernel",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um mapeamento streaming DMA pode exigir sincronização entre CPU e dispositivo e posterior desmontagem do mapeamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O fluxo streaming não dispensa protocolos de propriedade e sincronização; o driver precisa observar direção, possíveis caches e o desmapeamento após a transferência.",
+      "section": "Memória, DMA, interrupções e sincronização no kernel",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A execução de código em workqueue elimina a necessidade de sincronizar dados que também sejam acessados em outros contextos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Workqueues executam tarefas adiadas, mas os dados podem continuar compartilhados com interrupções e outras threads. Segurança concorrente continua a exigir locks ou técnicas adequadas.",
+      "section": "Memória, DMA, interrupções e sincronização no kernel",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A assinatura válida de um módulo Linux prova que o código está livre de vulnerabilidades e falhas de concorrência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Assinaturas verificam criptograficamente integridade e confiança segundo determinada política. Bugs, races e desenho inseguro podem existir mesmo em binários autenticamente assinados.",
+      "section": "Assinatura, diagnóstico, testes e manutenção de drivers Linux",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O ftrace pode auxiliar a observar funções e eventos de kernel sem ser equivalente ao carregador de módulos modprobe.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "São instrumentos de natureza diferente: ftrace rastreia caminhos de execução; modprobe gerencia solicitação de carga de módulos e dependências. A instrumentação exige suporte do kernel.",
+      "section": "Assinatura, diagnóstico, testes e manutenção de drivers Linux",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um kernel marcado como tainted comprova necessariamente que foi invadido por invasor externo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O estado tainted registra condições de diagnóstico, como certos módulos externos ou proprietários, e não é prova de ataque. A análise exige examinar o motivo específico.",
+      "section": "Assinatura, diagnóstico, testes e manutenção de drivers Linux",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "KASAN e lockdep podem ajudar a detectar classes distintas de defeitos em código de kernel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "KASAN instrumenta detecção de problemas de acesso à memória; lockdep analisa padrões problemáticos de sincronização. Ambos dependem de configuração e testes apropriados.",
+      "section": "Assinatura, diagnóstico, testes e manutenção de drivers Linux",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Windows, IRP identifica um pacote de solicitação de E/S que pode percorrer a pilha de drivers, e não uma interface nativa do Linux.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O modelo WDM utiliza IRPs e rotinas de despacho para coordenar pedidos. Drivers Linux utilizam suas APIs de subsistema e não devem ser escritos com estruturas Windows por analogia literal.",
+      "section": "Comparativo com Windows: drivers, serviços e aplicativos",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "ServiceMain é a rotina de entrada obrigatória dos drivers KMDF em modo kernel e equivale diretamente a module_init no Linux.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "ServiceMain atende ao ciclo de vida de serviços do Windows sob o SCM; drivers Windows podem usar DriverEntry e callbacks WDF. module_init pertence à inicialização de módulo Linux.",
+      "section": "Comparativo com Windows: drivers, serviços e aplicativos",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um DPC tradicional do Windows pode executar em DISPATCH_LEVEL, contexto que restringe operações bloqueantes e uso de memória paginável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O IRQL disciplina quais operações são válidas em rotinas Windows; DPCs tradicionais têm restrições distintas de PASSIVE_LEVEL. Isso não faz de DISPATCH_LEVEL um valor nativo do Linux.",
+      "section": "Comparativo com Windows: drivers, serviços e aplicativos",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O WinDbg é um sistema Linux de gerenciamento de uevents e criação de nós em /dev, similar ao udev.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "WinDbg é ferramenta de depuração do Windows, inclusive para análise de dumps e drivers. udev é mecanismo de usuário do Linux para eventos e regras de dispositivos, não depurador.",
+      "section": "Comparativo com Windows: drivers, serviços e aplicativos",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Building External Modules",
+      "publisher": "Linux Kernel Documentation",
+      "reference": "Kbuild e compilação de módulos externos",
+      "url": "https://docs.kernel.org/kbuild/modules.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Driver Binding",
+      "publisher": "Linux Kernel Documentation",
+      "reference": "Matching, probe e remoção no driver model",
+      "url": "https://docs.kernel.org/driver-api/driver-model/binding.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ioctl based interfaces",
+      "publisher": "Linux Kernel Documentation",
+      "reference": "Interfaces de controle de dispositivos",
+      "url": "https://docs.kernel.org/driver-api/ioctl.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Dynamic DMA mapping Guide",
+      "publisher": "Linux Kernel Documentation",
+      "reference": "DMA coerente e mapeamentos streaming",
+      "url": "https://docs.kernel.org/core-api/dma-api-howto.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Unreliable Guide To Locking",
+      "publisher": "Linux Kernel Documentation",
+      "reference": "Mutex, spinlock e contextos de execução",
+      "url": "https://docs.kernel.org/kernel-hacking/locking.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Kernel module signing facility",
+      "publisher": "Linux Kernel Documentation",
+      "reference": "Verificação criptográfica de módulos",
+      "url": "https://docs.kernel.org/admin-guide/module-signing.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Dynamic debug",
+      "publisher": "Linux Kernel Documentation",
+      "reference": "Ativação de mensagens de depuração",
+      "url": "https://docs.kernel.org/admin-guide/dynamic-debug-howto.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Windows kernel",
+      "publisher": "Microsoft Learn",
+      "reference": "IRP e rotinas de suporte de drivers Windows",
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/_kernel/",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Managing Hardware Priorities",
+      "publisher": "Microsoft Learn",
+      "reference": "IRQL e restrições de execução em drivers Windows",
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/managing-hardware-priorities",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Service ServiceMain Function",
+      "publisher": "Microsoft Learn",
+      "reference": "ServiceMain e Service Control Manager",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/services/service-servicemain-function",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Driver Signing With Digital Signatures",
+      "publisher": "Microsoft Learn",
+      "reference": "Assinatura e integridade dos pacotes de drivers",
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/install/driver-signing",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Get started with Windows debugging",
+      "publisher": "Microsoft Learn",
+      "reference": "Uso do WinDbg em depuração de drivers Windows",
+      "url": "https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/getting-started-with-windows-debugging",
+      "accessedAt": "2026-11-17"
+    }
+  ]
+}

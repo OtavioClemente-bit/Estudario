@@ -1,0 +1,1955 @@
+{
+  "id": "informatica.persistencia-jpa-hibernate-bancos",
+  "subject": "Informática — Desenvolvimento de sistemas e bancos de dados",
+  "title": "Persistência com JPA, Hibernate e bancos de dados",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "JPA, Hibernate e persistência Java",
+    "Persistência com JPA e Hibernate"
+  ],
+  "scope": {
+    "covers": "Fundamentos de ORM; Jakarta Persistence/JPA; mapeamento e relacionamentos; ciclo de vida; consultas JPQL/Criteria/QueryDSL; Hibernate; JDBC; transações, concorrência e performance; Spring Data JPA; Lombok; JNDI, ODBC e integração com Oracle, PostgreSQL e SQL Server.",
+    "excludes": "Administração aprofundada de infraestrutura dos SGBDs, tuning por versões específicas, frameworks NoSQL e detalhes de versões experimentais; características dependentes de versão são indicadas como tais."
+  },
+  "theoryTitle": "Guia completo de persistência Java: JPA, Hibernate, consultas e SGBDs",
+  "chapters": [
+    {
+      "title": "Arquitetura da persistência, JPA e mapeamento objeto-relacional",
+      "markdown": "## 1. Da aplicação ao banco: responsabilidades\nPersistência é a manutenção de dados para além do tempo de vida de um processo. Em sistemas Java, a **JDBC** é uma API de acesso relacional por comandos SQL e resultados tabulares; **Jakarta Persistence (JPA)** define contratos de mapeamento objeto-relacional, ciclo de vida das entidades e consultas orientadas ao modelo; **Hibernate ORM** é um provedor que implementa esses contratos e oferece recursos próprios; e **Spring Data JPA** acrescenta abstrações de repositório. Nenhuma dessas camadas substitui o servidor de banco de dados, suas restrições, transações ou índices. A denominação histórica **Java Persistence API**, associada ao pacote `javax.persistence`, aparece em concursos antigos; aplicações Jakarta modernas empregam `jakarta.persistence`. A importação deve corresponder à combinação de versões do projeto. O termo ORM descreve o ajuste entre objetos, herança e associações, de um lado, e tabelas, colunas, chaves e junções, de outro.\n\n## 2. Unidade de persistência e entidades\nUma *persistence unit* reúne classes persistentes, provedor e configuração de acesso; pode ser declarada em `persistence.xml` ou montada pela infraestrutura de integração. `EntityManagerFactory` representa a fábrica de gerenciadores para a unidade; `EntityManager` administra um contexto de persistência. Em contêineres Jakarta EE, a injeção com `@PersistenceContext` pode fornecer um gerenciador administrado pelo contêiner. A anotação `@Entity` identifica uma classe persistente e `@Table(name=\"...\")` permite configurar a tabela. Toda entidade deve ter identidade persistente, tipicamente `@Id`, admitindo-se chave composta (`@EmbeddedId` ou `@IdClass`). `@GeneratedValue` indica estratégia de geração da chave (`IDENTITY`, `SEQUENCE`, `TABLE` ou `AUTO`), cuja disponibilidade e eficiência variam conforme o SGBD. Não confunda chave primária do banco com o objeto Java: a identidade de negócio e o `equals` exigem avaliação do domínio.\n\n## 3. Colunas, tipos e atributos\nAcesso por campo ou propriedade decorre da posição das anotações de mapeamento, especialmente a de identidade; misturar estilos sem declarar o acesso pode gerar comportamento inesperado. `@Column` ajusta nome, nulidade declarativa, unicidade declarativa e comprimento; não é, por si só, mecanismo de validação de entrada. `@Basic` cobre valores básicos; `@Enumerated(EnumType.STRING)` persiste o nome textual do enum, enquanto `ORDINAL` depende da ordem das constantes e pode corromper a interpretação após reordenação. `@Temporal` é relevante para tipos legados de data; tipos da API `java.time` possuem mapeamento próprio nas especificações modernas. `@Lob` representa conteúdo grande; `@Transient` exclui um atributo do mapeamento persistente. Um `AttributeConverter<X,Y>` transforma valor de domínio e valor de coluna. `@Embeddable` modela componente de valor sem identidade própria e `@Embedded` o incorpora à entidade; `@ElementCollection` persiste coleções de elementos básicos ou incorporáveis sem transformá-los automaticamente em entidades.\n\n## 4. Relacionamentos e posse\n`@OneToOne`, `@OneToMany`, `@ManyToOne` e `@ManyToMany` representam cardinalidades. `@JoinColumn` indica coluna de junção; `@JoinTable` descreve uma tabela associativa. Em relação bidirecional, o atributo `mappedBy` identifica o **lado inverso**, enquanto o lado proprietário comanda a atualização da associação no mapeamento. Para atualizar corretamente a memória e o banco, métodos de conveniência costumam sincronizar as duas extremidades da associação. `cascade` propaga operações escolhidas (`PERSIST`, `MERGE`, `REMOVE`, entre outras) e não equivale a `fetch`; `orphanRemoval=true`, nos relacionamentos em que é permitido, elimina o dependente removido da associação, segundo as regras de ciclo de vida. A remoção em cascata numa associação muitos-para-muitos compartilhada é especialmente arriscada.\n\n## 5. Estratégia de herança e escolhas de projeto\n`@Inheritance` pode empregar `SINGLE_TABLE` (hierarquia em uma tabela, com discriminador), `JOINED` (tabelas ligadas por chave) e `TABLE_PER_CLASS` (tabelas por classe concreta, com implicações para consultas polimórficas). `@MappedSuperclass` compartilha mapeamentos, mas não representa entidade autônoma consultável. Ajuste estratégia de herança ao padrão de consultas e ao esquema; herança de objetos não obriga herança relacional. A modelagem de domínio deve respeitar normalização, chaves estrangeiras, restrições de unicidade e necessidade de migrações versionadas. `ddl-auto` e geração automática de esquema ajudam em protótipos, mas alterações em produção exigem planejamento, revisão e ferramentas de migração.\n\n**Exemplo mental para prova:** `Cliente` com `@Id`, `@Column` e `@OneToMany(mappedBy=\"cliente\")` não se torna dono da chave estrangeira só por conter a lista. É a associação correspondente em `Pedido`, normalmente um `@ManyToOne` com `@JoinColumn`, que define esse lado. Da mesma forma, `@Entity` não transforma uma consulta de objeto em SQL independente do banco: o provedor traduz a consulta e o SGBD continua executando-a."
+    },
+    {
+      "title": "Contexto de persistência, ciclo de vida, transações e JDBC",
+      "markdown": "## 1. Estado de objetos e identidade no contexto\nO contexto de persistência identifica entidades gerenciadas por tipo e chave. Uma entidade **nova** (transiente) ainda não é gerenciada nem tem registro garantido; **gerenciada** participa do contexto e de sua detecção de alterações (*dirty checking*); **destacada** já não participa desse contexto; **removida** foi marcada para exclusão. `persist` torna uma entidade nova gerenciada, observadas restrições e transação; `find` busca pela chave, podendo reutilizar a instância existente no primeiro nível de cache; `remove` marca entidade gerenciada para remoção; `detach` separa uma entidade; `clear` desanexa todas as gerenciadas. `merge` **copia estado** de instância destacada para uma instância gerenciada e **retorna** a instância resultante: não é correto assumir que o objeto de entrada passa a ser gerenciado. `refresh` sincroniza os dados da entidade gerenciada com o estado do banco, respeitadas regras de execução.\n\n## 2. Flush, commit e consistência\n`flush` sincroniza alterações pendentes no banco mediante SQL, mas **não significa commit** e não assegura durabilidade se a transação terminar com rollback. O provedor pode efetuar `flush` automaticamente em momentos previstos pelo modo de sincronização e pelas consultas; em geral, não é necessário executar `update` explícito para cada atributo alterado de entidade gerenciada. `commit` conclui a transação, tornando persistentes as mudanças, desde que não haja falhas; `rollback` desfaz o trabalho transacional. `EntityTransaction` permite transações gerenciadas pela aplicação em ambientes apropriados; `@Transactional` em aplicações Spring delimita transações por infraestrutura e interceptação. A simples presença da anotação não equivale a transação em todo cenário: chamadas internas no mesmo objeto podem contornar um proxy configurado para interceptar métodos externos. Evite contextos excessivamente longos e não compartilhe livremente um `EntityManager` entre threads.\n\n## 3. Concorrência e isolamentos\nTransações atendem a requisitos de atomicidade, consistência, isolamento e durabilidade (ACID), mas o comportamento concreto depende do SGBD, do nível de isolamento e do driver. `@Version` implementa verificação otimista: uma atualização conflitante pode gerar exceção quando a versão esperada não coincide. Travamento pessimista utiliza modos de bloqueio (`PESSIMISTIC_READ`, `PESSIMISTIC_WRITE`) e pode depender de transação ativa. Bloqueios, tempo de espera, deadlocks e atualizações perdidas não são eliminados pela mera adoção do ORM. Escopo de transação, índices apropriados e controle de concorrência devem ser planejados em conjunto. No isolamento `READ COMMITTED`, por exemplo, costuma-se evitar leitura suja, mas não se deve supor que todas as leituras sucessivas vejam a mesma fotografia do banco em todos os SGBDs.\n\n## 4. JDBC como base de integração\nA **JDBC** reside sobretudo nos pacotes `java.sql` e `javax.sql`. `DriverManager` obtém conexões a partir de URL e credenciais; `DataSource` abstrai a obtenção de conexões e pode participar de *pooling*. `Connection` controla auto-commit, isolamento, `commit()`, `rollback()` e `Savepoint`. `Statement` executa SQL simples; `PreparedStatement` recebe SQL parametrizado, com marcadores `?` e métodos `setXxx`, sendo preferível para separar valores de comandos e reduzir risco de injeção; `CallableStatement` atende a chamadas de procedimentos armazenados. `ResultSet` representa linhas retornadas, normalmente percorridas por `next()`, com leitura via `getXxx`. `executeQuery` é indicado para consultas que retornam resultados; `executeUpdate` normalmente fornece contagem de linhas afetadas por DML. `execute` pode lidar com diferentes formas de retorno. Recursos devem ser fechados, preferencialmente com *try-with-resources*; em conexão proveniente de pool, `close()` normalmente devolve o recurso ao pool, não encerra necessariamente a conexão física.\n\n## 5. Exemplo de operação segura\n```java\ntry (Connection c = dataSource.getConnection();\n     PreparedStatement ps = c.prepareStatement(\n         \"select nome from cliente where id = ?\")) {\n    ps.setLong(1, id);\n    try (ResultSet rs = ps.executeQuery()) {\n        if (rs.next()) { String nome = rs.getString(\"nome\"); }\n    }\n}\n```\nO exemplo parametriza o **valor** de `id`; parâmetros não substituem nomes de tabela ou coluna, que exigem validação por lista permitida quando variáveis. Para uma unidade de trabalho que envolva mais de um comando, desabilitar auto-commit e tratar `commit`/`rollback` com cuidado evita operações parcialmente aplicadas. JDBC e JPA podem coexistir, mas coordenação de transações e visibilidade de alterações requerem atenção, pois JDBC direto não atualiza magicamente o contexto do ORM."
+    },
+    {
+      "title": "JPQL, Criteria, QueryDSL e técnicas de consulta",
+      "markdown": "## 1. JPQL e SQL não são idênticas\nA **JPQL** consulta entidades e seus atributos Java, não necessariamente os nomes físicos das tabelas. Exemplo: `select p from Pedido p where p.total > :minimo`, usando o **nome da entidade** `Pedido`, alias `p` e parâmetro nomeado `:minimo`. Em SQL nativa, a sintaxe depende das tabelas e do dialeto efetivo. `EntityManager.createQuery` prepara JPQL; `createNativeQuery` oferece SQL nativa; `createNamedQuery` utiliza consulta previamente definida. Parâmetros posicionais e nomeados devem ser vinculados antes da execução: valores interpolados diretamente na string criam problemas de segurança e tipagem. `getResultList()` retorna lista, enquanto `getSingleResult()` pressupõe cardinalidade própria e pode sinalizar ausência ou excesso de resultados. `setFirstResult` e `setMaxResults` definem deslocamento e limite da consulta.\n\n## 2. Joins, agregações e projeções\nJPQL oferece `JOIN`, `LEFT JOIN`, `WHERE`, `GROUP BY`, `HAVING`, `ORDER BY`, agregações e expressões de construção (`select new pacote.Dto(...)`). `JOIN FETCH` solicita a carga da associação na mesma consulta, mas não deve ser usado irrefletidamente em paginação de coleções, devido à multiplicação de linhas e a limitações do provedor. `DISTINCT` pode ser necessário em consultas com junções; a semântica concreta de deduplicação de entidades e linhas físicas deve ser compreendida. Projeções evitam trazer grafos completos quando a tela requer poucos campos, melhorando consumo de memória e transferência. Para resultado reproduzível em paginação, defina ordenação estável com desempate. Consultas de atualização e exclusão em massa (`UPDATE`, `DELETE` em JPQL) afetam o banco diretamente e podem deixar instâncias já carregadas no contexto com estado desatualizado.\n\n## 3. Criteria API e metamodelo\nA API de critérios permite compor consultas programaticamente: `CriteriaBuilder` cria critérios, `CriteriaQuery<T>` descreve seleção e `Root<T>` representa a entidade raiz; `Predicate` combina filtros. O metamodelo estático gerado (`Pedido_`, por exemplo) evita diversos acessos por strings e facilita refatoração. O uso de Criteria é adequado para filtros opcionais em telas complexas, mas pode ser mais verboso que JPQL. **Não confunda** Criteria com criação automática de índices: critérios expressam condições; o otimizador do SGBD escolhe o plano. Uma consulta dinâmica pode exigir índices apropriados e análise do plano de execução independentemente de como foi construída.\n\n## 4. QueryDSL\n**QueryDSL** oferece uma DSL Java para consultas tipadas, frequentemente por classes geradas pelo processador de anotações, como `QPedido`. Em integração JPA, `JPAQueryFactory` recebe um `EntityManager` e os predicados são compostos por referências do tipo `QPedido.pedido.status.eq(...)`, reduzindo erros de nomes de propriedades durante refatorações. A geração de tipos ocorre na fase de compilação e exige configuração correta do processador de anotações e do namespace de persistência. QueryDSL não é o Hibernate, não é um SGBD e não dispensa transação ou índices. Há variantes e módulos para outros *backends*; ao usar JPA, a consulta é expressa sobre o modelo de entidades. A API e o artefato dependem da distribuição adotada: confirme a compatibilidade com a versão de Jakarta Persistence.\n\n## 5. Quando escolher cada ferramenta\nEscolha **JPQL** para consultas orientadas a entidades com sintaxe textual estável; **Criteria** para composição dinâmica no padrão JPA; **QueryDSL** para fluência com tipagem de propriedades e predicados reutilizáveis; **SQL nativa/JDBC** para funcionalidades específicas do banco, relatórios ou controle explícito do comando. Uma consulta de listagem com paginação e filtros por múltiplos campos pode usar QueryDSL ou Specifications; uma consulta analítica sobre funções próprias do banco pode exigir SQL nativa. Não atribua maior desempenho automático a uma linguagem: verifique o SQL final, sua parametrização, cardinalidade, índices, planos e tráfego. O problema N+1 ocorre quando uma consulta inicial produz N acessos adicionais a associações; pode ser mitigado por `fetch join`, *entity graphs*, projeções ou carregamento em lote, conforme o caso e as limitações da consulta."
+    },
+    {
+      "title": "Hibernate ORM: carregamento, cache, concorrência e desempenho",
+      "markdown": "## 1. Implementação e APIs próprias\nO **Hibernate ORM** é um provedor de Jakarta Persistence e dispõe da API nativa `Session`, com papel próximo ao de `EntityManager`, bem como `SessionFactory`, análoga ao conceito de fábrica. O Hibernate traduz consultas e alterações em SQL próprio ao dialeto do SGBD, aplica mapeamentos, faz controle de estado e pode oferecer extensões não padronizadas. Não considere automaticamente portável toda anotação `org.hibernate.annotations.*`: portabilidade normativa é matéria da especificação JPA. O conceito de **dirty checking** significa detectar mudanças feitas em entidades gerenciadas; `flush` organiza sua sincronização SQL dentro da transação. Modificações em entidades destacadas não são rastreadas até reintrodução do estado pelo mecanismo adequado.\n\n## 2. Eager, lazy e N+1\n`FetchType.EAGER` indica exigência de carregamento imediato da associação; `LAZY` especifica intenção de adiar o carregamento, dentro das possibilidades do provedor. Nas configurações de mapeamento tradicionalmente cobradas de JPA, `@ManyToOne` e `@OneToOne` têm padrão `EAGER`; `@OneToMany` e `@ManyToMany`, `LAZY`. Entretanto, o modo exato de obter os dados pode usar *joins* ou consultas adicionais: `EAGER` não promete uma única consulta SQL. Um proxy ou coleção lazy pode falhar ao ser acessado depois do encerramento da sessão necessária, dando origem a `LazyInitializationException` do Hibernate. O remédio adequado é planejar a carga dentro do escopo do caso de uso, frequentemente por DTO, *fetch join* ou grafo de entidades; não é ideal manter sessão aberta indiscriminadamente apenas para a camada de apresentação.\n\n## 3. Caches distintos\nO **cache de primeiro nível** é associado ao contexto de persistência, é inerente ao controle de identidade local e não deve ser confundido com cache global. O **segundo nível** é opcional, configurado por provedor/região/entidade, e pode compartilhar dados entre sessões; requer estratégia coerente de atualização e invalidação. Há ainda **cache de consulta**, que armazena informações sobre resultados de consultas conforme política específica e não torna desnecessário o segundo nível. `evict` ou mecanismos de expiração afetam o cache pertinente, mas a consistência depende da configuração. Ativar todos os caches indiscriminadamente em dados muito voláteis pode gerar custo, incoerência e baixo aproveitamento.\n\n## 4. SQL gerado e operações em lote\nAs estratégias `GenerationType.IDENTITY` e `SEQUENCE` podem ter impactos diversos sobre inserções em lote e sobre o momento de obtenção dos IDs. *Batching* agrupa instruções JDBC compatíveis e reduz idas e vindas à base, sem significar que todos os comandos sejam uma única instrução SQL. `hibernate.jdbc.batch_size` é uma configuração conhecida, mas sua efetividade depende do tipo de operação, driver e geração de IDs. Consultas de leitura intensiva podem utilizar projeções, paginação, acesso somente de leitura e controle do tamanho do contexto. Para operações de massa, periodicamente executar `flush` e `clear` pode reduzir retenção de milhares de entidades, desde que a lógica de consistência seja respeitada.\n\n## 5. Concorrência e ciclo de dados\n`@Version` habilita controle de concorrência otimista com verificação da versão ao atualizar dados; se outra transação tiver alterado a linha, a escrita conflitante não deve ser silenciosamente considerada bem-sucedida. Travamentos pessimistas aplicam bloqueios de banco sujeitos a *timeouts* e deadlocks. `CascadeType.ALL` representa um conjunto de operações propagadas, não a garantia de que todas as associações estejam carregadas. `orphanRemoval` cuida de entidade dependente retirada de relacionamento apropriado e não equivale a remover qualquer entidade referenciada por outra. Entidades com associações bidirecionais demandam cuidado com `toString`, serialização, comparação e possíveis ciclos. Uma boa investigação de performance compara quantidade de consultas SQL, tempo, cardinalidade, índice, concorrência e custo de hidratar entidades antes de apontar o ORM como causa isolada."
+    },
+    {
+      "title": "Spring Data JPA, repositórios, Specifications e Lombok",
+      "markdown": "## 1. Repositórios e derivação de consultas\n**Spring Data JPA** fornece implementação de repositórios declarativos apoiados na infraestrutura JPA. `Repository` é interface marcadora da abstração; `CrudRepository` oferece operações essenciais de persistência; `JpaRepository` acrescenta operações específicas para JPA, e outras interfaces dão suporte a paginação e ordenação. Em `interface ClienteRepository extends JpaRepository<Cliente, Long>`, o tipo genérico indica entidade e tipo da chave. Métodos como `findByNomeContainingIgnoreCase` podem ter consultas derivadas do nome; a interpretação depende das propriedades existentes. `@Query` declara JPQL ou SQL nativa quando configurado `nativeQuery=true`. `@Param` permite associar nomes a parâmetros. Não confunda conveniência de `save` com execução imediata de `INSERT`: a decisão de persistir ou mesclar e o momento do SQL dependem de estado e de sincronização transacional.\n\n## 2. Transações e atualizações em massa\nOs métodos de repositório podem receber comportamento transacional padrão da infraestrutura; casos de uso que envolvem vários repositórios devem estabelecer limites transacionais coerentes na camada de serviço com `@Transactional`. O atributo `readOnly=true` é uma pista de otimização para infraestrutura/provedor e **não** um bloqueio universal a comandos de escrita no banco. Métodos de consulta declarados não recebem necessariamente a mesma configuração transacional por padrão dos métodos herdados: explicite transação quando exigida. `@Modifying` informa ao Spring Data que uma consulta declarada por `@Query` modifica dados; não é preciso para toda alteração automática de entidade gerenciada. Bulk update pode tornar o contexto de persistência incoerente com as linhas atualizadas; opções como `clearAutomatically` exigem cuidado com alterações ainda não sincronizadas.\n\n## 3. Paginação, projeção e busca dinâmica\n`Pageable` fornece página, tamanho e ordenação; `Page<T>` inclui metadados e pode implicar consulta de contagem; `Slice<T>` informa existência de próxima fatia sem exigir os mesmos metadados completos de total. `Sort` descreve ordenação, sem substituir `ORDER BY` seguro quando SQL é escrita manualmente. Projeções por interface ou DTO limitam os dados carregados segundo a consulta produzida. `JpaSpecificationExecutor` opera com `Specification<T>`, predicados compostos a partir da Criteria API, permitindo filtros reutilizáveis. A integração com QueryDSL pode permitir execução de `Predicate` por repositório específico e exige a geração dos tipos `Q...`. Spring Data não transforma QueryDSL, Criteria e Specifications em sinônimos: cada um possui contratos próprios.\n\n## 4. Lombok no modelo de domínio\n**Lombok** usa processamento de anotações para gerar código Java repetitivo. `@Getter` e `@Setter` geram acessores; `@NoArgsConstructor` gera construtor sem argumentos; `@AllArgsConstructor` e `@RequiredArgsConstructor` têm escopos próprios; `@Builder` oferece API de construção; `@Data` combina acessores, `toString`, `equals`, `hashCode` e construtor para campos obrigatórios. Lombok **não implementa persistência**, não cria tabelas e não substitui `@Entity` ou `@Id`. Entidades JPA geralmente exigem construtor sem argumentos público ou protegido; aplicar somente `@Builder` não assegura esse requisito. `@Data` deve ser avaliada com cautela em entidades: `equals` e `hashCode` gerados com todas as propriedades podem depender de IDs mutáveis ou associações e `toString` pode provocar carregamento lazy ou recursão. Prefira escolhas explícitas das anotações e exclusões necessárias, especialmente em grafos bidirecionais.\n\n## 5. Arquitetura e testes\nA camada de repositório traduz necessidades de consulta, a camada de serviço delimita unidade de negócio/transação e o controlador lida com comunicação externa. Para testes de acesso a dados, uma base de teste deve reproduzir recursos relevantes do SGBD real quando o SQL depender de funções específicas, índices, concorrência ou comportamento de dialeto; bancos em memória nem sempre capturam diferenças. Configure migrações do esquema, logs de SQL com prudência e métricas de latência; não registre parâmetros que revelem senhas ou dados sensíveis. Paginação, limitações de conexão, observabilidade e tratamento padronizado de exceções são parte da qualidade do acesso a dados, não características resolvidas por uma única anotação."
+    },
+    {
+      "title": "JNDI, ODBC, SGBDs Oracle, PostgreSQL e SQL Server",
+      "markdown": "## 1. Fontes de dados, JNDI e ODBC\n**JNDI (Java Naming and Directory Interface)** é uma API de nomes e diretórios usada, por exemplo, para localizar um `DataSource` configurado no servidor de aplicações. `InitialContext.lookup(\"java:comp/env/jdbc/MinhaBase\")` devolve um recurso registrado nesse ambiente se o nome existir; o objeto obtido pode fornecer conexões JDBC. JNDI **não é** linguagem de consulta e não é protocolo de banco. `DataSource` pode oferecer gerenciamento externo de credenciais, pool e, em ambientes compatíveis, integração transacional. **ODBC (Open Database Connectivity)** é uma interface de conectividade especialmente associada a aplicações e drivers que usam o padrão ODBC; pode usar DSN (*Data Source Name*) e um gerenciador de drivers. ODBC **não é requisito** para que uma aplicação Java use JDBC: há drivers JDBC específicos para Oracle, PostgreSQL e SQL Server. Também não confunda `DataSource` JDBC com DSN ODBC; são conceitos distintos que podem aparecer em uma mesma arquitetura.\n\n## 2. SGBDs e SQL comum\nUm **SGBD relacional** executa DDL (`CREATE`, `ALTER`), DML (`INSERT`, `UPDATE`, `DELETE`), consultas `SELECT` e controle transacional, com mecanismos de índices, chaves, restrições, planos de execução e usuários/permissões. `PRIMARY KEY` identifica registros; `FOREIGN KEY` verifica vínculos; `UNIQUE` restringe repetição de valores segundo regras do SGBD; índices aceleram determinadas buscas, mas impõem custos de espaço e manutenção durante gravações. `WHERE` filtra linhas antes de agrupamentos, `HAVING` filtra grupos, `JOIN` relaciona tabelas e `ORDER BY` define ordem explícita; sem `ORDER BY`, a ordem de linhas não é garantida. `NULL` representa ausência de valor conhecido e não deve ser comparado com `=`; SQL utiliza `IS NULL` e lógica de três valores. Sempre avalie o esquema, permissões mínimas, criptografia de transporte, backups, restauração e monitoramento.\n\n## 3. PostgreSQL\nO **PostgreSQL** é um SGBD relacional de código aberto com suporte a transações e recursos como `RETURNING`, `INSERT ... ON CONFLICT` para tratar conflitos de unicidade e tipos como `jsonb`. Uma inserção `INSERT INTO cliente(nome) VALUES ('Ana') RETURNING id` pode devolver identificador gerado; `ON CONFLICT (...) DO UPDATE` atende a cenários de *upsert* conforme índices/restrições compatíveis. Colunas `GENERATED ... AS IDENTITY` e sequências são mecanismos diferentes de gerar valores; lacunas em sequências podem ocorrer mesmo com transações desfeitas. O nível padrão de isolamento do PostgreSQL é `READ COMMITTED`; particularidades de visibilidade e de bloqueio devem ser estudadas na documentação do banco. Com JPA, o provedor utiliza driver e dialeto adequados, mas nem todas as características de `jsonb` ou `ON CONFLICT` estão presentes de modo portátil na JPQL.\n\n## 4. Oracle Database\nO **Oracle Database** possui recursos próprios de SQL e PL/SQL, sequências, colunas de identidade em versões modernas, `MERGE` para combinar inserções/atualizações conforme correspondências e cláusulas `OFFSET ... FETCH` para limitação de linhas nas versões que as suportam. Não se deve afirmar que o banco depende exclusivamente de sequências nem que toda edição de SQL é portátil para o PostgreSQL ou SQL Server. Funções de data, tratamento de nulos, parâmetros, tipos e retorno de linhas podem diferir. A forma do dialeto selecionado pelo Hibernate influencia SQL emitido para paginação, IDs, bloqueios e funções. O desempenho também depende de estatísticas, índices e plano do otimizador; uma instrução de consulta não melhora só porque foi escrita em JPQL.\n\n## 5. SQL Server\nO **Microsoft SQL Server** usa Transact-SQL (T-SQL) e oferece propriedade `IDENTITY` para gerar valores em colunas, recurso `TOP` em consultas e paginação com `ORDER BY ... OFFSET ... FETCH` nas versões que a suportam. Sua integração Java pode ocorrer por driver **JDBC da Microsoft**, sem que o driver ODBC seja obrigatório; por outro lado, aplicações não Java podem usar ODBC. A instrução `MERGE`, disponível em alguns SGBDs, possui características próprias e deve ser avaliada segundo recomendações do fabricante e condições de concorrência, em vez de assumida como SQL universal. Bloqueios, `READ COMMITTED`, isolamento baseado em versionamento quando configurado e comportamento de transações exigem atenção ao ambiente concreto.\n\n## 6. Comparação prática, portabilidade e proteção\nNa **JPA**, `GenerationType.AUTO` deixa seleção ao provedor; `IDENTITY` costuma utilizar mecanismo de coluna do banco; `SEQUENCE` se apoia em sequência quando suportada. Não é seguro transportar DDL de identidade, `upsert` ou funções de data entre os três bancos sem revisão. `PreparedStatement` protege valores parametrizados, mas autorização, validação de identificadores, gestão de segredos e permissões continuam essenciais. Use pool de conexões com limites e testes de saúde adequados, defina *timeouts*, feche recursos, monitore gargalos e evite consultas com acesso excessivo a linhas. Ao trocar o SGBD, teste também isolamento, tratamento de `NULL`, ordenação, paginação, *collation*, tipos de data/hora e SQL nativa. **Regra para concurso:** API JDBC = contrato Java para executar SQL; JPA = especificação ORM; Hibernate = implementação; Spring Data = repositórios; QueryDSL = consultas tipadas; Lombok = geração de código; JNDI = localização de recursos; ODBC = interface de conectividade; Oracle, PostgreSQL e SQL Server = motores que de fato armazenam e processam os dados."
+    }
+  ],
+  "summary": "A persistência em Java combina camadas distintas: **JDBC** fornece conexões e execução de SQL; **JPA/Jakarta Persistence** define mapeamentos e ciclo de vida de entidades; **Hibernate** implementa a especificação; **Spring Data JPA** simplifica repositórios; **QueryDSL** cria consultas tipadas; **Lombok** gera código repetitivo. O núcleo da JPA envolve `@Entity`, `@Id`, relacionamentos, contexto de persistência, estados nova/gerenciada/destacada/removida, `persist`, `merge`, `remove`, *dirty checking* e `flush`, que não equivale a `commit`. Em consultas, diferencie JPQL, Criteria, QueryDSL, SQL nativa e projeções. Em desempenho, examine N+1, carregamento lazy/eager, cache, paginação, *batching*, concorrência e versão otimista. Spring Data oferece consultas derivadas, `Page`, `Slice`, `@Query`, `@Modifying` e `Specification`. Para conectividade, **JNDI** pode localizar `DataSource`; **ODBC** é interface distinta de JDBC. Oracle, PostgreSQL e SQL Server têm sintaxes, drivers e mecanismos de geração de IDs próprios. A segurança exige consultas parametrizadas, transações coerentes, privilégio mínimo, controle de conexões e revisão das particularidades do SGBD.",
+  "flashcards": [
+    {
+      "front": "Qual é a relação entre JPA, Hibernate e JDBC?",
+      "back": "JPA define a especificação ORM; Hibernate pode implementá-la e usa mecanismos de acesso ao banco, usualmente JDBC, para executar SQL."
+    },
+    {
+      "front": "Qual a diferença entre `javax.persistence` e `jakarta.persistence`?",
+      "back": "São namespaces históricos de famílias distintas da especificação; dependências e imports precisam ser compatíveis."
+    },
+    {
+      "front": "Qual componente fabrica objetos `EntityManager`?",
+      "back": "`EntityManagerFactory`, associado à configuração da unidade de persistência."
+    },
+    {
+      "front": "O que identifica a chave primária numa entidade?",
+      "back": "`@Id` ou mapeamento composto com `@EmbeddedId`/`@IdClass`."
+    },
+    {
+      "front": "Para que serve `mappedBy`?",
+      "back": "Declara o lado inverso de um relacionamento bidirecional; o atributo citado é o do lado proprietário."
+    },
+    {
+      "front": "O que diferencia `cascade` de `fetch`?",
+      "back": "`cascade` propaga operações de ciclo de vida; `fetch` orienta quando os dados associados são carregados."
+    },
+    {
+      "front": "Como `merge` trata uma instância destacada?",
+      "back": "Copia seu estado para uma instância gerenciada e retorna a referência gerenciada; a entrada não é necessariamente gerenciada."
+    },
+    {
+      "front": "`flush` equivale a `commit`?",
+      "back": "Não. `flush` sincroniza SQL pendente; `commit` conclui a transação. Um rollback ainda pode desfazer alterações já enviadas."
+    },
+    {
+      "front": "Como funciona o cache de primeiro nível?",
+      "back": "É o contexto de persistência, que preserva a identidade de instâncias gerenciadas dentro do seu escopo."
+    },
+    {
+      "front": "Qual vantagem central do `PreparedStatement`?",
+      "back": "Separar parâmetros dos comandos SQL, além de permitir preparação e reaproveitamento conforme driver e banco."
+    },
+    {
+      "front": "O que a JPQL consulta?",
+      "back": "Entidades e propriedades do modelo Java, e não diretamente nomes de tabelas e colunas."
+    },
+    {
+      "front": "Quando usar `CriteriaBuilder`?",
+      "back": "Para construção programática de critérios e predicados em consultas JPA dinâmicas."
+    },
+    {
+      "front": "Para que servem classes `Q...` no QueryDSL?",
+      "back": "Representam tipos gerados para construir consultas Java tipadas e facilitar validação em compilação."
+    },
+    {
+      "front": "O que caracteriza o problema N+1?",
+      "back": "Uma consulta inicial seguida de várias consultas adicionais, muitas vezes uma por associação de cada entidade recuperada."
+    },
+    {
+      "front": "Qual é a função de `@Version`?",
+      "back": "Permitir controle otimista de concorrência por meio de verificação da versão ao atualizar."
+    },
+    {
+      "front": "O que distingue `Page` de `Slice`?",
+      "back": "`Page` disponibiliza informações de totalização; `Slice` foca a fatia e a existência de próxima fatia."
+    },
+    {
+      "front": "Quando `@Modifying` é usado no Spring Data JPA?",
+      "back": "Em métodos de repositório com consulta declarada `@Query` de atualização/exclusão, informando que a consulta modifica dados."
+    },
+    {
+      "front": "O que `@Data` do Lombok costuma gerar?",
+      "back": "Getters, setters, `toString`, `equals`, `hashCode` e construtor para campos obrigatórios; requer cautela em entidades JPA."
+    },
+    {
+      "front": "O que faz o JNDI em acesso a bancos?",
+      "back": "Localiza recursos nomeados, como `DataSource`, configurados no ambiente de execução."
+    },
+    {
+      "front": "ODBC e JDBC são a mesma API?",
+      "back": "Não. ODBC é interface de conectividade de bancos; JDBC é API Java, com drivers JDBC próprios."
+    },
+    {
+      "front": "Qual recurso permite upsert no PostgreSQL?",
+      "back": "`INSERT ... ON CONFLICT DO UPDATE`, sujeito às condições de conflito suportadas."
+    },
+    {
+      "front": "Como o SQL Server oferece IDs gerados?",
+      "back": "Uma possibilidade é a propriedade `IDENTITY`; a geração não se resume a ela."
+    },
+    {
+      "front": "Como o Oracle pode limitar linhas em versões compatíveis?",
+      "back": "Por cláusulas como `OFFSET ... FETCH` em consultas devidamente ordenadas."
+    },
+    {
+      "front": "`readOnly=true` impede toda escrita?",
+      "back": "Não. Em Spring, pode orientar otimização e semântica transacional, sem equivaler a proibição universal imposta pelo banco."
+    }
+  ],
+  "tips": [
+    "Associe cada camada à função: JDBC executa SQL; JPA padroniza ORM; Hibernate implementa; Spring Data simplifica repositórios; QueryDSL dá consulta tipada; Lombok gera código.",
+    "Memorize o ciclo de vida: nova, gerenciada, destacada e removida; `merge` devolve referência gerenciada, enquanto `flush` não confirma transação.",
+    "Em relação bidirecional, procure `mappedBy` para achar o lado inverso; `cascade` opera ciclo de vida e não define carregamento.",
+    "Para performance, investigue N+1, paginação, projeção, SQL gerado, índices e plano antes de supor que o ORM é lento.",
+    "Em código JDBC, procure `PreparedStatement`, parâmetros `?`, fechamento de recursos e delimitação de `commit`/`rollback`.",
+    "Distingua JPQL de SQL nativa e conheça o papel de Criteria, Specifications e QueryDSL na composição de filtros.",
+    "Em JPA com Lombok, cheque construtor sem argumentos e riscos de `@Data` para `equals`, `hashCode`, lazy loading e recursão.",
+    "Compare recursos específicos: PostgreSQL `ON CONFLICT`/`RETURNING`; SQL Server `IDENTITY`/T-SQL; Oracle sequências/`MERGE`/PL-SQL."
+  ],
+  "traps": [
+    "`flush()` envia alterações pendentes, mas não as torna irrevogáveis; rollback ainda pode desfazê-las.",
+    "`merge()` não garante que o objeto recebido se torne gerenciado; use o objeto retornado.",
+    "`@OneToMany(mappedBy=\"x\")` está no lado inverso; uma lista não determina, sozinha, o dono da relação.",
+    "`FetchType.EAGER` não assegura uma única SQL; `LAZY` não autoriza acesso seguro a dados não carregados após fechar a sessão.",
+    "`@Modifying` não é requisito para toda mutação em entidade gerenciada: é voltada a consultas declaradas de modificação.",
+    "`@Transactional(readOnly=true)` não funciona como restrição SQL universal imposta pelo SGBD.",
+    "`@Data` em entidade com relações pode carregar associações ao executar `toString` ou induzir `equals` instável.",
+    "JNDI não é ODBC, ODBC não é JDBC, e nenhum deles é substituto de um SGBD."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique o que permanece no cache de primeiro nível e seu escopo.",
+      "answer": "Instâncias gerenciadas identificadas por entidade e chave no contexto de persistência, normalmente restrito a um EntityManager."
+    },
+    {
+      "question": "Por que uma entidade alterada pode ser salva sem `update` explícito?",
+      "answer": "Porque o ORM faz dirty checking e sincroniza as mudanças por flush dentro da transação."
+    },
+    {
+      "question": "Qual a diferença de efeito entre `detach` e `clear`?",
+      "answer": "`detach` destaca a entidade indicada; `clear` desanexa todas as entidades gerenciadas no contexto."
+    },
+    {
+      "question": "Como evitar interpolação insegura de valores em SQL JDBC?",
+      "answer": "Com PreparedStatement e bind de parâmetros por `setXxx`, sem concatenar entradas do usuário ao comando."
+    },
+    {
+      "question": "Descreva uma escolha entre JPQL, Criteria e QueryDSL.",
+      "answer": "JPQL atende consulta textual orientada a entidades; Criteria permite montagem programática JPA; QueryDSL gera DSL tipada."
+    },
+    {
+      "question": "Por que `JOIN FETCH` não resolve automaticamente todo problema de paginação?",
+      "answer": "Carregamento de coleção por join pode multiplicar linhas e interferir na paginação; o provedor pode restringir ou paginar em memória."
+    },
+    {
+      "question": "Qual cuidado de `@Data` em relações bidirecionais?",
+      "answer": "Métodos gerados podem percorrer relações, disparar acesso lazy ou recursão; definir inclusões/exclusões e igualdade cuidadosamente."
+    },
+    {
+      "question": "Qual distinção entre Page e Slice nas listagens?",
+      "answer": "Page agrega metadados de total; Slice informa fatia atual e continuação, usualmente sem necessidade da contagem total."
+    },
+    {
+      "question": "Compare JNDI, DataSource e JDBC.",
+      "answer": "JNDI localiza um recurso; DataSource fornece conexões; JDBC é API utilizada pela aplicação para executar operações SQL."
+    },
+    {
+      "question": "Por que revisar SQL nativa ao trocar Oracle por PostgreSQL ou SQL Server?",
+      "answer": "Sintaxes, funções, tipos, geração de IDs, paginação, isolamentos e plano de execução variam entre SGBDs."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre camadas de persistência",
+      "summary": "Confundir contrato JPA com provedor Hibernate, JDBC com SQL e Spring Data com motor de banco prejudica a arquitetura."
+    },
+    {
+      "key": "e2",
+      "title": "Ciclo de vida e transações",
+      "summary": "Trocar `persist` por `merge`, `flush` por `commit`, ou ignorar o estado destacado produz respostas incorretas."
+    },
+    {
+      "key": "e3",
+      "title": "Relacionamentos e estratégias de carga",
+      "summary": "Confundir `mappedBy`, cascata, remoção de órfãos e lazy/eager leva a afirmações falsas sobre associações."
+    },
+    {
+      "key": "e4",
+      "title": "Consultas, desempenho e segurança",
+      "summary": "Tomar JPQL por SQL, ignorar parâmetros, N+1, paginação e consultas em massa gera erros de análise."
+    },
+    {
+      "key": "e5",
+      "title": "Abstrações auxiliares e SGBDs",
+      "summary": "Atribuir funções indevidas a QueryDSL, Lombok, JNDI/ODBC ou pressupor dialetos idênticos compromete a portabilidade."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "JPA estabelece uma especificação para persistência objeto-relacional, enquanto Hibernate pode atuar como seu provedor de implementação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A especificação define contratos e mapeamentos; o Hibernate é uma das implementações. Confundir implementação com norma ou atribuir à JPA a execução independente de SQL desconsidera o papel do SGBD.",
+      "section": "Arquitetura da persistência, JPA e mapeamento objeto-relacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao migrar um projeto Java antigo para bibliotecas Jakarta recentes, basta manter as importações javax.persistence, pois os namespaces são intercambiáveis sem ajustes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A transição de Java EE/JPA para Jakarta Persistence envolve mudança de namespace e alinhamento de dependências. Os imports não são sinônimos binariamente intercambiáveis e uma atualização incompatível pode impedir a compilação.",
+      "section": "Arquitetura da persistência, JPA e mapeamento objeto-relacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma classe de domínio mapeada como entidade JPA, qual anotação identifica seu atributo de identidade persistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "@Id.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "@Transient.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "@JoinTable.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "@NamedQuery.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "@OrderBy.",
+          "correct": false
+        }
+      ],
+      "explanation": "O identificador persistente é mapeado com @Id, ou por mecanismos próprios de chave composta. As demais anotações excluem atributo, configuram junção, definem consulta ou ordenam coleção, não identificam a chave.",
+      "section": "Arquitetura da persistência, JPA e mapeamento objeto-relacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma associação bidirecional, a presença de mappedBy em determinado atributo indica que esse atributo é o lado proprietário responsável por registrar a chave estrangeira.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O atributo com mappedBy representa o lado inverso e aponta para a propriedade do lado proprietário. É esse outro lado que determina a atualização da associação relacional, ainda que o grafo em memória precise ser mantido coerente.",
+      "section": "Arquitetura da persistência, JPA e mapeamento objeto-relacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação precisa armazenar um endereço como componente de valor reutilizável de Cliente, sem identidade independente. Qual desenho JPA atende diretamente a esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar Endereco com @Entity e pressupor ausência de chave primária.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Marcar Endereco com @MappedSuperclass e executar consulta direta à classe.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Anotar Endereco com @Transient para que suas colunas sejam gravadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Declarar Endereco com @Embeddable e usá-lo em Cliente com @Embedded.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar @ManyToMany sem outra entidade e dispensar tabela associativa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Embeddables são componentes de valor incorporados à entidade proprietária, sem chave própria de entidade. As outras soluções confundem entidade, superclasse mapeada, exclusão de persistência ou cardinalidade de associação.",
+      "section": "Arquitetura da persistência, JPA e mapeamento objeto-relacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A anotação @Transient pode ser aplicada para excluir do mapeamento persistente um atributo da classe de entidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A anotação indica que o membro não integra o estado persistente controlado pelo ORM. Ela não remove fisicamente uma coluna já existente nem transforma automaticamente o campo em atributo calculado pelo banco.",
+      "section": "Arquitetura da persistência, JPA e mapeamento objeto-relacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe inclui uma constante no meio de um enum Java utilizado pelo sistema. Qual mapeamento torna o banco menos suscetível a mudanças na posição das constantes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "@Enumerated(EnumType.ORDINAL), pois o banco armazena um identificador imutável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "@Enumerated(EnumType.STRING), com controle das renomeações dos valores.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "@Transient, pois o atributo permanece consultável em JPQL sem armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "@OneToOne, pois gera uma tabela para cada constante automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "@GeneratedValue(strategy = GenerationType.IDENTITY), aplicada diretamente ao enum.",
+          "correct": false
+        }
+      ],
+      "explanation": "STRING persiste a representação textual e evita alteração de significado por mera reordenação. Ainda requer cuidado com renomeações. ORDINAL depende de posições; as demais anotações não são estratégias equivalentes para enum.",
+      "section": "Arquitetura da persistência, JPA e mapeamento objeto-relacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A configuração cascade = CascadeType.REMOVE determina que o relacionamento seja carregado de modo EAGER, mesmo quando fetch = LAZY foi definido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Cascata de remoção trata da propagação da operação de exclusão a entidades relacionadas; fetch trata da estratégia de carregamento. São configurações distintas, e combiná-las não transforma REMOVE em um indicador de busca antecipada.",
+      "section": "Arquitetura da persistência, JPA e mapeamento objeto-relacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um modelo usa @MappedSuperclass para compartilhar campos auditáveis entre classes persistentes. Qual conclusão está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A superclasse obriga uma tabela própria consultável como entidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A superclasse cria automaticamente um relacionamento muitos-para-muitos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A superclasse dispensa identificador nas entidades concretas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A superclasse tem as mesmas consultas polimórficas de @Entity em qualquer provedor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A superclasse fornece mapeamentos herdáveis, sem se tornar entidade consultável autonomamente.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma mapped superclass contribui com atributos e mapeamentos às entidades subclasses, mas não integra diretamente a hierarquia de entidades consultáveis. Isso difere de herança de entidades e não dispensa chaves persistentes.",
+      "section": "Arquitetura da persistência, JPA e mapeamento objeto-relacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A chamada EntityManager.clear() desanexa todas as entidades que estavam gerenciadas no respectivo contexto de persistência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O método limpa o contexto, tornando destacadas as instâncias antes gerenciadas. Isso difere de remove, que marca exclusão, e de detach, que age sobre uma entidade específica; alterações pendentes merecem cuidado.",
+      "section": "Contexto de persistência, ciclo de vida, transações e JDBC",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um objeto Pedido foi carregado, tornou-se detached e passou por alterações fora do EntityManager. Como recuperar o estado gerenciado resultante com a operação padronizada adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Chamar flush() sobre o objeto detached, pois flush retorna um novo Pedido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Invocar clear() para converter o objeto detached em managed.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Invocar merge(pedido) e usar a referência retornada como entidade gerenciada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Chamar remove(pedido) e assumir que a remoção reanexa o objeto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Chamar close() no EntityManager antes da consulta e esperar persistência automática.",
+          "correct": false
+        }
+      ],
+      "explanation": "Merge transfere o estado para uma instância gerenciada e retorna a referência que a aplicação deve usar. O objeto passado não é necessariamente gerenciado; flush, clear, remove e close não realizam essa operação.",
+      "section": "Contexto de persistência, ciclo de vida, transações e JDBC",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após a execução bem-sucedida de flush(), alterações do contexto de persistência estão confirmadas definitivamente no banco, ainda que ocorra rollback posterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Flush pode emitir SQL antes da confirmação da transação, mas não implica commit. Um rollback posterior ainda desfaz as modificações transacionais; essa distinção é central para compreender sincronização do ORM e durabilidade.",
+      "section": "Contexto de persistência, ciclo de vida, transações e JDBC",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual objeto da API JDBC é indicado para executar SQL com parâmetros representados por ? e valores vinculados por métodos setXxx?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "PreparedStatement.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "ResultSet.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DatabaseMetaData.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Savepoint.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RowId.",
+          "correct": false
+        }
+      ],
+      "explanation": "PreparedStatement permite vincular valores separadamente do texto SQL, sendo apropriado a consultas parametrizadas. ResultSet recebe linhas; metadados descrevem a base; Savepoint marca ponto de transação; RowId representa identificador de linha.",
+      "section": "Contexto de persistência, ciclo de vida, transações e JDBC",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas chamadas consecutivas de find para a mesma classe e chave no mesmo contexto ativo podem reutilizar a mesma instância gerenciada, sem exigir nova consulta SQL em ambos os acessos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O contexto de persistência preserva identidade para uma chave persistente e serve como cache de primeiro nível. Essa característica não equivale a cache global, nem garante ausência de consultas quando o contexto ou o estado mudam.",
+      "section": "Contexto de persistência, ciclo de vida, transações e JDBC",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação JDBC precisa executar duas atualizações como unidade indivisível. Qual sequência de operações expressa o controle básico esperado na Connection?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar apenas executeQuery e confiar que o driver faça rollback após cada linha.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Chamar close no ResultSet entre comandos para confirmar as duas alterações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ativar auto-commit e executar rollback após commit sem coordenação transacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar auto-commit, executar ambas e chamar commit; em falha, rollback.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Substituir commit por prepareStatement, que confirma automaticamente toda transação.",
+          "correct": false
+        }
+      ],
+      "explanation": "O controle transacional JDBC usa Connection, auto-commit e confirmação ou reversão. Statements e ResultSets não substituem commit; com auto-commit ativo as instruções podem ser confirmadas separadamente.",
+      "section": "Contexto de persistência, ciclo de vida, transações e JDBC",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em JDBC, ResultSet representa dados retornados por uma consulta e pode ser percorrido pelo método next().",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "ResultSet é a interface de acesso às linhas retornadas por comandos de consulta. next avança o cursor e métodos getXxx extraem campos; ela não é uma conexão nem substitui um PreparedStatement para fornecer parâmetros SQL.",
+      "section": "Contexto de persistência, ciclo de vida, transações e JDBC",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação passa a executar SQL JDBC direto na mesma base que o Hibernate. Qual cuidado arquitetural continua necessário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Presumir que o cache JPA será invalidado instantaneamente por todo comando JDBC.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Coordenar transações e eventual atualização do contexto, pois mudanças JDBC não sincronizam automaticamente entidades já gerenciadas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Remover os índices do banco, já que o Hibernate controla planos de execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter automaticamente todas as consultas JDBC em JPQL sem revisão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ativar lazy loading para garantir consistência entre dois gerenciadores distintos.",
+          "correct": false
+        }
+      ],
+      "explanation": "JDBC e ORM podem coexistir, mas acessam estados e caches distintos. Atualizações SQL externas ao contexto não corrigem automaticamente instâncias em memória; é preciso planejar fronteiras transacionais e sincronização.",
+      "section": "Contexto de persistência, ciclo de vida, transações e JDBC",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na JPQL, uma consulta pode referenciar o nome da entidade e seus atributos Java, mesmo que os nomes físicos de tabela e de colunas sejam diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "JPQL opera sobre o modelo de entidades e propriedades do domínio, que o provedor traduz ao esquema relacional. É incorreto exigir o nome da tabela física como se JPQL fosse sempre SQL nativa.",
+      "section": "JPQL, Criteria, QueryDSL e técnicas de consulta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa acrescentar predicados opcionais de forma programática, utilizando exclusivamente as APIs padronizadas de JPA. Qual opção é a mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um script ODBC com parâmetros DSN para montar expressões JPQL.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma anotação @Data, que gera filtros em tempo de compilação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O atributo @Table, que concatena predicados para cada consulta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um EntityManagerFactory convertido diretamente em comando SQL DDL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CriteriaBuilder combinado com CriteriaQuery, Root e Predicate.",
+          "correct": true
+        }
+      ],
+      "explanation": "Criteria é a API JPA voltada à montagem programática de consultas e filtros. Lombok gera código de apoio; ODBC cuida de conectividade; @Table e EntityManagerFactory não são construtores de predicados.",
+      "section": "JPQL, Criteria, QueryDSL e técnicas de consulta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta JPQL de atualização em massa atualiza necessariamente os atributos de todas as instâncias correspondentes já carregadas no contexto de persistência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Atualizações em massa operam diretamente no banco e podem deixar objetos já gerenciados com valores desatualizados. É preciso avaliar sincronização, limpeza ou novo carregamento do contexto conforme a unidade de trabalho.",
+      "section": "JPQL, Criteria, QueryDSL e técnicas de consulta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual artefato é normalmente gerado pelo processamento de anotações do QueryDSL para permitir referências tipadas à entidade Produto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um arquivo binário do próprio SGBD com os dados da entidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma transação distribuída JTA criada automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma classe de metamodelo do tipo QProduto.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma anotação SQL Server IDENTITY para cada atributo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma conexão ODBC diretamente substituída por @Entity.",
+          "correct": false
+        }
+      ],
+      "explanation": "QueryDSL costuma gerar classes Q para formar caminhos e predicados tipados em Java. Ele não cria banco de dados, não abre transações automaticamente nem transforma tecnologia de conectividade em anotações.",
+      "section": "JPQL, Criteria, QueryDSL e técnicas de consulta",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A parametrização de valores em JPQL e JDBC reduz a necessidade de concatenar entradas de usuário no texto da consulta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Parâmetros vinculados separam dados dos comandos e contribuem para robustez e mitigação de injeção. Ainda é preciso validar identificadores dinâmicos e controlar autorização, pois nomes de tabelas não são valores parametrizáveis comuns.",
+      "section": "JPQL, Criteria, QueryDSL e técnicas de consulta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao paginar entidades com uma coleção um-para-muitos, qual risco surge ao usar JOIN FETCH da coleção de modo indiscriminado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A multiplicação de linhas pode comprometer a paginação e impor tratamento específico pelo provedor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O JOIN FETCH sempre converte a consulta em procedimento armazenado no banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O uso de JOIN FETCH impede qualquer ordenação estável em todos os SGBDs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A coleção torna-se automaticamente uma entidade independente sem chave.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O JOIN FETCH obriga que toda consulta utilize modo de bloqueio pessimista.",
+          "correct": false
+        }
+      ],
+      "explanation": "A expansão das linhas por uma associação de coleção pode conflitar com limites e deslocamentos aplicados a entidades, exigindo estratégia de consulta apropriada. Não há conversão automática em procedimento ou bloqueio.",
+      "section": "JPQL, Criteria, QueryDSL e técnicas de consulta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Projeções que selecionam somente os campos requeridos podem reduzir a quantidade de dados transferidos e de objetos completos carregados em memória.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Ao consultar apenas atributos necessários, uma aplicação pode evitar a hidratação de grafos inteiros e reduzir tráfego. O efeito real depende do SQL e da consulta gerada, não de uma garantia universal de desempenho.",
+      "section": "JPQL, Criteria, QueryDSL e técnicas de consulta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema precisa ordenar e limitar uma consulta de busca. Qual prática torna a paginação mais previsível diante de valores repetidos no campo de ordenação principal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Omitir ORDER BY, pois o banco sempre devolve as linhas na ordem de inserção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar somente DISTINCT sem qualquer ordenação, tornando o resultado determinístico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir o índice primário por uma sequência gerada pelo Hibernate.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir ordenação estável, incluindo um campo de desempate como o identificador.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Encerrar a transação antes da consulta para fixar a ordem do resultado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Paginação confiável exige uma ordem determinística, com desempate quando a primeira coluna apresenta valores iguais. Sem ordenação explícita, não há garantia de sequência estável entre execuções.",
+      "section": "JPQL, Criteria, QueryDSL e técnicas de consulta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Hibernate, o primeiro nível de cache está associado à sessão ou contexto de persistência e auxilia o controle de identidade das entidades gerenciadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O primeiro nível de cache é inerente ao contexto local da sessão e permite reutilizar instâncias gerenciadas. Ele não deve ser confundido com cache opcional entre sessões ou cache de resultados de consultas.",
+      "section": "Hibernate ORM: carregamento, cache, concorrência e desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após listar 200 pedidos, o código faz uma consulta adicional para carregar o cliente de cada pedido. Qual fenômeno explica esse padrão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Execução obrigatória de duas fases do protocolo ODBC.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Problema N+1 de consultas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aplicação automática da estratégia TABLE_PER_CLASS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uso inevitável do cache de segundo nível em toda transação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conversão de cada pedido em uma tabela física temporária.",
+          "correct": false
+        }
+      ],
+      "explanation": "No N+1, há uma consulta inicial e outras relacionadas às entidades retornadas, gerando múltiplas idas ao banco. Estratégias de busca planejadas e projeções podem reduzir esse padrão, conforme o caso.",
+      "section": "Hibernate ORM: carregamento, cache, concorrência e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em associações JPA, FetchType.EAGER garante que os dados associados serão recuperados na mesma instrução SQL que carrega a entidade principal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "EAGER exige carregamento antecipado da associação, mas o provedor pode realizar consultas adicionais em vez de um único join. Quantidade de SQL e estratégia de busca são questões diferentes do momento exigido para disponibilizar os dados.",
+      "section": "Hibernate ORM: carregamento, cache, concorrência e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual anotação JPA é tipicamente utilizada para controle otimista de concorrência por versão da entidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "@ColumnResult.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "@Transient.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "@OrderColumn.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "@JoinTable.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "@Version.",
+          "correct": true
+        }
+      ],
+      "explanation": "O atributo versionado permite detectar conflitos entre a versão conhecida e a versão corrente durante atualizações. As outras anotações referem-se a resultados, exclusão de mapeamento, ordenação e junção de tabelas.",
+      "section": "Hibernate ORM: carregamento, cache, concorrência e desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O cache de segundo nível do Hibernate é obrigatório e compartilha exatamente o mesmo escopo do contexto de persistência de cada sessão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O cache de segundo nível pode compartilhar dados entre sessões e não é a mesma estrutura que o primeiro nível. Sua utilidade depende da frequência de acesso e de políticas de concorrência, invalidação e atualização.",
+      "section": "Hibernate ORM: carregamento, cache, concorrência e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina Hibernate insere milhares de entidades e sofre aumento de memória pelo volume de objetos retidos. Qual abordagem pode ajudar, se aplicada com controle transacional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Colocar todas as instâncias em cache de segundo nível sem limites.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar apenas EAGER em todas as coleções para evitar uso de memória.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Processar em lotes e realizar flush e clear periodicamente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Substituir cada commit por `@Enumerated(ORDINAL)` na entidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar todas as transações por chamadas de toString em cada objeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sincronizar e limpar o contexto em intervalos adequados evita retenção indefinida de entidades gerenciadas. A medida deve respeitar relações e consistência; eager indiscriminado e cache global não resolvem o problema.",
+      "section": "Hibernate ORM: carregamento, cache, concorrência e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma associação LAZY que não foi inicializada pode causar LazyInitializationException do Hibernate ao ser acessada depois que a sessão necessária foi encerrada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O acesso a dados ainda não carregados pode depender de uma sessão ativa. Sem esse contexto, o provedor não consegue completar a busca. A solução exige planejar o carregamento no caso de uso, não presumir acesso irrestrito.",
+      "section": "Hibernate ORM: carregamento, cache, concorrência e desempenho",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente o efeito de @Version ao concorrer duas transações que tentam modificar a mesma entidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O valor de versão pode revelar escrita concorrente incompatível e impedir confirmação silenciosa da alteração conflitante.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A anotação substitui sempre o isolamento de transação e elimina deadlocks.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A anotação bloqueia todas as leituras por trava pessimista exclusiva.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A anotação garante que todo índice da tabela seja recriado em cada atualização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A anotação converte todas as gravações da aplicação em SQL nativa.",
+          "correct": false
+        }
+      ],
+      "explanation": "O controle otimista compara versões para detectar alterações concorrentes e pode provocar falha de atualização. Não equivale a bloqueio pessimista, não elimina deadlocks e não controla criação de índices ou formato da consulta.",
+      "section": "Hibernate ORM: carregamento, cache, concorrência e desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A interface JpaRepository<T, ID> no Spring Data JPA parametriza o tipo de entidade e o tipo de sua chave identificadora.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A assinatura genérica vincula o repositório à entidade gerenciada e ao tipo do identificador persistente. Ela não representa uma conexão física nem exige a criação manual de todos os métodos CRUD básicos.",
+      "section": "Spring Data JPA, repositórios, Specifications e Lombok",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um repositório Spring Data JPA executa uma operação de atualização declarada em @Query. Qual anotação indica expressamente que a consulta é modificadora?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "@Embeddable.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "@Table.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "@MappedSuperclass.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "@Modifying.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "@GeneratedValue.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em Spring Data JPA, @Modifying sinaliza consultas declaradas que alteram dados. Ela não é utilizada como substituto de transações nem se confunde com anotações JPA de componentes, tabelas, herança e geração de chaves.",
+      "section": "Spring Data JPA, repositórios, Specifications e Lombok",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma aplicação Spring, @Transactional(readOnly = true) constitui garantia absoluta de que nenhum comando de escrita poderá ser executado pelo SGBD.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O atributo readOnly fornece indicação ao gerenciador de transações e ao provedor, podendo otimizar a sessão. Não deve ser tratado como política de autorização imutável imposta por todo driver ou banco.",
+      "section": "Spring Data JPA, repositórios, Specifications e Lombok",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tela precisa saber se existe próxima fatia de resultados, mas não necessita do número total de registros. Que retorno de repositório é especialmente adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "EntityManagerFactory.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Slice<T>.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Savepoint.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DriverManager.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "@Inheritance.",
+          "correct": false
+        }
+      ],
+      "explanation": "Slice representa uma fatia e informa continuidade, sem exigir o mesmo conjunto de metadados de total associado a Page. Os demais elementos são fábrica JPA, marcador JDBC, gerenciamento de conexões e herança.",
+      "section": "Spring Data JPA, repositórios, Specifications e Lombok",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Lombok @Data gera métodos como equals, hashCode e toString; em entidades com associações bidirecionais, isso exige atenção a recursão e carregamento de relações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A geração automática de métodos pode incluir campos de associação e provocar percursos recursivos, consultas adicionais ou igualdade inadequada. Lombok reduz repetição de código, mas não decide corretamente o domínio por conta própria.",
+      "section": "Spring Data JPA, repositórios, Specifications e Lombok",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma entidade JPA foi anotada apenas com Lombok @Builder e não possui construtor sem argumentos acessível. Qual ajuste é o mais compatível com requisitos usuais da especificação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir @Entity por @Data e eliminar completamente o construtor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover @Id, pois a identidade dispensa construtores em qualquer entidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Marcar todos os campos com @Transient para habilitar o construtor por reflexão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Inserir @Query no construtor para que o Spring gere um construtor vazio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fornecer também construtor sem argumentos com visibilidade pública ou protegida, sem depender apenas de @Builder.",
+          "correct": true
+        }
+      ],
+      "explanation": "Entidades JPA precisam de construtor sem argumentos público ou protegido no modelo comum de classes de entidade. @Builder, isoladamente, não assegura isso; as demais anotações não substituem o contrato de construção.",
+      "section": "Spring Data JPA, repositórios, Specifications e Lombok",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Spring Data JPA não interpreta nomes como findByNomeContainingIgnoreCase, pois toda consulta exige obrigatoriamente o texto SQL completo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A infraestrutura de repositórios permite derivar consultas de assinaturas com palavras-chave reconhecidas e caminhos de propriedades válidos. Isso reduz código repetitivo, mas não elimina a necessidade de verificar consultas e seus planos.",
+      "section": "Spring Data JPA, repositórios, Specifications e Lombok",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint precisa combinar dinamicamente filtros por nome, situação e data e permanecer na abstração de repositórios Spring Data JPA. Qual mecanismo é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas @GeneratedValue, pois determina cláusulas de filtro de busca.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um DSN ODBC por filtro, sem consultas sobre entidades.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "JpaSpecificationExecutor com Specifications baseadas na Criteria API.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A anotação @Data do Lombok, que gera automaticamente predicados SQL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um cache de segundo nível configurado como substituto de WHERE.",
+          "correct": false
+        }
+      ],
+      "explanation": "Specifications expressam predicados composicionais no universo da Criteria API e são executáveis por JpaSpecificationExecutor. Anotações de identidade, Lombok, ODBC e cache não são mecanismos de filtragem dinâmica.",
+      "section": "Spring Data JPA, repositórios, Specifications e Lombok",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A API JNDI substitui os drivers JDBC e executa diretamente SQL no SGBD, dispensando objetos DataSource e Connection.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "JNDI é infraestrutura Java de nomeação e localização de recursos. O DataSource recuperado pode fornecer conexões; isso não significa que JNDI execute consultas SQL ou seja um SGBD.",
+      "section": "JNDI, ODBC, SGBDs Oracle, PostgreSQL e SQL Server",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Java precisa conectar-se a SQL Server usando o driver oficial Java, sem instalar um driver ODBC. Qual afirmação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A conexão pode usar o driver JDBC para SQL Server; ODBC não é pré-requisito universal da JDBC.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todas as aplicações Java exigem DSN ODBC para abrir uma Connection.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O driver JDBC implementa unicamente a API JNDI e não executa SQL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SQL Server é acessível apenas por SQL nativa, jamais por ORM.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A especificação JPA elimina qualquer necessidade de driver de banco.",
+          "correct": false
+        }
+      ],
+      "explanation": "JDBC dispõe de drivers próprios, inclusive para SQL Server, e pode servir de base ao ORM. ODBC é outra interface de conectividade e não constitui etapa obrigatória de toda conexão Java.",
+      "section": "JNDI, ODBC, SGBDs Oracle, PostgreSQL e SQL Server",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PostgreSQL, uma operação sobre sequence tem, necessariamente, seus valores gerados recuperados quando a transação que os consumiu sofre rollback.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A evolução de uma sequência não é normalmente revertida com rollback da transação que consumiu valores. Por isso lacunas são possíveis; sequência não representa uma contagem garantidamente contínua de registros confirmados.",
+      "section": "JNDI, ODBC, SGBDs Oracle, PostgreSQL e SQL Server",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso do PostgreSQL permite tratar conflito de unicidade durante INSERT e, em caso previsto, realizar atualização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A declaração Oracle PL/SQL BEGIN isolada de INSERT.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A interface JNDI InitialContext.lookup.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A anotação Lombok @EqualsAndHashCode.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A cláusula ON CONFLICT DO UPDATE.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O comando JDBC ResultSet.next.",
+          "correct": false
+        }
+      ],
+      "explanation": "ON CONFLICT no PostgreSQL é recurso do SQL do SGBD para tratamento de conflito na inserção. Os outros elementos pertencem a tecnologias distintas e não fornecem essa semântica de upsert.",
+      "section": "JNDI, ODBC, SGBDs Oracle, PostgreSQL e SQL Server",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No SQL Server, ORDER BY combinado com OFFSET e FETCH pode ser utilizado para paginação nas versões que disponibilizam essa sintaxe.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O T-SQL do SQL Server oferece paginação por deslocamento e quantidade em consultas ordenadas. Não se deve generalizar a sintaxe e seu suporte para qualquer versão ou concluir que uma consulta sem ORDER BY preserve ordem.",
+      "section": "JNDI, ODBC, SGBDs Oracle, PostgreSQL e SQL Server",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe pretende portar comandos SQL nativos de um sistema Oracle para PostgreSQL. Qual item merece revisão específica, apesar do uso de JPA na aplicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o nome do método Java toString, sem examinar SQL.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Funções, tipos de dados, estratégia de geração de identificadores e sintaxe de paginação dos comandos nativos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A obrigação de substituir toda consulta por um DSN ODBC.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A retirada de índices, pois qualquer ORM gerencia automaticamente o plano.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A exclusão de todas as transações, pois PostgreSQL não implementa ACID.",
+          "correct": false
+        }
+      ],
+      "explanation": "SQL nativa está sujeita às particularidades de cada SGBD, mesmo quando executada por EntityManager. Funções, IDs, tipos e paginação não se tornam portáveis pela mera presença de JPA.",
+      "section": "JNDI, ODBC, SGBDs Oracle, PostgreSQL e SQL Server",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em SQL, a expressão coluna = NULL é a maneira padronizada de selecionar corretamente valores nulos, dispensando IS NULL.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Na lógica SQL, NULL não é comparado como um valor comum pela igualdade; testes de nulidade usam IS NULL e IS NOT NULL. Confundir essa regra altera filtros de qualquer dos SGBDs considerados.",
+      "section": "JNDI, ODBC, SGBDs Oracle, PostgreSQL e SQL Server",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação associa corretamente recursos a seus respectivos SGBDs?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "PostgreSQL: somente T-SQL; SQL Server: PL/SQL; Oracle: ON CONFLICT como sintaxe exclusiva.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "PostgreSQL: JNDI como motor SQL; SQL Server: @Embeddable; Oracle: QueryDSL como SGBD.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PostgreSQL: apenas JDBC; SQL Server: apenas ODBC; Oracle: somente Hibernate sem SQL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PostgreSQL: @Version no núcleo SQL; SQL Server: @Builder nativo; Oracle: @Data como trigger.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PostgreSQL: INSERT ... RETURNING; SQL Server: coluna IDENTITY; Oracle: PL/SQL.",
+          "correct": true
+        }
+      ],
+      "explanation": "RETURNING é recurso conhecido de PostgreSQL; IDENTITY está presente no SQL Server; PL/SQL é linguagem procedural Oracle. As demais combinações misturam tecnologias Java ou trocam características entre fabricantes.",
+      "section": "JNDI, ODBC, SGBDs Oracle, PostgreSQL e SQL Server",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política exige que as credenciais de acesso ao banco sejam administradas no servidor de aplicações, enquanto o código Java obtém conexões por nome lógico. Qual arquitetura é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gravar credenciais em cada método @Entity e dispensar DataSource.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar Lombok @Builder como catálogo central de credenciais JDBC.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Configurar DataSource no contêiner, localizá-lo por JNDI e obter Connection via JDBC.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Criar sequências Oracle para armazenar senha de autenticação dos usuários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar @Transient para fazer da entidade um gerenciador ODBC de drivers.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um DataSource de contêiner centraliza configurações e pode ser localizado por JNDI; o código continua usando JDBC. As outras opções atribuem a anotações ORM ou a sequências tarefas de configuração e segurança inadequadas.",
+      "section": "JNDI, ODBC, SGBDs Oracle, PostgreSQL e SQL Server",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Jakarta Persistence 3.2 — especificação",
+      "publisher": "Eclipse Foundation / Jakarta EE",
+      "reference": "Especificação oficial de entidades, ciclo de vida, consultas, mapeamentos e transações",
+      "url": "https://jakarta.ee/specifications/persistence/3.2/jakarta-persistence-spec-3.2.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Jakarta Persistence 3.2 — API EntityManager",
+      "publisher": "Eclipse Foundation / Jakarta EE",
+      "reference": "Documentação da interface EntityManager e de suas operações",
+      "url": "https://jakarta.ee/specifications/persistence/3.2/apidocs/jakarta.persistence/jakarta/persistence/EntityManager.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Hibernate ORM — documentação",
+      "publisher": "Hibernate",
+      "reference": "Guia oficial e versões de referência do provedor ORM",
+      "url": "https://hibernate.org/orm/documentation/",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Data JPA — referência",
+      "publisher": "Spring / Broadcom",
+      "reference": "Repositórios, consultas, Specifications, transações e integrações",
+      "url": "https://docs.spring.io/spring-data/jpa/reference/jpa.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "QueryDSL — JPA tutorial",
+      "publisher": "OpenFeign QueryDSL",
+      "reference": "Consultas tipadas, metamodelos Q e processamento de anotações",
+      "url": "https://openfeign.github.io/querydsl/tutorials/jpa/",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "JDBC — Processing SQL Statements",
+      "publisher": "Oracle Java Documentation",
+      "reference": "Statements, PreparedStatements e ResultSets na API JDBC",
+      "url": "https://docs.oracle.com/javase/tutorial/jdbc/basics/processingsqlstatements.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "JDBC DataSource e JNDI",
+      "publisher": "Oracle Java Documentation",
+      "reference": "Uso de DataSource e localização via JNDI",
+      "url": "https://docs.oracle.com/javase/tutorial/jdbc/basics/sqldatasources.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Project Lombok — @Data",
+      "publisher": "Project Lombok",
+      "reference": "Comportamento de @Data e métodos gerados",
+      "url": "https://projectlombok.org/features/Data",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL — INSERT",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "RETURNING e ON CONFLICT na linguagem SQL do PostgreSQL",
+      "url": "https://www.postgresql.org/docs/current/sql-insert.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Oracle Database — SELECT",
+      "publisher": "Oracle",
+      "reference": "Sintaxe SQL Oracle e limitações/offset de linhas",
+      "url": "https://docs.oracle.com/en/database/oracle/oracle-database/19/sqlrf/SELECT.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SQL Server — ORDER BY, OFFSET e FETCH",
+      "publisher": "Microsoft Learn",
+      "reference": "Paginação de consultas no SQL Server com T-SQL",
+      "url": "https://learn.microsoft.com/en-us/sql/t-sql/queries/select-order-by-clause-transact-sql?view=sql-server-ver17",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Microsoft — ODBC Driver for SQL Server",
+      "publisher": "Microsoft Learn",
+      "reference": "Driver ODBC, conectividade e configuração de fontes de dados",
+      "url": "https://learn.microsoft.com/en-us/sql/connect/odbc/microsoft-odbc-driver-for-sql-server",
+      "accessedAt": "2026-11-17"
+    }
+  ]
+}

@@ -1,0 +1,1945 @@
+{
+  "id": "informatica.scripts-notebooks-automacao-analitica",
+  "subject": "Informática / Engenharia de Dados",
+  "title": "Desenvolvimento de scripts, notebooks e automação analítica",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Desenvolvimento de scripts, notebooks e automação analítica",
+    "Desenvolvimento de scripts, notebooks e automação analítica"
+  ],
+  "scope": {
+    "covers": "Construção de scripts Python, parametrização, organização modular, ambientes virtuais, tratamento de erros, logs, notebooks Jupyter, kernels e estado, Google Colab (ambiente em nuvem, sessões, Drive e GPU), execução parametrizada, pipelines ETL/ELT, pandas, qualidade de dados, cargas incrementais, idempotência, agendamento, orquestração, CI, segurança, testes, observabilidade e desempenho.",
+    "excludes": "Administração aprofundada de clusters distribuídos, detalhes proprietários de nuvens não necessários ao tópico, treinamento avançado de modelos de IA e legislação não diretamente ligada ao desenvolvimento de automações analíticas."
+  },
+  "theoryTitle": "Scripts, notebooks e automação analítica: fundamentos e aplicações em concursos",
+  "chapters": [
+    {
+      "title": "Scripts Python: estrutura, execução e ambientes",
+      "markdown": "## 1. O script como unidade de automação\nUm **script** é um programa executado para realizar uma tarefa definida, como coletar arquivos, consultar uma API, transformar uma base, calcular indicadores ou produzir um relatório. Em análise de dados, a diferença prática entre experimentar e automatizar é a possibilidade de executar a mesma lógica de modo controlado, com entradas declaradas, resultados verificáveis e tratamento de falhas. Um arquivo Python costuma usar a extensão `.py`; o interpretador pode executá-lo por `python processamento.py`, mas o comando e a resolução dos caminhos dependem do ambiente. Uma automação robusta não presume que será invocada do diretório em que o código foi escrito.\n\nO padrão `if __name__ == \"__main__\":` protege o ponto de entrada: o bloco é executado quando aquele arquivo é usado como programa principal, e não quando é importado como módulo. A lógica principal pode ficar em funções pequenas, que recebem parâmetros e retornam valores. Assim, outra rotina consegue importar as funções sem disparar automaticamente leitura de arquivos, conexões ou escrita em disco. A organização típica separa configuração, acesso a dados, transformação e apresentação; importar uma função não deve desencadear o processamento completo.\n\n```python\nfrom pathlib import Path\nimport argparse\n\ndef contar_linhas(caminho: Path) -> int:\n    with caminho.open(encoding=\"utf-8\") as arquivo:\n        return sum(1 for _ in arquivo)\n\ndef main() -> None:\n    parser = argparse.ArgumentParser(description=\"Conta linhas de um arquivo\")\n    parser.add_argument(\"entrada\", type=Path)\n    args = parser.parse_args()\n    if not args.entrada.is_file():\n        parser.error(\"arquivo de entrada inexistente\")\n    print(contar_linhas(args.entrada))\n\nif __name__ == \"__main__\":\n    main()\n```\n\nO módulo **argparse** diferencia argumentos posicionais de opções nomeadas, oferece mensagens de ajuda e permite validação básica de tipos. Em tarefas agendadas, parâmetros como data de referência, diretório de saída e modo de execução devem ser explicitados. Valores fixos embutidos no código dificultam manutenção e auditoria. Valores de configuração podem vir de argumentos, arquivos de configuração ou variáveis de ambiente; credenciais não devem ser armazenadas em código versionado.\n\n## 2. Caminhos, módulos e dependências\n`pathlib.Path` representa caminhos de arquivos e oferece operações como `exists()`, `is_file()`, `mkdir()` e `glob()`. **Caminho relativo** é interpretado com base no diretório de trabalho do processo, não necessariamente na pasta do script. Para localizar recursos distribuídos junto ao código, pode-se derivar o caminho de `Path(__file__).resolve().parent` em scripts executados como arquivos; já nos notebooks, `__file__` normalmente não está disponível. Em execução automatizada, definir conscientemente os diretórios de trabalho e de saída evita o clássico erro “funciona no meu computador”.\n\nUm **módulo** é uma unidade de código importável; um **pacote** organiza módulos. Reutilizar funções reduz duplicação e facilita testes, mas exige atenção a efeitos colaterais na importação. Um **ambiente virtual** criado com `python -m venv .venv` isola, para aquele projeto, a instalação de pacotes de terceiros. Isso não cria uma máquina virtual nem empacota automaticamente o sistema operacional. Arquivos de dependências e versões registradas ajudam a reproduzir a execução em outra máquina; em contextos críticos, deve-se considerar travas de versões e identificação do interpretador.\n\nA biblioteca padrão inclui `csv`, `json`, `datetime`, `pathlib`, `logging`, `argparse` e `subprocess`; bibliotecas como **pandas**, **NumPy** e clientes de bancos devem ser instaladas conforme o ambiente. O comando `python -m pip` ajuda a associar a instalação de pacotes ao interpretador selecionado. Em notebooks, comandos de instalação podem modificar o ambiente corrente, mas não garantem persistência em sessões futuras, particularmente quando a máquina de execução é temporária.\n\n## 3. Tratamento de erros e contrato de execução\nUma rotina deve definir pré-condições (arquivos e colunas esperados), pós-condições (saída produzida e esquema válido) e condições de falha. `try/except` serve para capturar exceções **específicas** que o programa sabe tratar; capturar qualquer exceção e silenciá-la transforma erros em sucessos falsos. `finally` pode liberar recursos, enquanto gerenciadores de contexto (`with`) facilitam o fechamento de arquivos. Uma execução finalizada sem exceção não prova, por si só, que os dados estão corretos.\n\nUsar `print()` é suficiente para testes pontuais, mas o módulo `logging` oferece níveis como DEBUG, INFO, WARNING e ERROR, além de registro consistente de eventos. Os registros devem informar início, origem, quantidade processada, tempo, falha e identificação do lote sem expor senhas ou dados pessoais. Um programa chamado por agendador deve usar códigos de saída coerentes: término com sucesso distinto de falha. A execução precisa ser **determinística sempre que possível**: para as mesmas entradas e parâmetros, produzir o mesmo resultado, excetuando fontes de aleatoriedade e serviços externos controlados.\n\n**Pegadinhas de prova:** `import` não significa execução do bloco protegido por `__main__`; `venv` não substitui controle de versões; caminho relativo não é sinônimo de diretório do arquivo; tratamento de exceção não substitui validação; `print()` não fornece automaticamente os recursos de níveis e destinos do `logging`.\n"
+    },
+    {
+      "title": "Notebooks Jupyter e Google Colab: células, kernels e sessões",
+      "markdown": "## 1. Modelo de notebook e kernel\nO **notebook Jupyter** é um documento computacional interativo, frequentemente com extensão `.ipynb`, que reúne **células de código**, células **Markdown** para explicações, metadados e, quando salvas, saídas das execuções. O formato é estruturado em JSON; isso não significa que suas células constituam um programa JSON: o conteúdo do código é enviado a um **kernel**, processo responsável por executá-lo na linguagem configurada. Em um notebook Python, o kernel mantém variáveis, importações e objetos em memória ao longo da sessão.\n\nA interface visual do notebook não é o kernel. A ordem das células na página tampouco garante a ordem em que foram executadas. Por exemplo, uma variável criada na célula 8 pode estar disponível ao executar a célula 2 porque houve execução anterior: esse **estado oculto** compromete a reprodutibilidade. O procedimento de auditoria mais importante consiste em **reiniciar o kernel e executar todas as células na ordem definida**; se surgir erro ou discrepância, há dependência de estado, configuração ou dados que precisa ser documentada. A numeração de execução de células ajuda a diagnosticar o histórico, mas não valida sozinha o resultado científico.\n\nCélulas Markdown permitem explicar hipóteses, fontes, unidades, pressupostos, transformações e interpretações. Notebooks são muito úteis para análise exploratória, visualizações, ensino e comunicação de achados; scripts e módulos são frequentemente preferíveis para lógica reutilizável e execução não assistida. **Não há proibição** de automatizar notebooks: ferramentas específicas permitem executá-los em lote. O ponto central é separar a exploração da parte de produção que exige testes, parâmetros e monitoramento.\n\n## 2. Artefatos, execução automatizada e versionamento\nA execução de um notebook pode ser automatizada por ferramentas do ecossistema Jupyter. **nbconvert** permite executar um `.ipynb` e salvar o documento com as saídas geradas; **nbclient** oferece uma API para executar células; **Papermill** auxilia na execução de notebooks parametrizados, registrando a execução em um arquivo de saída. Essas ferramentas não dispensam kernels compatíveis, pacotes instalados, arquivos de entrada e permissões adequadas. A automação pode falhar se a execução depender de interações manuais ou de células executadas fora de ordem.\n\nPara colaboração, convém manter células pequenas, documentar requisitos, registrar parâmetros e evitar salvar no repositório saídas com dados confidenciais. A presença de resultados antigos em um `.ipynb` não demonstra que as células ainda rodam corretamente. A célula Markdown não executa código Python por conta própria; é conteúdo textual estruturado. O notebook pode ser convertido ou exportado para outros formatos de apresentação, mas essa conversão não torna automaticamente reprodutível a análise.\n\n## 3. Google Colab: nuvem, sessões, Drive e GPU\nO **Google Colab** oferece uma interface de notebooks Python acessível pelo navegador, com ambientes de execução hospedados na nuvem e possibilidade de conexão a ambientes de execução locais quando configurados. Ele é relevante ao estudo de notebooks mesmo quando o edital ou texto-base não cita expressamente o produto. Há uma distinção decisiva entre **o documento do notebook** e **a máquina de execução**: o arquivo pode estar salvo no Google Drive, mas bibliotecas instaladas, arquivos temporários e variáveis presentes na máquina virtual não são permanentes por esse simples fato.\n\nAs sessões em máquinas virtuais hospedadas podem ser desconectadas ou encerradas, e os recursos e limites de uso variam. Por isso, nunca se deve tratar a memória RAM do Colab ou o armazenamento temporário da sessão como repositório persistente. Para ler arquivos do Google Drive, pode-se **montar o Drive** após autorização; isso dá ao código acesso aos arquivos concedidos e exige cuidado com notebooks de origem desconhecida. Salvar apenas o notebook no Drive não significa que todos os arquivos temporários gerados na sessão tenham sido gravados nele.\n\nO Colab pode oferecer **GPU** ou TPU sob condições de disponibilidade e uso. Selecionar um ambiente com GPU não assegura que um programa usará a GPU: biblioteca, operações e configuração devem efetivamente suportá-la. GPU costuma ser vantajosa para algumas operações altamente paralelizáveis, como treinamento de redes neurais e certas operações tensoriais, mas pode não acelerar pequenos cálculos tabulares devido ao custo de transferência de dados e inicialização. Não há garantia de tipo fixo de GPU, disponibilidade constante, tempo fixo de sessão ou execução contínua sem desconexão. Essa distinção entre capacidade disponibilizada e capacidade usada é uma pegadinha recorrente.\n\n## 4. Estratégia de uso seguro\nPara tornar um notebook confiável: descrever a fonte e o intervalo dos dados; fixar versões de dependências quando necessário; usar células parametrizáveis; evitar variáveis criadas somente por execuções anteriores; testar reinício e execução completa; armazenar saídas duráveis em destino explícito; controlar permissões; e registrar quando um resultado depende de GPU, número de sementes aleatórias ou recursos externos. Em produção, o agendador e o armazenamento devem ser escolhidos conforme a necessidade de disponibilidade, não apenas pela conveniência da interface interativa.\n\n**Pegadinhas de prova:** notebook salvo ≠ memória de kernel salva; kernel reiniciado perde estado em memória; Drive montado ≠ cópia automática de todo arquivo; GPU selecionada ≠ GPU efetivamente utilizada; Colab hospedado ≠ servidor permanente com execução garantida.\n"
+    },
+    {
+      "title": "Pipelines analíticos: ingestão, transformação e validação",
+      "markdown": "## 1. Da origem ao produto de dados\nA automação analítica frequentemente segue o encadeamento **extrair → validar → transformar → carregar ou publicar**, com registros de auditoria em cada etapa. A extração pode ocorrer de CSV, JSON, planilhas, bancos relacionais, diretórios e APIs. Em um fluxo **ETL**, as transformações precedem o carregamento no destino; no **ELT**, os dados são carregados e depois transformados no ambiente de destino. Ambos exigem critérios de qualidade e governança. O pipeline pode gerar tabela validada, painel, arquivo de intercâmbio, alerta ou modelo estatístico.\n\nAo ler um CSV com `pandas.read_csv()`, importa reconhecer o separador, o cabeçalho, a codificação e os tipos. Um identificador como `00123` não deve ser automaticamente convertido em número se os zeros iniciais forem significativos; pode-se especificar tipo textual. `parse_dates`, quando aplicável, exige atenção a formatos e ambiguidades; datas brasileiras e internacionais podem ser interpretadas de modos diferentes. Dados ausentes, grafias divergentes e campos com vírgulas ou aspas exigem regras explícitas. O CSV não transporta naturalmente uma especificação completa de tipos, restrições ou semântica de negócio.\n\n```python\nimport pandas as pd\n\ndados = pd.read_csv('vendas.csv', sep=';', dtype={'id_cliente': 'string'})\nobrigatorias = {'id_cliente', 'valor', 'data'}\nif not obrigatorias.issubset(dados.columns):\n    raise ValueError('colunas obrigatórias ausentes')\nif dados['id_cliente'].isna().any():\n    raise ValueError('identificador ausente')\n```\n\nA presença de uma coluna é apenas uma dimensão da validade: é preciso verificar tipo, domínio, unicidade, integridade referencial, frequência, faixa aceitável e coerência temporal. Não se deve interpretar como “dado limpo” a mera ausência de valores nulos. A qualidade precisa ser vinculada às regras de negócio e ao uso do dado. Por exemplo, faturamento negativo pode representar uma devolução legítima em certa base, mas ser indevido em outra; uma regra universal sem conhecer a semântica é perigosa.\n\n## 2. Transformações, agrupamentos e junções\nEm análise tabular, **filtrar** seleciona linhas, **selecionar colunas** reduz atributos, **agrupar e agregar** sintetiza conjuntos de registros, e **junção** combina tabelas por chaves. A função de agregação deve respeitar a unidade de análise. Se um cadastro de clientes tem chave duplicada e é unido a transações, um `merge()` pode multiplicar linhas e inflar somas: por isso, verificar cardinalidade e existência de chaves é obrigatório. `drop_duplicates()` pode remover repetições exatas, mas não resolve automaticamente duplicidades de entidade nem erros de modelagem.\n\nUm tratamento eficiente diferencia transformações vetorizadas de laços linha a linha. Em bibliotecas analíticas, operações em colunas frequentemente reduzem sobrecarga, mas o desempenho deve ser medido no contexto concreto. A ordenação e a definição explícita de dados influenciam testes: ao comparar resultados, é preciso definir tolerâncias numéricas, ordenação quando pertinente e política de arredondamento. Em cálculos monetários, a representação de ponto flutuante binário exige cautela; o requisito de precisão pode demandar representação decimal adequada.\n\n## 3. Incrementalidade, checkpoints e consistência\nUma carga **completa** reprocessa o conjunto definido; uma carga **incremental** seleciona alterações desde uma referência confiável, como um carimbo temporal, versão ou log de mudanças. O marcador de progresso (*watermark*) precisa lidar com registros atrasados, atualização de linhas e eventuais falhas. Atualizar o marcador **antes** de persistir os dados pode fazer o sistema ignorar eventos em nova execução. Checkpoints representam progresso recuperável, mas só funcionam quando definidos em uma fronteira consistente com a gravação do resultado.\n\n**Idempotência** significa que reaplicar a mesma operação sobre o mesmo estado não modifica o resultado após a primeira aplicação bem-sucedida. É desejável para execuções com tentativa de repetição (*retry*) — por exemplo, usar chave única e atualização controlada no destino em vez de acrescentar sempre as mesmas linhas. Idempotência não é sinônimo de determinismo: uma operação pode ser idempotente, mas depender de um instante de coleta externo; determinismo diz respeito à relação entre entradas e resultados. A gravação de saídas pode ser feita em arquivo temporário seguida de substituição quando o ambiente oferecer tal operação com garantias adequadas; não se deve prometer atomicidade em qualquer sistema de arquivos ou serviço remoto.\n\n## 4. Qualidade e rastreabilidade\nÉ útil medir quantidade de registros lidos, rejeitados e gravados, chaves faltantes, linhas duplicadas e distribuição de valores antes e depois das transformações. **Linhagem de dados** registra de onde vieram os dados, quais transformações sofreram e quais resultados alimentaram. **Observabilidade** permite diagnosticar falhas e variações; **validação** decide se os dados atendem ao contrato. Sem distinguir esses conceitos, pode-se construir um pipeline bem monitorado que publica valores errados.\n\n**Pegadinhas de prova:** ler CSV não identifica perfeitamente todos os tipos; união de tabelas pode multiplicar linhas; `dropna()` não comprova qualidade; retry sem idempotência pode duplicar resultados; ETL e ELT diferem pela posição das transformações em relação ao carregamento.\n"
+    },
+    {
+      "title": "Agendamento, parametrização e orquestração analítica",
+      "markdown": "## 1. Da execução manual à rotina recorrente\nAutomatizar não se limita a escrever código: significa definir **quando** executar, **com quais entradas**, **em que ambiente**, **como verificar sucesso** e **o que fazer diante de falhas**. O agendamento por tempo pode empregar mecanismos como cron em sistemas compatíveis ou Agendador de Tarefas no Windows. O cron executa comandos segundo uma expressão de calendário em um ambiente que pode diferir do terminal interativo: diretório atual, variáveis de ambiente, permissões e interpretador merecem configuração expressa. O agendamento não garante que os dados de origem estejam prontos no horário previsto.\n\n**Orquestração** coordena tarefas dependentes. Um fluxo de relatórios pode exigir: coletar → validar → consolidar → publicar → notificar. A ordem é um **grafo acíclico dirigido (DAG)** quando as dependências não formam ciclos. Tarefas independentes podem rodar em paralelo se o consumo de recursos e as dependências permitirem. Uma tarefa que falha não deve ser marcada como sucesso apenas porque uma etapa posterior conseguiu produzir um arquivo. O resultado correto requer definição clara de sucesso operacional e de qualidade dos dados.\n\n## 2. Parâmetros, lotes e execução repetível\nAo parametrizar, substituem-se valores embutidos no código por entradas como `data_ref`, `unidade`, `fonte` e `saida`. Um mesmo script ou notebook pode ser executado para períodos distintos. Isso elimina cópias quase idênticas de código e reduz divergências. **Papermill** permite executar um notebook-base com parâmetros e salvar um notebook de saída que registra os valores aplicados. O **nbconvert** também executa notebooks, mas parametrização por si só não deve ser presumida sem mecanismo correspondente. Para scripts, `argparse` e arquivos de configuração são opções comuns.\n\nUm processamento diário precisa indicar qual é a **data lógica** do lote, especialmente após atrasos. O instante em que o programa roda e o período de dados que ele processa são conceitos diferentes. Executar hoje a apuração de ontem exige parâmetro ou regra explícita; confiar apenas no relógio da máquina dificulta reprocessamentos históricos. Em fluxos de decisão, o mesmo resultado pode ser derivado de nova versão de base: por isso, registre versões, datas de extração e parâmetros relevantes.\n\n## 3. CI, testes e automação por eventos\nFerramentas de integração contínua, como **GitHub Actions**, permitem descrever fluxos em YAML no repositório, disparados por eventos, manualmente ou por agendamento. Exemplos: rodar testes ao receber uma alteração de código, verificar estilo e esquema de dados, executar geração periódica de relatórios ou publicar artefatos. Um workflow pode conter múltiplos trabalhos e etapas, cada qual com contexto de execução. A execução agendada depende da plataforma e de seus limites; não deve ser tratada como garantia absoluta de execução pontual ou disponibilidade permanente.\n\nDiferencie **CI** (integração e verificação frequentes do código) de **agendamento operacional de dados** (produção recorrente). Ambos podem empregar o mesmo mecanismo, mas têm objetivos e políticas de falha diferentes. Testes unitários verificam transformações isoladas; testes de integração avaliam conexões e fluxo entre componentes; testes de contrato identificam alterações de esquema e semântica. Uma rotina de produção deve evitar depender de comandos interativos, cliques ou solicitações de credenciais durante a execução.\n\n## 4. Falhas transitórias, repetição e notificações\nFalhas transitórias de rede ou indisponibilidade eventual podem justificar **tentativas limitadas** com espera progressiva; erros permanentes, como ausência de coluna obrigatória, precisam de correção e não melhoram com repetições ilimitadas. Em chamadas a APIs, respeitam-se limites de requisição, tempo limite e respostas de erro. Sem `timeout`, a execução pode ficar aguardando indefinidamente conforme o cliente utilizado. Para operações de escrita, cada repetição pode causar duplicação se não houver idempotência ou controle transacional.\n\nNotificações devem oferecer informações acionáveis: identificação da tarefa, lote, causa provável, momento e local do registro; jamais incluir senhas. **SLA** e critérios de frescor de dados devem ser definidos de acordo com o negócio, não apenas com a duração do script. Uma tarefa pode terminar em segundos e ainda publicar dados desatualizados. A instrumentação precisa separar atraso na fonte, falha de processamento e atraso de entrega.\n\n**Pegadinhas de prova:** agendar ≠ orquestrar; execução pontual ≠ disponibilidade garantida; retry ≠ reparo de erro lógico; `data_ref` ≠ momento de execução; fluxo YAML de CI não substitui automaticamente regras de qualidade dos dados.\n"
+    },
+    {
+      "title": "Confiabilidade, segurança, desempenho e governança",
+      "markdown": "## 1. Testes, evidências e reprodutibilidade\nUm processo analítico de produção necessita de **testes unitários**, **testes de integração** e **validações de dados**. A função que calcula um indicador pode ser testada com uma entrada pequena e um resultado conhecido; já uma consulta externa exige testes específicos do contrato de integração. Em notebooks, o teste de reiniciar e executar todas as células ajuda a revelar dependências ocultas; em scripts, testes automatizados devem cobrir casos-limite, registros vazios, tipos inesperados e falha de origem.\n\n**Reprodutibilidade** é a capacidade de refazer o processamento sob condições documentadas, usando dados, código, dependências e parâmetros identificados. **Rastreabilidade** permite ligar cada saída às entradas e transformações que a originaram. **Determinismo**, por sua vez, é propriedade do resultado para entradas e condições equivalentes: a reprodução de análises com amostragem aleatória pode exigir semente fixa, controle de bibliotecas e ciência de que certas operações paralelas podem variar por plataforma. Registrar uma semente não supre a ausência dos dados de origem.\n\nVersionar código em Git ajuda a acompanhar mudanças, revisões e restaurações, mas arquivos de dados sensíveis e credenciais não devem ser inseridos automaticamente no repositório. Artefatos grandes ou variáveis exigem política de armazenamento, retenção e acesso apropriada. O gerenciamento de dependências deve manter condições compatíveis, incluindo versões de bibliotecas, interpretador e eventuais drivers de GPU. As evidências de sucesso devem incluir não apenas código de saída, mas controles sobre completude e consistência do resultado.\n\n## 2. Segurança e proteção da informação\nEm pipelines que consultam bancos, **consultas parametrizadas** separam dados da estrutura do comando e reduzem risco de injeção de SQL. Concatenar diretamente conteúdo de usuário em consultas é inseguro. Na execução de programas externos via `subprocess`, passar argumentos como lista e evitar montagem desnecessária de comandos de shell com entrada não confiável diminui superfícies de ataque; o uso de `shell=True` requer análise de riscos e cuidados próprios.\n\nSegredos devem ficar fora do código e de notebooks compartilhados. Variáveis de ambiente e gerenciadores de segredo são mecanismos possíveis, mas permissões, rotação e política de acesso continuam importantes. **Privilégio mínimo** significa conceder apenas os acessos necessários; montar o Drive em um notebook de terceiros exige atenção porque o código executado pode acessar os arquivos autorizados. Logs e resultados de células podem conter informações confidenciais mesmo quando o script principal não as imprime intencionalmente. Ao publicar notebooks, revisar e limpar saídas sensíveis é precaução essencial.\n\nA **LGPD** é pertinente quando a análise trata dados pessoais, mas as medidas concretas variam conforme finalidade, base legal, necessidade e riscos. Em concursos técnicos, é mais seguro afirmar que deve haver governança, minimização, acesso controlado e proteção do ciclo de vida dos dados do que supor permissões gerais de reutilização. Dados pseudonimizados continuam exigindo cautela se puderem ser associados a pessoas mediante informações adicionais.\n\n## 3. Desempenho, escalabilidade e observabilidade\nO desempenho depende do volume, estrutura, custos de leitura e escrita, recursos da máquina e tipo de operação. Vetorização pode superar loops Python por elemento para operações numéricas adequadas, mas **não elimina** a necessidade de medir consumo de memória nem torna toda operação instantânea. Processar arquivos CSV em **blocos** (`chunksize` no pandas) permite trabalhar com lotes quando o arquivo inteiro não cabe confortavelmente em memória; porém, agregações entre lotes exigem combinar estados parciais de forma correta. Para medianas, percentis e deduplicação global, a estratégia exige atenção especial.\n\nA GPU não substitui uma arquitetura adequada. Transferências CPU–GPU e inicialização podem tornar uma tarefa pequena mais lenta com aceleração. Para trabalhos maiores, gargalos podem estar em disco, rede, banco, serialização ou consultas, e não no cálculo. **Profiling** e métricas orientam otimização; diminuir o tempo de execução ao custo de corromper resultados não constitui melhoria válida. A paralelização requer considerar independência de tarefas, limites de API, memória e concorrência de escrita.\n\n**Observabilidade** combina logs, métricas e outros sinais para acompanhar execução e diagnosticar problemas. Exemplos de métricas: duração, total de linhas processadas, taxa de erro, último lote válido e atraso dos dados. Uma política de retomada deve definir claramente o que reprocessar e como evitar duplicidades. Revisões periódicas precisam conferir validade de credenciais, permissões, mudanças de APIs, contratos de dados e comportamento de dependências.\n\n## 4. Quadro comparativo de revisão\n| Conceito | Finalidade | Confusão comum |\n|---|---|---|\n| Script `.py` | Execução programática de tarefa | Supor que sempre exige interface interativa |\n| Notebook `.ipynb` | Código, narrativa, metadados e saídas | Confundir ordem visual com ordem real de execução |\n| Kernel | Executar células e manter estado | Confundir kernel com armazenamento persistente |\n| Colab | Ambiente de notebooks com runtime em nuvem ou configurável | Supor sessão ou GPU garantida |\n| Ambiente virtual | Isolar dependências Python | Confundir com máquina virtual completa |\n| Checkpoint | Marcar progresso recuperável | Atualizar avanço antes de persistir o lote |\n| Idempotência | Evitar efeitos adicionais em reaplicações | Tratar como sinônimo de reprodutibilidade |\n| Logging | Registrar eventos de execução | Substituir validação de dados por mensagens |\n\n**Estratégia de prova:** identifique se o enunciado descreve documento, processo, infraestrutura, estado em memória, persistência em disco ou controle operacional. As trocas entre essas camadas explicam boa parte das assertivas incorretas.\n"
+    }
+  ],
+  "summary": "Scripts executam tarefas com entradas e saídas controladas; `argparse` recebe parâmetros, `pathlib` organiza caminhos, `venv` isola dependências e `logging` registra eventos. No Jupyter, o documento `.ipynb` contém células e saídas, enquanto o kernel mantém o estado temporário: reiniciar e executar tudo revela dependências ocultas. O Google Colab oferece notebooks no navegador, sessões em nuvem não permanentes, montagem autorizada do Drive e possibilidade de GPU sem aceleração garantida. Pipelines analíticos devem controlar esquema, tipos, chaves, junções, qualidade, incrementalidade e checkpoints. Automação exige parametrização de lotes, agendamento, dependências, tentativas limitadas e idempotência. Reprodutibilidade requer código, dados, parâmetros e ambientes identificados; segurança envolve segredos externos ao código, consultas parametrizadas, acesso mínimo e revisão das saídas salvas nos notebooks.",
+  "flashcards": [
+    {
+      "front": "O que distingue um script executável de um módulo importável?",
+      "back": "O mesmo arquivo pode cumprir ambos os papéis; a guarda if __name__ == \"__main__\": impede que a chamada principal ocorra em uma importação usual."
+    },
+    {
+      "front": "Para que serve argparse?",
+      "back": "Definir e processar argumentos e opções da linha de comando, com ajuda e validação básica."
+    },
+    {
+      "front": "O que significa caminho relativo?",
+      "back": "Um caminho resolvido em relação ao diretório de trabalho corrente do processo, que pode variar entre execuções."
+    },
+    {
+      "front": "Qual é o alcance de venv?",
+      "back": "Isolar instalações de pacotes Python de um projeto; não virtualizar integralmente o sistema operacional."
+    },
+    {
+      "front": "Por que logging difere de print?",
+      "back": "Logging organiza eventos por nível, destino e formato, favorecendo observabilidade e diagnóstico."
+    },
+    {
+      "front": "O que contém um arquivo .ipynb?",
+      "back": "Estrutura JSON com células de código/Markdown, metadados e possíveis saídas salvas."
+    },
+    {
+      "front": "Qual é o papel do kernel no Jupyter?",
+      "back": "Executar código e manter objetos e variáveis em memória durante a sessão."
+    },
+    {
+      "front": "Como verificar estado oculto no notebook?",
+      "back": "Reiniciar o kernel e executar todas as células na sequência correta, sem depender de execuções anteriores."
+    },
+    {
+      "front": "O que persiste ao salvar notebook no Drive?",
+      "back": "O documento salvo; não necessariamente variáveis do kernel e arquivos temporários da VM."
+    },
+    {
+      "front": "O que significa montar o Drive no Colab?",
+      "back": "Autorizar acesso do runtime aos arquivos do Drive, sem copiar automaticamente todo conteúdo temporário."
+    },
+    {
+      "front": "Selecionar GPU no Colab garante aceleração?",
+      "back": "Não. É preciso haver disponibilidade e código/biblioteca capazes de usar a GPU eficientemente."
+    },
+    {
+      "front": "Para que servem nbconvert e Papermill?",
+      "back": "nbconvert pode executar/exportar notebooks; Papermill se destaca pela parametrização e execução registrada."
+    },
+    {
+      "front": "Qual a diferença entre ETL e ELT?",
+      "back": "No ETL transforma-se antes de carregar; no ELT carrega-se antes de transformar no ambiente de destino."
+    },
+    {
+      "front": "Por que IDs com zeros iniciais devem frequentemente ser texto?",
+      "back": "Porque zeros podem ter valor semântico na identificação, mas somem em conversões numéricas."
+    },
+    {
+      "front": "Qual risco de junção com chaves duplicadas?",
+      "back": "Multiplicação de registros correspondentes, capaz de inflar totais e indicadores."
+    },
+    {
+      "front": "O que é um checkpoint?",
+      "back": "Marcador de progresso recuperável que deve corresponder a dados efetivamente persistidos."
+    },
+    {
+      "front": "O que é idempotência?",
+      "back": "Propriedade de reaplicar uma operação sem criar novos efeitos após a primeira aplicação sobre o mesmo estado."
+    },
+    {
+      "front": "Para que serve um DAG?",
+      "back": "Expressar precedências e relações de dependência entre tarefas de um fluxo."
+    },
+    {
+      "front": "Por que usar data lógica do lote?",
+      "back": "Permitir execução tardia e reprocessamento histórico sem confundir período analisado com relógio da máquina."
+    },
+    {
+      "front": "Quando tentar novamente uma operação?",
+      "back": "Preferencialmente em falhas transitórias, com limites, espera e tratamento seguro de possíveis escritas repetidas."
+    },
+    {
+      "front": "O que podem disparar workflows do GitHub Actions?",
+      "back": "Eventos, acionamento manual e agendamento, conforme definição do workflow."
+    },
+    {
+      "front": "Qual a diferença entre teste unitário e teste de integração?",
+      "back": "O primeiro valida uma unidade isolada; o segundo valida interações e contratos entre componentes."
+    },
+    {
+      "front": "Por que usar consultas SQL parametrizadas?",
+      "back": "Para separar os valores recebidos da estrutura SQL e reduzir risco de injeção."
+    },
+    {
+      "front": "O que chunksize proporciona em read_csv?",
+      "back": "Iteração por blocos, reduzindo memória exigida, sem dispensar agregação global correta."
+    },
+    {
+      "front": "Kernel encerrado remove as saídas salvas do notebook?",
+      "back": "Não. Saídas presentes no arquivo .ipynb continuam até serem removidas ou substituídas."
+    }
+  ],
+  "tips": [
+    "Na prova, separe arquivo `.ipynb`, kernel, servidor Jupyter e armazenamento persistente; são camadas distintas.",
+    "Associe argparse a parâmetros, pathlib a caminhos, venv a pacotes isolados e logging a eventos.",
+    "Em Colab, diferencie o notebook salvo no Drive da VM temporária e da aceleração efetiva por GPU.",
+    "Antes de aceitar uma agregação após merge, confira cardinalidade e unicidade das chaves.",
+    "Para cargas incrementais, pense na ordem correta: gravar de modo consistente e só então avançar checkpoint.",
+    "Em automações, horário de disparo não equivale a período de referência do lote nem comprova frescor.",
+    "Ao comparar duas soluções, valorize segurança, teste completo e observabilidade, e não apenas ausência de exceção."
+  ],
+  "traps": [
+    "“A ordem exibida das células corresponde à ordem real de execução” é falso: a execução interativa pode ser arbitrária.",
+    "“Salvar notebook no Drive preserva RAM e todos os arquivos da VM” confunde documento com runtime.",
+    "“GPU selecionada acelera qualquer código” ignora compatibilidade e custos de transferência.",
+    "“Retentar sempre resolve erro de esquema” confunde falha transitória com erro permanente.",
+    "“Remover nulos garante integridade e unicidade” reduz qualidade a completude.",
+    "“Código de saída zero prova que dados são atuais e corretos” ignora contrato e frescor.",
+    "“Ambiente virtual é uma máquina virtual” confunde isolamentos distintos."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva a função da guarda __main__ e uma consequência da ausência dela.",
+      "answer": "Ela limita a chamada principal à execução do arquivo como programa; sem proteção, trabalho no topo do módulo pode ser disparado ao importar."
+    },
+    {
+      "question": "Como auditar um notebook cuja execução depende de células fora de ordem?",
+      "answer": "Reiniciar o kernel, executar todas as células em sequência e corrigir dependências ou entradas que não estiverem explicitadas."
+    },
+    {
+      "question": "O que acontece com arquivos temporários, Drive e GPU quando a sessão Colab termina?",
+      "answer": "Dados temporários da VM podem desaparecer; arquivos efetivamente salvos no Drive podem persistir; GPU é recurso eventual da sessão, sem garantia de disponibilidade."
+    },
+    {
+      "question": "Por que um merge pode alterar uma soma financeira?",
+      "answer": "Chaves repetidas nos dois lados produzem várias correspondências; o mesmo valor pode aparecer multiplicado no resultado unido."
+    },
+    {
+      "question": "Qual a relação entre checkpoint e persistência em carga incremental?",
+      "answer": "O marcador só deve avançar até o progresso realmente gravado; se avançar antes, uma falha pode provocar perda lógica de eventos."
+    },
+    {
+      "question": "Como construir uma rotina reprocessável para uma data histórica?",
+      "answer": "Externalizar a data lógica, manter parâmetros e fontes identificados e garantir idempotência ou estratégia de gravação controlada."
+    },
+    {
+      "question": "Quais falhas justificam retry e quais não justificam?",
+      "answer": "Instabilidades de rede podem admitir tentativas limitadas; erros permanentes de formato, esquema e regra precisam de correção."
+    },
+    {
+      "question": "Que evidências além de código de saída indicam sucesso de um pipeline?",
+      "answer": "Validação de esquema, contagens, integridade, completude, frescor, consistência da saída e registros de execução."
+    },
+    {
+      "question": "Como reduzir riscos ao compartilhar notebooks e executar consultas?",
+      "answer": "Remover saídas sensíveis, não publicar segredos, limitar permissões e usar consultas SQL parametrizadas."
+    },
+    {
+      "question": "Quando o uso de GPU pode não acelerar uma análise?",
+      "answer": "Em operações sem suporte a GPU, trabalhos pequenos e cenários em que inicialização, transferência ou E/S dominem o tempo."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confundir execução, importação e isolamento de ambiente",
+      "summary": "A guarda __main__ controla o ponto de entrada, mas não impede que código solto de módulo execute na importação. venv isola pacotes, não a máquina; caminhos relativos dependem do diretório de trabalho."
+    },
+    {
+      "key": "e2",
+      "title": "Confundir documento do notebook com estado da sessão",
+      "summary": "O .ipynb pode persistir, mas as variáveis do kernel não. No Colab, Drive montado não garante salvamento de arquivos temporários e a presença de GPU não significa uso efetivo dela."
+    },
+    {
+      "key": "e3",
+      "title": "Tratar leitura e limpeza como garantia de qualidade",
+      "summary": "CSV não traz esquema completo; junções podem multiplicar linhas. Validação requer regras de negócio, consistência, chaves e checkpoints seguros para evitar perdas ou duplicações."
+    },
+    {
+      "key": "e4",
+      "title": "Confundir agendamento, dependência e sucesso da rotina",
+      "summary": "Agendamento dispara, mas não comprova origem pronta ou dado fresco. DAG organiza dependências; retries devem ser limitados e apropriados à natureza da falha."
+    },
+    {
+      "key": "e5",
+      "title": "Supor que desempenho ou término sem erro comprovam correção",
+      "summary": "É necessário testar resultados, controlar acesso e saídas sensíveis, medir gargalos e validar dados. Nem GPU nem blocos nem logs asseguram, isoladamente, precisão ou segurança."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe precisa importar as funções de um arquivo Python sem executar a rotina de geração de relatórios. Qual estrutura atende diretamente a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Proteger a chamada a main() com if __name__ == \"__main__\":.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Colocar toda a rotina no topo do módulo, sem funções.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir todas as funções por comandos print().",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Encerrar o script com uma instrução import de si próprio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar a rotina durante a importação para pré-carregar os relatórios.",
+          "correct": false
+        }
+      ],
+      "explanation": "A guarda de entrada distingue uso como programa principal da importação. Assim, funções podem ser reutilizadas sem disparar a rotina operacional; código solto no topo do módulo pode executar durante o import.",
+      "section": "Scripts Python: estrutura, execução e ambientes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao importar um módulo Python, todas as instruções em seu nível superior podem ser executadas, enquanto o bloco protegido por if __name__ == \"__main__\": não é acionado pela importação usual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Na importação habitual, Python avalia o código de nível superior, mas o nome do módulo não é __main__. A guarda evita o disparo da rotina principal e favorece reutilização sem efeitos colaterais desnecessários.",
+      "section": "Scripts Python: estrutura, execução e ambientes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script diário recebe o diretório de entrada, definido pelo operador. Qual recurso da biblioteca padrão é mais adequado para interpretar esse parâmetro na linha de comando?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "logging, que interpreta automaticamente todos os argumentos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "argparse, com argumento ou opção declarada e validação básica.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "json, que sempre lê argumentos de terminal sem configuração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "pathlib, que cria opções CLI e mensagens de ajuda por padrão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "datetime, que transforma caminhos em argumentos posicionais.",
+          "correct": false
+        }
+      ],
+      "explanation": "O argparse declara e interpreta opções e argumentos da linha de comando, inclusive erros de uso. Pathlib trata caminhos, logging registra eventos e os demais módulos citados têm finalidades distintas.",
+      "section": "Scripts Python: estrutura, execução e ambientes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ambiente virtual Python criado com venv cria uma máquina virtual completa, isolando o sistema operacional e garantindo a persistência de todas as bibliotecas entre computadores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O venv isola principalmente instalações de pacotes e o contexto do interpretador; não emula uma máquina completa nem transporta automaticamente dependências para outra máquina. É necessário registrar e recriar o ambiente.",
+      "section": "Scripts Python: estrutura, execução e ambientes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um job executa com sucesso manualmente, mas não encontra dados quando iniciado por um agendador. Identificou-se o uso de caminho relativo. Qual é a hipótese técnica mais pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O Python proíbe caminhos relativos em execução sem interface gráfica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O agendador converte automaticamente arquivos CSV em JSON.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O diretório de trabalho do processo agendado difere do diretório assumido no desenvolvimento.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O comando import altera todos os caminhos para endereços de rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O ambiente virtual sempre apaga arquivos de entrada ao iniciar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Caminhos relativos dependem do diretório de trabalho, que pode variar entre terminal e agendador. Especificar diretórios e resolver caminhos conscientemente evita a falha; não há proibição geral de caminhos relativos.",
+      "section": "Scripts Python: estrutura, execução e ambientes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O módulo logging permite registrar eventos por níveis de severidade, o que o torna mais apropriado para operação monitorada do que depender exclusivamente de chamadas print().",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Logging organiza mensagens por nível e permite configurar destinos e formatos, facilitando diagnóstico de jobs. Apesar disso, registrar eventos não verifica automaticamente a correção dos dados processados.",
+      "section": "Scripts Python: estrutura, execução e ambientes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização instala versões diferentes de bibliotecas Python para dois projetos. Qual medida melhor reduz conflitos de dependências entre eles?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Compartilhar obrigatoriamente uma única instalação global sem versões.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Copiar a pasta de saída de um projeto para substituir o interpretador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar print() para identificar conflitos antes de cada importação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar ambientes virtuais distintos e registrar dependências de cada projeto.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Executar todas as tarefas com permissões máximas no sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "O venv mantém instalações de bibliotecas separadas por projeto, auxiliando a compatibilidade. Reprodutibilidade também depende de registrar versões; ambiente virtual não equivale a máquina virtual integral.",
+      "section": "Scripts Python: estrutura, execução e ambientes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O bloco except: pass garante uma automação confiável porque impede que erros de leitura causem código de saída diferente do sucesso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Silenciar indiscriminadamente exceções esconde falhas e pode gerar produtos incompletos com aparência de sucesso. Tratamento confiável requer erros específicos, validação e sinalização operacional coerente.",
+      "section": "Scripts Python: estrutura, execução e ambientes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina captura qualquer exceção e segue adiante, gravando “processamento concluído” mesmo após falha de leitura. Qual correção é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover todas as validações e considerar o log como evidência suficiente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Adicionar mais mensagens print() sem alterar a lógica de exceções.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir exceções por valores vazios e publicar o arquivo final.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter o tratamento genérico silencioso para evitar alertas falsos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tratar exceções específicas e sinalizar falha quando o resultado não puder ser validado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Capturar indiscriminadamente e silenciar exceções permite que resultados incompletos pareçam válidos. É preciso distinguir erros recuperáveis dos impeditivos e produzir sinalização coerente de falha.",
+      "section": "Scripts Python: estrutura, execução e ambientes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em scripts agendados, a resolução de caminhos relativos pode ser afetada pelo diretório de trabalho adotado pelo agendador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Caminhos relativos são interpretados a partir do diretório de trabalho do processo, que pode diferir do terminal do desenvolvedor. Definir diretórios e usar caminhos resolvidos é prevenção apropriada.",
+      "section": "Scripts Python: estrutura, execução e ambientes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um notebook, a célula superior utiliza uma variável criada em uma célula inferior que havia sido executada antes. Qual ação melhor revela essa dependência escondida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Salvar o arquivo sem modificar nenhuma das células.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reiniciar o kernel e executar todas as células na sequência apresentada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Converter todas as células Markdown em títulos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Renomear o notebook sem reiniciar o ambiente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Copiar as saídas antigas e manter o kernel atual.",
+          "correct": false
+        }
+      ],
+      "explanation": "O kernel mantém variáveis criadas em execuções anteriores, independentemente da ordem visual. Reinício seguido de execução integral revela dependências ocultas e é um teste básico de reprodutibilidade.",
+      "section": "Notebooks Jupyter e Google Colab: células, kernels e sessões",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ordem física de apresentação das células de um notebook assegura que o kernel as tenha executado naquela mesma ordem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O kernel mantém estado de execuções anteriores e permite executar células em ordem arbitrária. A ordem visual não comprova dependências satisfeitas; reiniciar e executar tudo ajuda a detectar estado oculto.",
+      "section": "Notebooks Jupyter e Google Colab: células, kernels e sessões",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sobre os componentes do Jupyter, assinale a associação correta.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O kernel é um arquivo CSV que guarda definitivamente os resultados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O notebook só comporta texto Markdown, nunca células de código.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O arquivo .ipynb armazena células e metadados; o kernel executa o código e conserva estado durante a sessão.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O servidor que salva arquivos é sempre o próprio kernel.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A extensão .ipynb define que a execução deve ocorrer exclusivamente em GPU.",
+          "correct": false
+        }
+      ],
+      "explanation": "O notebook é um documento estruturado e o kernel é o processo executante. A persistência do arquivo não se confunde com a memória do processo, e notebooks não são limitados a GPU.",
+      "section": "Notebooks Jupyter e Google Colab: células, kernels e sessões",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O arquivo .ipynb pode conter código, células de texto e saídas salvas; isso não significa que o estado da memória do kernel esteja preservado indefinidamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O documento JSON armazena células, metadados e possíveis saídas, enquanto variáveis em memória pertencem ao processo do kernel. Encerrar ou reiniciar o kernel elimina esse estado de execução.",
+      "section": "Notebooks Jupyter e Google Colab: células, kernels e sessões",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma analista salvou o notebook no Drive, desconectou-se do Colab e voltou em nova sessão. O arquivo temporário criado apenas no disco da máquina anterior desapareceu. Qual explicação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A gravação no Drive sempre replica o disco inteiro da máquina virtual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A GPU apaga os notebooks quando a sessão é encerrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Notebooks salvos em nuvem não admitem qualquer armazenamento local temporário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O armazenamento temporário do runtime pode ser descartado mesmo quando o notebook permanece salvo no Drive.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O kernel preserva obrigatoriamente todas as variáveis entre sessões.",
+          "correct": false
+        }
+      ],
+      "explanation": "O documento pode persistir no Drive sem que os arquivos da VM sejam preservados. O Colab usa ambientes de execução sujeitos a encerramento; saídas duráveis precisam ser gravadas em destino persistente.",
+      "section": "Notebooks Jupyter e Google Colab: células, kernels e sessões",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Montar o Google Drive em um ambiente de execução do Colab equivale a copiar automaticamente para o Drive todo arquivo criado no armazenamento temporário da sessão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A montagem fornece acesso aos arquivos autorizados do Drive, mas não converte automaticamente cada escrita no disco temporário em gravação persistente. O destino dos arquivos deve ser escolhido explicitamente.",
+      "section": "Notebooks Jupyter e Google Colab: células, kernels e sessões",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um Colab, o usuário seleciona ambiente com GPU e executa um pequeno script de manipulação de strings em Python. Qual conclusão é tecnicamente defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Qualquer instrução Python passa automaticamente a rodar na GPU.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O uso de GPU assegura que não haja limitação de sessão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A seleção de GPU transfere todos os arquivos para o Google Drive.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A GPU substitui a necessidade de memória e transferência de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A GPU disponível não garante aceleração; o código e as bibliotecas precisam usar operações compatíveis.",
+          "correct": true
+        }
+      ],
+      "explanation": "A disponibilização de hardware não implica seu uso efetivo por toda instrução. Bibliotecas e operações precisam ser compatíveis; tarefas pequenas podem até piorar devido a sobrecustos de inicialização e transferência.",
+      "section": "Notebooks Jupyter e Google Colab: células, kernels e sessões",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A disponibilidade de GPU no Colab pode variar e a sua seleção não garante que bibliotecas e operações de um notebook a utilizem efetivamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Ambientes de GPU dependem dos recursos do serviço, e o código só aproveita aceleração se operações e bibliotecas forem compatíveis. Sessões e tipos de GPU também não possuem disponibilidade irrestrita.",
+      "section": "Notebooks Jupyter e Google Colab: células, kernels e sessões",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deve rodar mensalmente o mesmo notebook para vários períodos, registrar parâmetros e preservar a saída de cada execução. Qual ferramenta é especialmente apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Papermill, para executar notebooks parametrizados com artefato de saída.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O kernel, que agenda automaticamente todo notebook salvo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O formato CSV, que armazena código executável em células.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O comando print(), que cria workflows parametrizados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O gerenciador de arquivos, que interpreta parâmetros de células.",
+          "correct": false
+        }
+      ],
+      "explanation": "Papermill permite injetar parâmetros e executar notebooks, preservando um documento resultante. Isso não substitui o ambiente, as dependências e os testes necessários, nem configura automaticamente um agendador.",
+      "section": "Notebooks Jupyter e Google Colab: células, kernels e sessões",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O nbconvert pode executar notebooks e registrar saídas, mas sua utilização não elimina a necessidade de dependências e kernels adequados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A execução programática exige ambiente funcional, dados e recursos compatíveis. Ferramentas de execução automatizam a passagem por células, mas não substituem testes, controle de versões ou validação do resultado.",
+      "section": "Notebooks Jupyter e Google Colab: células, kernels e sessões",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao importar uma planilha CSV, um campo identificador contém 00087 e precisa conservar os zeros iniciais. Que decisão de ingestão é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter o identificador em número inteiro para normalizá-lo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Eliminar zeros à esquerda antes de construir a chave.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ler o campo como texto, especificando o tipo esperado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Somar o identificador ao valor das demais colunas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Confiar que todo leitor CSV mantém automaticamente a semântica dos tipos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Identificadores não são grandezas aritméticas; seus zeros podem integrar a chave. Declarar a coluna como texto evita conversão numérica indesejada e faz parte de um contrato explícito de dados.",
+      "section": "Pipelines analíticos: ingestão, transformação e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "CSV contém, obrigatoriamente, metadados completos de tipo e restrições, permitindo inferir sem ambiguidade qualquer identificador com zeros à esquerda.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "CSV representa valores textuais delimitados e não garante semântica completa de tipos ou restrições. Identificadores precisam de esquema explícito para preservar zeros e evitar conversões incorretas.",
+      "section": "Pipelines analíticos: ingestão, transformação e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela de clientes contém duas linhas para determinada chave. A tabela de vendas tem três transações da mesma chave. Uma junção interna por essa chave poderá gerar quantas combinações dessas linhas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Duas combinações, independentemente da cardinalidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Três combinações, pois a tabela de vendas tem prioridade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cinco combinações, somando as quantidades de linhas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Seis combinações, na ausência de outros filtros.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma combinação, porque a junção elimina duplicidade por padrão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A junção por igualdade forma combinações entre correspondências: duas linhas de cadastro combinam com três transações, totalizando seis. É preciso verificar cardinalidade para evitar agregações infladas.",
+      "section": "Pipelines analíticos: ingestão, transformação e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma junção entre tabelas com chaves duplicadas pode multiplicar registros e alterar indevidamente totais calculados após a união.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Se várias linhas de cada lado correspondem à mesma chave, o produto das correspondências expande o resultado. Verificar cardinalidade e regras de negócio previne somas infladas em agregações posteriores.",
+      "section": "Pipelines analíticos: ingestão, transformação e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina lê um CSV, remove todos os valores ausentes e declara que a base está validada. Qual crítica é a mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover valores ausentes sempre corrige qualquer erro de chave.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os dados não precisam de critérios de qualidade depois de carregados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Toda linha sem nulos é necessariamente uma observação verdadeira.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A validação de esquema é ilegal quando se utiliza pandas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ausência de nulos é insuficiente; é preciso checar domínio, unicidade, tipos e coerência conforme as regras de negócio.",
+          "correct": true
+        }
+      ],
+      "explanation": "Qualidade de dados envolve critérios além de completude, como integridade e coerência. Uma base sem valores nulos pode ter chaves duplicadas, datas impossíveis ou valores semanticamente incorretos.",
+      "section": "Pipelines analíticos: ingestão, transformação e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Remover linhas com valores ausentes é suficiente para assegurar integridade referencial e unicidade de todos os identificadores da base.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Completude é apenas uma dimensão da qualidade. Mesmo sem ausências, a base pode apresentar chaves duplicadas ou referências inexistentes; tais propriedades demandam verificações específicas.",
+      "section": "Pipelines analíticos: ingestão, transformação e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma carga incremental persiste registros e guarda um marcador de último evento. Qual sequência reduz o risco de perda de eventos após falha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar a persistência consistente dos registros antes de avançar o marcador de progresso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Atualizar o marcador logo no início e gravar o lote posteriormente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ignorar os registros atrasados após cada execução bem-sucedida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar somente o relógio da máquina como prova de processamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apagar todos os checkpoints quando houver erro transitório.",
+          "correct": false
+        }
+      ],
+      "explanation": "O marcador deve representar progresso efetivamente concluído. Avançá-lo antes da gravação pode fazer a execução seguinte pular dados não persistidos; consistência e possibilidade de repetição devem ser planejadas.",
+      "section": "Pipelines analíticos: ingestão, transformação e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em cargas incrementais, o checkpoint precisa refletir um ponto de progresso consistente com os dados efetivamente persistidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Avançar o marcador antes da confirmação de gravação pode fazer a próxima tentativa ignorar eventos. Checkpoint e persistência devem ser coordenados com uma política de retomada e idempotência.",
+      "section": "Pipelines analíticos: ingestão, transformação e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um pipeline, uma falha pode causar a repetição do mesmo lote. Qual estratégia favorece idempotência da escrita?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Anexar novamente cada registro ao destino em qualquer retry.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Atualizar ou inserir registros com chave estável, evitando acrescentar duplicatas na repetição.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Gerar uma chave aleatória diferente a cada tentativa de gravação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar a validação de unicidade no armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Contar as linhas de saída apenas antes do primeiro processamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "A idempotência impede efeitos adicionais ao repetir a operação. Uma escrita controlada por chave e regra de atualização adequada evita duplicação; acrescentar indiscriminadamente linhas não é seguro.",
+      "section": "Pipelines analíticos: ingestão, transformação e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Idempotência é a propriedade segundo a qual a repetição da mesma operação, sobre o estado já produzido por ela, não causa novos efeitos no resultado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A reaplicação idempotente estabiliza o estado e é importante em retries. Isso não equivale a dizer que toda execução é determinística diante de entradas externas distintas ou mutáveis.",
+      "section": "Pipelines analíticos: ingestão, transformação e validação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina executada todas as manhãs precisa receber a data do conjunto de dados a apurar. Qual abordagem facilita reprocessar dias anteriores?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar sempre a data atual e impedir parâmetros externos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir datas por uma sequência de instruções print().",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gravar o resultado sempre no mesmo arquivo, sem identificação do período.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Receber explicitamente um parâmetro de data lógica do lote.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Ignorar o calendário dos dados e registrar apenas a duração do processo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A data lógica identifica o período tratado, que pode ser diferente do dia da execução. Torná-la parâmetro permite reprocessamentos e auditoria sem alterar código e sem confiar somente no relógio da máquina.",
+      "section": "Agendamento, parametrização e orquestração analítica",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Executar uma rotina em horário agendado garante que os arquivos de origem já estejam completos, dispensando verificação de disponibilidade e qualidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Agendamento define o momento do disparo, mas a fonte pode atrasar ou disponibilizar lote incompleto. O fluxo deve verificar presença, frescor, completude e condições de continuidade antes de publicar resultados.",
+      "section": "Agendamento, parametrização e orquestração analítica",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fluxo executa coleta, validação, transformação e publicação; a publicação depende das etapas anteriores. Qual modelo representa diretamente essas dependências?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma coleção de células sem qualquer ordem ou relação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma lista de arquivos ordenada apenas por tamanho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um agendador sem suporte a dependência entre tarefas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um conjunto de métricas visuais sem estados de execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um grafo acíclico dirigido de tarefas, com precedências explícitas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um DAG expressa as relações de precedência e permite identificar tarefas paralelizáveis. O cron, isoladamente, dispara comandos por tempo, mas não representa necessariamente todas as dependências do pipeline.",
+      "section": "Agendamento, parametrização e orquestração analítica",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "DAGs expressam precedências entre tarefas e podem permitir paralelismo quando não existem dependências obrigatórias entre etapas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Um grafo acíclico dirigido descreve tarefas e dependências sem ciclos. Etapas independentes podem ser paralelizadas respeitando recursos e consistência, diferentemente de uma simples lista de horários.",
+      "section": "Agendamento, parametrização e orquestração analítica",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API tem instabilidade eventual, mas também pode rejeitar dados por erro permanente de esquema. Qual política de repetição é mais defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir falhas transitórias com limites e espera; interromper e diagnosticar erros permanentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Repetir indefinidamente qualquer falha até surgir um arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tratar erros de validação como sucessos para evitar indisponibilidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Evitar limites de tempo para qualquer solicitação externa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Descartar o histórico de tentativas para não ocupar armazenamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Falhas transitórias podem melhorar com tentativas limitadas, mas incompatibilidades de esquema não são resolvidas por repetição. Limites, espera e diagnóstico preservam recursos e evitam falsos sucessos.",
+      "section": "Agendamento, parametrização e orquestração analítica",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando uma API retorna erro permanente de esquema, repetir a requisição indefinidamente é a estratégia recomendada de recuperação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Erros permanentes exigem correção de dados, contrato ou código; tentativas ilimitadas não removem a causa e desperdiçam recursos. Retry limitado deve concentrar-se em falhas potencialmente transitórias.",
+      "section": "Agendamento, parametrização e orquestração analítica",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer executar testes automaticamente a cada mudança no repositório e uma rotina de relatório em horários definidos. Qual plataforma admite workflows com esses disparos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O interpretador CSV, que executa YAML diretamente no banco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "GitHub Actions, por eventos, agendamento ou acionamento manual.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O Markdown, que dispara tarefas ao renderizar texto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A memória do kernel, que permanece ativa após qualquer desconexão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O controle de versões Git sozinho, sem mecanismo adicional de execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "GitHub Actions descreve workflows em YAML e admite disparos por eventos, horários e manualmente. A plataforma tem condições e limites próprios; automação de testes não garante qualidade dos dados de produção.",
+      "section": "Agendamento, parametrização e orquestração analítica",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Fluxos do GitHub Actions podem ser acionados por eventos do repositório, manualmente ou por agendamento, conforme sua configuração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A plataforma suporta diferentes gatilhos de workflow descritos no repositório. Isso permite automação de testes e tarefas recorrentes, mas continua sujeito a condições e limites operacionais.",
+      "section": "Agendamento, parametrização e orquestração analítica",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um job agendado terminou sem erro, mas publicou dados de dois dias atrás quando se esperava atualização diária. Qual controle adicional identifica melhor essa situação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma medição exclusiva do tempo de execução do programa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A remoção de todos os registros de eventos do agendador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma verificação de frescor do lote publicado em relação ao período esperado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A troca de todos os tipos de coluna para texto genérico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A desativação de alertas porque o código de saída foi zero.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sucesso técnico da execução não comprova atualidade da informação. Medir frescor, data de referência e completude distingue pipeline concluído de produto analítico válido para o período requerido.",
+      "section": "Agendamento, parametrização e orquestração analítica",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O horário de execução de uma tarefa e a data de referência dos dados processados são conceitos diferentes e devem ser distinguidos em rotinas reprocessáveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Um lote histórico pode rodar no presente e um lote diário pode ser executado com atraso. Parâmetros de data lógica permitem corrigir e auditar períodos sem depender apenas do relógio de execução.",
+      "section": "Agendamento, parametrização e orquestração analítica",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma analista verifica se uma função calcula corretamente uma média ponderada em pequeno conjunto de dados controlado. Qual categoria de teste descreve melhor a atividade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Teste de penetração de toda a infraestrutura de rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Teste de carga de múltiplos serviços distribuídos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Auditoria de autorização de todos os usuários externos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Teste de recuperação de desastres do datacenter.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Teste unitário de uma regra de transformação.",
+          "correct": true
+        }
+      ],
+      "explanation": "O teste unitário focaliza uma unidade de lógica com entradas e resultado esperado. Outras categorias examinam integração, segurança, escala ou infraestrutura e não substituem o teste da transformação.",
+      "section": "Confiabilidade, segurança, desempenho e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Testes unitários de transformações substituem por completo testes de integração com APIs, bancos e autenticação, pois todos verificam o mesmo comportamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Teste unitário examina unidades isoladas; integração verifica interfaces, dependências e trocas com serviços. A aprovação de uma função não demonstra que conexão, autenticação ou contrato externo funcionem.",
+      "section": "Confiabilidade, segurança, desempenho e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema monta SQL concatenando diretamente o valor enviado pelo usuário. Qual alternativa é recomendada para separar conteúdo de entrada da estrutura do comando?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Empregar parâmetros ou placeholders suportados pela biblioteca de acesso ao banco.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Solicitar que todos os usuários evitem caracteres especiais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adicionar aspas manualmente em toda entrada sem validar contexto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Salvar o SQL montado em um notebook antes de executá-lo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter qualquer valor recebido em um comando shell.",
+          "correct": false
+        }
+      ],
+      "explanation": "Consultas parametrizadas deixam ao driver o tratamento dos valores de dados, reduzindo a chance de injeção por concatenação. A simples adição manual de aspas não fornece a mesma garantia.",
+      "section": "Confiabilidade, segurança, desempenho e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Consultas SQL parametrizadas ajudam a impedir que valores não confiáveis sejam interpretados como partes da estrutura do comando SQL.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Parâmetros separam valores de dados do texto do comando e reduzem risco de injeção. A proteção depende de uso correto do driver e não equivale a autorização irrestrita de consultas ou dados.",
+      "section": "Confiabilidade, segurança, desempenho e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa de agregação percorre um CSV maior do que a memória disponível. Qual recurso de ingestão auxilia a processar segmentos sucessivos do arquivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Obrigar a leitura integral do arquivo em única estrutura de memória.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Leitura por blocos, como chunksize em pandas.read_csv(), com agregação parcial consistente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Excluir linhas arbitrárias até que sobrem poucas observações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Atribuir GPU ao notebook sem alterar a leitura de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar todas as validações para reduzir o número de colunas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A leitura em blocos reduz a necessidade de manter o arquivo completo na memória. Contudo, os resultados parciais precisam ser combinados corretamente; métricas globais complexas podem exigir estratégias próprias.",
+      "section": "Confiabilidade, segurança, desempenho e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O parâmetro chunksize do pandas possibilita iterar sobre partes de um CSV, mas o cálculo de estatísticas globais pode exigir combinar resultados parciais de modo apropriado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A leitura em blocos reduz pressão de memória, porém o valor global depende da regra de agregação. Por exemplo, médias exigem quantidades e somas; não basta fazer média simples das médias de blocos desiguais.",
+      "section": "Confiabilidade, segurança, desempenho e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização vai compartilhar notebook que acessou bases sigilosas. Qual providência é mais apropriada antes da publicação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confiar que a extensão .ipynb impede visualização de resultados salvos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Publicar tokens de acesso para que o notebook seja reproduzível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Revisar células e saídas, retirar informações sensíveis e assegurar que credenciais não estejam no arquivo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Manter saídas confidenciais porque o kernel já foi desligado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conceder acesso irrestrito ao Drive para facilitar colaboração.",
+          "correct": false
+        }
+      ],
+      "explanation": "O notebook pode armazenar saídas e textos mesmo após o encerramento do kernel. Proteção exige revisão do arquivo, segredos fora do documento e acesso mínimo aos dados compartilhados.",
+      "section": "Confiabilidade, segurança, desempenho e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Encerrar o kernel de um notebook remove automaticamente todas as saídas confidenciais já gravadas no arquivo .ipynb.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Saídas persistidas fazem parte do documento e podem continuar acessíveis após encerramento do processo. É preciso revisar e, quando necessário, limpar células e outputs antes de compartilhar o arquivo.",
+      "section": "Confiabilidade, segurança, desempenho e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao otimizar uma rotina pequena, um gestor afirma que escolher GPU no Colab reduzirá necessariamente o tempo de execução. Qual avaliação técnica é a mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A seleção de GPU acelera automaticamente qualquer rotina de entrada e saída.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A GPU transforma todos os scripts Python em código paralelo eficiente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar GPU dispensa perfis de desempenho, testes e dimensionamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aceleração depende da operação, bibliotecas e custos de inicialização e transferência; deve ser medida.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Qualquer cálculo em GPU necessariamente consome menos memória total.",
+          "correct": false
+        }
+      ],
+      "explanation": "GPU pode beneficiar operações paralelizáveis adequadas, mas tarefas pequenas ou dominadas por E/S podem não melhorar. A escolha deve ser justificada por medição, compatibilidade e custos de movimentação.",
+      "section": "Confiabilidade, segurança, desempenho e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar o poder de processamento sem verificar gargalos de rede, disco, memória e transferência de dados pode não reduzir o tempo de um pipeline analítico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O desempenho depende do recurso limitante e do perfil da tarefa. GPU ou mais núcleos não resolvem automaticamente espera por E/S ou serialização; métricas e testes orientam a melhoria sem comprometer a correção.",
+      "section": "Confiabilidade, segurança, desempenho e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Python — __main__: ambiente de código de nível superior",
+      "publisher": "Python Software Foundation",
+      "reference": "Guarda de execução e importação de módulos",
+      "url": "https://docs.python.org/3/library/__main__.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Python — argparse",
+      "publisher": "Python Software Foundation",
+      "reference": "Argumentos e opções na linha de comando",
+      "url": "https://docs.python.org/3/library/argparse.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Python — venv",
+      "publisher": "Python Software Foundation",
+      "reference": "Criação de ambientes virtuais",
+      "url": "https://docs.python.org/3/library/venv.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Python — logging",
+      "publisher": "Python Software Foundation",
+      "reference": "Registro de eventos e níveis",
+      "url": "https://docs.python.org/3/library/logging.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Jupyter — What is Jupyter?",
+      "publisher": "Project Jupyter",
+      "reference": "Kernel e formato dos notebooks",
+      "url": "https://docs.jupyter.org/en/stable/what_is_jupyter.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Google Colab — Perguntas frequentes",
+      "publisher": "Google",
+      "reference": "Máquinas virtuais, Drive, sessões e aceleradores",
+      "url": "https://research.google.com/colaboratory/intl/pt-BR/faq.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "nbconvert — Executing notebooks",
+      "publisher": "Project Jupyter",
+      "reference": "Execução automatizada de notebooks",
+      "url": "https://nbconvert.readthedocs.io/en/stable/execute_api.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Papermill — Execute",
+      "publisher": "Papermill Project",
+      "reference": "Execução de notebooks e passagem de parâmetros",
+      "url": "https://papermill.readthedocs.io/en/latest/usage-execute.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "pandas — pandas.read_csv",
+      "publisher": "pandas development team",
+      "reference": "Ingestão de CSV, tipos e leitura em blocos",
+      "url": "https://pandas.pydata.org/docs/reference/api/pandas.read_csv.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "GitHub Docs — Workflows",
+      "publisher": "GitHub",
+      "reference": "Disparos por eventos e agendamento em workflows",
+      "url": "https://docs.github.com/en/actions/concepts/workflows-and-actions/workflows",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Python — sqlite3",
+      "publisher": "Python Software Foundation",
+      "reference": "Uso de parâmetros em consultas SQL",
+      "url": "https://docs.python.org/3/library/sqlite3.html",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

@@ -1,0 +1,1899 @@
+{
+  "id": "informatica.programacao-shell-script",
+  "subject": "Informática",
+  "title": "Programação em Shell Script",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Programação em Shell Script",
+    "Programação em Shell Script"
+  ],
+  "scope": {
+    "covers": "Shell e Bash; shebang e execução; parâmetros, variáveis, ambiente, citações, expansões; controle de fluxo, funções, arrays; leitura e escrita, redirecionamentos, pipes, jobs, traps e tratamento de falhas; expressões regulares BRE/ERE, grep, sed, awk e operador =~ do Bash; automação segura, depuração, testes e portabilidade POSIX/GNU.",
+    "excludes": "Programação avançada em linguagens externas, administração específica de gerenciadores de serviços e sintaxes exclusivas de shells não Bash não tratadas diretamente."
+  },
+  "theoryTitle": "Programação em Shell Script: do Bash aos filtros com expressões regulares",
+  "chapters": [
+    {
+      "title": "Fundamentos do shell, execução e expansão",
+      "markdown": "# 1. O shell como linguagem e interpretador\n\nUm **shell** é um interpretador de comandos e, simultaneamente, uma linguagem para orquestrar programas. Em sistemas Unix e semelhantes, há várias famílias: `sh` é uma interface histórica e, em ambientes conformes, designa a linguagem de comandos definida por POSIX; **Bash** acrescenta recursos próprios, como arrays indexados/associativos, `[[ ... ]]`, `=~` e substituição de processos. Um script que depende de Bash deve declarar essa dependência, por exemplo com `#!/usr/bin/env bash`; `#!/bin/sh` não é uma promessa de Bash. A primeira linha com `#!` informa ao sistema qual interpretador usar na execução direta do arquivo; chamar `bash arquivo.sh` seleciona o Bash independentemente dessa linha. A permissão de execução importa ao invocar `./arquivo.sh`, mas não impede, por si só, a leitura por `bash arquivo.sh`.\n\n## 1.1. Sintaxe e comandos\n\nUma linha como `printf '%s\\n' 'Olá, mundo'` invoca o comando `printf` com argumentos. Comandos simples podem ser separados por `;` ou por nova linha. `#` introduz comentário quando aparece em posição sintática de comentário, mas não dentro de uma string citada. `comando1 && comando2` executa o segundo apenas se o primeiro tiver **status zero**; `comando1 || comando2` executa o segundo quando o primeiro tiver status diferente de zero. Sucesso é status 0, e erros são normalmente indicados por valores distintos de 0: não confundir status com a saída textual produzida. `exit n` encerra a execução com status; `return n` encerra função ou arquivo carregado com `source`, respeitando o contexto.\n\nUma atribuição em Bash escreve-se `cidade='Belo Horizonte'`, **sem espaços** ao redor de `=`. `export cidade` marca a variável para herança por processos filhos; a variável simples já é acessível ao script corrente. Use `readonly` quando não for desejável modificar um parâmetro. Bash diferencia nomes e respeita maiúsculas/minúsculas. `printf` costuma ser mais previsível do que `echo` para conteúdo que começa com hífen, usa barras invertidas ou necessita de formatação; `printf '%s\\n' \"$valor\"` explicita a intenção.\n\n## 1.2. Expansões: o assunto que mais cai\n\nO shell analisa a linha e realiza expansões antes de executar o comando. `$(comando)` substitui o texto da **saída padrão** de um comando, removendo novas linhas finais; não representa seu código de retorno. A expansão aritmética `$((2 + 3))` calcula inteiros na aritmética do shell. A expansão de parâmetro `${nome}` lê o valor de uma variável; as chaves desfazem ambiguidade em `\"${nome}_final\"`. A expansão de caminho `*.log` seleciona nomes de arquivos conforme regras de *glob*, e **não** é expressão regular. Expansão de til, substituição de comandos, separação em palavras e expansão de nomes de arquivos possuem regras e contextos distintos.\n\nAs aspas alteram decisivamente a semântica. Aspas simples `'...'` preservam o conteúdo literalmente (não expandem `$variavel`); aspas duplas `\"...\"` permitem expansões como `$variavel` e `$(...)`, mas, em usos comuns, evitam separação em palavras e *glob* sobre seus resultados. Compare `arquivo='relatorio anual.txt'; cat \"$arquivo\"` com `cat $arquivo`: a segunda forma pode gerar dois argumentos. A forma `\"$@\"` preserva a identidade de cada argumento posicional, ao contrário de `\"$*\"`, que os reúne numa única palavra separada pelo primeiro caractere de `IFS` (quando definido). Variáveis que contêm caminhos devem, em regra, ser citadas.\n\n## 1.3. Parâmetros posicionais e expansão de parâmetros\n\n`$0` identifica o nome de invocação do script; `$1`, `$2` etc. são os argumentos; `$#` conta os parâmetros posicionais; `\"$@\"` os repassa sem perda de limites. `shift` descarta o primeiro e desloca os demais. `$?` é o status do comando mais recente; `$$` é o PID do shell; `$!` é o PID do trabalho assíncrono mais recente, quando pertinente. Capture `$?` imediatamente, pois outro comando poderá alterá-lo. Para argumentos com espaços, prefira `for arg in \"$@\"; do ...; done`.\n\nA expansão `${variavel:-padrao}` usa um valor substituto se a variável estiver ausente **ou vazia**, sem necessariamente a alterar. `${variavel:=padrao}` também atribui o substituto quando aplicável. `${variavel:?mensagem}` exige valor presente e não vazio, emitindo erro caso falte; `${variavel:+alternativo}` usa o texto alternativo se definida e não vazia. Sem `:`, como em `${x-padrao}`, o teste é apenas de variável não definida. `${#x}` mede o comprimento do valor da variável (com nuances de localidade/Unicode), não a quantidade de parâmetros. Remoção de prefixo e sufixo usa *padrões de glob*: `${arq##*/}` retém o nome base de um caminho; `${arq%.*}` remove a menor terminação que casa com `.*`, útil quando o nome contém extensão. Não confundir essas operações com a linguagem de regex do `grep`.\n\n## 1.4. Ambiente e navegação\n\n`PATH` informa onde procurar executáveis; `PWD` representa o diretório corrente; `HOME` é o diretório pessoal típico; `IFS` participa de separação de campos. `cd -- \"$diretorio\" || exit 1` trata falha de navegação em um script. `source arquivo.sh` ou `. arquivo.sh` avalia instruções no shell atual, potencialmente alterando suas variáveis e diretório; executar `./arquivo.sh` normalmente cria processo/ambiente de execução separado. `env` mostra variáveis exportadas; `set` e `declare` oferecem outras inspeções dependendo do contexto. Em provas, a distinção essencial é: **variável de shell não é automaticamente variável de ambiente** para processos filhos."
+    },
+    {
+      "title": "Condições, laços, funções e estruturas de dados",
+      "markdown": "# 2. Fluxo de controle em Bash\n\nA forma geral do desvio é `if comando; then ...; elif outro_comando; then ...; else ...; fi`. O `if` avalia o **status de saída** do comando de teste, não uma palavra inglesa equivalente a verdadeiro ou falso. Assim, `if grep -q 'ERRO' log.txt; then ...; fi` entra no primeiro ramo quando `grep` localiza uma correspondência. `case \"$opcao\" in iniciar) ... ;; parar) ... ;; *) ... ;; esac` compara padrões glob e é apropriado a menus. `for arquivo in *.txt; do ...; done` percorre nomes de caminhos; `while condicao; do ...; done` repete enquanto o comando de condição retornar sucesso; `until` inverte a lógica. `break` termina um laço; `continue` salta para a próxima iteração.\n\n## 2.1. Testes e comparações\n\n`test expressao` e `[ expressao ]` são formas próximas; o `]` exige espaço como token separado. Em `[ \"$a\" = \"$b\" ]`, compara-se texto; em `[ \"$n\" -gt 10 ]`, inteiros. Operadores numéricos de `test` incluem `-eq`, `-ne`, `-lt`, `-le`, `-gt` e `-ge`. Testes de arquivos comuns: `-e` existe, `-f` arquivo regular, `-d` diretório, `-r` legível, `-w` gravável, `-x` executável ou pesquisável conforme o tipo; sua avaliação depende das permissões efetivas. `-s` pede tamanho maior que zero.\n\n`[[ ... ]]` é uma construção específica de Bash, frequentemente preferível para condições textuais. Nela, `[[ \"$a\" == padrão* ]]` permite casar um padrão glob não citado no operando direito; `[[ \"$a\" == \"$b\" ]]` trata o lado direito citado literalmente. `[[ \"$texto\" =~ ^[[:digit:]]+$ ]]` avalia uma **expressão regular estendida (ERE)**, não um glob. `(( expressão ))` opera aritmeticamente e retorna sucesso quando o valor avaliado é diferente de zero. Logo, `(( 0 ))` indica falha e `(( 2 ))` indica sucesso, uma pegadinha com impacto em scripts que empregam `set -e`.\n\n## 2.2. Arrays, leitura e substituição\n\nUm array indexado pode ser criado com `arquivos=('um.txt' 'dois nomes.txt')`; `\"${arquivos[0]}\"` acessa um elemento, `\"${arquivos[@]}\"` preserva cada elemento e `${#arquivos[@]}` informa quantos elementos estão definidos. `declare -A mapa` habilita array associativo no Bash compatível: `mapa[ambiente]=producao`; `\"${mapa[ambiente]}\"` recupera o valor. Atenção: `\"${array[*]}\"` produz uma única palavra; `\"${array[@]}\"` produz uma palavra por elemento. Para receber dados, `read -r variavel` conserva barras invertidas de modo previsível; `IFS= read -r linha` preserva espaços iniciais/finais no registro. `read` sinaliza EOF com status diferente de zero, inclusive se capturou uma última linha sem terminador; uma forma robusta de laço é `while IFS= read -r linha || [[ -n $linha ]]; do ...; done < arquivo`.\n\n## 2.3. Funções e escopo\n\nFunções encapsulam operações: `validar() { [[ -f \"$1\" ]]; }`. A chamada `validar \"$caminho\"` recebe argumentos próprios e retorna o status do último comando executado, salvo `return`. A palavra-chave `local` restringe o escopo de variável a uma função Bash: `local contagem=0`. Uma função não retorna diretamente uma string por `return`, pois `return` transporta status inteiro; para dados, pode imprimir em stdout e ser capturada por `$(...)`, ou ajustar variável mediante estratégia explícita. Evite misturar mensagens informativas em stdout quando outra rotina vai capturar o valor da função: diagnósticos devem ir para stderr.\n\nA função `main() { ...; }` chamada ao final do script facilita testes e leitura. Documente entradas, saídas e erros. O escopo e a execução em subshell importam: `(cd /tmp; pwd)` executa em um ambiente de subshell e não altera o diretório do processo pai; `{ cd /tmp; pwd; }` agrupa comandos no shell corrente, observada a sintaxe obrigatória do separador antes de `}`. Capturas `saida=$(funcao)` normalmente ocorrem em ambiente de subshell, de modo que alterações de variáveis feitas no interior não devem ser tomadas como efeito persistente no chamador.\n\n## 2.4. Argumentos de linha de comando\n\nScripts usados em produção precisam distinguir opções, argumentos, valores inválidos e ajuda. `getopts` processa opções curtas, por exemplo `-v` e `-o arquivo`, conforme uma especificação fornecida no script; `OPTARG` guarda argumentos de opções que os exigem, `OPTIND` acompanha a próxima posição. Depois de processar opções, `shift \"$((OPTIND - 1))\"` posiciona os argumentos restantes. `getopts` não deve ser confundido com o utilitário externo `getopt`, cuja disponibilidade e sintaxe podem variar entre sistemas. Valide número de argumentos com `(( $# >= 1 ))` e cite `\"$@\"` ao encaminhar parâmetros para outro programa."
+    },
+    {
+      "title": "Entrada, saída, processos e tratamento de falhas",
+      "markdown": "# 3. Fluxos, descritores e processos\n\nCada processo normalmente recebe três descritores: **stdin** (`0`), **stdout** (`1`) e **stderr** (`2`). `comando > saida.txt` redireciona stdout, substituindo o conteúdo anterior; `>>` acrescenta ao final. `comando 2> erros.txt` redireciona stderr. `comando > saida.txt 2>&1` encaminha ambos ao mesmo destino, e a **ordem** das redireções pode mudar o resultado: em `comando 2>&1 > saida.txt`, stderr permanece vinculado ao destino anterior de stdout, enquanto stdout passa ao arquivo. `comando < entrada.txt` fornece conteúdo por stdin. `2>/dev/null` descarta diagnósticos, útil somente quando a perda deliberada dessas informações é aceitável.\n\nUm pipe `produtor | consumidor` conecta stdout do primeiro processo ao stdin do segundo, sem incorporar automaticamente stderr. Por padrão, em pipelines Bash, o status observado é o do **último comando**; `set -o pipefail` altera a regra para que o pipeline retorne o status do comando à direita mais próximo que falhou, ou zero se todos obtiveram sucesso. A variável especial `PIPESTATUS` (Bash) contém os códigos de saída dos componentes do pipeline recém-executado, mas um comando subsequente pode sobrescrevê-la. Em vez de `cat arquivo | grep padrao`, em muitos contextos `grep padrao arquivo` é mais simples.\n\n## 3.1. Erros previsíveis e `set`\n\n`set -e` (`errexit`) solicita encerramento em determinados erros, **mas possui exceções importantes**: situações de teste em `if`, partes de listas `&&`/`||`, pipelines e outras estruturas não seguem um modelo uniforme de 'sair sempre que algo falhar'. Não o use como substituto de lógica de tratamento. `set -u` (`nounset`) denuncia referência a variável não definida em muitas expansões, com exceções/contextos específicos. `set -o pipefail` melhora a percepção de falhas em pipelines. `set -euo pipefail` é uma convenção comum em Bash; não é uma garantia automática de correção e não é integralmente portátil para todo `sh`. Prefira `comando || { printf '%s\\n' 'falha' >&2; exit 1; }` quando o erro exige resposta específica.\n\n`trap 'acao' EXIT` registra um tratamento na saída do shell, frequentemente empregado para excluir recursos temporários. Traps podem também reagir a sinais, como `INT` e `TERM`, observadas as limitações do contexto. Para evitar arquivos temporários previsíveis ou colisões, use `mktemp` e sempre cite caminhos: `tmp=$(mktemp) || exit 1; trap 'rm -f -- \"$tmp\"' EXIT`. Uma armadilha comum é usar `trap` com expansão precoce ou variáveis mutáveis sem compreender em que momento o texto será interpretado. Ao tratar sinais, considere que interromper o script deve preservar um status apropriado e não deixar estado inconsistente.\n\n## 3.2. Background, jobs e espera\n\n`comando &` inicia um trabalho de modo assíncrono e devolve o controle ao shell; `$!` registra o PID relevante do trabalho mais recente. `wait \"$pid\"` aguarda esse processo e retorna seu status quando possível, sendo importante para não declarar sucesso enquanto uma tarefa em background falhou. `jobs`, `fg` e `bg` são mecanismos de controle de jobs, fortemente associados a shells interativos; um script de automação não deve pressupor terminal ou controle de jobs ativado. `timeout` é utilitário externo GNU Coreutils presente em muitos ambientes Linux, mas não um builtin Bash nem uma exigência universal de plataformas.\n\n## 3.3. Processamento de arquivos sem perda de integridade\n\nA forma `while IFS= read -r linha; do ...; done < arquivo` evita o antipadrão `for linha in $(cat arquivo)`, que separa por espaços e pode expandir caracteres especiais em nomes. Para percorrer caminhos do `find` de modo seguro, uma estratégia em sistemas com implementações compatíveis é delimitar por NUL: `find . -type f -print0` combinado com `while IFS= read -r -d '' arquivo; do ...; done` no Bash. Para um arquivo CSV real, não se deve presumir que separar por vírgula com `IFS=,` trate campos entre aspas ou quebras de linha embutidas; há parsers dedicados.\n\n`cp`, `mv`, `rm`, `find`, `sort`, `uniq`, `cut`, `tr`, `xargs` e `tee` são utilitários externos usuais. `sort | uniq -c` conta ocorrências **contíguas** depois da ordenação, enquanto `uniq` isolado não agrega ocorrências separadas. `tee arquivo` copia stdin para stdout e arquivo; o status de um pipeline envolvendo `tee` continua submetido às regras do pipeline. Scripts que alteram diretórios ou removem arquivos devem testar alvos, usar `--` quando aceito para delimitar fim das opções e oferecer modo de simulação quando o risco justificar."
+    },
+    {
+      "title": "Expressões regulares e filtros: grep, sed, awk e =~",
+      "markdown": "# 4. Três famílias de padrões, quatro ferramentas\n\n**Glob** de shell (`*.txt`, `arquivo?.csv`) seleciona nomes de arquivos ou casa strings sob determinadas construções; **expressões regulares** descrevem padrões de trechos de texto; e o texto **literal** corresponde a caracteres exatos. Confundir esses mecanismos origina muitas questões de prova. Expressões regulares POSIX básicas (BRE) e estendidas (ERE) diferem principalmente na sintaxe de operadores: em ERE, `+`, `?`, `|` e parênteses têm significado especial sem escape; em BRE, a forma usual de ativar esses operadores nas implementações GNU exige barras invertidas. `^` ancora o início da linha e `$` o fim, `.` representa um caractere (com nuances de implementação e nova linha), `[0-9]` descreve intervalo de dígitos conforme o ambiente, `[[:digit:]]` é classe POSIX, `*` repete zero ou mais vezes o elemento anterior, e `{m,n}` expressa repetição limitada em ERE. Agrupamento `(abc|def)` combina alternativas em ERE. Regex não equivale à sintaxe de curingas de um gerenciador de arquivos.\n\n## 4.1. grep: localizar e selecionar\n\n`grep 'erro' arquivo.log` imprime linhas que contêm a sequência; o comando devolve, de modo geral, **0 quando há correspondência, 1 quando não há e 2 quando ocorre erro** (caveats documentadas para algumas opções e implementações). `grep -i` ignora diferença entre maiúsculas/minúsculas; `-n` inclui número da linha; `-v` inverte a seleção; `-c` conta linhas selecionadas, **não todas as ocorrências**; `-o` exibe correspondências encontradas separadamente; `-q` é modo silencioso; `-r` pesquisa recursivamente conforme implementação. `grep -E '^(OK|ERRO):' arquivo` habilita ERE; `grep -F 'a.b' arquivo` pesquisa string **literal**, onde o ponto deixa de significar coringa. `grep -P` habilita PCRE no GNU grep quando disponível, mas não pertence à interface POSIX de grep e sua disponibilidade difere.\n\nExemplos: `grep -E '^[[:digit:]]{4}-[[:digit:]]{2}-[[:digit:]]{2}$' datas.txt` reconhece **formato** de data com quatro dígitos, hífen, dois dígitos, hífen, dois dígitos, sem validar calendário. `grep -E '(^|[[:space:]])falha([[:space:]]|$)' log.txt` busca palavra delimitada por espaços ou limites de linha, sem assumir fronteira de palavra específica da extensão GNU. `grep -v '^[[:space:]]*#' config.txt` elimina linhas iniciadas por eventual espaço e `#`, mas não remove automaticamente linhas vazias. Para procurar nomes ou valores fornecidos por usuários, `grep -F -- \"$busca\" arquivo` evita interpretar caracteres como regex e usa `--` para separar opções do padrão, quando suportado.\n\n## 4.2. sed: editor de fluxo\n\nO `sed` processa registros (tipicamente linhas), aplica um programa e normalmente imprime o resultado. `sed 's/antigo/novo/' arquivo` substitui a primeira ocorrência **por linha**; `sed 's/antigo/novo/g'` substitui todas as ocorrências de cada linha. O `s` tem delimitador configurável: `sed 's#/#-#g'` troca barras por hífens. `sed -n '/ERRO/p' arquivo` desativa a impressão automática e imprime apenas linhas casadas; sem `-n`, usar `p` pode produzir linhas duplicadas. `sed -E 's/(id=)([[:digit:]]+)/\\1[\\2]/'` usa grupos em ERE e referências no texto de substituição. `sed '/^$/d'` remove linhas **exatamente vazias**, e `sed '1,3d'` elimina as três primeiras linhas. Endereços, como `/padrao/` e intervalos, limitam as linhas sobre as quais uma edição atua.\n\nA opção `-i` do GNU sed altera arquivo no local mediante estratégia de arquivo temporário/renomeação, em vez de apenas enviar texto editado a stdout; há variações de sintaxe entre sistemas, especialmente para sufixo de backup. `sed -i.bak 's/x/y/g' arquivo` pode gerar um backup `.bak` em GNU sed. Antes de alterar dados importantes, faça cópia/teste e considere problemas de links simbólicos, permissões e codificação. `sed` não é um parser confiável para estruturas arbitrárias de JSON, XML ou CSV com aspas e escapes complexos.\n\n## 4.3. awk: registros, campos e cálculo\n\n`awk` descreve regras `padrao { acao }`. Em `awk -F: '{print $1}' /etc/passwd`, o separador `:` define os campos e `$1` é o primeiro; `$0` é o registro completo; `NF` é o número de campos no registro; `NR` conta registros processados, e `FNR` reinicia a contagem em cada arquivo. `BEGIN` executa antes da leitura dos registros; `END` depois da leitura normal. Um filtro `awk -F, '$3+0 > 100 {print $1, $3}' dados.csv` compara numericamente o terceiro campo (em entrada CSV simplificada, sem aspas internas), e `awk '{soma += $2} END {print soma}' tabela.txt` agrega uma coluna numérica. `-v limite=100` permite passar valores para uma variável `awk` de modo legível. `OFS` define separador usado por `print` entre argumentos; `FS` define separador de entrada, e `printf` fornece formatação.\n\nO operador `~` em awk testa correspondência regex: `$1 ~ /^A/` seleciona registros cujo primeiro campo começa com A; `!~` nega. Em awk, `sub(regex, rep, texto)` substitui a primeira ocorrência no alvo e `gsub(...)` substitui todas; sem alvo explícito, atuam em `$0`. `match(texto, regex)` devolve a posição de início da ocorrência ou zero na ausência dela. Expressões regulares `awk` são do estilo ERE; funcionalidades específicas de GNU awk, como certos recursos adicionais, exigem atenção à portabilidade.\n\n## 4.4. Operador =~ do Bash\n\nEm `[[ $valor =~ ^([[:alpha:]]+)-([[:digit:]]+)$ ]]`, a string à esquerda é confrontada com **ERE POSIX** à direita, considerando detalhes do mecanismo utilizado pelo Bash. `BASH_REMATCH[0]` contém o trecho integral casado, e índices 1, 2... registram grupos entre parênteses. Por exemplo, para `valor='srv-42'`, o grupo 1 é `srv` e o grupo 2 é `42`. A regex normalmente não precisa casar a string inteira: `[[ 'abc123' =~ [[:digit:]]+ ]]` retorna sucesso mesmo com letras fora da correspondência; use `^...$` para exigir correspondência completa. Uma regex sintaticamente inválida pode resultar em status 2, enquanto a ausência de match resulta em status 1.\n\nAs aspas ao redor do **operando regex** exigem cuidado: citar integralmente o padrão pode fazer seus metacaracteres serem interpretados literalmente. Uma estratégia estável é armazenar `regex='^[[:digit:]]+$'` e testar `[[ $entrada =~ $regex ]]`, deixando a variável do padrão sem aspas **nesse ponto específico**; isso não desencadeia a separação comum de palavras dentro de `[[...]]`. Nunca confunda `=~` com `==`, usado para igualdade ou padrões glob conforme as regras de citação. Também não suponha que `\\d` represente dígito em regex POSIX ERE: prefira `[[:digit:]]`. Evite assumir que GNU grep `-P`, sed `-E`, awk e Bash `=~` implementem exatamente o mesmo dialeto de regex."
+    },
+    {
+      "title": "Automação segura, depuração e portabilidade",
+      "markdown": "# 5. Da prova à automação confiável\n\nUm script profissional deve possuir contrato de uso, pré-condições, tratamento de falhas, registros e possibilidade de teste sem efeitos destrutivos. Considere um coletor periódico: lê diretório recebido por opção, verifica existência e permissões, percorre arquivos por mecanismo seguro para espaços, filtra linhas por `grep` ou `awk`, grava saída em local temporário e move o resultado para o destino somente após sucesso. A escrita em arquivo temporário na **mesma unidade/sistema de arquivos**, seguida de renomeação, pode ajudar na publicação atômica do resultado em condições compatíveis; não torna atômicos todos os efeitos externos da execução. Se o script depende de programas externos, confirme sua presença com `command -v programa >/dev/null 2>&1` e documente versões/variantes.\n\n## 5.1. Um esqueleto defensivo\n\n```bash\n#!/usr/bin/env bash\nset -u\n\nuso() { printf 'Uso: %s ARQUIVO\\n' \"$0\" >&2; }\nmain() {\n  if (( $# != 1 )); then uso; return 2; fi\n  local entrada=$1\n  if [[ ! -f $entrada || ! -r $entrada ]]; then\n    printf 'Arquivo indisponível: %s\\n' \"$entrada\" >&2\n    return 1\n  fi\n  local qtd\n  qtd=$(awk '/ERRO/ {n++} END {print n+0}' \"$entrada\") || return 1\n  printf 'Linhas com ERRO: %s\\n' \"$qtd\"\n}\nmain \"$@\"\n```\n\nNesse exemplo, `awk` faz a contagem e falhas do comando provocam retorno não zero da função. Se a mesma tarefa for implementada com `grep -c`, é indispensável distinguir ausência de correspondência (em regra status 1) de falhas operacionais (em regra status 2 no GNU grep). Uma forma clara é registrar o status da busca sem usar `!` quando se necessita do valor original: `! comando` inverte o resultado observado.\n\n## 5.2. Diagnóstico, testes e revisão\n\n`bash -n script.sh` verifica **sintaxe** sem executar o corpo do script; não certifica lógica, permissões, dependências, qualidade de dados ou comportamento em produção. `bash -x script.sh` imprime rastros das expansões/comandos, geralmente em stderr, sendo útil para diagnóstico, mas pode **expor credenciais** e dados confidenciais. `set -x` pode ser ligado seletivamente e desligado com `set +x`. `shellcheck`, quando instalado, é um analisador estático de scripts de shell; o resultado depende das regras e configuração, e não substitui testes. Elabore casos de sucesso, entrada vazia, caminho com espaços, arquivo inexistente, falha de permissão, linha final sem `\\n`, regex inválida e comandos auxiliares indisponíveis. Teste rotinas de remoção em ambientes temporários ou de simulação antes de executar em diretórios reais.\n\n## 5.3. Segurança da entrada e de arquivos\n\nNunca construa código a partir de dados não confiáveis para executar via `eval` ou `bash -c` sem necessidade e validação estrita: isso pode causar injeção de comandos. Expansão citada limita separação acidental e interpretação de curingas, mas **não** substitui validação semântica. Prefira passar parâmetros como argumentos discretos: `grep -F -- \"$termo\" \"$arquivo\"`. O delimitador `--` protege contra valores que começam com `-` em vários utilitários GNU; verifique se o utilitário concreto o suporta. Nomes de arquivos podem conter quebras de linha e quase todos os bytes exceto NUL e `/`; não assuma que leitura linha a linha de `ls` é um formato de intercâmbio seguro. Use permissões mínimas, caminhos previstos e temporários criados com ferramentas apropriadas; não coloque senhas nas opções de comando quando puder usar mecanismos mais restritos.\n\nA expansão `$(...)` não é sanitização: o texto retornado ainda pode ser tratado de maneira perigosa se depois interpolado num comando sem citação ou avaliado como código. `sudo` não deve ser acrescido automaticamente a scripts que falham por permissão: a necessidade de privilégio deve ser justificada, com mínimo escopo. Logs devem oferecer hora, operação e status de forma útil, mas não registrar tokens nem credenciais. Para tarefas idempotentes, invocações repetidas devem conduzir ao mesmo estado pretendido, sem duplicações indevidas; para isso, inspecione o estado anterior e trate reexecuções/concorrência.\n\n## 5.4. Portabilidade: Bash, POSIX e GNU\n\nUm comando válido em Bash pode falhar em `dash`, `ash` ou `/bin/sh` de outro sistema. Exemplos de recursos próprios de Bash: `[[ ... ]]`, arrays, `=~`, `source` (em POSIX, o equivalente é `.`), `mapfile`, expansão com substituição de processos `<(comando)` e certas formas de `read`. Em sistemas POSIX, recomenda-se testar scripts com o shell-alvo e não prometer portabilidade usando somente `#!/bin/sh`. Da mesma forma, opções `grep -P`, `sed -i`, `find -print0` e `xargs -0` podem ser extensões ou variar por implementação; `grep -E` e `sed -E` são opções consolidadas em padrões atuais, mas sistemas legados podem divergir. `awk` é linguagem ampla e portátil em seu núcleo, embora `gawk` tenha extensões. A localidade (`LC_ALL`, `LANG`) pode influir em ordenação, classes e correspondências regex; testes reprodutíveis devem fixá-la quando pertinente.\n\n## 5.5. Rotinas típicas de concurso\n\nPara encontrar e enumerar logs de erro, a solução simples é `grep -n 'ERRO' arquivo.log`; para selecionar linhas de status em formato definido, `grep -E '^(OK|ERRO):'`; para editar um fluxo sem tocar no arquivo, `sed 's/antigo/novo/g'`; para somar valores de coluna, `awk '{total += $2} END {print total}'`; e para validar um argumento em memória, `[[ $arg =~ ^[[:alnum:]_-]+$ ]]`. Escolha a ferramenta pelo resultado esperado: localizar, transformar, calcular ou testar. Pense em status de retorno, espaços, dados vazios, caracteres especiais, limites de linha e portabilidade antes de marcar a alternativa. Em perguntas que pedem **exatamente** todos os casos, analise os quantificadores da regex, ancoragem, dependência de localidade e efeitos de citação. É essa leitura fina, mais que decorar comandos, que diferencia acertos em questões difíceis."
+    }
+  ],
+  "summary": "Programação em Shell Script transforma comandos do sistema em rotinas repetíveis para administração, análise de textos e automação. O Bash interpreta comandos, expansões, redirecionamentos e estruturas de controle; o status **zero** indica sucesso e um valor diferente de zero exige análise do contexto. Na leitura de argumentos, `\"$@\"` preserva limites, aspas duplas protegem expansões e `$(...)` captura stdout, não status. Para decisões e repetições, dominam-se `if`, `case`, `for`, `while`, `[ ... ]`, `[[ ... ]]` e `(( ... ))`; funções, arrays e `read -r` exigem cuidado com escopo e espaços. Pipelines conectam stdout a stdin, e os descritores 1 e 2 são independentes. `set -e` apresenta exceções, `pipefail` auxilia no diagnóstico e `trap` viabiliza limpeza. Em regex, **glob não é ERE**: `grep -E` busca padrões estendidos, `grep -F` busca texto literal, `sed` substitui, `awk` opera por registros/campos e `[[ texto =~ regex ]]` usa ERE no Bash. Para validação completa, use âncoras `^` e `$`; `BASH_REMATCH` fornece grupos. A proteção de arquivos e segredos, a verificação de argumentos, os testes e a distinção entre Bash, POSIX e implementações GNU completam o conteúdo.",
+  "flashcards": [
+    {
+      "front": "O que é status zero no shell?",
+      "back": "Indica sucesso da execução do comando. Um status diferente de zero normalmente representa insucesso ou condição especial."
+    },
+    {
+      "front": "Qual a diferença entre executar um script e usar source?",
+      "back": "Executar abre ambiente separado; source (ou ponto) avalia o arquivo no shell atual, permitindo modificar variáveis e diretório do chamador."
+    },
+    {
+      "front": "Como preservar todos os argumentos posicionais em Bash?",
+      "back": "Use \"$@\": cada argumento é preservado como palavra independente, inclusive quando contém espaços."
+    },
+    {
+      "front": "Como diferenciar ${x-p} de ${x:-p}?",
+      "back": "Sem dois-pontos, o padrão é usado se x não estiver definida; com dois-pontos, vale também se x estiver vazia."
+    },
+    {
+      "front": "Qual a utilidade de ${#vetor[@]}?",
+      "back": "Informar a quantidade de elementos definidos no array Bash."
+    },
+    {
+      "front": "Quando (( expressão )) obtém sucesso?",
+      "back": "Quando a expressão aritmética resulta em valor diferente de zero."
+    },
+    {
+      "front": "O que [ -f \"$alvo\" ] testa?",
+      "back": "A existência de um arquivo regular acessível pelo caminho, observando as condições do sistema de arquivos."
+    },
+    {
+      "front": "O que distingue [[ x =~ regex ]] de [[ x == padrão ]]?",
+      "back": "=~ testa ERE em Bash; == é comparação textual e pode usar correspondência por padrão glob quando o lado direito não está citado."
+    },
+    {
+      "front": "Qual a função de IFS= read -r linha?",
+      "back": "Ler a linha conservando espaços laterais e barras invertidas; ao usar em loop, considerar também linha final sem terminador."
+    },
+    {
+      "front": "Qual a diferença de stdout e stderr?",
+      "back": "Stdout usa descritor 1 e transporta saída normal; stderr usa descritor 2 para diagnósticos e falhas."
+    },
+    {
+      "front": "O que faz set -o pipefail?",
+      "back": "Em Bash, o pipeline passa a retornar a falha do comando à direita mais próximo que terminou com status não zero, ou zero se todos passaram."
+    },
+    {
+      "front": "Para que serve trap em EXIT?",
+      "back": "Agendar execução de ações de limpeza na saída do shell, como a remoção de um arquivo temporário."
+    },
+    {
+      "front": "Qual a diferença entre grep -E e grep -F?",
+      "back": "-E interpreta o padrão como ERE; -F o trata como texto fixo, sem operadores regex."
+    },
+    {
+      "front": "O que grep -c conta?",
+      "back": "O número de linhas selecionadas, não todas as correspondências dentro de cada linha."
+    },
+    {
+      "front": "O que significa a flag g em sed s/antigo/novo/g?",
+      "back": "Trocar todas as ocorrências do padrão no espaço de padrão, normalmente abrangendo a linha inteira."
+    },
+    {
+      "front": "Para que serve sed -n?",
+      "back": "Desligar a impressão automática, útil quando o programa usa p para mostrar apenas linhas de interesse."
+    },
+    {
+      "front": "O que representam $0, $1 e NF em awk?",
+      "back": "$0 é o registro completo; $1 é o primeiro campo; NF indica a quantidade de campos do registro."
+    },
+    {
+      "front": "Qual a diferença entre NR e FNR no awk?",
+      "back": "NR acumula os registros processados; FNR recomeça em cada novo arquivo de entrada."
+    },
+    {
+      "front": "O que BASH_REMATCH[0] guarda?",
+      "back": "A correspondência completa do último teste =~ bem-sucedido; as posições seguintes contêm os grupos capturados."
+    },
+    {
+      "front": "Por que usar ^ e $ numa validação de regex?",
+      "back": "Eles ancoram início e fim e, juntos, ajudam a exigir que a string inteira satisfaça o padrão."
+    },
+    {
+      "front": "Para que serve bash -n?",
+      "back": "Verificar a sintaxe do script sem executar seus comandos, sem garantir correção de lógica ou dados."
+    },
+    {
+      "front": "Que risco tem bash -x?",
+      "back": "O rastreamento pode exibir valores expandidos e informações sensíveis em logs ou no terminal."
+    },
+    {
+      "front": "Por que evitar eval com dados do usuário?",
+      "back": "Porque reinterpreta a entrada como código do shell, oferecendo risco de injeção e execução inesperada."
+    },
+    {
+      "front": "Que recursos de Bash não são POSIX sh?",
+      "back": "Entre outros, [[ ... ]], =~, arrays, mapfile e substituição de processos."
+    }
+  ],
+  "tips": [
+    "Diferencie sempre a saída textual de um comando de seu status de saída: `$(...)` captura stdout; `$?` expressa status e precisa ser consultado logo depois.",
+    "Em caminhos e parâmetros com espaços, use expansões citadas; para repassar argumentos, prefira `\"$@\"` e não `\"$*\"`.",
+    "Nas comparações de inteiros, memorize `-eq`, `-ne`, `-lt`, `-le`, `-gt`, `-ge` em `[ ... ]` e a semântica de `(( ... ))`.",
+    "Para regex, pergunte primeiro qual dialeto está em jogo: `grep -E` (ERE), `grep -F` (literal), `sed -E` (ERE), awk (ERE) ou Bash `=~` (ERE).",
+    "Em `sed`, se a questão mencionar todas as ocorrências, procure o modificador `g`; se mencionar somente linhas selecionadas, examine `-n` com `p`.",
+    "Em fluxos, desenhe mentalmente descritores 0, 1 e 2 e respeite a ordem dos redirecionamentos; em pipelines, lembre-se de `pipefail`.",
+    "Testes de scripts devem contemplar nomes com espaços, arquivo ausente, linha final sem nova linha, saída vazia e permissão negada.",
+    "Use `bash -n` para conferir sintaxe e `bash -x` com proteção de segredos; não confunda nenhuma das duas ferramentas com prova de correção."
+  ],
+  "traps": [
+    "Afirmar que status 0 é falso: no shell, zero sinaliza sucesso. Já em `(( ... ))`, expressão aritmética igual a zero resulta em status de insucesso.",
+    "Tratar `$*` e `$@` como equivalentes quando citados; `\"$*\"` agrega, enquanto `\"$@\"` preserva elementos.",
+    "Usar `grep -c` como contagem total de ocorrências; ele conta linhas que foram selecionadas.",
+    "Confundir glob com regex: `*.log` é um padrão de nome de arquivo, não uma regex para toda a sequência antes de `.log`.",
+    "Achar que `set -e` elimina a necessidade de verificar erros: há exceções por contexto sintático.",
+    "Confundir `sed -n` com edição no próprio arquivo; essa característica pertence a `-i` em implementações que a suportam.",
+    "Colocar aspas em todo o operando regex de `=~` e esperar idêntica semântica dos metacaracteres, pois a citação altera a interpretação.",
+    "Assumir que qualquer `/bin/sh` reconhece arrays, `[[ ... ]]`, `=~` ou opções GNU de utilitários."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como executar script legível sem bit de execução?",
+      "answer": "Invocar explicitamente um interpretador, como `bash arquivo.sh`; a execução direta `./arquivo.sh` requer permissão executável."
+    },
+    {
+      "question": "O que ocorre com `[[ arquivo.txt == *.txt ]]`?",
+      "answer": "No Bash, o padrão glob `*.txt` não citado no lado direito casa o final da string; não é uma regex."
+    },
+    {
+      "question": "Por que usar `-r` com read?",
+      "answer": "Para impedir que barras invertidas sejam interpretadas como escapes na leitura de registros."
+    },
+    {
+      "question": "Como enviar stderr para um arquivo sem redirecionar stdout?",
+      "answer": "Usar `comando 2>erros.log`."
+    },
+    {
+      "question": "Como selecionar apenas linhas iniciadas por OK: ou ERRO:?",
+      "answer": "Usar ERE, por exemplo `grep -E \"^(OK|ERRO):\" arquivo`."
+    },
+    {
+      "question": "Como extrair o segundo campo em entrada separada por dois-pontos com awk?",
+      "answer": "Use `awk -F: '{print $2}' arquivo`: as aspas simples impedem a expansão de `$2` pelo shell."
+    },
+    {
+      "question": "Quando grep retorna status 1, como interpretar?",
+      "answer": "Em regra indica ausência de correspondência; uma falha operacional é geralmente indicada por status 2 no GNU grep, conforme opções e contexto."
+    },
+    {
+      "question": "O que utilizar para forçar correspondência integral da regex em Bash?",
+      "answer": "Ancorar com `^` no começo e `$` no fim, por exemplo `[[ $texto =~ ^[[:digit:]]+$ ]]`."
+    },
+    {
+      "question": "Qual a diferença entre sintaxe POSIX e extensão Bash?",
+      "answer": "Recursos POSIX buscam compatibilidade entre shells conformes; recursos Bash devem ser executados por Bash e testados na versão alvo."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Expansão, citação e ambiente",
+      "summary": "A expansão de variáveis e argumentos ocorre antes da execução. Aspas simples bloqueiam expansões, duplas preservam limites; exportação e execução por source têm efeitos distintos."
+    },
+    {
+      "key": "e2",
+      "title": "Condições, retornos e arrays",
+      "summary": "Status zero significa sucesso, embora ((...)) tenha semântica aritmética. `[[...]]`, `[ ... ]`, regex e glob não são sinônimos; arrays e funções exigem atenção a limites e escopo."
+    },
+    {
+      "key": "e3",
+      "title": "Descritores, pipeline e falhas",
+      "summary": "Stdin, stdout e stderr são fluxos separados. A ordem de redirecionamentos importa; pipefail não equivale a errexit; tarefas paralelas e temporários precisam de controle."
+    },
+    {
+      "key": "e4",
+      "title": "Dialetos de regex e filtros de texto",
+      "summary": "BRE, ERE e PCRE diferem; grep seleciona, sed transforma, awk calcula e Bash =~ testa. Capturas, ancoragem e contagem de linhas são pontos recorrentes de confusão."
+    },
+    {
+      "key": "e5",
+      "title": "Segurança, testes e portabilidade",
+      "summary": "Citação correta não torna eval seguro; bash -n verifica sintaxe sem executar, bash -x pode expor dados. Recursos Bash e GNU não devem ser presumidos em todos os shells e sistemas."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Ao executar `bash rotina.sh` em um arquivo legível, porém sem permissão de execução, em ambiente onde Bash está instalado, o comportamento esperado é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O Bash interpreta o arquivo, mesmo que ele não tenha o bit de execução.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O sistema exige o bit de execução antes de o Bash abrir o script.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A execução depende exclusivamente da linha `#!/bin/sh` no arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O arquivo será interpretado pelo shell definido em `SHELL`, não pelo Bash.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A chamada executa apenas a primeira linha do arquivo e encerra.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ao chamar explicitamente `bash rotina.sh`, o próprio interpretador lê o arquivo e executa suas instruções. A permissão executável é exigência da invocação direta pelo caminho; é diferente da leitura pelo Bash.",
+      "section": "Fundamentos do shell, execução e expansão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script recebe dois argumentos, `relatório anual.txt` e `final.txt`. Qual expansão mantém esses dois argumentos separados ao encaminhá-los a outra função?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`$*`, porque mantém os limites de palavras mesmo sem aspas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`\"$@\"`, porque preserva cada parâmetro posicional como uma palavra distinta.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`\"$*\"`, porque cria automaticamente um array separado para cada argumento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`$@`, porque garante preservação de espaços sem necessidade de aspas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`\"$#\"`, porque representa a lista completa de parâmetros posicionais.",
+          "correct": false
+        }
+      ],
+      "explanation": "A expansão `\"$@\"` mantém cada argumento como unidade independente, inclusive quando contém espaços. Já `\"$*\"` os reúne, `$#` fornece apenas a quantidade e formas sem aspas podem sofrer separação.",
+      "section": "Fundamentos do shell, execução e expansão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Considere `nome=\"\"`. Para inserir o valor `padrao` apenas na expansão e sem alterar `nome`, deve-se utilizar:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`${nome:=padrao}`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`${nome:+padrao}`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`${nome:-padrao}`.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`${nome?padrao}`.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`${#nome}`.",
+          "correct": false
+        }
+      ],
+      "explanation": "O operador `:-` usa valor substituto quando o parâmetro está ausente ou vazio, sem exigir atribuição. `:=` pode alterar a variável; `:+` exige valor não vazio e a expansão de comprimento não fornece padrão.",
+      "section": "Fundamentos do shell, execução e expansão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um script Bash, a linha `resultado=$(printf \"A\\nB\\n\")` atribui à variável `resultado`:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O código de retorno numérico do comando `printf`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A sequência literal dos caracteres `$(` e `)` com o comando dentro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O texto sem qualquer separador entre `A` e `B`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O conteúdo `A` e `B` separado por uma nova linha, sem a nova linha final.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A saída padrão incluindo obrigatoriamente todas as novas linhas finais.",
+          "correct": false
+        }
+      ],
+      "explanation": "A substituição `$(...)` captura a saída padrão e elimina as quebras de linha finais. Uma quebra interna permanece; a atribuição não captura o status, que pertence ao mecanismo de retorno do comando.",
+      "section": "Fundamentos do shell, execução e expansão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na atribuição `arquivo=\"/dados/copia.tar.gz\"`, a expansão `${arquivo##*/}` produz:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`/dados`, porque preserva apenas o diretório de origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`gz`, porque retira todas as partes anteriores ao último ponto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`copia`, porque remove a extensão completa automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`/dados/copia.tar`, porque elimina apenas o menor sufixo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`copia.tar.gz`, porque remove o maior prefixo correspondente ao padrão que termina em barra.",
+          "correct": true
+        }
+      ],
+      "explanation": "O operador `##` remove o maior prefixo casado com um padrão glob. Com `*/`, elimina o caminho até a última barra e conserva o nome completo, inclusive os pontos da extensão.",
+      "section": "Fundamentos do shell, execução e expansão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A presença de `#!/usr/bin/env bash` no início de um script assegura, por si só, que `./script.sh` funcionará mesmo quando o arquivo não tiver permissão de execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A linha shebang sugere o interpretador da execução direta, mas não dispensa a permissão executável no arquivo nem garante a existência de `env` e Bash no ambiente. A invocação `bash script.sh` é situação distinta.",
+      "section": "Fundamentos do shell, execução e expansão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A atribuição `nome=\"Ana\"` não exige espaços em torno do sinal de igualdade; inserir espaços como em `nome = \"Ana\"` modifica a interpretação do comando.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A sintaxe de atribuição do shell exige que `nome=valor` seja reconhecido como uma palavra de atribuição. Ao separar o sinal, o shell passa a interpretar elementos como comando e argumentos, não como atribuição equivalente.",
+      "section": "Fundamentos do shell, execução e expansão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A expansão `$(date)` guarda obrigatoriamente o código de saída do programa `date`, e não o texto que ele imprime na saída padrão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A substituição de comandos captura a saída padrão, retirando novas linhas finais. O código de saída é parte do status do comando e pode ser observado por `$?` em momento adequado; não é o conteúdo de `$(...)`.",
+      "section": "Fundamentos do shell, execução e expansão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em `printf \"%s\\n\" \"$valor\"`, as aspas duplas em torno da expansão de variável ajudam a preservar espaços e evitar expansão de nomes de arquivos no argumento resultante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Dentro de aspas duplas, a expansão preserva o valor como argumento único em situações usuais, sem divisão por espaços nem glob. Sem citação, o conteúdo pode se transformar em vários argumentos ou caminhos inesperados.",
+      "section": "Fundamentos do shell, execução e expansão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando `x` existe mas está vazia, `${x-padrao}` necessariamente usa `padrao`, assim como `${x:-padrao}`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Sem dois-pontos, a forma `${x-padrao}` substitui apenas quando `x` está ausente; se está definida e vazia, a expansão é vazia. Com `:-`, ausência e vazio ativam o substituto, distinção típica de prova.",
+      "section": "Fundamentos do shell, execução e expansão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para verificar, em Bash, que a variável `idade` representa inteiro maior que 18 usando o comando `[`, assinale a condição apropriada:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`[ \"$idade\" -gt 18 ]`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`[ \"$idade\" > 18 ]`, pois `>` efetua comparação numérica nesse comando.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`[ \"$idade\" == -gt 18 ]`, pois `==` ativa aritmética.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`[ \"$idade\" =~ 18 ]`, pois `=~` é obrigatório em `[`.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`[ idade -gte 18 ]`, pois `-gte` é o operador numérico padrão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Dentro de `[ ... ]`, `-gt` compara inteiros pelo critério de maior que. `>` não é substituto aritmético nessa forma, `=~` pertence a `[[ ]]` no Bash, e `-gte` não é o operador indicado.",
+      "section": "Condições, laços, funções e estruturas de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script precisa ler cada linha sem remover barras invertidas e sem suprimir espaços iniciais. Qual estrutura é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`for linha in $(cat entrada.txt); do processar $linha; done`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`while IFS= read -r linha; do processar \"$linha\"; done < entrada.txt`.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`while read linha; do processar $linha; done < entrada.txt`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`for linha in entrada.txt; do processar \"$linha\"; done`.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`while IFS= read linha; do processar $linha; done < entrada.txt`.",
+          "correct": false
+        }
+      ],
+      "explanation": "`IFS=` impede remoção de espaços nas bordas e `read -r` preserva barras invertidas; a variável deve ser citada. O laço por substituição de comandos perde limites de linhas e pode expandir curingas.",
+      "section": "Condições, laços, funções e estruturas de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após declarar `itens=(\"a\" \"b c\" \"d\")`, qual expressão fornece a quantidade de elementos existentes no array indexado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`${#itens}`, pois conta obrigatoriamente os três elementos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`\"${itens[*]}\"`, pois sempre devolve uma contagem numérica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`${#itens[@]}`.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`$#`, pois conta os elementos do último array declarado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`${itens[0]}`, pois lê o tamanho da estrutura inteira.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em arrays Bash, `${#itens[@]}` indica o número de elementos definidos. `${#itens}` mede o comprimento de um elemento, e `$#` contabiliza parâmetros posicionais, não elementos do array.",
+      "section": "Condições, laços, funções e estruturas de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No trecho `(( 0 )) && printf \"sim\"`, o comando `printf`:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É executado porque o número zero significa sucesso aritmético para `&&`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É executado somente se a variável `IFS` estiver vazia.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É executado porque `&&` ignora o status do comando anterior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não é executado, pois `(( 0 ))` retorna status de insucesso.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Produz a mensagem `0`, independentemente do comando `printf`.",
+          "correct": false
+        }
+      ],
+      "explanation": "A construção aritmética `(( ... ))` devolve status zero quando a expressão vale número diferente de zero. Como a expressão vale zero, o status é não zero e o curto-circuito de `&&` impede o segundo comando.",
+      "section": "Condições, laços, funções e estruturas de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função precisa devolver o nome de um arquivo calculado para uma chamada que usa `caminho=$(gerar_nome)`. Qual estratégia é compatível com essa forma de consumo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `return \"relatorio.txt\"`, pois `return` transporta strings sem conversão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `exit 0` dentro da função, pois a função deve terminar o script inteiro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir `local caminho` e confiar que o chamador lerá a variável local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Imprimir também mensagens de depuração em stdout para melhorar a captura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Imprimir apenas o valor pretendido na saída padrão e enviar diagnósticos à saída de erro.",
+          "correct": true
+        }
+      ],
+      "explanation": "A substituição de comando captura stdout, logo somente o valor de retorno textual deve aparecer nesse fluxo. `return` comunica status inteiro; diagnósticos em stdout contaminam o texto capturado.",
+      "section": "Condições, laços, funções e estruturas de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dentro de `[[ ... ]]`, o operador `==` aplica obrigatoriamente ERE ao operando direito, exatamente como `=~`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Em Bash, `=~` é o operador de regex estendida; `==` faz comparação textual, com correspondência por padrão glob quando o lado direito é apropriado e não citado. Os dialetos e efeitos de aspas diferem.",
+      "section": "Condições, laços, funções e estruturas de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em `[ -d \"$alvo\" ]`, a opção `-d` testa se o caminho refere um diretório, e os espaços ao redor dos colchetes são necessários à sintaxe usual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "`[` é comando de teste que recebe argumentos e requer `]` como token de fechamento. `-d` verifica diretório; as aspas preservam caminhos com espaços. O teste não se confunde com `-f`, de arquivo regular.",
+      "section": "Condições, laços, funções e estruturas de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para retornar uma string ao chamador, uma função Bash deve usar `return \"texto\"`, pois `return` suporta livremente valores alfanuméricos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O retorno de uma função shell é um status numérico, e não um canal genérico para strings. Para comunicar texto, a função pode escrever em stdout e ser chamada por substituição de comando, mantendo diagnósticos em stderr.",
+      "section": "Condições, laços, funções e estruturas de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na expressão Bash `(( 10 > 3 ))`, o status do comando é zero, pois a expressão aritmética é verdadeira e resulta em valor diferente de zero.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A construção aritmética considera sucesso quando a expressão avaliada é não zero; uma comparação verdadeira vale 1. O status de sucesso zero não é o mesmo número que o resultado aritmético da expressão.",
+      "section": "Condições, laços, funções e estruturas de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em `\"${itens[*]}\"`, cada elemento do array Bash é expandido em argumento independente, mesmo se contiver espaços internos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Com aspas, `${itens[*]}` reúne os elementos em uma única palavra, normalmente separados conforme `IFS`; `${itens[@]}` é a forma que preserva um argumento para cada elemento. Essa diferença evita perda de limites.",
+      "section": "Condições, laços, funções e estruturas de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina executa `comando >resultado.txt 2>erros.txt`. Qual é a destinação correta dos fluxos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A saída padrão vai para `resultado.txt` e a saída de erro para `erros.txt`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ambos os fluxos são gravados unicamente em `resultado.txt`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A entrada padrão é substituída pelo conteúdo de `erros.txt`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A saída de erro vai ao terminal e `resultado.txt` recebe apenas a entrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os arquivos são sempre anexados ao conteúdo antigo, sem substituição.",
+          "correct": false
+        }
+      ],
+      "explanation": "O descritor 1 é stdout e o 2 é stderr; `>` redireciona cada um ao arquivo indicado, substituindo normalmente o conteúdo. `>>` seria a forma usual de acrescentar texto ao final.",
+      "section": "Entrada, saída, processos e tratamento de falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pipeline `produtor | filtro` tem o primeiro comando com status 5 e o último com status 0. Com `set -o pipefail`, o status resultante tende a ser:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Zero, porque o último comando sempre prevalece, mesmo com `pipefail`.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Não zero, refletindo a falha do componente da pipeline.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O número de linhas escrito por `filtro`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O código 127 em toda pipeline que contenha dois comandos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O texto produzido pelo último processo, convertido em número.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com `pipefail` no Bash, a pipeline retorna o status do comando mais à direita que terminou com valor não zero; se todos tiverem sucesso, retorna zero. Sem essa opção, prevalece o último comando.",
+      "section": "Entrada, saída, processos e tratamento de falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script registra `trap` para remover o arquivo temporário ao encerrar. A finalidade é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Impedir completamente o recebimento de sinais durante a execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Excluir o arquivo assim que o comando `trap` é interpretado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar uma rotina de limpeza na saída do shell, utilizando o caminho armazenado na variável.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Fazer com que toda variável temporária se torne somente leitura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Capturar exclusivamente erros de sintaxe antes da execução do script.",
+          "correct": false
+        }
+      ],
+      "explanation": "O trap em `EXIT` agenda o comando de limpeza para a finalização do shell. Aspas e momento da expansão importam; a regra não impede sinais nem substitui a verificação de criação do temporário.",
+      "section": "Entrada, saída, processos e tratamento de falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para processar em Bash nomes retornados por `find` que podem conter espaços e quebras de linha, uma técnica confiável é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Separar a saída de `ls` por espaços, pois nomes nunca contêm espaços válidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aplicar `for f in $(find ...)`, que preserva automaticamente todos os nomes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Retirar as aspas de todas as variáveis para permitir expansão de diretórios.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `find ... -print0` combinado com `read -r -d \"\"` e `IFS=` em laço adequado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar `head` para transformar cada caminho em uma palavra sem separadores.",
+          "correct": false
+        }
+      ],
+      "explanation": "A separação por byte NUL evita ambiguidades causadas por espaços e novas linhas em nomes. Bash pode consumir esses registros com `read -d \"\"`; substituição de comando não preserva limites arbitrários.",
+      "section": "Entrada, saída, processos e tratamento de falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se a intenção é gravar stdout no arquivo `saida.txt` e manter stderr no antigo destino de stdout, a sequência apropriada é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`comando >saida.txt 2>&1`, porque stderr permanece sempre no terminal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`comando 2>saida.txt >saida.txt`, porque os descritores ficam separados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`comando <saida.txt 2>&1`, porque a entrada padrão cria arquivo de saída.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`comando >>saida.txt 2>>saida.txt`, porque adicionar equivale a manter stderr.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`comando 2>&1 >saida.txt`.",
+          "correct": true
+        }
+      ],
+      "explanation": "As redireções são processadas da esquerda para a direita: `2>&1` copia o destino atual de stdout para stderr; depois `>saida.txt` muda somente stdout. Inverter a ordem une ambos no arquivo.",
+      "section": "Entrada, saída, processos e tratamento de falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em `comando1 | comando2`, a saída de erro do primeiro programa não é automaticamente transmitida como entrada padrão do segundo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Um pipe convencional liga stdout do primeiro a stdin do segundo. Stderr continua com seu destino próprio, salvo redirecionamento explícito ou construções específicas do shell. Misturar os fluxos requer decisão consciente.",
+      "section": "Entrada, saída, processos e tratamento de falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando `uniq -c`, isoladamente, agrega todas as linhas idênticas do arquivo, independentemente de estarem separadas por outras linhas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "`uniq` trabalha com repetições adjacentes. Linhas idênticas separadas por outras não são agregadas no mesmo grupo; quando a intenção é contar todas as ocorrências de textos iguais, geralmente se ordena antes.",
+      "section": "Entrada, saída, processos e tratamento de falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O parâmetro especial `$!` pode ser usado para identificar o processo de um trabalho assíncrono recente, permitindo aguardar seu término com `wait`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Depois de iniciar um comando com `&`, `$!` contém o identificador relacionado ao trabalho assíncrono mais recente. Aguardar o PID com `wait` é importante para inspecionar resultado, evitando supor conclusão imediata.",
+      "section": "Entrada, saída, processos e tratamento de falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ativação de `set -e` faz com que qualquer comando de status diferente de zero encerre, sem exceção, um script Bash em todos os contextos sintáticos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O `errexit` possui exceções em testes condicionais, pipelines, composições `&&`/`||` e outros contextos. Por isso, não substitui verificações explícitas de falha nem garante tratamento uniforme de erros.",
+      "section": "Entrada, saída, processos e tratamento de falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Com `set -o pipefail` no Bash, uma pipeline cujos comandos terminem todos com status zero também terá status zero.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "`pipefail` altera principalmente o comportamento diante de falhas de componentes da pipeline; se todos retornam zero, não há falha a propagar e o resultado é zero. O padrão sem a opção considera o último comando.",
+      "section": "Entrada, saída, processos e tratamento de falhas",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para procurar a cadeia literal `a.b` em um arquivo, sem que o ponto represente qualquer caractere, deve-se preferir:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`grep -F \"a.b\" arquivo.txt`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`grep -E \"a.b\" arquivo.txt`, que sempre interpreta ponto literalmente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`grep \"a.b\" arquivo.txt`, pois BRE não possui metacaracteres.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`grep -v \"a.b\" arquivo.txt`, pois inverte interpretação regex.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`grep -n \"a.b\" arquivo.txt`, pois números de linha desativam regex.",
+          "correct": false
+        }
+      ],
+      "explanation": "`grep -F` trata o padrão como cadeia fixa e busca o ponto literal. No modo BRE/ERE, o ponto possui significado de expressão regular; `-v` inverte a seleção e `-n` apenas numera linhas.",
+      "section": "Expressões regulares e filtros: grep, sed, awk e =~",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dadas as linhas `OK:1`, `ERRO:2` e `PENDENTE:3`, o filtro que seleciona apenas linhas iniciadas por `OK:` ou `ERRO:` é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`grep \"*(OK|ERRO):\" dados.txt`, por utilizar regex estendida implicitamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`grep -E \"^(OK|ERRO):\" dados.txt`.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`grep -F \"^(OK|ERRO):\" dados.txt`, pois parênteses funcionam como operadores em modo fixo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`grep -E \"OK|ERRO$\" dados.txt`, pois o cifrão ancora ambos os prefixos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`grep -v \"^(OK|ERRO):\" dados.txt`, porque `-v` escolhe somente as correspondências.",
+          "correct": false
+        }
+      ],
+      "explanation": "A opção `-E` habilita alternância com `|` e agrupamento com parênteses; `^` exige início da linha e os dois-pontos pertencem aos prefixos procurados. `-F` trataria o padrão literalmente.",
+      "section": "Expressões regulares e filtros: grep, sed, awk e =~",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo contém a linha `erro erro erro`. Em GNU sed, a transformação que substitui todas as ocorrências de `erro` por `falha` nessa linha, sem editar o arquivo de entrada, é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`sed \"s/erro/falha/\" arquivo.txt`, pois `s` sempre substitui todas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`sed -n \"s/erro/falha/\" arquivo.txt`, pois `-n` ativa substituição global.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`sed \"s/erro/falha/g\" arquivo.txt`.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`sed -i \"s/erro/falha/g\" arquivo.txt`, pois `-i` nunca altera o original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`sed \"d/erro/falha/g\" arquivo.txt`, pois `d` é o operador de substituição.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em sed, a flag `g` da substituição alcança todas as ocorrências por linha, enquanto `s` sem `g` troca a primeira. A opção `-i` edita o arquivo, e `-n` suprime impressão automática.",
+      "section": "Expressões regulares e filtros: grep, sed, awk e =~",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em `awk -F: \"{print \\$1}\"` aplicado a registros separados por dois-pontos, qual a função da opção `-F:`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Determinar que o primeiro campo deve ser omitido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ordenar alfabeticamente a saída por ordem dos campos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fixar sempre dois campos em cada registro de entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir os dois-pontos como separador de campos da entrada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Ativar correspondência PCRE em cada campo examinado.",
+          "correct": false
+        }
+      ],
+      "explanation": "`-F:` configura o separador de entrada do awk. O comando pode então acessar `$1`, `$2` e demais campos. A opção não fixa o número de campos, não ordena registros e não escolhe dialeto PCRE.",
+      "section": "Expressões regulares e filtros: grep, sed, awk e =~",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Bash, depois de `codigo=\"srv-42\"`, uma verificação `[[ $codigo =~ ^([[:alpha:]]+)-([[:digit:]]+)$ ]]` bem-sucedida permite obter o trecho `42` mediante:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`${BASH_REMATCH[0]}`, pois zero significa o último grupo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`${BASH_REMATCH[1]}`, pois contém a parte numérica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`${BASH_REMATCH[@]}`, pois devolve somente o último grupo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`$?`, pois guarda o grupo convertido em inteiro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`${BASH_REMATCH[2]}`.",
+          "correct": true
+        }
+      ],
+      "explanation": "`BASH_REMATCH[0]` é a correspondência inteira; os grupos capturados seguem a ordem de abertura dos parênteses, começando em 1. O segundo grupo corresponde à parte numérica depois do hífen.",
+      "section": "Expressões regulares e filtros: grep, sed, awk e =~",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No padrão ERE `^a.b$`, o ponto representa obrigatoriamente um ponto literal entre `a` e `b`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Em expressões regulares, `.` é metacaractere que representa um caractere conforme o motor e o contexto, não o ponto gráfico. Para ponto literal, empregue escape adequado ou classe `[.]`; `-F` busca texto fixo.",
+      "section": "Expressões regulares e filtros: grep, sed, awk e =~",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Com GNU grep, `grep -c \"erro\" arquivo` informa a quantidade de linhas selecionadas, e não necessariamente o total de ocorrências da palavra nessas linhas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A contagem de `grep -c` é por linhas que satisfazem a busca; uma única linha com várias ocorrências ainda conta uma vez. Para listar correspondências individuais, `-o` pode ser combinado com outras ferramentas.",
+      "section": "Expressões regulares e filtros: grep, sed, awk e =~",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em sed, `s/x/y/g` substitui apenas a primeira ocorrência de `x` de cada linha, pois a opção `g` significa iniciar uma nova linha de saída.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A flag `g` em uma substituição sed indica atuação global no espaço de padrão, alcançando todas as ocorrências da linha corrente. Sem a flag, normalmente apenas a primeira ocorrência é substituída.",
+      "section": "Expressões regulares e filtros: grep, sed, awk e =~",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No awk, `NR` registra o número acumulado de registros lidos entre arquivos, enquanto `FNR` se reinicia ao iniciar um novo arquivo de entrada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "As variáveis embutidas diferenciam contagem total de registros (`NR`) e contagem por arquivo (`FNR`). Essa distinção é útil para relatórios com múltiplos arquivos; nenhuma corresponde automaticamente ao número de campos.",
+      "section": "Expressões regulares e filtros: grep, sed, awk e =~",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Bash, `[[ abc123 =~ [[:digit:]]+ ]]` falha obrigatoriamente porque uma regex deve casar toda a string mesmo quando não contém âncoras.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O operador `=~` pode encontrar uma substring correspondente: nesse exemplo há uma sequência de dígitos dentro de `abc123`. Para exigir correspondência integral, é necessário ancorar o padrão com `^` e `$`.",
+      "section": "Expressões regulares e filtros: grep, sed, awk e =~",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para conferir somente a sintaxe de um script Bash, sem executar suas operações, utiliza-se:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`bash -n script.sh`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`bash -x script.sh`, pois rastreia sem executar nada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`bash -e script.sh`, pois realiza exclusivamente exame sintático.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`bash -u script.sh`, pois valida apenas a gramática de regex.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`bash -r script.sh`, pois sempre gera análise estática completa.",
+          "correct": false
+        }
+      ],
+      "explanation": "A opção `-n` lê instruções e verifica sintaxe sem executar os comandos do script. `-x` produz rastreamento durante a execução; as demais opções não oferecem teste lógico e de sintaxe equivalente.",
+      "section": "Automação segura, depuração e portabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma entrada de usuário pode começar com hífen e conter metacaracteres de regex. Para procurá-la como texto literal em `arquivo.log`, a forma mais segura entre as opções é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`grep $entrada arquivo.log`, porque o shell protege espaços automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`grep -F -- \"$entrada\" arquivo.log`.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`eval \"grep $entrada arquivo.log\"`, pois `eval` impede interpretação de comandos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`grep -E \"$entrada\" arquivo.log`, pois ERE trata todos os sinais como texto comum.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`grep -P $entrada arquivo.log`, pois PCRE remove o risco de hífen inicial.",
+          "correct": false
+        }
+      ],
+      "explanation": "`grep -F` evita interpretação regex, `--` encerra opções e a citação preserva o argumento integral. As demais formas podem alterar a busca, quebrar argumentos ou introduzir risco de execução de código.",
+      "section": "Automação segura, depuração e portabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script declara `#!/bin/sh` e usa `[[ $x =~ ^[[:digit:]]+$ ]]`. O principal problema técnico é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A notação de shebang obriga que o Bash interprete qualquer construção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O operador `=~` só existe em awk, nunca em Bash.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A construção e o operador são recursos do Bash e não são garantidos pela linguagem POSIX `sh`.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Os colchetes duplos representam comentários no shell POSIX.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A classe POSIX de dígitos é inválida para toda expressão regular.",
+          "correct": false
+        }
+      ],
+      "explanation": "`[[ ... ]]` com `=~` é recurso de Bash e não deve ser suposto em `/bin/sh`, que pode apontar para outro interpretador. A classe `[[:digit:]]` é válida em ERE; a questão é a compatibilidade do shell.",
+      "section": "Automação segura, depuração e portabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O utilitário `bash -x` é acionado para investigar erro de script que manipula senhas. A providência mais adequada é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Presumir que `-x` jamais exibe valores de variáveis ou argumentos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Publicar a saída de rastreamento integral para qualquer usuário do sistema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir todos os diagnósticos por `eval`, que oculta os dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Restringir ou sanear os rastros, porque expansões e argumentos podem revelar dados sensíveis.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Ativar `set -x` permanentemente em todos os scripts e ambientes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O modo de rastreamento mostra os comandos após diversas expansões e pode expor informações confidenciais. É importante limitar o diagnóstico, proteger arquivos de log e desativar o rastreio em trechos sensíveis.",
+      "section": "Automação segura, depuração e portabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa precisa calcular soma da segunda coluna de registros numéricos separados por espaços e imprimir o total após a leitura. A construção apropriada é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`grep -c \"2\" tabela.txt`, pois soma automaticamente os valores da coluna.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`sed \"s/2/total/g\" tabela.txt`, pois efetua agregação aritmética.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`awk \"{print \\$2}\" tabela.txt`, pois imprimir a coluna equivale a somá-la.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`grep -F \"total\" tabela.txt`, pois acumula valores mesmo sem correspondências.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`awk \"{total += \\$2} END {print total}\" tabela.txt`.",
+          "correct": true
+        }
+      ],
+      "explanation": "Awk suporta variáveis numéricas e ações `END` para agregação: cada registro contribui para `total`, impresso ao final. Grep seleciona textos, sed transforma fluxos e imprimir valores isolados não efetua soma.",
+      "section": "Automação segura, depuração e portabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao passar um padrão recebido do usuário para `grep -F`, evita-se que caracteres como `.` e `*` sejam interpretados como operadores de expressão regular.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "`-F` escolhe correspondência por cadeia fixa, adequada a buscas literais. Entretanto, ainda se devem citar variáveis e separar opções quando necessário, pois literalidade do padrão não corrige outros problemas de argumentos.",
+      "section": "Automação segura, depuração e portabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando `bash -n script.sh` garante que o programa executará corretamente suas funções, abrirá arquivos previstos e produzirá resultados semanticamente certos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "`bash -n` verifica sintaxe, sem executar o conteúdo operacional. A aprovação no exame sintático não prova a existência de caminhos, a correção de decisões, a segurança, as permissões ou as dependências externas.",
+      "section": "Automação segura, depuração e portabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Executar `bash -x script.sh` pode gerar rastros capazes de divulgar dados confidenciais se variáveis com senhas forem expandidas em comandos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O modo `-x` traça comandos e argumentos após expansões relevantes, muitas vezes em stderr. Dados de acesso podem aparecer nos rastros; convém restringir permissões, sanitizar logs e limitar o diagnóstico.",
+      "section": "Automação segura, depuração e portabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A utilização de aspas em `\"$entrada\"` autoriza concatenar esse conteúdo em `eval` sem risco de execução de comandos adicionais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Aspas resolvem sobretudo questões de separação e expansão no contexto original, mas `eval` volta a interpretar o texto construído como código. Entradas não confiáveis podem virar comandos; o ideal é evitá-lo.",
+      "section": "Automação segura, depuração e portabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Scripts que usam `[[ ... ]]`, arrays e `=~` não devem ser apresentados como portáveis a qualquer `/bin/sh`, mesmo que funcionem corretamente quando executados com Bash.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Esses recursos integram o Bash, mas não são garantidos pela linguagem de shell POSIX. O interpretador associado a `/bin/sh` varia entre sistemas; a portabilidade exige restringir a sintaxe e testar no alvo.",
+      "section": "Automação segura, depuração e portabilidade",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Bash Reference Manual",
+      "publisher": "GNU Project — Free Software Foundation",
+      "reference": "Manual oficial do GNU Bash: sintaxe, expansões, funções, arrays, testes e =~",
+      "url": "https://www.gnu.org/software/bash/manual/bash.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Conditional Constructs (Bash Reference Manual)",
+      "publisher": "GNU Project — Free Software Foundation",
+      "reference": "Condições [[ ... ]], operador =~, ERE e BASH_REMATCH",
+      "url": "https://www.gnu.org/software/bash/manual/html_node/Conditional-Constructs.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "GNU Grep Manual",
+      "publisher": "GNU Project — Free Software Foundation",
+      "reference": "GNU grep: busca, opções -E, -F, -c, -q, status e expressões regulares",
+      "url": "https://www.gnu.org/software/grep/manual/grep.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "GNU sed: a stream editor",
+      "publisher": "GNU Project — Free Software Foundation",
+      "reference": "Manual oficial GNU sed: substituição, -n, -E, -i, BRE e ERE",
+      "url": "https://www.gnu.org/software/sed/manual/sed.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The GNU Awk User’s Guide",
+      "publisher": "GNU Project — Free Software Foundation",
+      "reference": "Documentação do GNU awk: padrões, ações, FS, NR, FNR, sub e gsub",
+      "url": "https://www.gnu.org/software/gawk/manual/gawk.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "GNU Coreutils Manual",
+      "publisher": "GNU Project — Free Software Foundation",
+      "reference": "Documentação de mktemp, sort, uniq e utilitários de arquivos",
+      "url": "https://www.gnu.org/software/coreutils/manual/coreutils.html",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

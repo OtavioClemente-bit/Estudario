@@ -1,0 +1,1887 @@
+{
+  "id": "informatica.programacao-sistemas-embarcados",
+  "subject": "Informática — Programação de Sistemas Embarcados",
+  "title": "Programação para sistemas embarcados: C, C++ e Rust",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Programação para sistemas embarcados: C, C++ e Rust",
+    "Programação para sistemas embarcados: C, C++ e Rust"
+  ],
+  "scope": {
+    "covers": "Firmware bare metal; arquitetura de memória e toolchain; C, ponteiros, volatile, bitwise e máscaras; C++ moderno, RAII, templates e limites de runtime; Rust ownership, borrowing, no_std, PAC/HAL, unsafe e concorrência; Python 3/CPython e MicroPython; RTOS, ISR, filas, mutexes, prioridades, validação, segurança e interfaces com periféricos.",
+    "excludes": "Detalhamento elétrico, quadros e modos dos protocolos I2C, SPI e UART, configuração avançada de periféricos específicos e projeto de hardware eletrônico, abordados em matéria própria."
+  },
+  "theoryTitle": "Firmware confiável em C, C++, Rust e Python: fundamentos e RTOS",
+  "chapters": [
+    {
+      "title": "Fundamentos, arquitetura de firmware e gestão de recursos",
+      "markdown": "## 1. O que diferencia um sistema embarcado\nSistemas embarcados executam uma função predominantemente dedicada, interagem com sensores, atuadores ou interfaces e operam sob restrições de **memória, energia, custo, tempo e confiabilidade**. Um microcontrolador típico reúne núcleo de processamento, memória não volátil, SRAM, temporizadores, controlador de interrupções e módulos de entrada e saída. Não se deve confundir microcontrolador com microprocessador: este frequentemente depende de chips externos e pode executar sistemas operacionais de uso geral; aquele costuma integrar mais recursos em um único circuito, embora existam arquiteturas híbridas. O firmware pode rodar **sem sistema operacional (bare metal)**, em um laço principal com interrupções ou sobre um **sistema operacional de tempo real (RTOS)**.\n\nO requisito temporal é tão importante quanto a correção lógica. Um processamento que entrega o resultado certo **depois do prazo** pode ser incorreto para a aplicação. Em tempo real rígido, perder uma data-limite é inadmissível no modelo do sistema; em tempo real flexível, atrasos podem degradar a qualidade sem necessariamente produzir falha catastrófica. **Determinismo** significa capacidade de estabelecer limites e comportamento previsível, não apenas conseguir alta velocidade média. Latência é o intervalo entre evento e reação; *jitter* é a variação dessa latência ou do período de execução. A medição no hardware real é indispensável, pois caches, barramentos, interrupções e periféricos modificam o tempo observado.\n\n## 2. Caminho da fonte até a placa\nO desenvolvimento em C, C++ e Rust normalmente envolve **compilação cruzada**: ferramentas executadas em uma máquina hospedeira geram código para arquitetura de destino. O compilador produz objetos; o **linker** combina código e dados segundo um **script de ligação** e define a localização de seções como `.text` (instruções), `.rodata` (constantes), `.data` (dados inicializados) e `.bss` (dados zerados). O programa de inicialização (*startup*) prepara a pilha, copia valores iniciais de dados para RAM, zera `.bss` e transfere o controle ao programa. A disposição exata depende do ambiente, da plataforma e do linker script, e não de regra universal.\n\nEm sistemas sem hospedagem convencional, a execução pode começar por um vetor de reset, não por um carregador de processos como em computadores pessoais. Drivers de inicialização habilitam clocks e configuram acesso a pinos ou barramentos. Arquivos ELF são úteis à depuração e à inspeção de símbolos; imagens binárias ou outros formatos podem ser gravados na flash por ferramentas específicas. A partir de um *map file*, verifica-se consumo de memória e localização dos símbolos. Flags de otimização influenciam velocidade e tamanho, mas exigem avaliação de efeitos sobre depuração, latência e comportamento dependente de código incorreto.\n\n## 3. Pilha, heap e alocação previsível\n**Memória estática** possui duração ligada ao programa; **pilha** costuma sustentar quadros de chamadas e variáveis automáticas, enquanto **heap** é área administrada por alocadores, quando disponível. Alocar dinamicamente não é proibido em todo embarcado, mas pode trazer fragmentação, falhas e tempos não determinísticos. Como alternativa, utilizam-se buffers fixos, pools de blocos, arenas e dimensionamento no projeto. Recursão irrestrita e grandes vetores locais ameaçam a pilha; profundidade máxima de chamadas e pior consumo de cada tarefa devem ser avaliados. O hardware pode oferecer regiões de RAM distintas, DMA e hierarquias de cache que impõem alinhamento e coerência.\n\n**Endianness** descreve a ordem dos bytes em representações multibyte, e não a ordem dos bits transmitidos por todos os protocolos. Um dado binário externo precisa de formato explícito: tamanhos, sinal, endianess, validade e eventuais campos de controle. C e C++ fornecem tipos de largura fixa em `<stdint.h>` e `<cstdint>`, quando suportados, como `uint8_t` e `uint32_t`. Mesmo com tipos de largura fixa, a serialização exige definir o contrato de bytes; não se deve despejar diretamente uma estrutura do compilador na rede, pois padding, alinhamento e ordem podem variar.\n\n## 4. Arquitetura em camadas e decisão de linguagem\nSepare a **aplicação** (regras de negócio e máquina de estados), os **serviços** (fila, relógio e armazenamento), os **drivers** e a **camada de abstração de hardware (HAL)**. A HAL estabiliza uma interface de programação e reduz acoplamento à implementação do chip; não torna todos os periféricos idênticos. Uma arquitetura por eventos evita laços ocupados em excesso: interrupções registram fatos mínimos, e a lógica principal processa estados e comandos. Máquinas de estados explícitas facilitam a demonstração de transições, recuperação de falhas e teste de caminhos raros.\n\n**C** dá controle direto e amplo suporte a toolchains; **C++** oferece encapsulamento, RAII e metaprogramação; **Rust** busca impedir, em código seguro, muitas classes de problemas de memória e de compartilhamento; **Python 3** costuma funcionar melhor em Linux embarcado ou em implementações adaptadas como MicroPython, particularmente para prototipagem e orquestração. Nenhuma linguagem substitui análise de tempo, teste em dispositivo, revisão do mapa de memória e especificação dos estados de falha. Em sistemas críticos, a escolha deve considerar suporte ao alvo, certificação aplicável, maturidade do ecossistema, consumo e equipe."
+    },
+    {
+      "title": "C embarcado: ponteiros, registradores, operadores bitwise e interrupções",
+      "markdown": "## 1. Tipos, representação e disciplina de memória\nEm C, o firmware precisa tratar **ponteiros**, tempo de vida dos objetos e limites de arrays com precisão. Um ponteiro para um buffer deixa de ser válido quando o armazenamento que o sustenta deixa de existir; gravar além do fim do array viola o contrato da linguagem, mesmo que o microcontrolador pareça continuar funcionando. `const` indica a impossibilidade de modificar o objeto por determinada interface; não significa automaticamente que os bytes estão em ROM. `static`, conforme o contexto, controla ligação ou duração do armazenamento. `extern` declara um objeto definido noutro arquivo, sem por si só reservar uma nova instância. `sizeof` mede bytes do tipo ou objeto, **não** quantos elementos há num ponteiro que já perdeu a informação de extensão do array.\n\nOperações aritméticas exigem atenção: deslocar por contagem igual ou maior que a largura do operando tem comportamento indefinido em C; deslocamento de valores assinados também apresenta restrições. Use operandos **sem sinal** e larguras definidas em manipulações de bits. Overflow de inteiro **sem sinal** ocorre módulo uma potência de dois; overflow de inteiro assinado não deve ser usado como mecanismo de contagem. Evite conversões que truncam valores silenciosamente e avalie as promoções inteiras antes das operações.\n\n## 2. Bitwise: montagem de máscara sem afetar vizinhos\nOs operadores de bits são `&` (E bit a bit), `|` (OU), `^` (OU exclusivo), `~` (complemento), `<<` e `>>`. Não se confundem com os operadores lógicos `&&`, `||` e `!`, que geram condições e têm regras de curto-circuito. Para um registrador comum de leitura/escrita, as formas conceituais são:\n\n```c\nuint32_t mascara = UINT32_C(1) << 5;\nvalor |= mascara;      // coloca o bit 5 em 1\nvalor &= ~mascara;     // coloca o bit 5 em 0\nvalor ^= mascara;      // inverte o bit 5\nbool ligado = (valor & mascara) != 0u;\n```\n\nPara extrair o campo de três bits entre as posições 4 e 6: `campo = (valor >> 4) & 0x7u`. Para substituí-lo sem mexer nos demais bits: `valor = (valor & ~(0x7u << 4)) | ((novo & 0x7u) << 4)`. O mascaramento prévio de `novo` impede que bits superiores invadam campos adjacentes. Atenção: em **registradores físicos**, operações read-modify-write só são seguras se o manual do periférico permitir. Alguns flags são **W1C** (*write one to clear*): escrever 1 limpa o evento; ler e reescrever pode apagar eventos involuntariamente. Outros periféricos oferecem registradores separados SET, CLEAR ou TOGGLE, que devem ser preferidos quando indicados.\n\n## 3. Memory-mapped I/O e `volatile`\nEm muitos microcontroladores, registradores de hardware ocupam endereços mapeados na memória. `volatile` informa ao compilador que acessos ao objeto têm efeitos observáveis e não devem ser eliminados como se o valor fosse estável. Uma forma ilustrativa é `volatile uint32_t *reg = (volatile uint32_t *)ENDERECO_PERIFERICO;` em projeto cuja plataforma autorize esse acesso. **Não** se deve concluir que `volatile` torna um acesso atômico, cria travas, corrige condições de corrida ou substitui barreiras de memória. Largura do acesso, alinhamento, frequência de leitura e ordem exigida pelo hardware devem ser verificados no manual do chip. Um registrador de 32 bits pode não aceitar acesso byte a byte.\n\nSe uma ISR atualiza um contador que a rotina principal lê, o qualificador `volatile` pode ser pertinente para visibilidade de acessos na implementação, mas a **atomicidade** da leitura, a proteção entre contextos e a conformidade com o modelo de execução ainda exigem análise. Em projetos com concorrência efetiva, use primitivas atômicas compatíveis com o alvo, se disponíveis, ou mecanismos críticos suportados pelo ambiente. `volatile` é especialmente apropriado para registradores MMIO, não como solução genérica para comunicação entre tarefas.\n\n## 4. Interrupções, watchdog e falhas\nUma **rotina de serviço de interrupção (ISR)** deve reduzir latência e trabalho bloqueante: registrar status necessário, reconhecer a fonte conforme o periférico e sinalizar ao contexto apropriado. Não é regra que toda ISR deva ser vazia, e sim que sua duração e suas chamadas respeitem os limites da plataforma. Evite espera longa, alocação insegura e chamadas que dependam de recursos usados por código preemptado. A ordem entre limpar uma condição de hardware e acordar tarefa é assunto do manual de referência e do contrato da API.\n\nUm **watchdog** pode reiniciar o sistema quando o software deixa de cumprir um protocolo de alimentação; alimentá-lo incondicionalmente num laço pode ocultar travamentos de tarefas essenciais. Estratégia robusta exige comprovação de que as funções críticas progrediram antes da alimentação. Segurança embarcada requer validação de entradas, limites, recuperação de brownout, estados seguros dos atuadores e tratamento de reset. Na compilação, alertas rigorosos, análise estática e testes de fronteira ajudam a detectar problemas que a execução casual não expõe."
+    },
+    {
+      "title": "C++ em microcontroladores: abstração, RAII e custo de execução",
+      "markdown": "## 1. Encapsulamento com custo controlado\nC++ oferece classes, funções sobrecarregadas, templates e recursos para criar APIs de firmware expressivas. A ideia de **abstração de custo zero** significa que uma abstração bem desenhada pode compilar para código tão eficiente quanto sua implementação manual, não que qualquer recurso tenha custo nulo. Classes podem encapsular pinos, temporizadores, buffers e estados; membros privados preservam invariantes, enquanto interfaces explícitas reduzem o acoplamento. `enum class` representa estados fortemente tipados e evita muitas conversões implícitas de enums tradicionais. `constexpr` possibilita avaliar expressões em compilação quando satisfazem as regras da linguagem; `consteval` exige avaliação em compilação para as chamadas pertinentes.\n\n**Templates** podem especializar políticas e dimensões, evitando despacho dinâmico e garantindo tamanhos em tempo de compilação. Isso pode expandir o código quando há muitas instanciações. `virtual` pode implicar mecanismos de despacho dinâmico e tabelas de funções, cujo custo depende do compilador e da arquitetura; nem todo uso causa alocação dinâmica. O projeto deve inspecionar código gerado, tamanho da imagem e pior tempo de execução em vez de proibir indiscriminadamente todas as funções da linguagem.\n\n## 2. RAII e propriedade de recursos\n**RAII** (*Resource Acquisition Is Initialization*) associa a aquisição de um recurso à construção de um objeto e a sua liberação à destruição dele. Um guard pode liberar um mutex ao sair do escopo, inclusive em múltiplos caminhos normais de retorno. Essa técnica também se aplica a periféricos e regiões críticas, desde que as operações em construtor e destrutor respeitem o contexto e não provoquem bloqueios inesperados. Uma classe que controla com exclusividade um recurso deve definir ou restringir cópia e movimentação. `std::unique_ptr` expressa propriedade exclusiva de um objeto alocado, mas **não garante ausência de heap**: seu uso típico com `new` envolve alocação dinâmica. Objetos de duração automática e buffers estáticos podem usufruir de RAII sem usar `new`.\n\nExemplo conceitual de exclusão de cópia:\n\n```cpp\nclass Saida {\npublic:\n    explicit Saida(unsigned id) : id_(id) {}\n    Saida(const Saida&) = delete;\n    Saida& operator=(const Saida&) = delete;\n    void escrever(bool nivel);\nprivate:\n    unsigned id_;\n};\n```\n\nEssa declaração impede duas cópias acidentais da interface, mas **não** impede que outro código manipule o mesmo registrador diretamente. Isolamento de acesso é também questão de arquitetura, revisão e APIs do fabricante.\n\n## 3. Inicialização, exceções e tempo previsível\nObjetos com armazenamento estático podem exigir inicialização dinâmica antes de `main`; dependências entre unidades de tradução merecem cuidado devido à ordem de inicialização. Prefira inicialização constante quando possível e não presuma que periféricos estão configurados antes da execução do startup da placa. `std::array<T,N>` contém armazenamento de tamanho fixo no próprio objeto e permite dimensionamento estático; `std::vector<T>` tipicamente usa alocação dinâmica ao crescer e exige avaliar alocador, exceções e capacidade. `noexcept` descreve contratos de propagação de exceção, mas não transforma todo algoritmo em execução de tempo constante.\n\n**Exceções** e **RTTI** podem ser omitidos ou configurados no toolchain de plataformas restritas; não há regra universal de que C++ embarcado nunca suporte esses recursos. Em muitos projetos, códigos de erro e tipos de resultado são preferidos pelo controle de fluxo e pelo custo observável. O manual do ESP-IDF, por exemplo, documenta configurações explícitas de suporte a exceções. Bibliotecas padrão variam entre toolchains; antes de confiar em uma API, verifique suporte, consumo de flash, RAM, threads e exigências do ambiente de execução.\n\n## 4. Concorrência e integração com C\n`std::atomic` fornece operações atômicas segundo o tipo, a plataforma e a operação; ser atômico não equivale a ser sempre **lock-free**. Ordem de memória deve refletir a dependência entre eventos, e barreiras do compilador não substituem automaticamente as instruções requeridas pelo hardware. `extern \"C\"` em declarações C++ especifica ligação compatível com C para determinadas interfaces; não converte uma função com classes e exceções em ABI universal. É comum encapsular drivers legados C em wrappers C++ que retornem erros e exponham estados controlados. Ao invocar código numa ISR, respeite tanto a API do RTOS quanto restrições de bloqueio, inicialização e thread safety."
+    },
+    {
+      "title": "Rust embarcado: ownership, no_std e acesso seguro ao hardware",
+      "markdown": "## 1. Propriedade, empréstimos e referências\nA principal contribuição de Rust ao firmware é o sistema de **ownership (propriedade)** e **borrowing (empréstimo)** verificado em compilação. A cada valor regido pelas regras usuais existe um proprietário; transferir propriedade pode invalidar uso posterior do nome anterior. `&T` dá empréstimo compartilhado, enquanto `&mut T` exige acesso exclusivo no intervalo pertinente. A verificação do *borrow checker* procura impedir referências pendentes e certas combinações de mutabilidade que gerariam erros de memória, sem coletor de lixo obrigatório. Isso **não prova** que todo firmware Rust é livre de bugs, falhas de tempo real ou erros lógicos.\n\n`Option<T>` modela presença ou ausência de valor, evitando a necessidade de sentinelas arbitrárias; `Result<T,E>` modela sucesso ou erro, e o operador `?` facilita sua propagação. `enum` com padrões de `match` permite representar estados e consequências de transição. `Drop` fornece finalização vinculada ao fim de vida do valor; na presença de falha irreversível, reset ou abort, não se deve supor execução universal de destrutores.\n\n## 2. `no_std`, `core`, `alloc` e ligação\nFirmwares bare metal frequentemente declaram `#![no_std]` para não depender da biblioteca `std` tradicional. Essa opção **não impede** o uso da linguagem nem de `core`; estruturas que dependem de alocação podem recorrer a `alloc` quando o projeto oferece um alocador compatível. `no_std` por si só não configura o linker, vetor de reset, handler de pânico ou interface de gravação. O alvo e a arquitetura determinam ABI, instruções, alinhamento, bibliotecas e modo de debug. Tooling apropriado permite compilar código do host para microcontroladores, inspecionar ELF e executar testes de unidades independentes do periférico no computador de desenvolvimento.\n\nUma aplicação embedded usa frequentemente **PAC** (*peripheral access crate*) gerada a partir da descrição do dispositivo e uma **HAL** mais abstrata. Os tipos podem representar posse de um periférico e reduzir o risco de duas instâncias o configurarem simultaneamente. APIs seguras dependem de implementações corretas: *crates* que usam `unsafe` internamente precisam manter suas invariantes. O compilador não conhece magicamente as regras de cada registrador do silício.\n\n## 3. `unsafe`, MMIO e sincronização\nRust permite blocos `unsafe` para operações que não podem ser verificadas integralmente, como desreferenciar ponteiros brutos. Isso **não desliga** todas as verificações nem autoriza comportamento indefinido; transfere ao programador a obrigação de demonstrar precondições. Acesso a MMIO pode requerer `read_volatile` e `write_volatile` ou métodos de PAC. Essas operações têm papel de preservar acessos observáveis ao hardware, mas **não são** substitutos de bloqueio, atomicidade ou sincronização entre núcleos. Uma abstração segura expõe campos e ações válidas e restringe operações inválidas do periférico.\n\nCompartilhar dados entre uma ISR e a rotina principal envolve exclusão, seções críticas ou **atomics**, conforme o hardware. Os traços `Send` e `Sync` expressam propriedades de transferência e compartilhamento entre contextos; um `static mut` acessado indiscriminadamente é um sinal de risco. Em contextos de uma CPU, desabilitar interrupções pode proteger seção crítica contra uma ISR específica, mas não substitui proteção entre núcleos ou contra agentes DMA. A programação segura tem de respeitar modelo de memória, acesso ao barramento e possibilidade de reentrância.\n\n## 4. Aplicação prática e limites\nPrefira módulos com interfaces pequenas, estados explícitos e tratamento de falhas por `Result`. Uma máquina de estados com enumeração dificulta transições inválidas e é testável sem hardware. Use testes unitários no host, testes integrados e revisões das fronteiras `unsafe`. Rust reduz classes comuns de vulnerabilidades, mas não dimensiona automaticamente a pilha, não elimina estouro lógico de buffer periférico e não garante deadline; a execução em tempo real exige medição de pior caso e conhecimento do RTOS. Na comparação com C++ e C, considere bibliotecas disponíveis, suporte à placa, integração de drivers e treinamento da equipe, além das vantagens de segurança da memória."
+    },
+    {
+      "title": "Python 3, MicroPython e processamento binário em embarcados",
+      "markdown": "## 1. Python 3 em plataformas distintas\n**Python 3** em um computador de placa única com Linux (por exemplo, um SoC com RAM e armazenamento suficientes) pode usar o interpretador CPython, processos, bibliotecas e infraestrutura de sistema operacional. Já **MicroPython** é uma implementação projetada para microcontroladores, com conjunto de funcionalidades adaptado e diferenças entre portas. MicroPython **não é sinônimo de CPython completo**. CircuitPython é outra implementação do ecossistema Python orientada a hardware, com APIs e convenções próprias. Uma aplicação que funciona na estação de desenvolvimento deve ser testada na versão e no firmware reais do dispositivo, pois módulos, pinagem, memoria e recursos podem diferir.\n\nPython auxilia prototipagem, telemetria, automação de testes, configuração e lógica de controle não extremamente crítica. Sua expressividade aumenta produtividade, mas o uso de interpretador, objetos e **coleta de lixo** pode introduzir pausas e variação de latência. Tarefas com deadline rígido podem demandar implementação nativa, periférico dedicado ou arquitetura híbrida em que uma parte crítica seja executada em C, C++ ou Rust. MicroPython pode realizar rotinas de tempo crítico com mecanismos específicos, porém isso exige análise por plataforma, sem prometer que qualquer código Python cumpre prazo rígido.\n\n## 2. `bytes`, `bytearray`, buffers e `struct`\n`bytes` é uma sequência imutável de bytes; `bytearray` é mutável e conveniente para reutilizar buffers em leituras e montagens de quadros. `memoryview` pode fornecer vistas sobre regiões compatíveis com o protocolo de buffer, evitando cópias de conteúdo quando usado corretamente. A contiguidade, duração de vida e permissões de escrita precisam ser respeitadas. O módulo `struct` de Python 3 empacota e desempacota valores binários segundo formatos especificados:\n\n```python\nimport struct\nquadro = struct.pack('>HB', 0x1234, 7)\nassert quadro == bytes([0x12, 0x34, 0x07])\nid_, estado = struct.unpack('>HB', quadro)\n```\n\nO `>` determina **big-endian**, com tamanhos padronizados dos códigos usados; `<` especifica **little-endian**. Usar o modo nativo (`@`) em protocolo portável pode introduzir tamanhos, alinhamento e endianess dependentes da plataforma. Antes de desempacotar, valide o tamanho recebido e o formato do quadro; considerar checksums, contadores de sequência e limites faz parte de um protocolo robusto. Em versões e portas de MicroPython, consulte os módulos efetivamente suportados, inclusive `ustruct`/`struct` conforme firmware.\n\n## 3. Controle de hardware com MicroPython\nEm plataformas compatíveis, `machine.Pin` configura GPIO; `machine.I2C`, `machine.SPI` e `machine.UART` expõem funções de comunicação. Os números de instâncias, modos, sinais e parâmetros são dependentes da placa, portanto o código deve ser adaptado à documentação da porta. Exemplo ilustrativo, não universal:\n\n```python\nfrom machine import Pin\nsaida = Pin(2, Pin.OUT)\nsaida.value(1)\n```\n\nEsse fragmento **não** garante que o pino 2 seja seguro ou corresponda a um LED na placa escolhida. O tratamento detalhado dos protocolos **I2C, SPI e UART** e dos periféricos será objeto de outra matéria; aqui importa o papel das APIs na arquitetura, o uso de buffers, a validação e a separação entre lógica e driver. Leituras de sensores devem admitir timeouts, falta de resposta, conversão de unidades e códigos de erro; não confunda sucesso no acesso à API com validade física da medida.\n\n## 4. Memória, interrupções e testes\nA execução de callbacks de interrupção em MicroPython pode ter limitações de alocação de memória e de funções permitidas; instruções específicas da implementação são obrigatórias. Evite criação excessiva de objetos no laço de alta frequência; utilize buffers reutilizáveis e avalie a fragmentação e pausas de GC. `asyncio` ou `uasyncio`, quando presentes, implementam concorrência cooperativa de corrotinas, **não** garantem preempção do hardware nem deadlines rígidos. Um `await` precisa ocorrer em pontos apropriados para que outras corrotinas progridam. Scripts de teste em CPython são úteis para validação de frames binários e regras da máquina de estados; testes na placa verificam timing, consumo e interações elétricas que o computador não reproduz."
+    },
+    {
+      "title": "RTOS, sincronização, interfaces e validação de firmware",
+      "markdown": "## 1. Conceitos centrais de RTOS\nUm **sistema operacional de tempo real** disponibiliza tarefas (*threads*), escalonamento, temporização e mecanismos de comunicação adequados a aplicações com requisitos temporais. Cada tarefa normalmente possui sua pilha e estado de execução. Estar **pronta** significa apta a executar; estar **bloqueada** significa esperar evento, recurso ou tempo; uma tarefa **executando** ocupa processador disponível. Em escalonamento preemptivo por prioridade fixa, uma tarefa de maior prioridade pronta pode interromper a de menor prioridade. A ordenação numérica dos níveis **não é universal**: é preciso ler o manual de cada RTOS. O FreeRTOS usa níveis numéricos maiores para prioridades mais altas, enquanto a documentação do Zephyr adota outra convenção para certas classes de threads.\n\nO *tick* periódico pode participar da temporização, mas aplicações também utilizam arquiteturas *tickless* e temporizadores de hardware. **Prioridade** não é sinônimo de menor deadline ou maior importância comercial: deve resultar de análise de periodicidade, custo de CPU, bloqueios e latência. Escalonabilidade depende de limites de pior caso, não da execução média em bancada. Uma tarefa que monopoliza a CPU ou desabilita interrupções por muito tempo pode comprometer todas as outras.\n\n## 2. Filas, semáforos, mutexes e notificações\n**Filas** transportam mensagens e permitem desacoplar produtor de consumidor. **Semáforos contadores** representam eventos ou unidades de recurso; **semáforos binários** podem sinalizar disponibilidade. Um **mutex** protege seção crítica de acesso compartilhado; em alguns RTOS, oferece protocolos para mitigar **inversão de prioridade**, como herança de prioridade. Inversão ocorre quando uma tarefa de alta prioridade espera um recurso de tarefa de baixa prioridade, potencialmente agravada por tarefas intermediárias. Herança reduz situações típicas, mas não elimina todos os cenários de bloqueio ou deadlock. Notificações diretas à tarefa podem reduzir custo de comunicação quando a semântica exigida é simples.\n\nChamadas que bloqueiam devem ser usadas **no contexto permitido**: em geral, uma ISR não pode invocar a versão comum bloqueante de uma função de fila; deve recorrer à API própria de ISR disponibilizada pela plataforma. Os exemplos FreeRTOS distinguem operações de tarefa de suas variantes para interrupção. Prefira ISR curta que captura evento e desperta tarefa processadora. Filas têm capacidade finita: saturação exige política explícita, como rejeição, descarte controlado, backpressure ou falha segura. Mutex pode envolver posse; semáforo de sinalização não é substituto automático de mutex com herança de prioridade.\n\n## 3. Temporalidade e consumo de energia\n**Deadline**, período, tempo de execução de pior caso (*WCET*) e tempo máximo de bloqueio ajudam a dimensionar a aplicação. `sleep` e delays cedem tempo quando implementados pelo RTOS, mas atrasos fixos acumulados sem referência temporal podem causar deriva em tarefas periódicas. Temporizadores absolutos ou APIs de atraso até instante periódico podem reduzir deriva, sob condições documentadas. Seções críticas longas aumentam latência de interrupções; bloqueios sem timeout dificultam recuperação de falha. Modos de baixo consumo exigem compatibilizar relógios, retenção de RAM, fontes de wakeup e validade de estados dos periféricos. Um watchdog só é valioso quando sua alimentação demonstra progresso suficiente, e não quando esconde tarefas mortas.\n\n## 4. Integração com periféricos sem duplicar protocolos\nI2C, SPI e UART são **interfaces de comunicação distintas**, expostas por drivers que podem operar por polling, interrupções ou DMA. Seu detalhamento físico, temporização elétrica e transações será estudado separadamente. No planejamento do firmware, importa abstrair operações de leitura/escrita, verificar retorno, timeout, quantidade de bytes e concorrência; não presumir que todos os drivers aceitem acessos simultâneos. **DMA** permite transferências com participação reduzida da CPU, porém exige considerar vida útil dos buffers, alinhamento e coerência de cache conforme plataforma. Um pacote válido exige delimitação, verificação de integridade quando apropriada, ordem de bytes e máquina de estados para tratar mensagens parciais ou corrompidas.\n\n## 5. Testes, depuração e robustez\nEstruture o projeto para testar a lógica sem o chip, por meio de doubles/mocks de HAL, testes unitários e de propriedades. Em C e C++, compiladores com sanitizers podem revelar falhas em testes no host, embora nem todos os sanitizers existam no alvo. **HIL** (*hardware-in-the-loop*) testa o firmware junto de interfaces reais ou simuladores acoplados. Depuração SWD/JTAG, logs com timestamp, tracing de RTOS e inspeção de pilha ajudam a encontrar falhas de concorrência e temporização. Meça latência máxima em cenários de pior carga, estresse de filas, perda de comunicação, resets e energia instável. Atualizações de firmware exigem verificação de integridade/autenticidade, tratamento de interrupção de gravação e estratégia de recuperação conforme criticidade. A qualidade se confirma por evidências no alvo, não por compilar com sucesso."
+    }
+  ],
+  "summary": "**Visão de prova.** Programação embarcada é o desenvolvimento de firmware para hardware com restrições de memória, energia, custo e prazos; o código pode operar em bare metal ou com RTOS. C domina acesso a ponteiros e registradores, mas exige disciplina contra comportamento indefinido; máscaras com `&`, `|`, `^`, `~` e deslocamentos devem preservar bits vizinhos. `volatile` serve a acessos observáveis de hardware e não assegura atomicidade. C++ permite RAII, `enum class`, `std::array` e templates, desde que seu custo e inicialização sejam analisados. Rust fornece ownership, borrowing, `Result`, `no_std` e fronteiras `unsafe`, sem dispensar testes de concorrência ou tempo real. Python 3/CPython atende sistemas Linux mais capazes; MicroPython adapta a linguagem a microcontroladores, com limitações de memória e latência. RTOS requer compreender tarefas, prioridades, ISR, filas, semáforos, mutexes e inversão de prioridade. I2C, SPI e UART entram apenas como APIs e integrações, pois seus detalhes formam assunto próprio. Em qualquer linguagem, testabilidade, delimitação de buffers, timeouts, watchdog, logs e medições no hardware são decisivos.",
+  "flashcards": [
+    {
+      "front": "Qual a diferença entre latência e jitter?",
+      "back": "Latência é o tempo entre evento e resposta; jitter é a variação dessa latência ou do intervalo periódico."
+    },
+    {
+      "front": "O que caracteriza um prazo rígido?",
+      "back": "No modelo de tempo real rígido, a perda do deadline não é aceitável, ainda que o resultado lógico esteja correto."
+    },
+    {
+      "front": "Para que serve o linker script?",
+      "back": "Define o layout de memória de seções e símbolos no destino, como texto, dados inicializados e BSS."
+    },
+    {
+      "front": "Qual o cuidado com a pilha de uma tarefa?",
+      "back": "Dimensioná-la para o pior caso de chamadas e variáveis automáticas, evitando overflow e recursão não limitada."
+    },
+    {
+      "front": "Como colocar um bit em 1 sem afetar os demais?",
+      "back": "Em registrador de leitura/escrita comum, usar valor |= máscara, após verificar as regras do hardware."
+    },
+    {
+      "front": "Como testar se um bit está ativo?",
+      "back": "Verificar (valor & máscara) != 0, com tipos e largura de máscara adequados."
+    },
+    {
+      "front": "O que é um registrador W1C?",
+      "back": "Um campo em que escrever 1 limpa o flag; uma operação genérica de read-modify-write pode causar problemas."
+    },
+    {
+      "front": "Por que volatile não resolve condição de corrida?",
+      "back": "Porque não garante atomicidade, exclusão mútua nem sincronização entre tarefas ou núcleos."
+    },
+    {
+      "front": "O que é RAII em C++?",
+      "back": "Técnica que associa aquisição e liberação de recursos à construção e destruição de objetos."
+    },
+    {
+      "front": "std::array exige alocação dinâmica por padrão?",
+      "back": "Não; armazena seus elementos no próprio objeto de tamanho fixo."
+    },
+    {
+      "front": "O que significa noexcept?",
+      "back": "Declara uma especificação de não propagação de exceções; não promete tempo de execução constante."
+    },
+    {
+      "front": "Ownership e borrowing em Rust referem-se a quê?",
+      "back": "À propriedade de valores e regras verificadas de empréstimos compartilhados ou mutáveis."
+    },
+    {
+      "front": "Qual a função de #![no_std] em Rust?",
+      "back": "Compilar sem dependência da std convencional, utilizando core e, quando configurado, recursos complementares."
+    },
+    {
+      "front": "Unsafe em Rust elimina toda verificação?",
+      "back": "Não; permite certas operações com obrigações de segurança atribuídas ao autor."
+    },
+    {
+      "front": "Que módulo Python converte valores em quadros binários?",
+      "back": "struct, com formatos explícitos de largura e endianness."
+    },
+    {
+      "front": "Qual é a diferença entre bytes e bytearray?",
+      "back": "bytes é imutável; bytearray permite alterações e reutilização de buffer."
+    },
+    {
+      "front": "MicroPython é idêntico ao CPython?",
+      "back": "Não; é uma implementação adaptada, com módulos e restrições dependentes da porta."
+    },
+    {
+      "front": "Qual a função central de um mutex em RTOS?",
+      "back": "Proteger acesso a recurso compartilhado; pode usar herança de prioridade se a implementação oferecer."
+    },
+    {
+      "front": "Por que uma ISR não deve usar espera bloqueante comum?",
+      "back": "Pode violar contrato da API e prejudicar o escalonador; use operações apropriadas para contexto de interrupção."
+    },
+    {
+      "front": "DMA dispensa cuidados com memória?",
+      "back": "Não; exige verificar duração dos buffers, alinhamento e coerência de cache conforme o processador."
+    },
+    {
+      "front": "O que é HIL?",
+      "back": "Teste hardware-in-the-loop: execução de firmware integrada a hardware real ou interfaces simuladas."
+    },
+    {
+      "front": "Por que um watchdog mal alimentado pode falhar na missão?",
+      "back": "Porque alimentação incondicional pode continuar mesmo com tarefas essenciais travadas."
+    },
+    {
+      "front": "Qual a distinção entre const e volatile?",
+      "back": "const restringe modificação por uma interface; volatile preserva acessos observáveis, sem garantir sincronização."
+    },
+    {
+      "front": "Qual a relação entre prioridades e números no RTOS?",
+      "back": "A convenção varia por implementação; consulte o escalonador específico em vez de presumir a direção."
+    }
+  ],
+  "tips": [
+    "Em questões sobre bitwise, separe atualização de campo, teste de bit e complemento; confirme largura e sinal do operando.",
+    "Antes de responder sobre volatile, pergunte se o problema exige visibilidade de MMIO ou sincronização entre tarefas: são assuntos diferentes.",
+    "Leia o mapa de memória: código, dados iniciais, BSS, pilhas e pools devem caber nas regiões reais.",
+    "Em C++, avalie o custo real da construção, alocação, dispatch virtual e inicialização; não assuma proibições universais.",
+    "Em Rust, diferencie garantias da linguagem segura das obrigações das partes unsafe e dos drivers de hardware.",
+    "Em Python embarcado, identifique se o cenário usa CPython em Linux, MicroPython ou outra implementação.",
+    "No RTOS, examine o contexto da chamada: uma API bloqueante de tarefa pode ser inválida na ISR.",
+    "Use simulação e testes no host para lógica, mas valide interrupções, DMA e deadline no alvo."
+  ],
+  "traps": [
+    "Volatile não torna incremento de contador atômico nem substitui mutex ou seção crítica.",
+    "Aplicar |= em registrador W1C pode limpar flags que estavam em 1; primeiro consulte a semântica do hardware.",
+    "Não confunda & com &&, | com ||, nem complemento ~ com negação lógica !.",
+    "no_std não significa sem core, sem Rust completo ou sem possibilidade de alocador configurado.",
+    "std::unique_ptr expressa propriedade, mas uso com new não elimina heap.",
+    "Corrotinas Python não significam automaticamente paralelismo preemptivo nem tempo real rígido.",
+    "Prioridade maior não corresponde sempre a número maior em todos os RTOS.",
+    "Empacotar uma struct diretamente em bytes sem contrato explícito pode transportar padding e endianess da plataforma."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como limpar o campo de três bits nas posições 4 a 6?",
+      "answer": "Aplicar valor &= ~(0x7u << 4), no contexto de variável ou registrador comum de leitura/escrita."
+    },
+    {
+      "question": "Qual a diferença entre uma fila e um mutex no RTOS?",
+      "answer": "Fila troca mensagens entre contextos; mutex protege recurso compartilhado e pode ter mecanismo de herança de prioridade."
+    },
+    {
+      "question": "Por que não basta afirmar que firmware compila?",
+      "answer": "Compilação não comprova deadlines, consumo de memória, ausência de corridas, qualidade elétrica nem recuperação em falhas."
+    },
+    {
+      "question": "Por que unsafe requer revisão especial em Rust?",
+      "answer": "O compilador deixa ao programador demonstrar invariantes não verificáveis, como validade de ponteiros e regras do periférico."
+    },
+    {
+      "question": "Quando uma estrutura com bytes pode ser não portável?",
+      "answer": "Quando depende de padding, endianess, alinhamento ou largura de tipos nativos da plataforma."
+    },
+    {
+      "question": "Como conter variabilidade de latência em Python?",
+      "answer": "Reduzir alocações, reutilizar buffers, medir pausas de GC e deslocar o trabalho crítico para mecanismos adequados ao alvo."
+    },
+    {
+      "question": "O que caracteriza inversão de prioridade?",
+      "answer": "Uma tarefa prioritária fica impedida de executar por recurso mantido por tarefa menos prioritária, possivelmente com interferência intermediária."
+    },
+    {
+      "question": "Qual a vantagem de separar a lógica do driver?",
+      "answer": "Permite testes sem hardware, substituição de componentes e controle de erros por interfaces estáveis."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Operadores de bits e registradores",
+      "summary": "Confundir lógicos com bitwise, deslocar sem definir largura ou escrever em flags W1C como se fossem registradores comuns causa resultados incorretos."
+    },
+    {
+      "key": "e2",
+      "title": "Volatile, atomicidade e concorrência",
+      "summary": "Acesso observável a MMIO não implica operação indivisível nem proteção contra preempção; escolha atomics, seção crítica ou mutex segundo o contexto."
+    },
+    {
+      "key": "e3",
+      "title": "Memória, lifetime e inicialização",
+      "summary": "Confundir heap, stack e BSS, ignorar vida útil dos buffers de DMA ou supor inicialização de periféricos antes do startup gera falhas difíceis de reproduzir."
+    },
+    {
+      "key": "e4",
+      "title": "Abstrações de C++ e Rust",
+      "summary": "RAII e ownership ajudam a modelar recursos, mas não dispensam configurar runtime, medir custo nem revisar unsafe, FFI ou inicialização."
+    },
+    {
+      "key": "e5",
+      "title": "Python embarcado e bytes",
+      "summary": "Tratar MicroPython como CPython integral ou usar formatos binários nativos em quadros externos introduz incompatibilidade e latência variável."
+    },
+    {
+      "key": "e6",
+      "title": "Tempo real e APIs de ISR",
+      "summary": "Misturar semáforo e mutex, bloquear dentro de interrupções e supor prioridade numérica universal compromete deadlines e escalonamento."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um sistema de tempo real rígido, a correção lógica da resposta não compensa o descumprimento de um prazo obrigatório.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O comportamento temporal integra os requisitos funcionais: uma resposta correta que chega depois da data-limite pode ser considerada falha. Velocidade média elevada não substitui demonstração de limites de latência.",
+      "section": "Fundamentos, arquitetura de firmware e gestão de recursos",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa localizar código, dados inicializados e região de BSS na memória de um microcontrolador. Qual componente do fluxo de construção tem papel central nessa disposição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O linker, orientado por um script de ligação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O coletor de lixo do interpretador Python.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O gerenciador de filas do RTOS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O protocolo UART durante o boot.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A tabela de prioridades de interrupção.",
+          "correct": false
+        }
+      ],
+      "explanation": "O linker resolve referências e posiciona seções segundo regras de memória do destino. Compilador e startup participam da construção e inicialização, mas nem coleta de lixo nem escalonamento definem o mapa da imagem.",
+      "section": "Fundamentos, arquitetura de firmware e gestão de recursos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em microcontroladores, a presença de heap é obrigatória e sempre oferece menor variabilidade temporal do que a alocação estática.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Muitos firmwares trabalham sem heap; buffers estáticos, pools e arenas podem atender às necessidades. Alocação dinâmica pode introduzir fragmentação, falha de alocação e tempos difíceis de limitar.",
+      "section": "Fundamentos, arquitetura de firmware e gestão de recursos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma aplicação em que dados chegam em quadros multibyte, qual decisão torna o formato mais portável entre arquiteturas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Transmitir diretamente a representação de qualquer struct C.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Especificar explicitamente larguras, ordem dos bytes e validação de tamanho.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Utilizar sempre o tamanho nativo de int do compilador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Confiar na ordem de bytes da CPU receptora.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover verificações de comprimento para economizar RAM.",
+          "correct": false
+        }
+      ],
+      "explanation": "A representação externa deve ser um contrato independente de padding e endianness do host. Copiar structs brutas ou pressupor larguras e ordens nativas torna o intercâmbio vulnerável a divergências entre plataformas.",
+      "section": "Fundamentos, arquitetura de firmware e gestão de recursos",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O arquivo de inicialização pode copiar dados inicializados para RAM e zerar a seção BSS antes de transferir a execução à aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O startup frequentemente prepara ambiente e armazenamento para a execução, incluindo pilha, dados e BSS. A sequência concreta depende da arquitetura, das bibliotecas de runtime e do script de ligação adotados.",
+      "section": "Fundamentos, arquitetura de firmware e gestão de recursos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um firmware precisa facilitar testes sem que uma placa física esteja conectada. Qual arranjo arquitetural mais diretamente favorece esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Distribuir endereços absolutos de registradores por toda a aplicação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mover todas as regras para uma única ISR longa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Separar regras de aplicação das interfaces de hardware por uma HAL substituível.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Eliminar interfaces de erro dos drivers para reduzir código.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Unir armazenamento, comunicação e controle em uma função monolítica.",
+          "correct": false
+        }
+      ],
+      "explanation": "Separar lógica, serviços e HAL permite criar doubles de drivers e testar máquinas de estados no host. Espalhar referências ao chip aumenta o acoplamento e dificulta isolar falhas ou simular eventos.",
+      "section": "Fundamentos, arquitetura de firmware e gestão de recursos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Jitter é a quantidade total de bytes usada pela seção de código de um firmware, sendo medido por um arquivo de mapa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Jitter mede a variação temporal de eventos ou respostas, não ocupação de memória. Map files são úteis para inspecionar seções e símbolos; latência e jitter precisam de instrumentação temporal.",
+      "section": "Fundamentos, arquitetura de firmware e gestão de recursos",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar C, C++, Rust e Python para um controlador embarcado, qual critério deve orientar a decisão técnica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolher sempre a linguagem de sintaxe mais curta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Considerar que Rust dispensa depuração e testes de tempo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Presumir que Python funciona em todo microcontrolador sem adaptação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Suporte ao alvo, requisitos temporais, memória, ecossistema e segurança exigida.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar C++ somente quando exista sistema operacional de propósito geral.",
+          "correct": false
+        }
+      ],
+      "explanation": "A escolha decorre das restrições reais e do suporte do toolchain. Nenhuma linguagem elimina testes, e disponibilidade de runtime, drivers e bibliotecas difere muito entre microcontroladores e sistemas Linux embarcados.",
+      "section": "Fundamentos, arquitetura de firmware e gestão de recursos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para verificar se o bit 5 de um valor está ligado, a expressão (valor & (1u << 5)) != 0u é adequada quando a largura do tipo admite esse deslocamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O operador & seleciona o bit indicado pela máscara; comparar o resultado a zero identifica se estava ativo. É essencial usar valor e deslocamento compatíveis com a largura para evitar operações inválidas.",
+      "section": "C embarcado: ponteiros, registradores, operadores bitwise e interrupções",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Considere um registrador comum de leitura/escrita, sem semântica especial de flags. Para limpar apenas o bit 3, qual expressão deve atualizar a variável reg?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "reg |= (1u << 3);",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "reg ^= (1u << 3);",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "reg &&= (1u << 3);",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "reg = (1u << 3);",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "reg &= ~(1u << 3);",
+          "correct": true
+        }
+      ],
+      "explanation": "A operação E com complemento da máscara zera o bit escolhido e preserva os demais. OR liga o bit, XOR o inverte, a atribuição perde os vizinhos e a forma com &&= sequer é operador de atribuição válido em C.",
+      "section": "C embarcado: ponteiros, registradores, operadores bitwise e interrupções",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Declarar como volatile um contador compartilhado por duas tarefas assegura que incrementos concorrentes sejam atômicos e estejam livres de condição de corrida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Volatile informa ao compilador que determinados acessos são observáveis; não os torna indivisíveis nem fornece exclusão mútua. A atualização concorrente deve usar mecanismo de sincronização adequado à arquitetura.",
+      "section": "C embarcado: ponteiros, registradores, operadores bitwise e interrupções",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um registrador sinaliza evento por flag W1C (escrita de 1 para limpar). Qual procedimento deve orientar o tratamento do evento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Seguir a semântica documentada e evitar read-modify-write genérico no campo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar reg |= mascara em qualquer hipótese.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar memset sobre todo o bloco de periféricos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tratar qualquer escrita de zero como reconhecimento do flag.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir volatile por const para limpar automaticamente o evento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Campos W1C têm efeito de escrita diferente do de RAM ordinária. Regravar bits lidos pode limpar eventos indevidos; o acesso correto depende do manual e dos registradores específicos de reconhecimento.",
+      "section": "C embarcado: ponteiros, registradores, operadores bitwise e interrupções",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em C, quando sizeof recebe um ponteiro para o primeiro elemento de um array, o resultado passa a indicar automaticamente o número de elementos originais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Após a conversão do array para ponteiro, sizeof aplicado ao ponteiro mede seu tamanho em bytes, e não o comprimento do buffer referenciado. É necessário manter o número de elementos em outro contrato.",
+      "section": "C embarcado: ponteiros, registradores, operadores bitwise e interrupções",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em C, pretende-se substituir por n o campo de três bits que ocupa as posições de 4 a 6 de valor, preservando os demais bits. Qual expressão atende à tarefa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "valor = valor | (n << 4);",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "valor = (valor & ~(0x7u << 4)) | ((n & 0x7u) << 4);",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "valor = valor & (n << 4);",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "valor = (valor >> 4) & n;",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "valor = ~(valor | n);",
+          "correct": false
+        }
+      ],
+      "explanation": "A primeira máscara limpa o campo antigo; a segunda limita n a três bits antes de inserir o novo valor. Fazer só OR impede limpar bits já ligados, e as demais expressões alteram ou descartam outras posições.",
+      "section": "C embarcado: ponteiros, registradores, operadores bitwise e interrupções",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ISR deve respeitar o contrato das APIs e limitar o trabalho bloqueante, podendo sinalizar uma tarefa para processar dados fora do contexto de interrupção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Interrupções prolongadas atrasam outras respostas e APIs bloqueantes comuns podem ser proibidas nesse contexto. Capturar o evento e acordar processamento apropriado reduz riscos, respeitadas as regras do RTOS e periférico.",
+      "section": "C embarcado: ponteiros, registradores, operadores bitwise e interrupções",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O firmware usa um watchdog e a equipe deseja detectar travamento de funções essenciais. Qual política é a mais coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alimentá-lo continuamente em uma ISR, mesmo quando tarefas pararem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desabilitar o watchdog assim que a aplicação iniciar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alimentá-lo somente após verificar progresso adequado das atividades críticas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Alimentá-lo apenas durante a gravação de logs sem checar tarefas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tratá-lo como mecanismo substituto de validação das entradas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A alimentação deve indicar que o software efetivamente progride. Um laço isolado que sempre reinicia o temporizador pode mascarar tarefas travadas; o watchdog complementa, mas não substitui, tratamento de falhas.",
+      "section": "C embarcado: ponteiros, registradores, operadores bitwise e interrupções",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um std::array<int, 8> armazena seus oito elementos no próprio objeto, sem requerer alocação dinâmica para esse armazenamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "std::array é um contêiner de extensão fixa cujo armazenamento integra o objeto. A localização concreta do objeto depende de sua duração e declaração; não se deve confundi-lo com std::vector que pode alocar ao expandir.",
+      "section": "C++ em microcontroladores: abstração, RAII e custo de execução",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe C++ deve garantir que um recurso de hardware seja liberado ao sair de um escopo normal. Qual mecanismo expressa melhor esse desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Variável global pública sem método de finalização.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Preprocessador que substitui todas as chamadas de erro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conversão automática de ponteiro para inteiro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RAII, associando aquisição e liberação à vida de um objeto.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um loop sem condição de parada na função principal.",
+          "correct": false
+        }
+      ],
+      "explanation": "RAII utiliza construtor e destrutor para organizar o ciclo de vida dos recursos. Isso facilita retorno antecipado e manutenção de invariantes; não garante, contudo, liberação em reset abrupto ou falha irrecuperável.",
+      "section": "C++ em microcontroladores: abstração, RAII e custo de execução",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em qualquer toolchain embarcado, o uso de funções virtuais é impossível, pois C++ proíbe despacho dinâmico em arquiteturas sem sistema operacional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O despacho virtual é um recurso da linguagem e pode funcionar sem sistema operacional completo, desde que exista runtime e suporte apropriados. É preciso avaliar código, tabelas e timing, não alegar proibição universal.",
+      "section": "C++ em microcontroladores: abstração, RAII e custo de execução",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programador precisa indicar que um objeto não deve ser copiado, evitando a duplicação acidental do identificador de um periférico. Qual declaração de C++ expressa essa intenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Saida(const Saida&) = default;",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Saida(const Saida&) noexcept;",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Saida(Saida&&) = default;",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Saida& operator=(int);",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Saida(const Saida&) = delete;",
+          "correct": true
+        }
+      ],
+      "explanation": "Marcar o construtor de cópia como deletado impede essa forma de construção por cópia. Declarações default ou overloads distintos não expressam a mesma vedação, e o projeto ainda deve controlar acessos externos ao hardware.",
+      "section": "C++ em microcontroladores: abstração, RAII e custo de execução",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "noexcept, em uma função C++, significa que seu tempo de execução é matematicamente constante e que a função não acessa heap.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "noexcept trata da especificação de exceções, não de complexidade, alocação ou desempenho temporal. Uma função declarada desse modo ainda pode fazer operações de duração variável e utilizar recursos dinâmicos.",
+      "section": "C++ em microcontroladores: abstração, RAII e custo de execução",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em código C++ destinado a uma placa restrita, qual interpretação de std::unique_ptr é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Representa propriedade exclusiva, mas sua criação típica com new pode utilizar heap.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Garante que o objeto gerenciado reside na memória flash.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Transforma a alocação dinâmica em operação de tempo constante.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permite livre cópia de múltiplos proprietários independentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substitui a necessidade de especificar destrutores de recursos externos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O ponteiro inteligente organiza propriedade, não a região física do objeto nem o desempenho de new. Operações de alocação e destruição continuam sujeitas às políticas e limites da plataforma.",
+      "section": "C++ em microcontroladores: abstração, RAII e custo de execução",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação C++ pode usar templates para especializar uma política em compilação, mas deve avaliar eventual aumento da imagem devido a muitas instanciações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Templates permitem código especializado e frequentemente eliminam despacho em execução. Cada instanciação pode produzir código adicional, portanto tamanho de flash e tempo devem ser medidos em vez de presumidos.",
+      "section": "C++ em microcontroladores: abstração, RAII e custo de execução",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sobre inicialização de objetos estáticos em firmware C++, assinale a solução mais prudente.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Presumir que todo periférico já está habilitado antes da inicialização global.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Preferir inicialização constante quando possível e controlar dependências entre unidades.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Forçar a construção de drivers a depender de várias globais em arquivos distintos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Afirmar que inicialização dinâmica é sempre omitida pelo compilador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Concluir que ordem de construção independe do runtime e do linker.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ordem de inicialização dinâmica entre diferentes unidades merece cautela, especialmente se os construtores usam hardware. Inicialização constante e dependências explícitas reduzem surpresas na partida.",
+      "section": "C++ em microcontroladores: abstração, RAII e custo de execução",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Rust, no_std permite usar core e não equivale à proibição de toda operação da linguagem nem impede um alocador quando devidamente configurado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A diretiva remove a dependência usual de std, mas core permanece disponível. Recursos de alloc podem ser usados com infraestrutura apropriada; startup, linker e pânico seguem exigindo configuração do alvo.",
+      "section": "Rust embarcado: ownership, no_std e acesso seguro ao hardware",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um desenvolvedor deseja representar o resultado de uma leitura que pode falhar e obrigar o chamador a tratar a ocorrência. Qual tipo idiomático de Rust atende melhor ao propósito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Option<&mut T> sem indicação do erro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um inteiro fixo que sempre representa sucesso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Result<T, E>.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma variável global mutável com sentinela invisível.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um ponteiro bruto assumido sempre válido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Result separa explicitamente sucesso e erro, favorecendo o tratamento com match ou propagação com ?. Option expressa apenas presença e ausência, sem transportar por si só a causa de uma falha.",
+      "section": "Rust embarcado: ownership, no_std e acesso seguro ao hardware",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um bloco unsafe em Rust suspende permanentemente todas as regras de segurança de memória da linguagem e torna qualquer ponteiro válido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Unsafe apenas permite certas operações cujo contrato não é inteiramente verificado em compilação; o código continua obrigado a satisfazer invariantes. Desreferenciar ponteiro inválido ainda pode causar comportamento indefinido.",
+      "section": "Rust embarcado: ownership, no_std e acesso seguro ao hardware",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual efeito central das regras de empréstimo de Rust em um trecho de código seguro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Garantir que toda ISR sempre cumpra seu deadline.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Impedir todo tipo de vazamento de memória ou deadlock.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dispensar a configuração do hardware pelo fabricante.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Restringir aliasing mutável, exigindo exclusividade apropriada para &mut T.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Executar automaticamente um coletor de lixo em cada acesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Borrowing limita combinações de referências e mutabilidade que poderiam provocar uso inseguro de memória. Não resolve limites temporais, deadlocks de aplicação ou erros elétricos e de periféricos.",
+      "section": "Rust embarcado: ownership, no_std e acesso seguro ao hardware",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "read_volatile em acesso MMIO desempenha o mesmo papel de um mutex entre tarefas e, por isso, garante exclusão mútua.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Leitura volatile serve para preservar o acesso observável ao endereço; não torna o trecho crítico nem coordena tarefas. Para comunicação concorrente são necessários mecanismos atômicos ou de sincronização adequados.",
+      "section": "Rust embarcado: ownership, no_std e acesso seguro ao hardware",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na arquitetura Rust para um microcontrolador, qual é a finalidade típica de uma PAC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir a necessidade de um linker script em todo projeto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Simular automaticamente todas as condições elétricas externas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter qualquer rotina unsafe em código comprovadamente correto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Oferecer sempre bibliotecas std completas sem ambiente operacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Expor registradores e periféricos em tipos e APIs ligados à descrição do dispositivo.",
+          "correct": true
+        }
+      ],
+      "explanation": "A peripheral access crate modela o mapa de registradores e pode reduzir acessos incorretos. A segurança da interface depende das invariantes de implementação e da semântica real do silício.",
+      "section": "Rust embarcado: ownership, no_std e acesso seguro ao hardware",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O sistema de tipos de Rust pode ajudar a evitar referências pendentes em código seguro, mas não comprova automaticamente ausência de falhas lógicas e temporais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Ownership e borrowing restringem diversos erros clássicos de memória, o que é valioso em firmware. Ainda assim, programas precisam testar protocolos, interrupções, condições de carga e requisitos de deadline.",
+      "section": "Rust embarcado: ownership, no_std e acesso seguro ao hardware",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ISR e o laço principal compartilham estado em firmware Rust. Qual orientação é tecnicamente correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolher seção crítica ou atomics adequados à plataforma e ao contexto de execução.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar static mut sem proteção por ser permitido em código bare metal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pressupor que o compilador transforma acesso volatile em transação indivisível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tratar uma seção crítica de núcleo único como proteção automática de qualquer DMA.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dispensar sincronização por ter usado enum em vez de inteiro.",
+          "correct": false
+        }
+      ],
+      "explanation": "A troca entre ISR e aplicação pode demandar exclusão ou operações atômicas. O alcance de uma seção crítica depende da arquitetura; DMA e múltiplos núcleos exigem avaliação de acesso independente.",
+      "section": "Rust embarcado: ownership, no_std e acesso seguro ao hardware",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "MicroPython oferece uma implementação de Python voltada a microcontroladores, mas seus módulos disponíveis e limitações podem variar entre portas e placas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O ecossistema MicroPython adapta bibliotecas e integração com hardware à capacidade do dispositivo. Por isso, portar código de CPython ou entre placas exige confirmar APIs, memória e comportamento reais.",
+      "section": "Python 3, MicroPython e processamento binário em embarcados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Python 3, deseja-se gerar os três bytes 0x12, 0x34 e 0x07 para transmitir um inteiro de 16 bits em big-endian seguido de um byte. Que expressão atende ao formato?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "struct.pack('<HB', 0x1234, 7)",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "struct.pack('>HB', 0x1234, 7)",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "bytes(str(0x1234), 'ascii')",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "struct.pack('@I', 0x1234)",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "struct.unpack('>HB', b'\\x12\\x34\\x07')",
+          "correct": false
+        }
+      ],
+      "explanation": "O marcador > escolhe big-endian e os códigos H e B representam inteiro sem sinal de 16 bits e de um byte. O modo little-endian inverte os dois primeiros bytes, e unpack decodifica, não codifica.",
+      "section": "Python 3, MicroPython e processamento binário em embarcados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância de bytearray pode servir de buffer reutilizável e mutável, ao contrário de um objeto bytes, que é imutável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "bytearray permite alterar posições sem reconstruir toda a sequência. Essa característica ajuda a reduzir alocações no laço principal, desde que a API aceite o buffer e sua vida útil seja preservada.",
+      "section": "Python 3, MicroPython e processamento binário em embarcados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação Python embarcada precisa decodificar dados recebidos de equipamentos heterogêneos. Que prática reduz incompatibilidades?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar sempre @ para acoplar o formato à CPU corrente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Interpretar qualquer quadro como uma struct nativa sem padding.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar formatos struct explícitos, verificar extensão do quadro e validar campos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ignorar bytes extras e curtos em qualquer protocolo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Assumir que todos os equipamentos possuem a mesma ordem de bytes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um protocolo portável define larguras e endianess e rejeita dados incompletos ou inválidos. O formato nativo pode depender de alinhamento e arquitetura, produzindo resultados distintos entre equipamentos.",
+      "section": "Python 3, MicroPython e processamento binário em embarcados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma corrotina uasyncio oferece por definição preempção de hardware e garante que toda operação de Python termine antes de qualquer prazo rígido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Concorrência por corrotinas é tipicamente cooperativa e depende de pontos de suspensão apropriados. Pausas de coleta de lixo e tempos de funções ainda devem ser medidos para avaliar necessidades temporais.",
+      "section": "Python 3, MicroPython e processamento binário em embarcados",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um protótipo MicroPython usa from machine import Pin; saida = Pin(2, Pin.OUT). O que é necessário antes de ativar a saída na placa real?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pressupor que o pino 2 sempre corresponde ao LED integrado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desligar as verificações de corrente e tensão porque é Python.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Assumir que todo número de pino tem a mesma função nas portas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conferir pinagem, função do GPIO e restrições elétricas da placa.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Substituir a consulta ao hardware por análise da sintaxe apenas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A API de Pin abstrai acesso a GPIO, mas não define universalmente o mapeamento físico. A validade do pino e a segurança elétrica dependem do hardware e do firmware efetivamente instalados.",
+      "section": "Python 3, MicroPython e processamento binário em embarcados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Python no Linux embarcado e MicroPython no microcontrolador apresentam necessariamente o mesmo conjunto de bibliotecas e os mesmos tempos de execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "CPython sobre Linux e MicroPython em microcontrolador operam em ambientes distintos. Recursos, módulos, coleta de lixo, APIs de GPIO e limites temporais variam e exigem testes separados.",
+      "section": "Python 3, MicroPython e processamento binário em embarcados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um laço MicroPython sofre pausas por alocação frequente de objetos. Qual medida tende a reduzir pressão de memória, a depender da API disponível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gerar novas listas e strings em cada interrupção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pressupor que o coletor de lixo nunca será executado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ampliar indiscriminadamente buffers sem medir RAM.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir bytes por valores convertidos em texto a cada ciclo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reutilizar bytearray ou memoryview e limitar objetos temporários.",
+          "correct": true
+        }
+      ],
+      "explanation": "Buffers reutilizáveis podem diminuir alocações repetidas, que pressionam o heap e o coletor de lixo. Isso não garante deadline por si só: é preciso medir latência e respeitar restrições de callbacks da porta.",
+      "section": "Python 3, MicroPython e processamento binário em embarcados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O valor numérico que representa maior prioridade não segue convenção universal entre RTOS, de modo que a equipe deve consultar a documentação do escalonador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Sistemas como FreeRTOS e Zephyr descrevem esquemas diferentes de prioridade. Aplicar automaticamente a mesma relação entre número e precedência pode produzir escalonamento oposto ao pretendido.",
+      "section": "RTOS, sincronização, interfaces e validação de firmware",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa de alta prioridade espera um mutex pertencente a tarefa de baixa prioridade; uma terceira tarefa de prioridade intermediária ocupa a CPU. Que fenômeno é descrito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Inversão de prioridade, potencialmente mitigada por herança de prioridade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Corrupção de flash por endianness.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Erro de ligação da seção BSS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exceção de ponteiro nulo no compilador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Deslocamento de bits com resultado modular.",
+          "correct": false
+        }
+      ],
+      "explanation": "A tarefa prioritária fica indiretamente dependente da menos prioritária, e a intermediária pode agravar a espera. Protocolos de herança de prioridade ajudam em casos típicos, sem solucionar todo deadlock.",
+      "section": "RTOS, sincronização, interfaces e validação de firmware",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O processamento de uma ISR pode ser substituído em parte pelo envio de sinal a tarefa; a API utilizada deve ser explicitamente apropriada ao contexto de interrupção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Adiar trabalho para uma tarefa reduz tempo no handler, mas funções que bloqueiam ou têm contrato apenas para tarefas podem ser inválidas na ISR. Usam-se chamadas de sinalização próprias da plataforma.",
+      "section": "RTOS, sincronização, interfaces e validação de firmware",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um produtor-consumidor no RTOS, qual mecanismo é a escolha natural para encaminhar mensagens discretas entre tarefas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma variável volatile isolada como substituta universal de sincronização.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma fila com capacidade e política de saturação conhecidas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um mutex sem armazenamento de mensagens.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma região BSS limpa a cada evento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um registrador de watchdog usado para transportar os bytes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Filas desacoplam produtor e consumidor, armazenando itens segundo a política do RTOS. Como a capacidade é finita, são necessários tratamento de timeout, descarte ou pressão de retorno quando o produtor excede o consumo.",
+      "section": "RTOS, sincronização, interfaces e validação de firmware",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "DMA elimina a necessidade de manter o buffer válido durante a transferência, já que toda a memória acessada passa a pertencer ao periférico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "DMA transfere dados sem participação contínua da CPU, mas ainda depende de memória válida pelo período necessário. A plataforma pode exigir alinhamento, limpeza ou invalidação de cache e sincronização de acesso.",
+      "section": "RTOS, sincronização, interfaces e validação de firmware",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma solução com comunicação UART, SPI ou I2C abstraída por drivers, qual é a responsabilidade transversal do firmware?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Assumir que toda comunicação é infalível após abrir o driver.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tratar os três protocolos como eletricamente idênticos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Verificar retornos, timeouts, extensão de dados e compartilhamento de buffers.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ignorar vida útil dos buffers quando houver DMA.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Fazer toda a lógica de aplicação dentro da interrupção periférica.",
+          "correct": false
+        }
+      ],
+      "explanation": "A lógica deve tratar falha, dado parcial e concorrência independentemente do protocolo. Características elétricas e transações diferem entre interfaces, mas validação e gestão de recursos são deveres comuns.",
+      "section": "RTOS, sincronização, interfaces e validação de firmware",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma campanha de testes em host, isoladamente, é suficiente para provar latência máxima de interrupção, consumo elétrico e comportamento de DMA da placa final.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Testes em host cobrem lógica e formatos, mas não reproduzem todas as interações de silício, barramento, cache e energia. Instrumentação no alvo e testes HIL são necessários para verificar efeitos físicos e tempo real.",
+      "section": "RTOS, sincronização, interfaces e validação de firmware",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após falhas intermitentes sob carga, qual estratégia de validação é mais útil para revelar problemas de firmware temporal e concorrente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aferir somente se o executável compila sem avisos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar uma leitura bem-sucedida de sensor e encerrar os testes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar todos os timeouts para evitar erros durante a prova.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Instrumentar latências e pilhas no alvo, testar estresse de filas e realizar HIL.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Substituir as medições por uma estimativa de velocidade média da CPU.",
+          "correct": false
+        }
+      ],
+      "explanation": "Logs temporizados, tracing, medições de pilha, cenários de perda de comunicação e HIL revelam bloqueios e atrasos reais. Compilação e testes pontuais de caminho feliz não asseguram robustez operacional.",
+      "section": "RTOS, sincronização, interfaces e validação de firmware",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "The Embedded Rust Book",
+      "publisher": "Rust Project",
+      "reference": "Fundamentos de no_std, concorrência e acesso a periféricos",
+      "url": "https://doc.rust-lang.org/stable/embedded-book/",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Rust Programming Language",
+      "publisher": "Rust Project",
+      "reference": "Ownership, empréstimos, enums e tratamento de erros",
+      "url": "https://doc.rust-lang.org/stable/book/",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Rustonomicon — Atomics",
+      "publisher": "Rust Project",
+      "reference": "Modelo de memória e operações atômicas",
+      "url": "https://doc.rust-lang.org/nomicon/atomics.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "GCC — Volatiles",
+      "publisher": "GNU Project",
+      "reference": "Semântica de objetos volatile",
+      "url": "https://gcc.gnu.org/onlinedocs/gcc/Volatiles.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "GCC — __atomic Builtins",
+      "publisher": "GNU Project",
+      "reference": "Operações atômicas e ordens de memória",
+      "url": "https://gcc.gnu.org/onlinedocs/gcc/_005f_005fatomic-Builtins.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ESP-IDF Programming Guide — C++ Support",
+      "publisher": "Espressif Systems",
+      "reference": "Uso e configuração de C++ no ESP-IDF",
+      "url": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/cplusplus.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "FreeRTOS — Task Scheduling",
+      "publisher": "FreeRTOS",
+      "reference": "Escalonamento preemptivo e prioridades",
+      "url": "https://developer.freertos.org/Documentation/02-Kernel/02-Kernel-features/01-Tasks-and-co-routines/04-Task-scheduling",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "FreeRTOS — Mutexes",
+      "publisher": "FreeRTOS",
+      "reference": "Mutex e herança de prioridade",
+      "url": "https://education.freertos.org/Documentation/02-Kernel/02-Kernel-features/02-Queues-mutexes-and-semaphores/04-Mutexes",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Zephyr — Thread APIs",
+      "publisher": "Zephyr Project",
+      "reference": "Classes de prioridade e execução de threads",
+      "url": "https://docs.zephyrproject.org/latest/doxygen/html/group__thread__apis.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MicroPython — Microcontrollers",
+      "publisher": "MicroPython Project",
+      "reference": "Restrições de memória e arquitetura",
+      "url": "https://docs.micropython.org/en/latest/reference/constrained.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MicroPython — machine",
+      "publisher": "MicroPython Project",
+      "reference": "Interfaces de acesso a recursos de hardware",
+      "url": "https://docs.micropython.org/en/latest/library/machine.html",
+      "accessedAt": "2026-11-17"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Python 3 — struct",
+      "publisher": "Python Software Foundation",
+      "reference": "Formatos portáveis de serialização binária",
+      "url": "https://docs.python.org/3/library/struct.html",
+      "accessedAt": "2026-11-17"
+    }
+  ]
+}

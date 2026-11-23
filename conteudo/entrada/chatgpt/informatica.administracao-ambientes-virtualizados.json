@@ -1,0 +1,1924 @@
+{
+  "id": "informatica.administracao-ambientes-virtualizados",
+  "subject": "Informática — Infraestrutura e Virtualização",
+  "title": "Administração de Ambientes Virtualizados",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Administração de Ambientes Virtualizados",
+    "Administração e gerenciamento de ambientes de virtualização"
+  ],
+  "scope": {
+    "covers": "Fundamentos, tipos de hipervisores e bare metal; virtualização de CPU, memória, rede e armazenamento; VMware ESXi/vCenter, HA, DRS, vMotion e Storage vMotion; KVM, QEMU, libvirt, Proxmox VE/LXC; backups, segurança, clusters, quórum; infraestrutura convergente e hiperconvergente.",
+    "excludes": "Procedimentos exclusivos de versões ou contratos comerciais específicos; tutoriais exaustivos de instalação, comandos não estáveis, tabelas proprietárias de compatibilidade e suporte; administração completa de Kubernetes ou de provedores de nuvem pública."
+  },
+  "theoryTitle": "Administração e gerenciamento de ambientes de virtualização: teoria completa",
+  "chapters": [
+    {
+      "title": "Fundamentos, hipervisores e servidores bare metal",
+      "markdown": "## 1. O que é virtualização\nA virtualização de servidores cria **máquinas virtuais (VMs)** que recebem dispositivos lógicos — vCPU, memória, controladoras, discos e placas de rede — e executam um sistema operacional convidado (*guest*). O servidor físico é o *host*. A camada que arbitra o acesso ao hardware é o **hipervisor**; o objetivo não é tornar o hardware ilimitado, mas melhorar isolamento, consolidação, provisionamento, padronização, recuperação e uso de capacidade. Cada VM tem kernel próprio e pode executar, respeitadas compatibilidade e suporte, sistema operacional diferente do host. O encapsulamento facilita clonagem e migração, sem dispensar controles de segurança.\n\n**Tipo 1 (nativo ou bare-metal):** a função de hipervisor opera diretamente sobre os recursos físicos, sem depender de um sistema operacional de uso geral instalado como aplicação hospedeira. **VMware ESXi** é exemplo clássico. **Microsoft Hyper-V** em instalações de servidor com a função de virtualização e **KVM** são comumente classificados como hipervisores tipo 1 pela atuação na camada de kernel/partição privilegiada; a existência de Linux como sistema base do KVM não o converte automaticamente em aplicativo tipo 2. **Tipo 2 (hospedado):** a solução de virtualização executa-se sobre um sistema operacional hospedeiro, caso típico de produtos voltados a laboratórios e desktops, como VirtualBox e VMware Workstation. As classificações didáticas abstraem detalhes de arquitetura; não se deve definir o tipo somente pela presença de interface gráfica.\n\n**Bare metal** significa executar um sistema diretamente em um servidor físico, sem uma VM intermediária. O termo descreve tanto um sistema operacional implantado em hardware dedicado quanto a implantação de hipervisor nativo diretamente no servidor; portanto, *bare metal* não é sinônimo de “servidor sem virtualização”. Hospedar ESXi em máquina física é instalação bare-metal do hipervisor. Já usar um hipervisor dentro de VM caracteriza virtualização aninhada (*nested virtualization*), útil em laboratório e com requisitos próprios de recursos e compatibilidade.\n\n## 2. Técnicas e isolamento\nNa **virtualização completa**, o sistema convidado opera sobre hardware virtual compatível com sua arquitetura, normalmente com apoio de extensões de CPU. **Paravirtualização** é a cooperação explícita do convidado por meio de interfaces e drivers otimizados: VirtIO em KVM e adaptadores otimizados em outros ecossistemas reduzem custo de emulação de dispositivos. Essas abordagens coexistem na mesma VM: uma CPU virtualizada pode usar disco e rede paravirtualizados. A **emulação** pode traduzir arquitetura ou dispositivos, mas tende a custar mais processamento quando não há aceleração por hardware.\n\nOs **contêineres de sistema operacional** compartilham o kernel do host e isolam processos por namespaces, cgroups e mecanismos de segurança. No Linux, LXC constitui exemplo. Uma VM, ao contrário, executa seu próprio kernel. A distinção explica por que contêiner Linux não equivale a VM independente de kernel Windows. Contêineres em produção exigem políticas de acesso, atualização de imagens e restrições de privilégios; compartilhamento de kernel cria superfície de risco diferente, não ausência de isolamento.\n\n## 3. Recursos e desempenho\n**vCPU não é núcleo físico reservado automaticamente.** O escalonador distribui vCPUs entre threads e núcleos físicos; é possível superalocar CPU (*overcommit*) se a carga média permitir, mas uma VM com excesso de vCPUs pode sofrer espera por agendamento. Meça utilização, contenção, prontidão de CPU (*CPU ready*, conforme plataforma) e latência, em vez de dimensionar só pelo número de sockets. Afinidade e reserva são instrumentos excepcionais que limitam a liberdade do escalonador ou garantem capacidade, com impactos operacionais.\n\nA memória atribuída pode usar técnicas de **ballooning**, compartilhamento ou paginação, dependendo da plataforma. Balloning depende de driver no convidado e devolve páginas ao host sob pressão; não aumenta a RAM física. Excesso de compromisso de memória intensifica paginação, degradação e risco operacional. *Huge pages* podem favorecer certas cargas, mas alteram granularidade e flexibilidade. **NUMA** importa em servidores com múltiplos nós de memória: procurar localidade entre vCPUs e memória diminui acesso remoto e latência. Para bancos de dados, aplicações em tempo real e licenciamento por núcleo, considerar desempenho previsível, topologia e requisitos do fornecedor.\n\n**Capacidade, disponibilidade e desempenho são dimensões distintas.** Consolidar vinte VMs em um host pode reduzir equipamentos, mas concentra o impacto de falhas. Um projeto adequado reserva recursos para a operação normal, picos, manutenção e a falha de um nó. Indicadores operacionais incluem latência de armazenamento, IOPS, throughput, perda de pacotes, tempo de recuperação, utilização de CPU, memória efetivamente consumida e pressão sobre o hipervisor. A taxa de consolidação deve partir de medições reais e testes de carga.\n\n## 4. Ciclo administrativo e governança\nO ciclo de vida envolve planejamento, criação a partir de *template*, customização segura de SO, instalação de ferramentas do convidado, endereçamento, registro em inventário, aplicação de patches, monitoramento, backup, revisão de direitos de acesso, desativação e descarte de dados. **Template** é imagem-mestre controlada usada para padronizar novas VMs; **clone** copia uma VM existente, com variações de técnica e independência. Ajuste hostname, credenciais, chaves e identificadores exclusivos para evitar colisões depois da clonagem.\n\nUm **snapshot** captura um ponto lógico do estado e pode depender de cadeia de discos diferenciais: é recurso para reversão curta, não substituto de cópia independente de backup. A restauração deve ser comprovada, inclusive consistência transacional de aplicações. Em prova, diferencie armazenamento lógico provisionado de espaço realmente ocupado, recurso virtual de capacidade real, isolamento de VM de isolamento de contêiner e instalação bare metal de máquina física sem hipervisor."
+    },
+    {
+      "title": "Administração VMware vSphere: ESXi, vCenter e mobilidade",
+      "markdown": "## 1. Componentes do ecossistema\nO **VMware ESXi** é o hipervisor de servidor que executa as VMs; o **vCenter Server** fornece plano de gerenciamento centralizado, inventário hierárquico, permissões, automação, clusters e recursos de orquestração que dependem dessa camada. Um host ESXi continua executando suas VMs quando o vCenter fica indisponível; a perda do vCenter afeta as tarefas de gestão central e certas automações, não desliga automaticamente todos os convidados. Cada host tem rede de gerenciamento, interfaces de acesso a armazenamento e redes virtuais para as VMs. A arquitetura separa **plano de dados**, por onde passa o tráfego das cargas, e **plano de controle**, pelo qual operadores e serviços administram o ambiente.\n\nNo inventário, um **datacenter lógico** contém clusters, hosts, redes, pools de recursos e datastores. **Cluster** agrega hosts para políticas coordenadas; um host isolado não passa a ser altamente disponível apenas por estar registrado no vCenter. **Resource pools** organizam alocação e prioridades de capacidade; reservas, limites e *shares* são conceitos diferentes. Reserva prevê um mínimo de recurso disponível conforme condições do sistema; limite restringe consumo; shares modulam prioridade relativa em cenários de disputa. Políticas mal aplicadas podem causar lentidão mesmo quando sobra capacidade em outro agrupamento.\n\n## 2. Rede virtual vSphere\nUm **vSwitch padrão** conecta adaptadores de VMs, uplinks físicos e serviços vmkernel no host. Um **vSphere Distributed Switch** centraliza a configuração lógica de rede de múltiplos hosts por meio do vCenter, mas os hosts transportam o tráfego por seus caminhos efetivos. **Port groups** agrupam parâmetros como VLAN e segurança. **VLAN** segmenta domínio lógico de camada 2; não substitui firewall e não garante, sozinha, isolamento administrativo completo. A porta VMkernel atende funções do host, como gerenciamento, tráfego de migração e certos protocolos de armazenamento, conforme configuração e recursos existentes. Uma VM possui adaptador virtual conectado a grupo de portas e pode requerer VLAN específica para a aplicação.\n\nPlaneje redundância de uplinks, separação ou priorização de tráfego de gerenciamento, migração e armazenamento, MTU consistente quando usar jumbo frames e controle de acesso da rede administrativa. Nem toda migração requer disco em SAN: requisitos dependem do tipo de migração, acesso aos dados e funcionalidades de licenciamento e versão. Redundância lógica de vSwitch não corrige a existência de um único switch físico crítico.\n\n## 3. Armazenamento e formatos\nO **datastore** é objeto de armazenamento para arquivos de VM. Pode ser baseado em armazenamento local ou acessado por protocolos adequados, por exemplo VMFS sobre dispositivos de bloco e NFS. **VMDK** é formato de disco virtual comum na plataforma. Em aprovisionamento **thin**, a área física é consumida progressivamente conforme gravações; em **thick**, é reservada segundo modalidade de alocação. Thin economiza espaço inicial, mas exige alarmes e projeção de crescimento para evitar esgotamento; os tipos de provisionamento não significam capacidade infinita.\n\n**Snapshot** de VM conserva estado de um instante por estruturas e discos diferenciais; operações prolongadas com cadeias extensas podem elevar consumo de espaço e complexidade de consolidação. Não se deve tratar snapshot residente no mesmo datastore como política de backup contra falha do datastore, exclusão maliciosa ou desastre. Backups coerentes com a aplicação, testes de restauração e cópias com isolamento administrativo cobrem riscos que o snapshot não resolve.\n\n## 4. Mobilidade, balanceamento e disponibilidade\n**vMotion** move o estado de execução de uma VM ligada entre hosts compatíveis, buscando continuidade do serviço; é preciso validar rede de migração, compatibilidade de CPU, dispositivos e acesso apropriado ao armazenamento. **Storage vMotion** transfere arquivos/discos de uma VM em execução entre datastores. **Cold migration** move a VM desligada. No caso particular de movimentar CPU e armazenamento simultaneamente, há requisitos adicionais de rede, espaço e suporte. Essas técnicas não são sinônimos de replicação contínua nem garantem RPO zero de backup.\n\n**DRS (Distributed Resource Scheduler)** avalia colocação e balanceamento de VMs conforme capacidade, políticas e restrições; pode propor ou automatizar migrações. **vSphere HA** identifica indisponibilidade de host e, havendo condições de capacidade e acesso ao estado persistente, reinicia VMs em hospedeiros sobreviventes. Portanto, o reinício após falha costuma gerar interrupção: HA não é disponibilidade sem perda de estado. **Fault Tolerance (FT)**, quando aplicável e suportado, mantém instância secundária coordenada para reduzir interrupção por falha física, com exigências e custos próprios; não equivale a backup e não protege contra todo erro lógico da aplicação. **EVC** facilita compatibilidade de CPU para migração ao expor conjunto comum de recursos de processador, observadas limitações de famílias e versões.\n\n**Storage DRS** atua no posicionamento e balanceamento de discos/arquivos em grupos de datastores e pode usar Storage vMotion; é diferente do DRS que analisa recursos computacionais. Regras de afinidade/antiafinidade, capacidade reservada para falha (*admission control*), monitoramento de datastore e dependências de rede condicionam a eficácia de HA e DRS. Ao aplicar patches, coloque host em manutenção, evacue ou desligue cargas segundo a política, valide compatibilidade e mantenha plano de reversão.\n\n## 5. Administração segura\nUse papéis de menor privilégio, identidade corporativa quando suportada, autenticação multifator nas superfícies de gestão aplicáveis, certificados válidos, logs centralizados, segregação da rede de administração e controle do acesso ao console das VMs. Aplique patches ao hipervisor, ferramentas do convidado e appliance de gerenciamento de maneira coordenada. Monitore **CPU ready**, memória pressionada, latência de datastore, estado de caminhos, uplinks, alertas de HA e eventos de configuração. Em concursos, a armadilha clássica é supor que vCenter é o hipervisor, que DRS reinicia VMs após falha ou que o desaparecimento do vCenter corta a conexão dos hosts com datastores já montados."
+    },
+    {
+      "title": "KVM, QEMU, libvirt e Proxmox VE",
+      "markdown": "## 1. Pilha de virtualização Linux\n**KVM (Kernel-based Virtual Machine)** disponibiliza ao kernel Linux mecanismos de virtualização com apoio das extensões de CPU disponíveis. **QEMU** representa máquina e dispositivos virtuais e executa o processo da VM em espaço de usuário; com aceleração KVM, utiliza recursos de virtualização do kernel. **libvirt** oferece API, serviços, modelos de configuração e ferramentas para controlar VMs, entre elas `virsh` e interfaces gráficas; ele não é sinônimo do motor de execução da CPU. Em arquiteturas típicas, a configuração do domínio descreve vCPUs, memória, interfaces e discos. A distinção funcional KVM–QEMU–libvirt é recorrente em provas: aceleração, emulação e gerenciamento são responsabilidades complementares.\n\nO administrador deve confirmar extensões Intel VT-x ou AMD-V, suporte de firmware, IOMMU quando exigida para certas formas de passagem de dispositivos (*passthrough*), compatibilidade dos drivers e configuração de storage. **VirtIO** oferece adaptadores paravirtualizados de rede e bloco; o sistema convidado deve ter os drivers necessários. **qemu-guest-agent** coopera com determinadas ações administrativas, como consulta de estado e coordenação de operações suportadas; não transforma a VM em contêiner nem substitui backup. **qcow2** pode oferecer recursos como imagens esparsas e snapshots internos conforme ferramenta e implementação; **raw** evita certa sobrecarga de metadados do formato, mas não garante desempenho superior em todos os cenários. O backend de armazenamento altera requisitos e vantagens.\n\n## 2. Proxmox Virtual Environment\n**Proxmox VE** é plataforma de virtualização integrada baseada em Debian/Linux, com interface web e recursos de cluster, rede, storage, backup e alta disponibilidade. Utiliza **QEMU/KVM para máquinas virtuais** e **LXC para contêineres**. Não se deve dizer que qualquer recurso do Proxmox depende de VMware ou que LXC executa kernel distinto do host. A instalação por imagem dedicada pode transformar o servidor físico em host de virtualização, isto é, implantação bare metal de uma plataforma que contém Linux e mecanismos de hipervisor tipo 1. O gerenciamento pode ser realizado via interface web, API ou linha de comando.\n\nAs ferramentas mais conhecidas incluem `qm` para operação de VMs QEMU/KVM, `pct` para contêineres, `pvecm` para gerenciamento de cluster, `pvesm` para definição e inspeção de armazenamento e `vzdump` para processos tradicionais de backup. Nomes de comandos podem ser cobrados pela finalidade, sem exigência de decorar sintaxes sensíveis a versão. A administração começa por inventário de nós, VMIDs, redes e storages, checagem do estado do cluster, autorização e registro de mudanças. A rede Linux pode utilizar **bridges** para ligar NICs virtuais às interfaces físicas e VLANs para segmentação.\n\n## 3. Migração, storage e disponibilidade\nUma **live migration** transfere uma VM em execução entre hosts, sujeito a compatibilidade de CPU, conectividade, capacidade de destino e opções de armazenamento. Com **armazenamento compartilhado**, os dois hosts podem acessar o mesmo disco da VM, reduzindo necessidade de copiar todo o volume durante migração do estado de execução; em migrações sem disco compartilhado, pode haver cópia de discos suportada pela plataforma, com custo de tempo e largura de banda. A ausência de armazenamento compartilhado, por si só, não prova impossibilidade absoluta de qualquer migração ao vivo: a resposta depende das capacidades e limitações da solução.\n\nO Proxmox VE integra storages como diretórios, ZFS, LVM, NFS, iSCSI e Ceph, variando por tipo de dado, recursos de snapshot, disponibilidade e execução. **Ceph** é uma solução de armazenamento distribuído que pode fornecer objetos de bloco **RBD** aos hipervisores; requer análise de rede, consistência de implantação, discos, falhas e domínio de recuperação. **ZFS** oferece mecanismos de checksums, snapshots e gestão de conjuntos de discos, mas copiar um snapshot no mesmo conjunto não fornece automaticamente proteção contra perda do servidor e credenciais comprometidas. Espaço anunciado na interface não deve ser confundido com capacidade livre efetiva sob replicação e reservas.\n\nEm **cluster**, **Corosync** auxilia comunicação e coordenação de membros; **quórum** protege a consistência de decisões e evita que partições incomunicáveis atuem independentemente como proprietárias legítimas dos mesmos recursos. A regra de maioria e o planejamento de votos/árbitros dependem da topologia. **HA manager** automatiza recuperação de recursos elegíveis; alta disponibilidade exige armazenamento acessível ou replicado de forma compatível, rede adequada e capacidade de reinício. Réplica assíncrona tem possível perda das últimas alterações (**RPO maior que zero**) e não equivale a disco compartilhado em tempo real. Em ambiente de dois nós, um dispositivo de quórum ou arquitetura validada costuma ser necessário para evitar decisões ambíguas; “dois servidores são automaticamente suficientes” é proposição insegura.\n\n## 4. Proteção e rotina no Proxmox\nO **Proxmox Backup Server (PBS)** pode armazenar backups incrementais com deduplicação, oferecer mecanismos de verificação de integridade, criptografia e cópias/sincronização remotas. **Snapshot de produção não é backup independente**. Rotinas precisam de período de retenção, exclusão protegida, validação de restauração, controle de privilégios e medição do tempo de recuperação. Na construção de uma VM, ajuste drivers paravirtualizados, ordem de boot, virtual TPM/UEFI quando exigidos, política de hotplug compatível e rede. Exposição direta de dispositivos físicos reduz portabilidade e pode impedir migrações; teste antes de colocar em produção.\n\nMonitore consumo efetivo de armazenamento, crescimento de discos thin, desgaste físico, latência de rede de cluster, saúde dos membros, fila de I/O, alertas de backup e mudanças de configuração. Trate atualizações como processos de manutenção controlada, pois compatibilidade entre versões, nós, guests e ferramentas pode condicionar migração. A questão não é eleger uma plataforma universalmente superior, mas correlacionar recursos documentados, limites, licenciamento, interoperabilidade e maturidade operacional."
+    },
+    {
+      "title": "Redes, armazenamento, proteção e segurança operacional",
+      "markdown": "## 1. Redes virtuais e tráfego\nO **switch virtual** conecta placas virtuais de VMs às redes virtuais e, conforme a topologia, a interfaces físicas. Na virtualização de servidores, redes de **gestão**, **dados de aplicações**, **migração** e **armazenamento** possuem perfis distintos. O plano de gerenciamento exige segmentação, autenticação e acesso restrito; redes de migração e armazenamento podem trafegar dados sensíveis, merecendo proteção e largura de banda. Uma **VLAN** segmenta camada 2, mas não configura política de segurança entre aplicações por si só. **VLAN tagging 802.1Q**, bridges, teaming/bonding e vSwitches devem corresponder à configuração dos equipamentos físicos para evitar perda de conectividade.\n\nRedundância envolve múltiplos caminhos **fim a fim**: duas interfaces físicas conectadas ao mesmo switch não afastam a falha desse switch. Políticas de failover de interface, *multipathing* para storage e redundância dos caminhos SAN/NAS resolvem pontos diferentes. Em implementações com **SR-IOV** ou passagem direta de NIC, VMs podem acessar funções de dispositivo com menos sobrecarga, mas a operação pode restringir mobilidade, inspeção de tráfego e snapshots, conforme suporte. Redes overlay e SDN abstraem endereçamento e conectividade; exigem gestão de MTU, encapsulamento e caminhos subjacentes.\n\n## 2. Discos virtuais e persistência\nArmazenamento **local** pertence a um host; armazenamento **compartilhado** pode ser acessado por múltiplos hosts; armazenamento **distribuído** agrega discos de diversos nós mediante software. Os termos não são equivalentes. **SAN** apresenta normalmente unidades de bloco, por FC ou iSCSI; **NAS** expõe arquivos por NFS ou SMB. Soluções e formatos podem combinar diferentes camadas. Não conclua que iSCSI é acesso a arquivo só por utilizar rede IP: o serviço clássico é de bloco. **Multipath I/O** permite múltiplos caminhos controlados e auxilia disponibilidade/desempenho conforme políticas e arquitetura.\n\nDiscos **thin** consomem espaço sob demanda e favorecem elasticidade, mas exigem acompanhamento do nível de ocupação; **thick** comprometem a área de acordo com a modalidade. **IOPS** expressa operações por segundo; **throughput** mede volume de dados por tempo; **latência** expressa demora de conclusão. Cargas de pequenos blocos aleatórios podem exigir muitos IOPS sem grande throughput; cargas sequenciais podem ter alto throughput com IOPS menores. Testar só banda nominal de rede é insuficiente para prever latência de banco de dados.\n\n## 3. Proteção de dados, snapshots e recuperação\n**Snapshot**, **backup**, **replicação** e **alta disponibilidade** satisfazem finalidades diferentes. O snapshot é marcador de estado associado à infraestrutura de origem, útil para reversão operacional breve; pode criar cadeia diferencial e consumir capacidade adicional. O backup produz cópia recuperável conforme política de retenção e isolamento; **consistência de aplicação** requer coordenar buffers, transações ou agentes suportados. **Replicação** mantém cópias em outra infraestrutura com atrasos determinados pelo modo síncrono ou assíncrono, e pode replicar exclusões e corrupção lógica. **HA** busca retomar serviço após falha de componentes, mas não é garantia de recuperação contra ransomware.\n\n**RPO (Recovery Point Objective)** é a perda máxima de dados tolerável medida em tempo; **RTO (Recovery Time Objective)** é o tempo-alvo para restauração do serviço. Um backup diário pode não alcançar RPO de minutos; já a rapidez do reinício de VM não prova que a aplicação recuperará suas transações no RTO exigido. **Regra 3-2-1** é referência de múltiplas cópias, em mídias/meios distintos e ao menos uma fora do ambiente principal; práticas atuais incluem imutabilidade e separação de credenciais conforme risco. Execução bem-sucedida de backup não substitui **teste de restore** com verificação de integridade e retomada de aplicações.\n\n## 4. Operação, observabilidade e automação\nObservabilidade depende de **métricas** (CPU, memória, datastore, latência, I/O, fila de tarefas), **logs** (auditoria, falhas, autenticação) e **eventos/alertas** associados a capacidade e disponibilidade. Estabeleça baselines, limiares e previsão de crescimento; interprete períodos de pico e manutenção. Atribuir dez vCPUs à VM não prova que dez núcleos físicos estão dedicados. Examine contenção, NUMA, pressão de memória, estado de agentes, dispositivos paravirtualizados e saturação de disco. Automatize provisionamento por templates aprovados, APIs e infraestrutura como código, com revisão e controle de alterações para evitar deriva de configuração.\n\n## 5. Segurança e continuidade\nO hipervisor é componente crítico: comprometer suas credenciais pode expor múltiplas VMs. Adote **menor privilégio e segregação de funções**, MFA nas interfaces suportadas, gestão de segredos, atualização de firmware e hipervisores, firewall da rede de administração, certificados, logs externos, inventário de ativos, hardening de imagens-mestre, controle do console e auditoria de acessos. Proteja repositórios de backup com credenciais distintas e políticas resistentes à exclusão. O isolamento de VMs é importante, mas não elimina ataques por dispositivos virtuais, erro de configuração ou falhas compartilhadas. Desativar uma VM exige tratar cópias de discos, snapshots, backups e informações sensíveis conforme retenção definida.\n\n**Roteiro de incidente:** identifique o domínio da falha (guest, hipervisor, storage, rede, controle), preserve evidências, avalie dependências, escolha recuperação compatível com RPO/RTO e teste o serviço restaurado. Não desligue todo o cluster por um alerta isolado sem análise. Em questões de prova, procure a diferença entre prevenir indisponibilidade, reduzir seu tempo e recuperar dados já corrompidos."
+    },
+    {
+      "title": "Clusters, alta disponibilidade e infraestrutura convergente/hiperconvergente",
+      "markdown": "## 1. Cluster não é sinônimo de alta disponibilidade automática\nUm **cluster** reúne nós físicos sob funções comuns de gestão, computação ou armazenamento. O simples agrupamento administrativo não cria failover. Para **HA**, é necessário identificar falhas, manter um estado consistente dos membros, selecionar destino adequado, dispor de dados acessíveis e reservar capacidade para a carga realocada. **Quórum** é o mecanismo de decisão que reduz risco de *split-brain*: dois subconjuntos isolados não podem assumir simultaneamente controle conflitante do mesmo recurso. Sistemas podem usar maioria de votos, testemunha (*witness*) e **fencing**, conforme tecnologia. Fencing impede que nó considerado defeituoso continue gravando dados compartilhados de forma incompatível com o cluster recuperado.\n\n**Fault domain** é conjunto de componentes suscetíveis à mesma falha: host, alimentação, rack, switch, sala ou localidade. Réplicas em discos distintos, porém no mesmo servidor ou rack, podem compartilhar domínio de falha. **N+1** representa reserva suficiente para perda de um componente no cenário dimensionado; não é garantia universal de sobreviver a qualquer desastre, pois depende de como a carga é distribuída. **Manutenção rolling** atualiza nós em sequência enquanto mantém capacidade, desde que haja compatibilidade e margem de recursos. Testes periódicos de failover validam os pressupostos.\n\n## 2. Infraestrutura tradicional e convergente\nNa infraestrutura tradicional, equipamentos de **computação**, **rede** e **storage** podem ser selecionados e administrados como silos independentes. Na **infraestrutura convergente (CI)**, esses elementos são fornecidos e integrados como solução pré-validada, com gestão e suporte coordenados, frequentemente preservando subsistemas de storage separados dos servidores. A convergência não requer, por definição, que todos os dados residam nos discos internos dos hosts de aplicação. A proposta é reduzir incompatibilidades e acelerar implantação, mas não suprime necessidade de manutenção e planejamento de crescimento.\n\nNa **infraestrutura hiperconvergente (HCI)**, a capacidade de **computação e armazenamento definido por software** reside nos mesmos nós de um cluster. Discos locais são agregados e expostos logicamente aos workloads mediante software, combinando virtualização, armazenamento e rede; em geral há plano integrado de gestão. Exemplos de conceitos de HCI aparecem no **Storage Spaces Direct** e em pilhas que juntam nós de computação/virtualização e storage distribuído compatível, como determinadas implantações com Ceph. HCI não é marca de produto nem equivale obrigatoriamente a armazenamento centralizado externo em SAN.\n\n## 3. Expansão, desempenho e limites\nA **CI** pode permitir crescimento relativamente independente dos componentes, mediante arquitetura do fornecedor; a **HCI tradicional** frequentemente expande computação e storage ao adicionar nós, o que simplifica uma parte do crescimento mas pode desperdiçar capacidade se a demanda for desbalanceada. Há soluções e arquiteturas com **desagregação** de recursos; não absolutize a frase “HCI nunca permite escalar storage separadamente”. O dimensionamento considera CPU, RAM, capacidade **bruta versus útil**, fator de replicação/erasure coding, espaço de reconstrução, tolerância a falha, redes leste-oeste, latência de discos e licenciamento. Armazenamento replicado em múltiplos nós consome espaço adicional: 30 TB brutos não implicam 30 TB úteis.\n\nA rede leste-oeste é decisiva em HCI porque nós trocam dados para replicação, consistência e recuperação. Um link saturado afeta não apenas aplicações, mas reconstrução de réplicas e movimentação de dados. **Erasure coding** pode reduzir overhead de espaço ante réplica integral, mas acrescenta complexidade e custo de computação/reconstrução; sua adequação depende do produto e perfil de carga. Uma falha em nó HCI pode retirar simultaneamente CPU e uma parcela do storage, razão pela qual políticas de redundância e distribuição de dados precisam prever essa perda. A resiliência informada pelo fornecedor sempre pressupõe recursos, topologia e estado de saúde definidos.\n\n## 4. Escolha arquitetural e diagnóstico\nConsidere **bare metal sem VMs** quando a aplicação precisa de acesso direto a hardware, restrições de latência, requisitos de suporte/licenciamento ou isolamento específico; considere **virtualização em hosts dedicados** para consolidação e flexibilidade; considere **CI** para pilha integrada com componentes relativamente separados; avalie **HCI** para gestão unificada e expansão por nós. Nenhuma alternativa é sempre mais barata, segura ou rápida. Calcule custo total de propriedade (suporte, licenças, rede, energia, equipe, migração, backup), requisitos de RPO/RTO e interoperabilidade.\n\n**Estudo aplicado:** uma autarquia tem três servidores com VMs, cada host próximo de 90% de RAM e backups no mesmo datastore. Ativar HA sem reduzir ocupação ou adicionar capacidade não garante reinício das cargas de um host que falhar. A prioridade é criar folga real, prover dados acessíveis no destino, implementar backup isolado e testar cenários de falha. Se a instituição migrar para HCI, terá de reavaliar tráfego de storage entre nós, capacidade útil após replicação e redundância de rede, não apenas contar discos e processadores.\n\n## 5. Quadro comparativo para provas\n| Critério | Bare metal de aplicação | Virtualização com storage separado | CI | HCI |\n|---|---|---|---|---|\n| Abstração de VM | Não necessariamente | Sim | Em geral, sim | Sim, como solução integrada |\n| Storage | Direto ou externo | Local ou SAN/NAS | Frequentemente subsistema integrado separado | Tipicamente definido por software a partir de discos dos nós |\n| Escala | Por servidor/serviço | Compute e storage conforme desenho | Componentes integrados, com alguma independência | Geralmente por adição de nós; variantes desagregadas existem |\n| Falha de host | Depende de desenho da aplicação | HA se configurada e viável | HA segundo plataforma | HA e resiliência distribuída segundo política e requisitos |\n\n**Síntese de cobrança:** hipervisor tipo 1 não significa ausência de kernel de suporte; vCenter não executa a CPU das VMs; migração não é backup; snapshot não é cópia independente; cluster não implica HA; hiperconvergência combina computação e armazenamento distribuído no mesmo conjunto de nós, sem eliminar a necessidade de redes e proteção de dados."
+    }
+  ],
+  "summary": "**Virtualização de servidores** permite executar múltiplas máquinas virtuais isoladas em hosts físicos por meio de hipervisores. Os nativos, como ESXi e KVM, são habitualmente tratados como tipo 1; hipervisores hospedados em sistemas de desktop são tipo 2. **Bare metal** significa instalação direta no hardware, inclusive de um hipervisor. Em VMware, **ESXi executa VMs** e **vCenter administra**; **vMotion** transfere a execução entre hosts, **Storage vMotion** transfere arquivos, **DRS** balanceia cargas e **HA** busca reiniciá-las diante de falhas com recursos disponíveis. No Linux, **KVM virtualiza na camada de kernel**, **QEMU modela o hardware virtual** e **libvirt gerencia domínios**. Proxmox VE reúne VMs **QEMU/KVM** e contêineres **LXC**. Snapshots não substituem backups independentes e testados; RPO mede a perda temporal tolerável e RTO o tempo para retorno do serviço. Quórum e fencing mitigam *split-brain* em clusters. **CI** integra computação, rede e armazenamento como solução, mas pode manter storage em subsistema próprio; **HCI** reúne computação e armazenamento definido por software nos mesmos nós, exigindo planejamento de capacidade útil, tráfego leste-oeste e domínio de falhas.",
+  "flashcards": [
+    {
+      "front": "O que diferencia hipervisor tipo 1 de tipo 2?",
+      "back": "O tipo 1 exerce a função de hipervisor diretamente sobre os recursos físicos; o tipo 2 roda como aplicação em um sistema operacional hospedeiro."
+    },
+    {
+      "front": "Por que bare metal não é sinônimo de ausência de virtualização?",
+      "back": "Porque um hipervisor nativo, como ESXi, pode ser instalado diretamente no servidor físico, sem VM intermediária."
+    },
+    {
+      "front": "Qual é a diferença fundamental entre VM e contêiner LXC?",
+      "back": "A VM tem kernel de sistema convidado próprio; LXC compartilha o kernel Linux do host e isola processos."
+    },
+    {
+      "front": "Quais são as funções de KVM, QEMU e libvirt?",
+      "back": "KVM acelera virtualização no kernel, QEMU implementa a máquina/dispositivos virtuais e libvirt provê interfaces e APIs de gerenciamento."
+    },
+    {
+      "front": "Para que serve VirtIO?",
+      "back": "Fornece interfaces paravirtualizadas de dispositivos, como rede e disco, reduzindo sobrecarga de emulação quando o guest possui drivers."
+    },
+    {
+      "front": "O que faz o vCenter Server?",
+      "back": "Gerencia centralmente hosts ESXi, inventário e recursos de cluster, mas não substitui o hipervisor responsável pela execução das VMs."
+    },
+    {
+      "front": "O que é vMotion?",
+      "back": "Migração de uma VM ligada entre hosts compatíveis, transferindo seu estado de execução, mediante requisitos técnicos."
+    },
+    {
+      "front": "Em que o Storage vMotion difere do vMotion?",
+      "back": "Storage vMotion move arquivos/discos da VM ligada entre datastores; vMotion move o estado em execução entre hosts."
+    },
+    {
+      "front": "Como DRS e vSphere HA diferem?",
+      "back": "DRS busca posicionar e balancear cargas; HA busca reiniciar VMs após determinadas falhas, com capacidade e storage acessíveis."
+    },
+    {
+      "front": "Um snapshot pode substituir o backup?",
+      "back": "Não. Snapshot normalmente depende da infraestrutura e da cadeia de discos de origem; backup deve permitir restauração independente e testada."
+    },
+    {
+      "front": "O que é provisionamento thin?",
+      "back": "Alocação lógica de disco cujo consumo físico cresce com gravações, exigindo monitoramento de espaço e limites."
+    },
+    {
+      "front": "O que indica CPU ready?",
+      "back": "Tempo em que uma vCPU pronta para executar precisa esperar o escalonador do hipervisor, sinal possível de contenção."
+    },
+    {
+      "front": "Qual é a função do ballooning?",
+      "back": "Permitir que o host recupere parte da memória atribuída a um guest cooperante; não cria memória física."
+    },
+    {
+      "front": "O que é NUMA em servidores?",
+      "back": "Arquitetura em que acesso à memória tem latência dependente do nó de processador, influenciando posicionamento de vCPU e RAM."
+    },
+    {
+      "front": "Quais tecnologias o Proxmox VE utiliza para VMs e contêineres?",
+      "back": "QEMU/KVM para máquinas virtuais e LXC para contêineres."
+    },
+    {
+      "front": "Quais são as funções de qm e pct no Proxmox?",
+      "back": "qm administra VMs QEMU/KVM; pct administra contêineres LXC."
+    },
+    {
+      "front": "O que é quórum em cluster?",
+      "back": "Condição de votos/coordenação suficiente para tomar decisões consistentes, mitigando split-brain."
+    },
+    {
+      "front": "O que diferencia SAN de NAS?",
+      "back": "SAN em geral oferece armazenamento em bloco; NAS oferece acesso a arquivos por protocolos como NFS ou SMB."
+    },
+    {
+      "front": "O que é RPO?",
+      "back": "Perda máxima aceitável de dados, expressa como intervalo temporal entre último ponto recuperável e falha."
+    },
+    {
+      "front": "O que é RTO?",
+      "back": "Tempo-alvo para restabelecer serviço após incidente, segundo objetivos de continuidade."
+    },
+    {
+      "front": "Como se diferencia infraestrutura convergente da hiperconvergente?",
+      "back": "CI integra componentes de computação, rede e storage, frequentemente separados; HCI combina compute e storage definido por software nos mesmos nós."
+    },
+    {
+      "front": "O que ocorre quando o vCenter fica indisponível?",
+      "back": "Hosts ESXi e VMs em operação normalmente continuam; tarefas centralizadas e automações dependentes do vCenter ficam prejudicadas."
+    },
+    {
+      "front": "Por que uma instalação HCI precisa de rede leste-oeste confiável?",
+      "back": "Porque réplicas, consistência e reconstrução de storage distribuído exigem comunicação entre os nós."
+    },
+    {
+      "front": "O que garante um teste de restauração de backup?",
+      "back": "Verifica se a cópia pode ser recuperada e se o sistema e a aplicação operam com integridade no tempo e ponto exigidos."
+    }
+  ],
+  "tips": [
+    "Em C/E, procure o verbo absoluto: “sempre”, “automaticamente” e “dispensa” costumam esconder dependências de compatibilidade, rede e capacidade.",
+    "Fixe a tríade VMware: ESXi executa; vCenter administra; DRS equilibra, enquanto HA reinicia após falha quando viável.",
+    "Memorize a tríade Linux: KVM = virtualização no kernel; QEMU = máquina/dispositivos; libvirt = API e ferramentas de gestão.",
+    "Relacione HCI à agregação de discos dos próprios nós de computação e CI à integração coordenada de componentes frequentemente distintos.",
+    "Para casos de continuidade, identifique o objetivo antes da tecnologia: reversão rápida, cópia independente, alta disponibilidade ou desastre.",
+    "Treine o par RPO/RTO: “quanto dado se pode perder” versus “quanto tempo o serviço pode ficar indisponível”."
+  ],
+  "traps": [
+    "“Hipervisor tipo 1 nunca usa um kernel Linux”: falso; KVM integra o kernel Linux e não se reduz a um programa hospedado tipo 2.",
+    "“Bare metal exclui hipervisor”: falso; um hipervisor nativo pode ser instalado diretamente no hardware.",
+    "“O vCenter é necessário para o host ESXi continuar executando uma VM”: falso; gerenciamento central e execução são planos distintos.",
+    "“Habilitar HA dispensa espaço livre e armazenamento acessível”: falso; o failover depende de recursos efetivamente disponíveis.",
+    "“Snapshot é cópia imutável e independente da VM”: falso; snapshots costumam depender dos discos de origem e de cadeias diferenciais.",
+    "“Um cluster de dois nós sempre tem quórum seguro sem configuração adicional”: falso; partições exigem estratégia coerente de votos e testemunha quando aplicável.",
+    "“Toda HCI exige obrigatoriamente SAN externa”: falso; o padrão é storage definido por software a partir de discos dos próprios nós."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique em três frases o caminho KVM–QEMU–libvirt.",
+      "answer": "KVM fornece aceleração e mecanismos de virtualização no kernel. QEMU representa a máquina e dispositivos e executa o guest. libvirt organiza comandos, APIs e controle administrativo."
+    },
+    {
+      "question": "Uma VM migra entre hosts mas permanece no mesmo datastore: qual recurso VMware é central?",
+      "answer": "vMotion, desde que os hosts sejam compatíveis e atendam aos requisitos de rede e acesso aos dados da VM."
+    },
+    {
+      "question": "Por que um snapshot antes de patch não substitui a rotina de backup?",
+      "answer": "Porque o snapshot depende da infraestrutura de origem e não protege sozinho contra perda de datastore, exclusão, corrupção ou desastre."
+    },
+    {
+      "question": "Por que consolidar VMs em cluster sem reserva de capacidade pode inutilizar o HA?",
+      "answer": "Se um nó falhar, os demais podem não ter RAM/CPU e recursos de storage suficientes para reiniciar as VMs afetadas."
+    },
+    {
+      "question": "Como diferenciar CI de HCI em um edital?",
+      "answer": "CI integra subsistemas pré-validados e pode conservar storage separado. HCI agrega compute e storage definido por software nos mesmos nós do cluster."
+    },
+    {
+      "question": "Qual a diferença prática entre RPO de 1 hora e RTO de 1 hora?",
+      "answer": "RPO tolera até uma hora de perda de alterações; RTO exige restabelecer serviço em até uma hora. São metas independentes."
+    },
+    {
+      "question": "Que evidências devem ser consultadas quando uma VM apresenta lentidão?",
+      "answer": "Contenção de CPU, CPU ready, pressão de memória, localidade NUMA, latência/IOPS de disco, rede, eventos de host e métricas da aplicação."
+    },
+    {
+      "question": "Que ameaça o quórum busca mitigar em um cluster?",
+      "answer": "O split-brain: partições isoladas tentando gerir ou gravar os mesmos recursos como se fossem simultaneamente legítimas."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Natureza do hipervisor e bare metal",
+      "summary": "Confusão entre hipervisor tipo 1, sistema hospedeiro tipo 2 e instalação física bare metal. KVM usa Linux e pode ser considerado tipo 1; bare metal não exclui virtualização."
+    },
+    {
+      "key": "e2",
+      "title": "Execução, gerenciamento e migração VMware",
+      "summary": "Troca de funções entre ESXi e vCenter, entre vMotion e Storage vMotion ou entre DRS, HA e FT, ignorando requisitos e efeitos de falhas."
+    },
+    {
+      "key": "e3",
+      "title": "Pilha KVM/Proxmox e contêineres",
+      "summary": "Mistura papéis de KVM, QEMU, libvirt e Proxmox ou trata LXC como VM com kernel próprio; ignora pré-requisitos de migração e quórum."
+    },
+    {
+      "key": "e4",
+      "title": "Backup, snapshot, armazenamento e continuidade",
+      "summary": "Iguala snapshot a backup, replicação a proteção contra corrupção e RTO a RPO; também confunde SAN/NAS, thin/thick e capacidade lógica/física."
+    },
+    {
+      "key": "e5",
+      "title": "Cluster e convergência arquitetural",
+      "summary": "Presume que cluster já é HA, que HCI depende de SAN externa ou que CI e HCI são sinônimos, desprezando falhas comuns e custos da replicação."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um órgão pretende instalar um hipervisor diretamente em um servidor físico, sem utilizá-lo como aplicativo de um sistema operacional de desktop. Qual afirmação descreve corretamente essa arquitetura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A instalação de um hipervisor nativo no hardware é uma forma de implantação bare metal.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Bare metal exige que os recursos da CPU sejam emulados sem suporte de virtualização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Todo hipervisor instalado em hardware físico é necessariamente de tipo 2.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O hipervisor só será do tipo 1 se as VMs compartilharem o kernel do host.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O servidor bare metal deve executar apenas um sistema operacional e não pode hospedar VMs.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bare metal descreve a instalação direta no equipamento, inclusive de hipervisor tipo 1. As demais proposições confundem esse modelo com ausência de VMs, emulação obrigatória, tipo hospedado e contêineres.",
+      "section": "Fundamentos, hipervisores e servidores bare metal",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No ambiente de virtualização, o sistema operacional executado dentro de uma máquina virtual é denominado convidado (guest), enquanto o equipamento que disponibiliza os recursos físicos é o host.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O host fornece CPU, memória, rede e armazenamento administrados pelo hipervisor, enquanto o guest utiliza dispositivos apresentados à VM. Os termos identificam camadas diferentes e não indicam, sozinhos, o tipo de hipervisor.",
+      "section": "Fundamentos, hipervisores e servidores bare metal",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe compara uma máquina virtual Linux a um contêiner LXC no mesmo host. Qual característica distingue corretamente a virtualização por VM da virtualização por contêiner?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Toda VM precisa usar o mesmo kernel do host para funcionar com virtualização de hardware.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A VM utiliza kernel de sistema operacional convidado; o contêiner LXC compartilha o kernel Linux do host.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "VMs não permitem separar discos e interfaces de rede entre aplicações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O contêiner é necessariamente mais isolado que a VM porque não usa kernel algum.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O contêiner LXC possui hipervisor independente para executar qualquer kernel Windows.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na VM, o guest executa kernel próprio sobre hardware virtual; no LXC, processos isolados compartilham o kernel Linux. As outras alternativas invertem as arquiteturas ou atribuem propriedades inexistentes ao contêiner.",
+      "section": "Fundamentos, hipervisores e servidores bare metal",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um hipervisor é classificado obrigatoriamente como tipo 2 sempre que sua implementação utiliza o kernel Linux, inclusive quando se trata de KVM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "KVM integra mecanismos de virtualização ao kernel Linux e é comumente tratado como hipervisor tipo 1. A classificação não se determina pela simples presença de um kernel; o tipo 2 é tipicamente hospedado como aplicação.",
+      "section": "Fundamentos, hipervisores e servidores bare metal",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante auditoria de capacidade, uma VM com muitas vCPUs apresenta latência elevada, embora a utilização média das vCPUs não pareça excessiva. Qual ação diagnóstica é tecnicamente mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar o monitoramento de CPU, já que uso médio baixo afasta qualquer problema de agendamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Concluir que a causa é sempre falta de espaço em disco, independentemente das métricas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Investigar a espera de agendamento das vCPUs e o dimensionamento de CPU, incluindo a contenção no host.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Forçar todas as VMs a um mesmo núcleo físico para eliminar a disputa por processamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar vCPUs indefinidamente, pois cada vCPU corresponde a núcleo físico exclusivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "CPU ready e outros indicadores de contenção ajudam a detectar vCPUs prontas que aguardam execução. A contagem de vCPUs não equivale a núcleos dedicados; mais vCPUs ou afinidade inadequada podem agravar o problema.",
+      "section": "Fundamentos, hipervisores e servidores bare metal",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A disponibilização de 16 vCPUs a uma VM, em um host com oito núcleos físicos, implica reserva exclusiva de 16 núcleos e torna tecnicamente impossível a inicialização dessa VM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "vCPU é unidade lógica escalonada sobre recursos físicos, não núcleo necessariamente reservado. O overcommit de CPU pode permitir mais vCPUs que núcleos; desempenho e suporte dependem de contenção e da plataforma.",
+      "section": "Fundamentos, hipervisores e servidores bare metal",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador habilita ballooning em hosts com pressão de memória. Qual é a interpretação correta do funcionamento dessa técnica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O ballooning adiciona chips de memória ao servidor sem intervenção humana.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O ballooning garante que todo convidado aumente permanentemente sua RAM física.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O recurso substitui automaticamente os backups de memória e de disco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um driver no convidado coopera para liberar ao host parte da memória atribuída, sem criar RAM física.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O mecanismo torna irrelevante a existência de paginação ou limite de memória.",
+          "correct": false
+        }
+      ],
+      "explanation": "Ballooning recupera páginas de memória por cooperação entre convidado e hospedeiro quando suportado. Não amplia RAM instalada, não elimina pressão ou paginação e tampouco se relaciona a cópias de segurança.",
+      "section": "Fundamentos, hipervisores e servidores bare metal",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A virtualização aninhada consiste em executar funções de hipervisor dentro de uma VM, normalmente para laboratórios ou cenários específicos que exigem suporte apropriado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Na virtualização aninhada, o sistema convidado pode hospedar outras VMs, desde que os recursos e as extensões virtuais requeridas estejam disponíveis. Não é instalação bare metal no nível interno nem garantia universal de desempenho.",
+      "section": "Fundamentos, hipervisores e servidores bare metal",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instituição possui host com dois nós NUMA e aplicações sensíveis a latência. Qual decisão tende a favorecer desempenho previsível dessas VMs?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o número de vCPUs sem avaliar o perfil de carga e a memória efetivamente usada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ignorar o arranjo NUMA, pois todos os acessos à RAM têm latência invariavelmente idêntica.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Distribuir sempre cada vCPU por um nó distinto, mesmo em cargas pequenas que cabem em um nó.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter todas as VMs em contêineres, porque isso elimina a topologia física de memória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Considerar a localidade entre vCPUs e páginas de memória e medir acessos remotos entre nós NUMA.",
+          "correct": true
+        }
+      ],
+      "explanation": "A arquitetura NUMA pode tornar acessos à memória remota mais lentos que os locais. Dimensionamento, afinidade e métricas precisam preservar localidade quando útil; as outras medidas ignoram a topologia ou criam falsa garantia.",
+      "section": "Fundamentos, hipervisores e servidores bare metal",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um host virtualizado, o uso de drivers paravirtualizados para rede e disco é incompatível com a virtualização completa da CPU, pois as duas técnicas são mutuamente excludentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Virtualização da CPU e paravirtualização de dispositivos podem coexistir na mesma máquina virtual. Drivers otimizados reduzem trabalho de emulação sem exigir que o guest deixe de possuir kernel e ambiente virtuais próprios.",
+      "section": "Fundamentos, hipervisores e servidores bare metal",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na administração de uma estrutura VMware com múltiplos hosts, qual componente executa diretamente as VMs, diferentemente do componente central de gerenciamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ESXi, instalado nos hosts físicos para oferecer a camada de hipervisor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "vSphere HA, que funciona como sistema operacional completo de cada VM.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DRS, que substitui as funções de hardware e executa os kernels convidados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Storage vMotion, que é o hipervisor dedicado à execução dos convidados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "vCenter Server, que executa todas as instruções das vCPUs em lugar dos hosts.",
+          "correct": false
+        }
+      ],
+      "explanation": "ESXi é a camada que hospeda e executa máquinas virtuais; vCenter centraliza administração. DRS e HA coordenam decisões de cluster, ao passo que Storage vMotion é recurso de mobilidade de arquivos.",
+      "section": "Administração VMware vSphere: ESXi, vCenter e mobilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O vCenter Server oferece gerenciamento centralizado dos hosts ESXi, enquanto as máquinas virtuais são executadas nos hosts por meio do hipervisor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O vCenter organiza inventário e operações coordenadas, mas não substitui o componente ESXi que executa os convidados. Essa distinção explica por que a perda do plano central não derruba automaticamente as VMs existentes.",
+      "section": "Administração VMware vSphere: ESXi, vCenter e mobilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VM deve continuar ligada ao ser transferida para outro host ESXi compatível, conservando seus discos no datastore já acessível aos dois hosts. Qual funcionalidade é a mais específica para essa tarefa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Snapshot, que faz com que a VM passe a executar automaticamente em outro host.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "vMotion, com transferência do estado de execução entre hosts.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Cold migration, que sempre preserva execução contínua após desligamento prévio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Storage vMotion exclusivamente, pois sua função principal é trocar a CPU física do host.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "vSphere HA, que necessariamente migra em tempo real todas as VMs diante de falha.",
+          "correct": false
+        }
+      ],
+      "explanation": "vMotion desloca o estado de execução de uma VM ligada entre hosts, observando compatibilidade e conectividade. Storage vMotion move arquivos; cold migration envolve VM desligada; HA reinicia diante de falhas específicas.",
+      "section": "Administração VMware vSphere: ESXi, vCenter e mobilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O vSphere HA garante que uma VM reinicie em outro host sem qualquer interrupção perceptível e sem precisar de capacidade disponível nesse host.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Em falha de host, o HA busca reiniciar VMs nos nós sobreviventes, o que costuma acarretar interrupção. O destino precisa reunir capacidade e acesso aos dados necessários; ausência de recursos inviabiliza o objetivo.",
+      "section": "Administração VMware vSphere: ESXi, vCenter e mobilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um vCenter Server fica indisponível, enquanto os hosts ESXi e seu armazenamento permanecem operacionais. Qual resultado é esperado, sem outras falhas concomitantes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "As funções de gestão central e de balanceamento dependentes do vCenter continuam necessariamente intactas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "As VMs são desligadas automaticamente, pois os ciclos de CPU são processados no vCenter.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As VMs que já executavam nos hosts continuam em operação, mas funções de gestão central ficam prejudicadas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Todos os hosts perdem imediatamente suas conexões com datastores já montados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Todo datastore do cluster é apagado ao perder o inventário gerenciado.",
+          "correct": false
+        }
+      ],
+      "explanation": "O vCenter administra centralmente, enquanto os hosts ESXi executam as VMs e mantêm acesso a datastores já configurados. Sua indisponibilidade prejudica certas operações, mas não provoca desligamento ou apagamento automático.",
+      "section": "Administração VMware vSphere: ESXi, vCenter e mobilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A tecnologia Enhanced vMotion Compatibility (EVC) pode colaborar com a migração de VMs entre processadores compatíveis ao expor um conjunto comum de recursos de CPU.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "EVC ajuda a administrar diferenças de funcionalidades de CPU usadas durante migração. Não converte qualquer arquitetura em outra nem dispensa validação das limitações de fabricantes, famílias e versões suportadas.",
+      "section": "Administração VMware vSphere: ESXi, vCenter e mobilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No vSphere, qual recurso tem como objetivo principal avaliar e melhorar a distribuição de VMs entre hosts de um cluster, respeitadas regras e capacidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "vSphere Fault Tolerance, usado como substituto obrigatório de qualquer balanceamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "VMFS, serviço que calcula a melhor posição de memória das VMs entre hosts.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Snapshot manager, responsável por gerenciar escalonamento de vCPUs em todos os hosts.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Distributed Resource Scheduler (DRS).",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "vSphere HA, cuja função central é equalizar continuamente a utilização por migração preventiva.",
+          "correct": false
+        }
+      ],
+      "explanation": "DRS atua no posicionamento e balanceamento de VMs segundo recursos e restrições. HA é orientado à recuperação após falha; snapshots registram estado, VMFS é sistema de arquivos e FT atende outra finalidade.",
+      "section": "Administração VMware vSphere: ESXi, vCenter e mobilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de um snapshot armazenado no mesmo datastore da VM elimina a necessidade de backup independente, pois os dados permanecem recuperáveis mesmo após a perda física daquele datastore.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O snapshot depende de infraestrutura e arquivos da VM, podendo se perder com o datastore de origem. Backup independente e restauração testada são necessários para riscos como falha física, exclusão e corrupção.",
+      "section": "Administração VMware vSphere: ESXi, vCenter e mobilidade",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe quer diminuir o uso de um datastore movendo o disco de uma VM ligada para outro datastore, sem alterar necessariamente o host de execução. Qual tecnologia corresponde a esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "vSphere HA, que move automaticamente o disco para manter a memória primária.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cold migration, cuja característica obrigatória é transferir arquivos com a VM ligada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "EVC, que transporta arquivos VMDK entre datastores durante mudanças de CPU.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DRS de computação, que só pode atuar ao copiar todo o armazenamento de cada VM.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Storage vMotion, para relocalização dos arquivos da VM em execução.",
+          "correct": true
+        }
+      ],
+      "explanation": "Storage vMotion é mobilidade de armazenamento com a VM em execução. EVC harmoniza recursos de CPU; HA recupera cargas após falhas; DRS de computação e cold migration não definem a operação solicitada.",
+      "section": "Administração VMware vSphere: ESXi, vCenter e mobilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em redes vSphere, um adaptador VMkernel pode ser configurado para tráfego de serviços do host, como gerenciamento ou migração, ao passo que a placa virtual do guest conecta a VM à rede lógica correspondente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Os adaptadores VMkernel são interfaces de serviços do host; as placas virtuais das VMs servem ao tráfego dos sistemas convidados. Confundir as duas camadas gera erros ao configurar redes de gestão, migração e dados.",
+      "section": "Administração VMware vSphere: ESXi, vCenter e mobilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em host Linux, qual componente fornece principalmente a virtualização assistida por hardware integrada ao kernel, usada na execução de VMs QEMU?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "KVM (Kernel-based Virtual Machine).",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "libvirt, que substitui o kernel por uma camada de armazenamento físico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "LXC, que instala um kernel independente em cada processo isolado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Corosync, que emula dispositivos gráficos e executa sistemas convidados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "NFS, que acelera instruções privilegiadas de CPU.",
+          "correct": false
+        }
+      ],
+      "explanation": "KVM reúne mecanismos de virtualização do kernel apoiados no processador. QEMU implementa máquina/dispositivos, libvirt oferece gerenciamento, LXC compartilha kernel e Corosync coordena membros do cluster.",
+      "section": "KVM, QEMU, libvirt e Proxmox VE",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Proxmox VE permite administrar máquinas virtuais QEMU/KVM e contêineres LXC por uma plataforma integrada de gerenciamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A plataforma combina ambos os modelos: VMs possuem sistemas convidados com kernels próprios e contêineres LXC compartilham o kernel Linux. O gerenciamento unificado não os transforma em tecnologias idênticas.",
+      "section": "KVM, QEMU, libvirt e Proxmox VE",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador prepara servidores Proxmox VE para hospedar máquinas virtuais Linux e contêineres de sistema. Qual combinação de tecnologias está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ceph para executar instruções de CPU e NFS como mecanismo de isolamento de processos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "QEMU/KVM para VMs e LXC para contêineres.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "PBS para fornecer a CPU virtual e vCenter para controlar contêineres locais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "LXC para VMs com kernels próprios e VMware ESXi obrigatório para contêineres.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Corosync para emular hardware das VMs e ZFS para executar kernels convidados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Proxmox VE integra QEMU/KVM na virtualização de máquinas e LXC nos contêineres. Ceph, NFS e ZFS são tecnologias de armazenamento; Corosync atua em cluster e PBS em backup, não como hipervisores.",
+      "section": "KVM, QEMU, libvirt e Proxmox VE",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O utilitário `pct` é voltado à administração de contêineres no Proxmox VE, ao passo que `qm` se aplica a operações de VMs QEMU/KVM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "As ferramentas distinguem os dois tipos de carga da plataforma. Mesmo sob interface gráfica comum, VMs e contêineres têm ciclos de vida, recursos e mecanismos de isolamento distintos, o que justifica comandos separados.",
+      "section": "KVM, QEMU, libvirt e Proxmox VE",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um cluster de virtualização, uma falha de comunicação divide nós em dois grupos. Qual mecanismo visa reduzir o risco de decisões conflitantes sobre recursos compartilhados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o espaço do disco thin em cada VM para resolver split-brain.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mover a interface de gerenciamento para outra VLAN sem verificar a partição de rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quórum combinado, quando necessário, com mecanismos de fencing compatíveis.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Utilizar snapshots de uma VM como substituto do controle de membros do cluster.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar votos do cluster e permitir escrita simultânea por todas as partições.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quórum regula decisões entre membros e fencing pode isolar nó inseguro, protegendo recursos compartilhados. Snapshots, mudanças isoladas de VLAN e aumento de discos não resolvem concorrência de escrita após partição.",
+      "section": "KVM, QEMU, libvirt e Proxmox VE",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A migração ao vivo de VM no Proxmox VE é sempre impossível quando o armazenamento não é compartilhado, independentemente dos mecanismos de migração e da versão suportada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Armazenamento compartilhado simplifica certas migrações, mas há modalidades que copiam discos durante migração sob requisitos próprios. A viabilidade depende do backend, dos recursos, da rede e do suporte da plataforma.",
+      "section": "KVM, QEMU, libvirt e Proxmox VE",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na pilha de virtualização Linux, que função caracteriza predominantemente o libvirt?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir a CPU física por uma CPU inteiramente fabricada em software sem KVM.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Impedir que QEMU represente adaptadores virtuais ou discos para o guest.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Oferecer apenas armazenamento de objetos para volumes de VMs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Fornecer interfaces e APIs para configurar, iniciar, consultar e administrar máquinas virtuais.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Ser um sistema de contêineres que obriga todos os convidados a usar o kernel do host.",
+          "correct": false
+        }
+      ],
+      "explanation": "libvirt é camada de administração e comunicação com mecanismos como QEMU/KVM. Não é o hipervisor responsável por acelerar a CPU, nem substitui discos ou obriga VMs a compartilhar kernel como contêineres.",
+      "section": "KVM, QEMU, libvirt e Proxmox VE",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Proxmox Backup Server oferece recursos de backup, deduplicação e verificação de integridade, mas não elimina a necessidade de testar a restauração das cargas protegidas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Os recursos do PBS ajudam no armazenamento e na verificação técnica das cópias; o teste de restauração confirma se VM e aplicação podem efetivamente voltar ao serviço com dados utilizáveis dentro dos objetivos definidos.",
+      "section": "KVM, QEMU, libvirt e Proxmox VE",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização deseja usar Ceph RBD com nós Proxmox VE para armazenar discos de VMs. Qual descrição é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RBD é um hipervisor tipo 2 que executa sistemas convidados diretamente na interface web.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ceph é apenas sistema de arquivos local que não utiliza comunicação entre nós.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O uso de RBD dispensa planejar réplicas, desempenho e capacidade útil dos discos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ceph RBD só pode armazenar contêineres e não discos de máquinas virtuais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RBD expõe dispositivos de bloco de um storage distribuído, cuja disponibilidade depende do cluster e da rede.",
+          "correct": true
+        }
+      ],
+      "explanation": "Ceph RBD fornece volumes de bloco sobre armazenamento distribuído, apropriados a cenários suportados de VM. O serviço depende de rede, nós e regras de proteção de dados, não sendo hipervisor nem capacidade infinita.",
+      "section": "KVM, QEMU, libvirt e Proxmox VE",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A API libvirt e o emulador QEMU executam funções idênticas, motivo pelo qual a utilização de libvirt impede o uso de KVM para aceleração por hardware.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "libvirt gerencia domínios e encaminha operações, QEMU implementa máquinas e dispositivos, e KVM acelera virtualização no kernel. Esses componentes são complementares e podem atuar juntos em uma única VM.",
+      "section": "KVM, QEMU, libvirt e Proxmox VE",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma implantação de virtualização, o administrador precisa distinguir acesso de bloco e acesso a arquivos. Qual exemplo está corretamente associado ao modelo habitual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "iSCSI para acesso de bloco e NFS para acesso a arquivos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "DRS como acesso de bloco e snapshots como protocolo de transferência de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "VLAN para armazenamento de bloco e VMkernel para sistema de arquivos compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "NFS para acesso de bloco e iSCSI exclusivamente para arquivos de texto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CPU ready como protocolo de disco e NUMA como sistema de arquivos em rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "iSCSI normalmente transporta comandos para armazenamento em bloco por IP, enquanto NFS exporta sistemas de arquivos pela rede. Os demais termos descrevem rede, desempenho ou recursos de virtualização, não esses protocolos.",
+      "section": "Redes, armazenamento, proteção e segurança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O provisionamento thin de um disco virtual permite que o espaço efetivamente ocupado cresça conforme as gravações, exigindo controle da capacidade livre no armazenamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O disco thin pode apresentar ao guest um tamanho lógico maior que a área já consumida fisicamente. Essa economia inicial depende de monitoração para impedir indisponibilidade quando o datastore alcança sua capacidade.",
+      "section": "Redes, armazenamento, proteção e segurança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gestor exige tolerância à perda máxima de quinze minutos de dados, além de restabelecimento da aplicação em até duas horas. Como esses requisitos devem ser classificados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reserva de CPU de quinze minutos e tempo de replicação de duas horas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "RPO de quinze minutos e RTO de duas horas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "RTO de quinze minutos e RPO de duas horas, porque RPO mede tempo de reinício.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RPO de duas horas e RTO ilimitado, porque são sempre objetivos iguais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Snapshot de quinze minutos e alta disponibilidade de duas horas, sem relação com metas.",
+          "correct": false
+        }
+      ],
+      "explanation": "RPO expressa o ponto de recuperação e a perda temporal de dados tolerada; RTO expressa o tempo-alvo para retomar a aplicação. Trocar os termos pode produzir solução incapaz de atender a continuidade contratada.",
+      "section": "Redes, armazenamento, proteção e segurança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VLAN, por segmentar tráfego em camada 2, substitui integralmente firewall, autenticação e controle de acesso à administração dos hosts de virtualização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "VLAN segmenta redes lógicas, mas não implementa, sozinha, todas as políticas de filtragem, identidade e privilégio. O plano de gestão do hipervisor requer controles adicionais e separação de funções.",
+      "section": "Redes, armazenamento, proteção e segurança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VM possui disco virtual thin e datastore físico próximo do esgotamento. Qual medida operacional é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Assumir que o disco thin garante espaço físico ilimitado ao convidado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Confiar que snapshots impedem crescimento do espaço físico em workloads de escrita.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Monitorar espaço físico livre, crescimento previsto e alertas, ajustando capacidade ou consumo antes da exaustão.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desligar logs e backups para que o disco virtual não consuma qualquer armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar apenas o valor lógico do disco sem conferir uso do datastore.",
+          "correct": false
+        }
+      ],
+      "explanation": "Provisionamento thin posterga alocação física, mas gravações podem esgotar a capacidade real. Monitoramento e planejamento previnem falhas; ampliar apenas a capacidade lógica ou manter snapshots não resolve o limite físico.",
+      "section": "Redes, armazenamento, proteção e segurança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O throughput de armazenamento e os IOPS medem a mesma grandeza, de modo que uma carga com muitos acessos aleatórios pequenos necessariamente terá alto volume transferido por segundo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "IOPS mede quantidade de operações por segundo; throughput mede volume transferido por unidade de tempo. Muitos acessos pequenos podem produzir IOPS altos com baixo throughput; a latência é ainda outra dimensão.",
+      "section": "Redes, armazenamento, proteção e segurança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe realizou snapshots antes de atualizações de servidores de aplicação. Para atender também à recuperação após destruição do storage principal, qual complemento é necessário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter exclusivamente snapshots na mesma unidade física durante prazo indefinido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ativar DRS, porque balanceamento de processamento recompõe dados perdidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o número de snapshots da mesma cadeia sem criar cópia externa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cópias de backup isoladas do armazenamento original e restaurações verificadas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Conectar todas as VMs à rede administrativa para acelerar reversão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Snapshots da mesma infraestrutura não resistem necessariamente à destruição do storage. Backups independentes e testes de restauração cobrem esse risco; DRS e rede de gestão não recuperam dados inexistentes.",
+      "section": "Redes, armazenamento, proteção e segurança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O backup de VM deve ser avaliado não apenas pela conclusão da tarefa de cópia, mas também por testes que demonstrem recuperação de dados e funcionamento da aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma execução bem-sucedida não comprova que o ambiente recuperado será consistente ou atenderá ao prazo exigido. Testes de restauração, isolamento e verificação de serviços integram proteção de dados confiável.",
+      "section": "Redes, armazenamento, proteção e segurança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um hypervisor possui duas placas de rede conectadas ao mesmo switch físico, declarado ponto único de falha. Qual alteração aumenta a resiliência dessa conectividade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar vCPUs às VMs, pois processamento extra substitui redundância física.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar o segundo uplink para evitar agregação de tráfego.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar snapshots para impedir a indisponibilidade de portas de rede do host.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar duas VLANs nas mesmas interfaces e presumir proteção contra a falha física do switch.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Distribuir os uplinks por equipamentos de rede independentes, com configuração de failover compatível.",
+          "correct": true
+        }
+      ],
+      "explanation": "Redundância deve considerar o caminho físico inteiro e os domínios de falha. Duas NICs no mesmo switch não protegem contra perda desse equipamento; VLANs e snapshots não substituem caminhos alternativos reais.",
+      "section": "Redes, armazenamento, proteção e segurança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A replicação assíncrona, por manter cópias em outro local, garante que toda transação confirmada na origem esteja preservada no destino no instante de qualquer falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Na replicação assíncrona pode existir defasagem entre origem e destino, permitindo perda das últimas alterações. A proteção adequada depende do RPO contratado, do modo de replicação e de testes de recuperação.",
+      "section": "Redes, armazenamento, proteção e segurança operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa planeja implantar infraestrutura hiperconvergente. Qual definição corresponde a esse modelo arquitetural?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Combinação de computação e armazenamento definido por software nos mesmos nós de um cluster.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Centralização de todo armazenamento em uma SAN externa como característica definidora universal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Separação obrigatória de computação e armazenamento em datacenters sem conectividade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uso exclusivo de servidores físicos sem qualquer tecnologia de virtualização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituição de redes por discos, tornando dispensável a comunicação entre hosts.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na HCI, nós fornecem computação e contribuem ao armazenamento distribuído por software. Pode haver componentes complementares, mas SAN externa obrigatória, ausência de VMs e dispensa de rede não definem hiperconvergência.",
+      "section": "Clusters, alta disponibilidade e infraestrutura convergente/hiperconvergente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma arquitetura hiperconvergente típica, os mesmos nós do cluster disponibilizam processamento e contribuem com discos ao armazenamento definido por software.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A HCI procura integrar computação e storage distribuído nos nós, simplificando algumas operações. Ela continua dependente de rede, tolerância a falhas e planejamento de capacidade, inclusive espaço de replicação.",
+      "section": "Clusters, alta disponibilidade e infraestrutura convergente/hiperconvergente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar infraestrutura convergente (CI) e hiperconvergente (HCI), qual conclusão é tecnicamente mais precisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "CI e HCI são sempre sinônimos e usam obrigatoriamente um único produto idêntico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A CI integra componentes pré-validados que podem permanecer separados; a HCI agrega storage definido por software e computação nos mesmos nós.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A HCI, por definição, não utiliza rede leste-oeste nem mecanismos de replicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CI dispensa storage; HCI dispensa processamento, pois apenas a rede realiza as operações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Toda CI precisa usar LXC e toda HCI precisa usar hipervisor hospedado tipo 2.",
+          "correct": false
+        }
+      ],
+      "explanation": "CI enfatiza integração de subsistemas, frequentemente com storage dedicado; HCI reúne compute e software-defined storage em um conjunto de nós. As demais opções eliminam componentes essenciais ou impõem tecnologias não obrigatórias.",
+      "section": "Clusters, alta disponibilidade e infraestrutura convergente/hiperconvergente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Infraestrutura convergente e hiperconvergente são termos rigorosamente equivalentes; em ambas, é obrigatório construir storage distribuído com discos locais de todos os hosts.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A CI pode integrar hardware e software pré-validados mantendo armazenamento em subsistema dedicado. Na HCI, a agregação de storage definido por software aos nós de compute é característica central; os termos não são sinônimos.",
+      "section": "Clusters, alta disponibilidade e infraestrutura convergente/hiperconvergente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Três hosts trabalham com 90% da RAM ocupada. O administrador ativa a função HA e presume que todas as VMs serão reiniciadas após perda total de qualquer host. Qual é a falha principal desse raciocínio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A mera existência de HA aumenta automaticamente a RAM física de todos os hosts.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A ferramenta de HA substitui integralmente as rotinas de backup e segurança.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O reinício depende de capacidade efetiva nos nós sobreviventes e acesso ao estado persistente das VMs.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "HA garante replicação de todos os discos e elimina toda dependência de rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A escolha de três hosts elimina a necessidade de dimensionar capacidade e falhas.",
+          "correct": false
+        }
+      ],
+      "explanation": "HA coordena recuperação, mas não fabrica RAM ou storage e não dispensa recursos para failover. Com hosts quase lotados, pode faltar capacidade no sobrevivente; a estratégia ainda depende de dados e conectividade.",
+      "section": "Clusters, alta disponibilidade e infraestrutura convergente/hiperconvergente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A configuração de quórum e, quando aplicável, de fencing busca reduzir o risco de split-brain em clusters sujeitos a partições de rede.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A votação evita decisões divergentes sem membros suficientes; fencing pode impedir acesso de nó sem autoridade a recursos compartilhados. A técnica protege consistência, mas requer topologia e configuração corretas.",
+      "section": "Clusters, alta disponibilidade e infraestrutura convergente/hiperconvergente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um projeto de armazenamento hiperconvergente, três nós possuem discos que serão usados para cópias replicadas dos dados. Que conceito deve entrar no cálculo de capacidade útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A equivalência obrigatória entre todos os terabytes brutos e capacidade útil anunciável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A possibilidade de dispensar backups porque já existe replicação no cluster.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A inexistência de tráfego de rede entre os nós durante reconstrução de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A diferença entre capacidade bruta e útil após redundância, metadados e reservas de recuperação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A criação de capacidade física extra apenas pela instalação do hipervisor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Redundância e reservas consomem parte dos discos brutos, e a reconstrução usa rede e I/O. A capacidade útil não é a soma simples de discos; réplicas mantêm disponibilidade, mas não substituem backup independente.",
+      "section": "Clusters, alta disponibilidade e infraestrutura convergente/hiperconvergente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por integrar armazenamento definido por software, uma infraestrutura hiperconvergente não necessita de redes físicas entre os nós para manter réplicas ou recuperar dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A HCI depende intensamente da conectividade entre nós para coordenação, distribuição e reconstrução de dados. A ausência ou saturação de rede pode comprometer desempenho e disponibilidade do storage distribuído.",
+      "section": "Clusters, alta disponibilidade e infraestrutura convergente/hiperconvergente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois subconjuntos de um cluster perdem comunicação e ambos tentam continuar a gravar um volume compartilhado. Qual combinação conceitual é mais pertinente para esse risco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "NUMA, corrigido pelo aumento do número lógico de vCPUs.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ballooning, porque a liberação de RAM soluciona divergência entre partições.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Storage vMotion, que elimina automaticamente qualquer conflito de escrita do cluster.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Thin provisioning, resolvido por ampliar os discos virtuais de cada convidado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Split-brain, prevenido por decisões de quórum e isolamento/fencing quando aplicável.",
+          "correct": true
+        }
+      ],
+      "explanation": "O cenário é split-brain: partições isoladas competem pelo controle dos mesmos dados. Quórum e fencing reduzem a possibilidade de escrita concorrente; CPU, memória e dimensionamento de discos não resolvem o conflito.",
+      "section": "Clusters, alta disponibilidade e infraestrutura convergente/hiperconvergente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O planejamento de tolerância à falha de um nó em um cluster demanda identificar domínios comuns de falha e reservar recursos para executar as cargas após a perda planejada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A disponibilidade depende de capacidade remanescente, acessibilidade aos dados e infraestrutura de rede/energia. Nós em um mesmo switch ou rack podem compartilhar riscos e inviabilizar a redundância apenas aparente.",
+      "section": "Clusters, alta disponibilidade e infraestrutura convergente/hiperconvergente",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Proxmox Virtual Environment: Features",
+      "publisher": "Proxmox Server Solutions GmbH",
+      "reference": "Recursos de QEMU/KVM, LXC, gerenciamento, alta disponibilidade e armazenamento definido por software",
+      "url": "https://www.proxmox.com/en/products/proxmox-virtual-environment/features",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Red Hat Enterprise Linux: Introducing virtualization in RHEL",
+      "publisher": "Red Hat",
+      "reference": "Componentes KVM, QEMU, libvirt e gerenciamento de domínios",
+      "url": "https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html/configuring_and_managing_virtualization/introducing-virtualization-in-rhel_configuring-and-managing-virtualization",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Red Hat Enterprise Linux 10: Basic concepts of virtualization",
+      "publisher": "Red Hat",
+      "reference": "Arquitetura do hipervisor e componentes de virtualização",
+      "url": "https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/10/html/configuring_and_managing_linux_virtual_machines/basic-concepts-of-virtualization-in-rhel",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Overview of virtual machine snapshots in vSphere",
+      "publisher": "Broadcom / VMware",
+      "reference": "Base de conhecimento, artigo 342618: mecanismos e limitações de snapshots",
+      "url": "https://knowledge.broadcom.com/external/article/342618/overview-of-virtual-machine-snapshots-in.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Migrating virtual machines with snapshots",
+      "publisher": "Broadcom / VMware",
+      "reference": "Base de conhecimento, artigo 309951: migração cold, vMotion e Storage vMotion",
+      "url": "https://knowledge.broadcom.com/external/article/309951",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Creating a vSphere DRS and HA cluster",
+      "publisher": "Broadcom / VMware",
+      "reference": "Base de conhecimento, artigo 308413: configuração de DRS e alta disponibilidade",
+      "url": "https://knowledge.broadcom.com/external/article/308413",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Impact of Permanent vCenter Server Loss on ESXi Datastore Connectivity",
+      "publisher": "Broadcom / VMware",
+      "reference": "Base de conhecimento, artigo 441288: distinção entre dependência de plano de gestão e operação dos hosts",
+      "url": "https://knowledge.broadcom.com/external/article/441288/impact-of-permanent-vcenter-server-loss.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Proxmox Backup Server FAQ",
+      "publisher": "Proxmox Server Solutions GmbH",
+      "reference": "Backups incrementais, deduplicação, verificação e sincronização remota",
+      "url": "https://pbs.proxmox.com/docs/faq.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Storage Spaces Direct overview",
+      "publisher": "Microsoft Learn",
+      "reference": "Comparação entre implantação convergente e hiperconvergente",
+      "url": "https://learn.microsoft.com/en-us/windows-server/storage/storage-spaces/storage-spaces-direct-overview",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Failover Clustering Storage Architectures in Windows Server",
+      "publisher": "Microsoft Learn",
+      "reference": "Arquiteturas SAN, NAS, convergência e hiperconvergência",
+      "url": "https://learn.microsoft.com/en-us/windows-server/failover-clustering/storage-architectures",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

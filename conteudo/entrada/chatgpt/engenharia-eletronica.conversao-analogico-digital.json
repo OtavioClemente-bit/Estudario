@@ -1,0 +1,1859 @@
+{
+  "id": "engenharia-eletronica.conversao-analogico-digital",
+  "subject": "Engenharia Eletrônica",
+  "title": "Conversão A/D e D/A: fundamentos, arquiteturas e SNR",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Conversão analógico-digital",
+    "Conversão analógico-digital"
+  ],
+  "scope": {
+    "covers": "Amostragem, Nyquist, aliasing, S/H, quantização, códigos, LSB, ruídos, ADC flash/SAR/dupla rampa/sigma-delta/pipeline, SNR ideal 6,02N + 1,76 dB, SINAD, ENOB, INL, DNL, DAC R–2R, correntes comutadas, PWM, tempo de assentamento e filtros de reconstrução.",
+    "excludes": "Projeto de circuito integrado transistor a transistor, dimensionamento de PCB por normas de segurança, circuitos de RF específicos e especificações de modelos comerciais não mencionados."
+  },
+  "theoryTitle": "Conversão analógico-digital e digital-analógica: teoria completa",
+  "chapters": [
+    {
+      "title": "Fundamentos, amostragem e antialiasing",
+      "markdown": "## Da grandeza física ao dado numérico\nUm sistema de aquisição começa no **sensor**, passa pelo condicionamento analógico, pelo filtro antialiasing e pelo circuito amostrador, realiza a conversão A/D e entrega palavras digitais ao processador. A cadeia não é composta apenas pelo conversor: interferências elétricas, referência inadequada, impedância da fonte e temporização podem comprometer a medição mesmo quando o circuito integrado anuncia muitos bits. A tensão é contínua em amplitude antes da quantização; depois do amostrador torna-se uma sequência de instantes discretos, mas os valores amostrados ainda podem variar continuamente. A quantização estabelece um conjunto finito de amplitudes e a codificação associa números binários aos níveis. Portanto, **amostragem** discretiza o tempo, **quantização** discretiza a amplitude e **codificação** representa os níveis por bits.\n\n## Taxa de amostragem e frequência de Nyquist\nSe a taxa de amostragem é `fs` amostras por segundo, o período é `Ts = 1/fs`. Para um sinal estritamente limitado em banda, com componente máxima `B`, a reconstrução teórica por amostras ideais exige, em regra, `fs > 2B`; a fronteira `fs = 2B` não oferece margem para filtros realizáveis nem para particularidades de fase. Chama-se **frequência de Nyquist** a `fs/2`, que NÃO é a própria taxa `fs`. Por exemplo, `fs = 20 kS/s` dá `Ts = 50 μs` e frequência de Nyquist de `10 kHz`. A resolução em bits não altera esse limite: ela determina o espaçamento vertical entre níveis, não a separação temporal das amostras. Distingua ainda **largura de banda de entrada**, **taxa de amostras**, **taxa de dados** e **latência**; podem ter valores diferentes.\n\n## Aliasing e por que filtrar antes da conversão\nFrequências analógicas diferentes podem produzir a mesma sequência de amostras; o fenômeno é o **aliasing**. Para uma senoide de `13 kHz` amostrada uniformemente a `20 kS/s`, observa-se um componente aparente de `7 kHz` na primeira zona de Nyquist, pois `|13 − 20| = 7`. Não se corrige esse erro aumentando o número de bits do ADC: a informação foi confundida no ato de amostrar. Um filtro analógico passa-baixas antes do ADC atenua componentes acima da banda útil, com banda de transição entre o máximo sinal de interesse e `fs/2`. O filtro real tem transição finita; assim, escolher a taxa exatamente no limite teórico costuma ser inadequado. Para sinais bandpass e amostragem sub-Nyquist existem condições especiais de projeto, mas não se deve aplicá-las automaticamente a sinais arbitrários.\n\n## Sample-and-hold, abertura e aquisição\nO circuito de **amostragem e retenção** (sample-and-hold, S/H) acompanha a entrada na fase de aquisição e mantém aproximadamente o valor durante a decisão de conversão. A capacitância interna precisa carregar por meio da resistência equivalente da fonte, chaves e trilhas. Uma fonte de elevada impedância, sem tempo suficiente, pode produzir erro de assentamento e dependência do canal anteriormente lido. A constante de tempo `RC` orienta o projeto, mas o tempo necessário depende da tolerância em LSB e das especificações do componente. **Tempo de aquisição** não é sinônimo de **tempo de conversão**; o período total pode incluir ambos e custos de multiplexação. O jitter de abertura é uma incerteza aleatória no instante de amostra e provoca erro maior quanto maior a frequência e a inclinação do sinal. A exatidão temporal é tão importante quanto a exatidão vertical em aplicações de alta frequência.\n\n## Condicionamento de entrada e instrumentação\nNa medição de grandezas físicas, amplificadores, atenuadores, proteção, isolamento quando exigido, polarização de sensores e conversão diferencial podem adequar a entrada à faixa do ADC. Para sensores em ponte, medições ratiométricas podem fazer o conversor usar a mesma excitação como referência, reduzindo a influência de sua variação. Em entradas diferenciais, a informação útil é a diferença entre terminais, limitada pela faixa de modo comum permitida; o uso de duas entradas não permite tensões arbitrárias em qualquer pino. O projetista deve conferir faixa dinâmica, capacitância de entrada, corrente de fuga, ruído, proteção contra sobretensão e compatibilidade entre a referência, o driver e a alimentação. Em provas, associe aliasing a **frequência não resolvida**, quantização a **amplitude arredondada** e erro de assentamento à **entrada que ainda não atingiu o valor final**."
+    },
+    {
+      "title": "Quantização, códigos e resolução",
+      "markdown": "## Níveis discretos e LSB\nUm conversor unipolar ideal de `N` bits produz `2^N` códigos binários distintos, geralmente de `0` a `2^N − 1` quando usa binário natural. A **resolução nominal** é esse número de bits; o passo de quantização no modelo de células uniformes é `q = FSR/2^N`, em que `FSR` é a extensão da faixa analógica. Assim, uma faixa de `0 a 4,096 V` e `12 bits` fornece `4096` níveis e `q = 1 mV`. Atenção: fórmulas de transferência com códigos terminais podem usar `FSR/(2^N−1)` ao relacionar extremos de saída de um DAC; **não troque convenções sem verificar** se a questão fala em células de ADC, transições ou pontos extremos de DAC. Em sistemas com dois polos, `FSR` é a diferença entre limites superior e inferior de entrada, mesmo que o zero físico fique no meio.\n\n## Exemplo de codificação e saturação\nEm um ADC didático ideal de oito bits, com intervalo unipolar de `0` a `2,56 V`, uma célula mede `10 mV`. Códigos de oito bits cobrem 256 possibilidades; não são 255 níveis. Na codificação por truncamento de células, amostras dentro de uma mesma faixa recebem o mesmo código. No modelo de arredondamento ao nível mais próximo, as decisões ocorrem nos pontos médios. O **erro de quantização** é a diferença entre o valor amostrado e o valor representado pelo modelo; sua magnitude usual fica limitada aproximadamente a meio LSB no arredondamento ideal, longe de limites de saturação. Ao exceder a faixa admissível, o conversor **satura** e deixa de preservar diferenças de amplitude; isso não é ruído uniforme de quantização. Ganho inadequado pode desperdiçar a faixa útil ou provocar saturação, mesmo em um conversor de elevada resolução.\n\n## Erro rms de quantização e hipótese estatística\nQuando o erro pode ser tratado como variável aproximadamente uniforme no intervalo `−q/2` a `+q/2`, com distribuição suficientemente descorrelacionada do sinal, sua média é zero e sua variância é `q²/12`; logo, `e_rms = q/√12`. Essa aproximação funciona bem em diversas situações de sinais suficientemente variados, mas **não é verdade universal para todo sinal DC ou senoide coerente**. Erro de quantização pode se correlacionar com uma pequena oscilação repetitiva e concentrar energia espectral em componentes determinísticas. O uso intencional de ruído de baixa amplitude, chamado **dither**, pode reduzir artefatos correlacionados à custa de elevar o ruído total. Dither não cria bits físicos; torna a resposta estatística mais comportada, frequentemente em conjunto com processamento adequado.\n\n## Resolução versus exatidão e repetibilidade\nResolução significa discriminar passos de código; **exatidão** é proximidade do valor verdadeiro, determinada por offset, ganho, referência, linearidade, ruído e calibração. Um instrumento pode mostrar muitos dígitos e estar sistematicamente deslocado. Erro de **offset** desloca a função de transferência; erro de **ganho** altera sua inclinação, normalmente após descontado o offset. A não linearidade integral (INL) mede o afastamento da resposta em relação a uma reta de referência definida pelo método de medição; a não linearidade diferencial (DNL) compara larguras de códigos ou incrementos sucessivos com um LSB ideal. DNL suficientemente negativa pode gerar códigos ausentes; não confunda ausência de códigos com mero deslocamento constante de toda a curva. **Repetibilidade** diz respeito à dispersão de resultados em condições mantidas, que pode ser boa mesmo quando há erro de calibração.\n\n## Representação bipolar, referências e leitura de códigos\nPara sinais positivos e negativos, os circuitos podem empregar representação binária com offset, complemento de dois ou outros formatos descritos no manual; o formato digital não é deduzido apenas da polaridade elétrica. Uma amostra negativa pode ter bit mais significativo igual a um em complemento de dois, mas em binário com offset o significado do mesmo padrão difere. Conversores diferenciais frequentemente apresentam referências internas e faixas configuráveis, mas o **span** efetivo e os limites admissíveis devem ser lidos na especificação. Em exercícios, declare a convenção de ponto médio, LSB e saturação antes de calcular códigos limítrofes. Erros comuns: achar que `10 bits = 1000 níveis`, supor que dobrar os bits dobra os níveis, ou imaginar que uma referência com ruído não afeta as medidas. A cada bit adicional, **dobra** o número de códigos, e uma amplitude de faixa fixa reduz o passo nominal à metade."
+    },
+    {
+      "title": "Arquiteturas de conversores A/D e sistemas de aquisição",
+      "markdown": "## Flash ou paralelo\nO **ADC flash** compara a entrada simultaneamente contra diversos limiares gerados por referência, usando banco de comparadores e codificador. No modelo clássico de `N` bits, são necessários `2^N − 1` comparadores, razão por que área, capacitância de entrada e consumo podem se tornar elevados conforme cresce a resolução. Sua vantagem é a baixa latência de decisão e a aptidão a taxas muito altas. Como muitos comparadores atuam em paralelo, erros de offset e divergências entre limiares exigem atenção. Não é correto atribuir à arquitetura flash o uso sequencial de um único comparador realizando busca binária: esse procedimento caracteriza a aproximação sucessiva. Algumas implementações híbridas repartem a conversão em estágios, diminuindo a quantidade de comparadores necessários.\n\n## SAR ou aproximação sucessiva\nO **ADC SAR** utiliza comparador, registrador de aproximações sucessivas, referência e um DAC interno. Primeiramente testa-se a contribuição do bit mais significativo; decisões sucessivas conservam ou descartam pesos até chegar ao bit menos significativo. Na descrição didática, são necessárias `N` decisões para `N` bits, embora os tempos e ciclos do componente real dependam de sua implementação. O SAR costuma ser escolhido por combinar boa resolução, baixa ou moderada latência e consumo competitivo em aquisições de baixa a média/alta taxa conforme o componente. Um circuito S/H adequado, a estabilidade da referência e o assentamento do DAC interno são essenciais. A entrada frequentemente é uma carga capacitiva dinâmica, e o amplificador driver deve repor a carga durante a janela de aquisição. Chamar o SAR de 'integrador de rampa dupla' é uma troca de arquitetura.\n\n## Rampa, contador e dupla integração\nNo **ADC de rampa simples**, uma rampa gerada internamente é comparada ao sinal até ocorrer o cruzamento; medir o tempo de cruzamento produz o resultado digital. A duração depende da grandeza medida e da velocidade da rampa. Um **ADC de contador** pode aumentar um DAC de referência gradualmente até a comparação mudar, também podendo variar sua duração de conversão. O **ADC de dupla rampa** integra a entrada por intervalo conhecido e depois integra uma referência de polaridade oposta até voltar ao nível de referência; mede-se o tempo da segunda etapa. Seu comportamento pode rejeitar bem certas perturbações periódicas quando os tempos são adequadamente escolhidos, justificando seu emprego clássico em instrumentos de bancada. Em contrapartida, não é normalmente a primeira escolha para oscilações muito rápidas, pois a integração demanda tempo. Compare o princípio físico, não apenas o nome comercial do circuito.\n\n## Sigma-delta (ΔΣ), sobreamostragem e filtro digital\nUm **ADC sigma-delta** emprega modulador com integração/realimentação e quantização, frequentemente de poucos níveis internos, em taxa elevada; o processamento digital subsequente filtra e **decima** o fluxo para produzir palavras de maior resolução útil em banda restrita. O formato final de 16 ou 24 bits não indica que o quantizador interno tenha igual número de bits. A **modelagem de ruído** desloca parcela relevante do ruído de quantização para fora da banda de interesse, permitindo filtrá-la. A sobreamostragem sem modelagem de ruído também pode reduzir o ruído quantizado dentro de uma banda fixa, desde que as hipóteses estatísticas sejam válidas; contudo, aumentar taxa não corrige, sozinho, distorção, referência instável ou ruído do sensor. As taxas do modulador, da palavra final e a banda passante do filtro não devem ser confundidas. Filtros digitais podem causar atraso de grupo e latência, relevante em controle em malha fechada.\n\n## Pipeline, multiplexação e seleção\nO **ADC pipeline** distribui a conversão entre estágios com conversão grosseira, subtração de resíduo e amplificação; diferentes amostras atravessam o pipeline simultaneamente. Por isso, o *throughput* pode ser alto embora cada amostra individual atravesse latência de vários estágios. Erros de ganho interetapas, linearidade e correções digitais influenciam o desempenho. Em sistemas com **multiplexador analógico**, diferentes sensores compartilham ADC; após trocar de canal, pode ser necessário tempo de assentamento e descarte de uma primeira leitura, conforme as condições do circuito. Interfaces SPI, I²C, paralela e seriais rápidas apenas transportam os dados e comandos; velocidade da interface não substitui a análise da taxa real de conversão. O projeto deve comparar resolução efetiva, banda do sinal, latência admissível, consumo, custo, número de canais, tipo de entrada e sincronismo, e não escolher uma arquitetura por um único atributo."
+    },
+    {
+      "title": "SNR ideal, ENOB e especificações de desempenho",
+      "markdown": "## A fórmula mais cobrada: SNR = 6,02N + 1,76 dB\nPara um **ADC ideal de N bits**, com **senoide de amplitude próxima à escala completa**, erro de quantização modelado como uniforme e descorrelacionado, e medição do ruído na **banda de Nyquist**, vale a relação aproximada `SNR_ideal = 6,02N + 1,76 dB`. A constante `6,02` surge de `20 log10(2)`, pois cada bit dobra a quantidade de níveis. O termo `1,76 dB` decorre da relação entre o valor eficaz da senoide de escala completa e a dispersão eficaz do erro uniforme `q/√12`. Não é uma garantia de desempenho de qualquer chip de N bits, nem fórmula que se aplique automaticamente a sinal DC, onda quadrada, sinal atenuado ou medida de banda restrita. O SNR ideal é calculado a partir de **resolução nominal**, e não expressa sozinho offsets ou erros de ganho.\n\n## Exemplos calculados e ganho por bit\nAplicando a fórmula: para `8 bits`, `SNR ≈ 49,92 dB`; para `10 bits`, `≈ 61,96 dB`; para `12 bits`, `≈ 74,00 dB`; para `16 bits`, `≈ 98,08 dB`. Acrescentar um bit traz aproximadamente **6,02 dB** de SNR ideal, desde que todo o modelo se mantenha. Se a amplitude de pico da senoide diminui à metade, mantendo o ruído de quantização aproximadamente constante, sua potência cai quatro vezes e o SNR diminui cerca de **6,02 dB**. Confundir `dB` com proporção linear é recorrente: `20 log10(A2/A1)` vale para razão de amplitudes sob impedâncias equivalentes; `10 log10(P2/P1)` é a expressão de razão de potências. A fórmula de SNR quantizado utiliza amplitude eficaz da senoide e ruído eficaz, não pico dividido diretamente por LSB.\n\n## SNR, SINAD, THD e SFDR\n**SNR** compara a potência da componente fundamental à do ruído, geralmente excluindo harmônicos e o componente contínuo de acordo com a convenção especificada. **SINAD** usa sinal dividido pela soma de ruído e distorção, por isso, com definições comparáveis, é no máximo igual ao SNR: pior distorção reduz SINAD mesmo se o ruído não harmônico permanecer baixo. **THD** mede a razão entre conteúdo harmônico e fundamental, geralmente em dB ou percentual. **SFDR** é a diferença entre a fundamental e o maior espúrio no espectro definido, podendo este ser harmônico ou não. Datasheets podem especificar banda, frequência de entrada e condições distintas: os números só são comparáveis depois de alinhar o método de ensaio. Não se usa diretamente THD isolado para calcular ENOB pela fórmula convencional.\n\n## Número efetivo de bits (ENOB)\nA forma usual de calcular o **ENOB dinâmico**, a partir do SINAD medido de um sinal senoidal, é `ENOB = (SINAD − 1,76)/6,02`. Se o SINAD é `62 dB`, resulta aproximadamente `(62 − 1,76)/6,02 ≈ 10,0 bits`. Um ADC anunciado como 14 bits pode entregar 11 ou 12 bits efetivos sob condições reais, e isso não significa falha na contagem de pinos ou na largura do barramento. ENOB incorpora, nessa metodologia, efeitos equivalentes de ruído e distorção; a resolução nominal indica apenas a quantidade de códigos possíveis. Para precisão em DC, consultam-se também INL, offset, ganho, ruído de baixa frequência e resolução livre de ruído, que não são intercambiáveis com o ENOB de ensaio senoidal.\n\n## Orçamento de ruído, jitter e banda\nRuídos aproximadamente independentes podem ser combinados em potência, por soma quadrática dos valores eficazes: `v_total,rms = √(v1² + v2² + ...)`. Uma referência de tensão ruidosa, um amplificador de entrada inadequado ou um clock instável diminuem a relação sinal-ruído do conjunto mesmo que o ADC isolado seja excelente. Para senoide de frequência `fin`, uma estimativa de limite de SNR por jitter temporal eficaz `tj` é `SNR_jitter ≈ −20 log10(2π fin tj)`; frequências de entrada mais altas são mais sensíveis ao mesmo jitter. A integração do ruído sobre **banda menor**, após filtragem apropriada, pode aumentar o SNR medido em banda; isso não equivale a criar gratuitamente precisão absoluta. A sobreamostragem com filtragem/decimação reduz a densidade de ruído em banda conforme condições do sistema, mas não remove aliasing de componentes que já se sobrepuseram ao conteúdo desejado antes do filtro digital.\n\n## Desempenho estático e dinâmico\nA especificação de **DNL** avalia incrementos de código comparados ao ideal; um DNL menor que `−1 LSB` em uma largura de código, segundo a convenção usual, indica código ausente. A **INL** trata da diferença acumulada relativa a uma linha ideal ou ajustada, não apenas da largura de um degrau isolado. **Offset** e **erro de ganho** podem, muitas vezes, ser calibrados; distorção não linear variável e ruído aleatório exigem outra análise. Avaliações por FFT dependem de janela, sincronismo, número de amostras, fonte de teste e tratamento das raias; vazamento espectral pode inflar ruído aparente. A comparação séria de ADCs separa ensaio DC de ensaio AC, sinal de faixa completa de sinal atenuado, e desempenho do componente isolado do desempenho da cadeia instrumentada."
+    },
+    {
+      "title": "Conversores D/A, reconstrução e aplicações",
+      "markdown": "## Do código binário ao sinal analógico\nUm **conversor digital-analógico** (DAC, D/A) recebe uma palavra digital e cria grandeza de saída relacionada a ela: tensão ou corrente, conforme a arquitetura. Ao contrário do ADC, que extrai números de um sinal de entrada, o DAC atualiza o nível analógico conforme os códigos enviados. Em uma função de transferência unipolar ideal frequentemente usada, `Vout = Vref · D/2^N`, em que `D` vai de `0` a `2^N − 1`; assim, o maior código fica **um passo abaixo de Vref**, e a etapa nominal é `Vref/2^N`. Se um equipamento define expressamente que os códigos extremos `0` e `2^N−1` devem coincidir com `0 V` e `Vref`, adota-se uma **outra convenção de escala**, de incremento `Vref/(2^N−1)`. Ambas aparecem em documentação, dependendo da topologia e da definição de fundo de escala. Não misture a fórmula do fabricante com a premissa do enunciado.\n\n## Rede resistiva R–2R e arquiteturas de DAC\nA rede **R–2R** emprega basicamente dois valores de resistência em razão 1:2, por meio dos quais as contribuições binariamente ponderadas são combinadas. Isso facilita o casamento relativo de componentes quando comparada a um arranjo que exigiria ampla sequência de valores binários muito diferentes. **DAC de cadeia de resistores** (resistor string) seleciona um ponto de uma rede divisora com chave decodificada; pode proporcionar monotonicidade intrínseca, ao custo de muitas unidades para grandes resoluções. **DAC de correntes comutadas** direciona fontes de corrente para saídas e é comum em alta velocidade. Topologias **segmentadas** misturam técnicas para otimizar linearidade, área e velocidade. Os termos 'corrente de saída' e 'tensão de saída' indicam a grandeza entregue; um conversor de corrente pode precisar de amplificador transimpedância para alimentar uma entrada que espera tensão.\n\n## Monotonicidade, resolução e efeitos transitórios\nUm DAC é **monotônico** se elevar o código nunca diminui sua saída, considerado o sentido da função de transferência. Um erro de DNL suficientemente negativo pode violar essa propriedade. A **INL** mede a discrepância em relação à linha de transferência escolhida, após os tratamentos aplicáveis de offset e ganho. O tempo de **assentamento** (*settling time*) é o intervalo até a saída atingir uma banda de tolerância em torno do valor final após mudança de código; ele é diferente da taxa com que novos códigos são apresentados. Em transições com troca simultânea de vários bits, descompassos das chaves podem provocar impulsos transitórios chamados **glitches**, especialmente em mudanças de transporte de dígitos como `0111... → 1000...`. Um filtro ou buffer ajuda em certas aplicações, mas deve ser compatível com largura de banda, carga e estabilidade; calibrar um offset não elimina automaticamente glitch dinâmico.\n\n## Retenção de ordem zero e filtro de reconstrução\nUm DAC atualizado periodicamente pode **manter** uma tensão aproximadamente constante entre instantes, operando como retenção de ordem zero. A forma em degraus contém imagens espectrais próximas de múltiplos da frequência de atualização e uma envoltória de resposta proporcional a `sinc`; por isso, a saída não se torna uma senoide perfeitamente lisa só por usar muitos bits. Um **filtro de reconstrução**, geralmente passa-baixas em geração de sinais de banda base, atenua imagens e componentes de chaveamento fora da banda pretendida. No sistema ADC–processamento–DAC, o **antialiasing** fica antes do ADC, enquanto a **reconstrução** fica depois do DAC; ambos podem ser passa-baixas, mas protegem etapas distintas. A taxa de atualização deve permitir banda de transição realizável e margem para efeitos de retenção e filtros.\n\n## PWM filtrado não é automaticamente um DAC de precisão\nUma saída **PWM** controla a razão cíclica de pulsos de amplitude fixa. Um filtro passa-baixas pode aproximar uma tensão média `Vmédio ≈ duty · Vpulso` em condições adequadas, mas restam ondulação, tempo de resposta, dependência do clock, carga e ruídos de chaveamento. PWM com filtro pode substituir um DAC integrado em controles lentos e baratos quando os requisitos permitem, mas não tem por si só a linearidade, estabilidade e desempenho dinâmico de um DAC dedicado. Para produzir uma onda analógica rápida, avalie frequência de atualização, tempo de assentamento, largura de banda do filtro, carga e corrente disponível. Em sistemas industriais, DACs alimentam referências de velocidade e saídas analógicas de controladores; em comunicação e áudio, sintetizam formas de onda a partir de amostras digitais.\n\n## Casos integrados e seleção por especificação\nImagine um sensor com faixa útil `0–2 V`, um ADC de `12 bits` e referência de `4 V`: metade dos códigos de entrada não é explorada se não houver condicionamento. Usar estágio de ganho apropriado ou faixa de referência menor — respeitando limites do fabricante — melhora a utilização da resolução nominal. Na outra direção, um DAC de `10 bits` com `Vref=5,12 V` e modelo `Vout=Vref·D/1024` tem passo de `5 mV` e saída máxima ideal `5,115 V`, não `5,12 V`. Se aplicado em sistema de controle, ruído, deriva e atraso de saída podem ser mais importantes que o passo teórico. **Checklist técnico:** identificar amplitude e banda de sinal, taxa e janela de aquisição, referência e codificação, taxa máxima real, SNR/SINAD/ENOB ou exatidão DC, carga de saída, tempo de assentamento, filtragem analógica e estratégia de calibração. Essa análise impede a confusão comum de que mais bits resolvem qualquer problema de conversão."
+    }
+  ],
+  "summary": "A conversão analógico-digital transforma uma grandeza contínua em uma sequência de códigos: **amostra o tempo**, **quantiza a amplitude** e **codifica em bits**. Um ADC de N bits dispõe de **2^N códigos** e, em quantização uniforme com faixa FSR, o passo é **q = FSR/2^N**. A frequência de Nyquist é **fs/2**; filtro analógico antes da captura combate **aliasing**, que não é corrigido por mais bits. A arquitetura **flash** prioriza velocidade; **SAR** usa DAC interno e busca sucessiva; **dupla rampa** favorece integração; **sigma-delta** combina sobreamostragem, filtragem e decimação; **pipeline** oferece alto throughput com latência. Para senoide próxima à escala completa e erro de quantização ideal, **SNR ≈ 6,02N + 1,76 dB** (aproximadamente 6,02 dB por bit), enquanto **ENOB = (SINAD − 1,76)/6,02** expressa desempenho dinâmico real. Em conversão D/A, um DAC traduz códigos em corrente ou tensão por estruturas como R–2R, cadeia resistiva ou correntes comutadas. Na convenção `Vout = Vref·D/2^N`, o topo fica um passo abaixo de Vref. Glitches, assentamento e imagens espectrais justificam análise temporal e filtro analógico de reconstrução após o DAC. Resolução nominal nunca substitui investigação de erro de referência, offset, ganho, INL, DNL, ruído, carga e banda.",
+  "flashcards": [
+    {
+      "front": "Quais as três etapas conceituais de um ADC?",
+      "back": "Amostragem: discretiza tempo; quantização: discretiza amplitudes; codificação: representa níveis em palavras digitais."
+    },
+    {
+      "front": "Qual a frequência de Nyquist para fs = 48 kS/s?",
+      "back": "24 kHz; a frequência de Nyquist é fs/2."
+    },
+    {
+      "front": "Que problema previne o filtro antialiasing?",
+      "back": "A entrada de frequências indesejadas que se dobrariam na banda útil no momento de amostrar."
+    },
+    {
+      "front": "Por que o tempo de aquisição importa em ADCs capacitivos?",
+      "back": "A fonte deve carregar o capacitor de amostragem com erro residual compatível com a resolução."
+    },
+    {
+      "front": "Quantos códigos há em um ADC de N bits?",
+      "back": "2^N códigos; o maior código sem sinal é 2^N−1."
+    },
+    {
+      "front": "Qual passo ideal q em ADC uniforme?",
+      "back": "q = FSR/2^N, no modelo de células iguais."
+    },
+    {
+      "front": "Qual ruído rms de quantização uniforme não correlacionado?",
+      "back": "q/√12."
+    },
+    {
+      "front": "Como distinguir INL de DNL?",
+      "back": "INL: afastamento da linha de referência; DNL: desvio da largura/incremento de código frente a 1 LSB."
+    },
+    {
+      "front": "Qual a essência do ADC flash?",
+      "back": "Comparadores paralelos simultâneos, classicamente 2^N−1 para N bits."
+    },
+    {
+      "front": "Qual a essência do ADC SAR?",
+      "back": "Busca binária por aproximações sucessivas com comparador e DAC interno."
+    },
+    {
+      "front": "O que caracteriza o ADC de dupla rampa?",
+      "back": "Integra a entrada em intervalo definido e depois referência contrária, medindo o retorno."
+    },
+    {
+      "front": "O que há no caminho sigma-delta?",
+      "back": "Modulador sobreamostrado, modelagem de ruído, filtragem digital e decimação."
+    },
+    {
+      "front": "Por que pipeline pode ter alta vazão e latência?",
+      "back": "Vários estágios processam amostras diferentes simultaneamente; cada amostra percorre todos os estágios."
+    },
+    {
+      "front": "Qual o SNR ideal aproximado de N bits?",
+      "back": "6,02N + 1,76 dB para senoide de escala completa e hipótese usual de ruído de quantização."
+    },
+    {
+      "front": "Quanto vale o SNR ideal de 12 bits?",
+      "back": "Cerca de 74 dB."
+    },
+    {
+      "front": "Qual o ganho de SNR ideal por bit?",
+      "back": "Cerca de 6,02 dB por bit."
+    },
+    {
+      "front": "Como se calcula ENOB dinâmico a partir do SINAD?",
+      "back": "ENOB = (SINAD − 1,76)/6,02."
+    },
+    {
+      "front": "Como SNR difere de SINAD?",
+      "back": "SNR considera ruído, usualmente sem harmônicos; SINAD incorpora ruído mais distorção."
+    },
+    {
+      "front": "Como jitter afeta sinais rápidos?",
+      "back": "Com mesmo jitter, maior frequência de entrada tende a reduzir o SNR por erro temporal."
+    },
+    {
+      "front": "Para que serve um DAC?",
+      "back": "Produz tensão ou corrente analógica relacionada a códigos digitais."
+    },
+    {
+      "front": "Qual o passo de um DAC na convenção Vout = Vref·D/2^N?",
+      "back": "Vref/2^N; o código máximo fica um LSB abaixo de Vref."
+    },
+    {
+      "front": "O que é uma rede DAC R–2R?",
+      "back": "Escada resistiva de dois valores nominais, R e 2R, que soma contribuições binárias."
+    },
+    {
+      "front": "O que é glitch de DAC?",
+      "back": "Pico ou impulso transitório devido ao descompasso de comutações de códigos."
+    },
+    {
+      "front": "Para que serve o filtro de reconstrução do DAC?",
+      "back": "Atenua imagens espectrais e frequências de chaveamento após a saída em degraus."
+    }
+  ],
+  "tips": [
+    "Antes de calcular qualquer LSB, anote a FSR, o número de bits e a convenção de extremos exigida pelo enunciado.",
+    "Memorize o trio: fs/2 é Nyquist; FSR/2^N é o passo ideal; 6,02N + 1,76 dB é o SNR ideal senoidal.",
+    "Em comparações de arquiteturas, use o eixo velocidade–resolução–latência–consumo, e não uma classificação absoluta de melhor/pior.",
+    "Escreva o caminho completo: sensor → filtro antialiasing → ADC → processamento → DAC → filtro de reconstrução.",
+    "Em uma pergunta sobre desempenho medido, identifique se o parâmetro pedido é SNR, SINAD, ENOB, THD, SFDR, INL ou DNL.",
+    "Em multiplexadores e SAR, examine impedância de fonte, capacitores de entrada e tempo de aquisição antes de atribuir divergências à lógica digital."
+  ],
+  "traps": [
+    "Confundir maior código (`2^N−1`) com quantidade de códigos (`2^N`).",
+    "Trocar o limite teórico de amostragem `fs/2` pela frequência máxima necessariamente utilizável com filtro real.",
+    "Afirmar que um ADC com N bits sempre alcança `6,02N + 1,76 dB`, mesmo com distorção e ruído adicionais.",
+    "Supor que filtragem digital após a conversão desfaz aliasing que já ocorreu.",
+    "Usar indiscriminadamente `Vref/(2^N−1)` e `Vref/2^N` sem verificar a definição da função de transferência.",
+    "Confundir taxa de saída de um sigma-delta com frequência de operação de seu modulador.",
+    "Achar que glitch de DAC é o mesmo que ruído uniforme de quantização."
+  ],
+  "activeRecall": [
+    {
+      "question": "Um ADC de 10 bits e faixa de 0 a 5,12 V tem qual LSB nominal?",
+      "answer": "5,12/1024 V = 5 mV, considerando a convenção uniforme de 2^N células."
+    },
+    {
+      "question": "Se fs=18 kS/s, qual Nyquist e Ts?",
+      "answer": "Nyquist = 9 kHz; Ts = 1/18.000 s, aproximadamente 55,6 μs."
+    },
+    {
+      "question": "Uma senoide de 14 kHz é amostrada a 10 kS/s. Que alias aparece?",
+      "answer": "4 kHz, porque |14 − 10| = 4 kHz na primeira zona de Nyquist."
+    },
+    {
+      "question": "Qual arquitetura usa DAC interno e comparador em busca binária?",
+      "answer": "ADC SAR, de aproximações sucessivas."
+    },
+    {
+      "question": "Qual arquitetura modula em taxa alta e reduz a taxa final com filtro digital?",
+      "answer": "ADC sigma-delta, com filtragem e decimação."
+    },
+    {
+      "question": "Qual SNR ideal de 16 bits?",
+      "answer": "6,02×16 + 1,76 = 98,08 dB sob as hipóteses do modelo senoidal."
+    },
+    {
+      "question": "SINAD = 74 dB dá quanto ENOB?",
+      "answer": "(74−1,76)/6,02 ≈ 12,0 bits."
+    },
+    {
+      "question": "O que distingue filtro antialiasing de filtro de reconstrução?",
+      "answer": "O primeiro atua antes do ADC para impedir dobramento espectral; o segundo, após o DAC, para atenuar imagens."
+    },
+    {
+      "question": "No DAC de 8 bits com Vref=2,56 V e Vout=Vref·D/256, qual saída no código 255?",
+      "answer": "255×10 mV = 2,55 V; o código máximo fica um LSB abaixo da referência."
+    },
+    {
+      "question": "Um código que sobe e produz saída menor em um DAC viola qual requisito?",
+      "answer": "Monotonicidade, pois a saída não deve diminuir quando o código aumenta."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Amostragem versus quantização",
+      "summary": "Trocar frequência de amostragem e codificação por resolução impede distinguir aliasing de erro vertical; Nyquist depende de fs, enquanto o passo de amplitude depende de FSR e N."
+    },
+    {
+      "key": "e2",
+      "title": "LSB, códigos e convenções de escala",
+      "summary": "A quantidade de níveis é 2^N, embora o maior código seja 2^N−1. O divisor de uma função de DAC pode diferir conforme a definição de extremos; verifique o enunciado."
+    },
+    {
+      "key": "e3",
+      "title": "Arquiteturas de ADC",
+      "summary": "Flash compara simultaneamente; SAR usa busca com DAC interno; sigma-delta combina modulação e decimação; dupla rampa integra; pipeline escalona processamento."
+    },
+    {
+      "key": "e4",
+      "title": "Desempenho real versus ideal",
+      "summary": "SNR ideal de quantização pressupõe senoide de fundo de escala e modelo estatístico. SINAD inclui distorção, e ENOB reflete qualidade dinâmica medida em condições especificadas."
+    },
+    {
+      "key": "e5",
+      "title": "Reconstrução e saída de DAC",
+      "summary": "DAC gera grandezas analógicas, mas degraus, glitches e tempo de assentamento permanecem; o filtro de reconstrução deve ser situado após a conversão D/A."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "A amostragem discretiza o tempo; a quantização discretiza a amplitude do sinal.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A coleta periódica fixa instantes de observação, ao passo que a quantização escolhe níveis permitidos de valor. Codificação em bits é uma etapa adicional; confundir essas operações oculta a origem de erros distintos.",
+      "section": "Fundamentos, amostragem e antialiasing",
+      "difficulty": "FACIL",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema adquire sinais limitados a 3 kHz. Para evitar aliasing com filtros realizáveis, qual orientação é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar fs acima de 6 kS/s, com margem para a transição do filtro analógico.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar fs de 3 kS/s sem filtro, pois basta acompanhar a banda útil.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar fs de 6 kS/s e dispensar a filtragem em qualquer situação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Elevar a resolução em bits e manter fs abaixo de 3 kS/s.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Instalar apenas filtro digital após o ADC para remover todo aliasing.",
+          "correct": false
+        }
+      ],
+      "explanation": "O teorema de amostragem exige taxa superior ao dobro da maior frequência para reconstrução sem sobreposição espectral. Filtros reais têm transição finita, exigindo margem; aumento de bits e filtro só digital não previnem aliasing.",
+      "section": "Fundamentos, amostragem e antialiasing",
+      "difficulty": "MEDIA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um ADC de 12 bits, aumentar a resolução altera automaticamente a frequência de Nyquist, mesmo sem mudar a taxa de amostragem.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A frequência de Nyquist é metade da taxa de amostragem, independentemente da quantidade de códigos disponíveis. Mais bits reduzem o passo ideal de amplitude, mas não deslocam a fronteira temporal das amostras.",
+      "section": "Fundamentos, amostragem e antialiasing",
+      "difficulty": "DIFICIL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ADC opera a 40 kS/s. Qual é sua frequência de Nyquist?",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "10 kHz.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "20 kHz.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "40 kHz.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "80 kHz.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "25 kHz.",
+          "correct": false
+        }
+      ],
+      "explanation": "A frequência de Nyquist é metade da taxa amostral: 40/2 = 20 kHz. Ela indica a fronteira da primeira zona de Nyquist e não deve ser confundida com o período de aquisição ou a taxa de bits.",
+      "section": "Fundamentos, amostragem e antialiasing",
+      "difficulty": "FACIL",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma senoide de 13 kHz amostrada a 20 kS/s pode aparecer como componente de 7 kHz na primeira zona de Nyquist.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O dobramento espectral produz uma componente aparente em |13 − 20| = 7 kHz. A identificação correta requer examinar o espectro analógico e filtrar antes da aquisição; elevar apenas os bits não desfaz o alias.",
+      "section": "Fundamentos, amostragem e antialiasing",
+      "difficulty": "MEDIA",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma leitura varia após a troca de canal de um multiplexador, sobretudo com sensores de alta impedância. Qual é a explicação mais provável?",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Taxa de Nyquist automaticamente duplicada pela troca de canal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Número de bits do conversor reduzido pelo multiplexador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tempo de aquisição insuficiente para carregar a capacitância de amostragem.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Erro de codificação binária que altera a frequência do sensor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reconstrução analógica feita antes do amostrador.",
+          "correct": false
+        }
+      ],
+      "explanation": "A resistência de origem e a capacitância do S/H definem um transitório de carga. Trocas de canal modificam a tensão inicial e podem exigir espera, buffer ou descarte de leitura; não mudam os bits físicos do ADC.",
+      "section": "Fundamentos, amostragem e antialiasing",
+      "difficulty": "DIFICIL",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O filtro antialiasing deve ser instalado somente depois do ADC, pois sua função é suavizar a sequência digital já formada.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Aliasing ocorre no instante da amostragem, quando componentes fora da banda se tornam indistinguíveis de outras. É necessário atenuá-las no domínio analógico antes do ADC; a filtragem digital posterior não recupera a origem.",
+      "section": "Fundamentos, amostragem e antialiasing",
+      "difficulty": "FACIL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma senoide de 17 kHz é amostrada a 12 kS/s sem filtragem prévia. Qual frequência de alias aparece na primeira zona de Nyquist?",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "1 kHz.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "12 kHz.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "17 kHz.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "5 kHz.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "29 kHz.",
+          "correct": false
+        }
+      ],
+      "explanation": "A frequência aparente pode ser obtida por dobramento em torno de múltiplos da taxa de amostragem: |17 − 12| = 5 kHz, dentro de 0 a 6 kHz. O erro ocorre antes do processamento digital.",
+      "section": "Fundamentos, amostragem e antialiasing",
+      "difficulty": "MEDIA",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um ADC com amostrador capacitivo, a impedância da fonte influencia o tempo necessário para a entrada se estabelecer.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A resistência da fonte participa do circuito de carga da capacitância de amostragem. Se a aquisição for curta, a tensão não se estabiliza dentro do erro admissível, mesmo que o núcleo de conversão seja preciso.",
+      "section": "Fundamentos, amostragem e antialiasing",
+      "difficulty": "DIFICIL",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual etapa transforma valores amostrados, ainda contínuos em amplitude, em um conjunto finito de níveis?",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Amostragem temporal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Filtragem antialiasing.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sincronização por clock.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Multiplexação de canais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Quantização.",
+          "correct": true
+        }
+      ],
+      "explanation": "Quantizar significa associar a amplitude amostrada a um nível representável. A amostragem escolhe instantes; o filtro restringe banda; clock e multiplexação coordenam o sistema, sem definir o arredondamento de amplitude.",
+      "section": "Fundamentos, amostragem e antialiasing",
+      "difficulty": "FACIL",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ADC ideal de 10 bits disponibiliza 1.024 códigos distintos.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Com N bits binários, existem 2^N combinações, de modo que 2^10 = 1.024. O maior código vale 1.023 na representação sem sinal, mas isso não significa que existam apenas 1.023 códigos.",
+      "section": "Quantização, códigos e resolução",
+      "difficulty": "MEDIA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ADC ideal de 8 bits trabalha em faixa uniforme de 0 a 2,56 V. Qual é o passo nominal de quantização?",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "10 mV.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "2,56 mV.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "20 mV.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "5 mV.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "256 mV.",
+          "correct": false
+        }
+      ],
+      "explanation": "O espaçamento ideal é a extensão da faixa dividida por 2^8: 2,56/256 V = 0,01 V = 10 mV. O maior código é 255, mas a quantidade de células continua sendo 256 nessa convenção.",
+      "section": "Quantização, códigos e resolução",
+      "difficulty": "DIFICIL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para faixa de 0 a 4,096 V e 12 bits, a largura ideal de uma célula uniforme de quantização é 1 mV.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A faixa tem 4.096 mV e contém 2^12 = 4.096 células, o que resulta em 1 mV por célula. A conta pressupõe a convenção de passo FSR/2^N, sem confundir transições com extremos de um DAC.",
+      "section": "Quantização, códigos e resolução",
+      "difficulty": "FACIL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ADC ideal de 12 bits oferece quantos códigos digitais distintos?",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "1.024.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "4.096.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "2.048.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "4.095.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "8.192.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um registrador de 12 bits permite 2^12 = 4.096 padrões diferentes. O código máximo sem sinal é 4.095 porque a contagem começa em zero; essa diferença não reduz a quantidade de resultados possíveis.",
+      "section": "Quantização, códigos e resolução",
+      "difficulty": "MEDIA",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O erro de quantização de uma entrada saturada é necessariamente limitado a meio LSB.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O limite próximo a meio LSB pertence ao modelo de arredondamento dentro da faixa de conversão. Em saturação, sinais diferentes recebem o código extremo e o erro frente ao valor real pode exceder muito esse limite.",
+      "section": "Quantização, códigos e resolução",
+      "difficulty": "DIFICIL",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao acrescentar dois bits à resolução nominal, mantendo a mesma faixa, o passo ideal de quantização passa a ser:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Metade do passo inicial.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O dobro do passo inicial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um quarto do passo inicial.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Quatro vezes o passo inicial.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Igual, pois somente a amostragem altera o passo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A cada bit adicional, a quantidade de códigos dobra e o passo cai pela metade para a mesma FSR. Com dois bits a mais, os níveis quadruplicam e o LSB cai para um quarto; a taxa de amostragem é outro parâmetro.",
+      "section": "Quantização, códigos e resolução",
+      "difficulty": "FACIL",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A resolução nominal e a exatidão de um ADC são termos equivalentes, pois ambas dependem somente do número de bits.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Resolução mede a granularidade de códigos, enquanto exatidão envolve erro de referência, offset, ganho, linearidade e ruído. Um conversor com muitos códigos pode fornecer valores sistematicamente incorretos.",
+      "section": "Quantização, códigos e resolução",
+      "difficulty": "MEDIA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma medição estática, todos os valores de um ADC aparecem deslocados quase igualmente para cima, sem grande alteração da inclinação. O erro dominante é de:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ganho.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aliasing.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Jitter de abertura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Offset.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Taxa de atualização do DAC.",
+          "correct": false
+        }
+      ],
+      "explanation": "O offset desloca a função de transferência de forma aproximadamente aditiva; erro de ganho modifica a inclinação. Aliasing e jitter são fenômenos de amostragem temporal e não explicam um deslocamento DC uniforme.",
+      "section": "Quantização, códigos e resolução",
+      "difficulty": "DIFICIL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo de erro uniforme não correlacionado, o erro eficaz de quantização é q dividido pela raiz quadrada de 12.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Para uma variável uniforme entre −q/2 e q/2, a variância é q²/12 e o desvio padrão vale q/√12. Esse modelo estatístico tem hipóteses que podem falhar para sinais periódicos coerentes ou níveis constantes.",
+      "section": "Quantização, códigos e resolução",
+      "difficulty": "FACIL",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual grandeza descreve a diferença entre a largura de uma célula de código e o LSB ideal?",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Resolução nominal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Frequência de Nyquist.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Relação sinal-ruído ideal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Atraso de propagação digital.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não linearidade diferencial (DNL).",
+          "correct": true
+        }
+      ],
+      "explanation": "DNL caracteriza a irregularidade dos degraus, comparando sua largura ou incremento ao valor nominal. INL, em contraste, descreve o afastamento acumulado da função em relação a uma reta definida de referência.",
+      "section": "Quantização, códigos e resolução",
+      "difficulty": "MEDIA",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ADC flash ideal de N bits usa, na estrutura clássica, 2^N − 1 comparadores.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A estrutura paralela cria limiares para as transições entre 2^N níveis, demandando 2^N − 1 comparadores. A rapidez é obtida com custo de área, consumo e carga de entrada que cresce com a resolução.",
+      "section": "Arquiteturas de conversores A/D e sistemas de aquisição",
+      "difficulty": "DIFICIL",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto prioriza taxa muito alta e aceita aumento de consumo e comparadores. Qual ADC clássico é mais compatível?",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Flash, com banco de comparadores em paralelo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Dupla rampa com integração longa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SAR com contador simples por rampa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sigma-delta limitado ao filtro de saída mais lento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PWM seguido de filtro RC como circuito de digitalização.",
+          "correct": false
+        }
+      ],
+      "explanation": "O flash resolve limiares simultaneamente, reduzindo a latência da decisão. O preço é a quantidade de comparadores e o consumo/área; integradores lentos não têm a mesma vocação para frequências muito altas.",
+      "section": "Arquiteturas de conversores A/D e sistemas de aquisição",
+      "difficulty": "FACIL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O ADC SAR encontra cada código por meio de comparações sucessivas apoiadas em um DAC interno.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A aproximação sucessiva testa pesos binários, em geral do bit mais significativo ao menos significativo, com comparador e DAC de realimentação. Essa busca não é o princípio de dupla integração usado em outros ADCs.",
+      "section": "Arquiteturas de conversores A/D e sistemas de aquisição",
+      "difficulty": "MEDIA",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição traduz o mecanismo básico de um ADC de aproximações sucessivas?",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Medir apenas o tempo de integração de duas rampas consecutivas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Testar pesos binários com comparador e DAC interno, do MSB aos bits inferiores.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Comparar toda a entrada a milhares de limiares simultâneos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Filtrar a saída analógica de um gerador PWM sem comparar tensões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenar só o sinal do erro até o clock parar.",
+          "correct": false
+        }
+      ],
+      "explanation": "O SAR conduz uma busca binária sobre o código, ajustando um DAC interno e comparando com a entrada. A dupla integração mede tempos, enquanto o flash usa comparadores paralelos; os mecanismos não são equivalentes.",
+      "section": "Arquiteturas de conversores A/D e sistemas de aquisição",
+      "difficulty": "DIFICIL",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No ADC sigma-delta, a taxa de saída de dados deve sempre coincidir com a frequência do modulador.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A arquitetura costuma operar o modulador com sobreamostragem e aplicar filtragem digital seguida de decimação. A taxa final de palavras é menor que a taxa interna de modulação, e a latência do filtro também deve ser avaliada.",
+      "section": "Arquiteturas de conversores A/D e sistemas de aquisição",
+      "difficulty": "FACIL",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que um ADC sigma-delta pode fornecer saída com muitos bits mesmo usando quantizador interno de poucos níveis?",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque aumenta a tensão de referência a cada amostra sem limite.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque elimina qualquer distorção sem necessidade de filtro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque combina sobreamostragem, modelagem de ruído, filtragem digital e decimação.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Porque usa obrigatoriamente 2^N − 1 comparadores internos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque converte o PWM digital diretamente em bits via resistor.",
+          "correct": false
+        }
+      ],
+      "explanation": "O modulador sigma-delta espalha e modela o ruído de quantização no espectro; o filtro digital rejeita parcela fora da banda e a decimação reduz a taxa de palavras. Isso não elimina todo ruído nem torna a taxa de saída igual à interna.",
+      "section": "Arquiteturas de conversores A/D e sistemas de aquisição",
+      "difficulty": "MEDIA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um ADC pipeline, a latência de uma amostra e a taxa sustentada de amostras são necessariamente iguais.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Estágios do pipeline trabalham em paralelo sobre amostras diferentes: a primeira palavra pode demorar vários ciclos para sair, enquanto novos resultados aparecem continuamente após o enchimento do pipeline.",
+      "section": "Arquiteturas de conversores A/D e sistemas de aquisição",
+      "difficulty": "DIFICIL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação compara corretamente latência e throughput de um ADC pipeline?",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "A primeira amostra sai instantaneamente porque não há estágios.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cada amostra bloqueia todas as outras até concluir todo o pipeline.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A latência sempre mede o número de códigos de entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Várias amostras transitam em estágios diferentes, permitindo alto throughput com latência de múltiplos estágios.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O processamento por estágios exige que a taxa de dados seja nula.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada estágio executa parte da conversão de uma amostra enquanto outros tratam amostras adjacentes. Assim, a vazão após o enchimento do pipeline pode ser alta, embora uma amostra demore vários ciclos.",
+      "section": "Arquiteturas de conversores A/D e sistemas de aquisição",
+      "difficulty": "FACIL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao trocar o canal de um multiplexador ligado a um ADC, a amostra seguinte pode precisar de tempo adicional de assentamento.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A capacitância de entrada e os circuitos de condicionamento preservam estados transitórios durante a troca. Fontes com impedâncias distintas podem exigir espera ou descarte de amostra conforme o projeto.",
+      "section": "Arquiteturas de conversores A/D e sistemas de aquisição",
+      "difficulty": "MEDIA",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em instrumento que busca rejeição de interferência periódica por integração em intervalos escolhidos, qual arquitetura clássica se destaca?",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Flash.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Pipeline de rádio frequência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SAR sem integração.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DAC R–2R de tensão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ADC de dupla rampa.",
+          "correct": true
+        }
+      ],
+      "explanation": "O conversor de dupla rampa integra primeiro o sinal e depois uma referência oposta, medindo o intervalo de retorno. A integração ao longo de ciclos apropriados ajuda a rejeitar perturbações repetitivas, à custa de velocidade.",
+      "section": "Arquiteturas de conversores A/D e sistemas de aquisição",
+      "difficulty": "DIFICIL",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A expressão SNR ideal = 6,02N + 1,76 dB presume, entre outras condições, senoide de escala completa e ruído de quantização apropriado.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O termo 6,02 provém da duplicação de níveis por bit e 1,76 da relação eficaz entre senoide e erro uniforme. O resultado é um limite de modelo, não uma promessa de desempenho real de todo ADC.",
+      "section": "SNR ideal, ENOB e especificações de desempenho",
+      "difficulty": "FACIL",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para um ADC ideal de 12 bits com senoide de escala completa, qual SNR teórico aproximado decorre de 6,02N + 1,76?",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "74,00 dB.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "61,96 dB.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "49,92 dB.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "72,24 dB.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "98,08 dB.",
+          "correct": false
+        }
+      ],
+      "explanation": "O cálculo é 6,02×12 + 1,76 = 74,00 dB. O resultado presume senoide de escala completa e ruído ideal de quantização; dados de dispositivos reais exigem avaliação de ruído e distorção.",
+      "section": "SNR ideal, ENOB e especificações de desempenho",
+      "difficulty": "MEDIA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar a resolução ideal de 10 para 11 bits aumenta o SNR teórico em aproximadamente 3,01 dB.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A diferença entre 6,02(N+1)+1,76 e 6,02N+1,76 é 6,02 dB. O ganho de aproximadamente 3 dB se refere a duplicação de potência, não ao efeito de um bit extra no modelo ideal.",
+      "section": "SNR ideal, ENOB e especificações de desempenho",
+      "difficulty": "DIFICIL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ADC apresenta SINAD de 50 dB em ensaio senoidal. Qual ENOB aproximado pela expressão usual?",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "6 bits.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "8 bits.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "10 bits.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "12 bits.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "16 bits.",
+          "correct": false
+        }
+      ],
+      "explanation": "Aplicando ENOB = (SINAD − 1,76)/6,02, obtém-se 48,24/6,02 ≈ 8,0 bits. O valor efetivo deriva de ruído e distorção observados no teste, e não substitui a resolução nominal de códigos.",
+      "section": "SNR ideal, ENOB e especificações de desempenho",
+      "difficulty": "FACIL",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A partir de SINAD de 62 dB para senoide em condições de ensaio usuais, o ENOB calculado fica próximo de 10 bits.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A fórmula de número efetivo de bits é (SINAD − 1,76)/6,02. Substituindo 62 dB, chega-se a aproximadamente 10 bits; trata-se de desempenho dinâmico, não de contagem de códigos.",
+      "section": "SNR ideal, ENOB e especificações de desempenho",
+      "difficulty": "MEDIA",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ADC ideal passa de 8 para 12 bits, com a mesma faixa e senoide de escala completa. Qual ganho aproximado de SNR ideal?",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "4,00 dB.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "6,02 dB.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "24,08 dB.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "12,04 dB.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "48,16 dB.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quatro bits adicionais geram aproximadamente 4×6,02 = 24,08 dB de SNR ideal, sob as mesmas hipóteses. Não se calcula o ganho pela proporção linear 12/8 nem pela diferença de níveis sem conversão logarítmica.",
+      "section": "SNR ideal, ENOB e especificações de desempenho",
+      "difficulty": "DIFICIL",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "SINAD ignora distorção harmônica e, por isso, é obrigatoriamente maior que SNR medido sob as mesmas condições.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "SINAD inclui ruído e distorção harmônica, enquanto o SNR usual separa os harmônicos do ruído. Ao acrescentar distorção ao denominador, SINAD não supera SNR em uma comparação com convenções equivalentes.",
+      "section": "SNR ideal, ENOB e especificações de desempenho",
+      "difficulty": "FACIL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual parâmetro inclui, na definição habitual, tanto ruído quanto distorção harmônica ao comparar com a fundamental?",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "SNR sem harmônicos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DNL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Erro de offset.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SINAD.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Período de amostragem.",
+          "correct": false
+        }
+      ],
+      "explanation": "SINAD mede a relação sinal/(ruído + distorção), ao contrário do SNR que usualmente exclui harmônicos da soma de ruídos. DNL e offset são especificações estáticas, e período de amostragem não mede qualidade espectral.",
+      "section": "SNR ideal, ENOB e especificações de desempenho",
+      "difficulty": "MEDIA",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quanto maior a frequência da senoide de entrada, maior tende a ser a perda de SNR decorrente do mesmo jitter temporal.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O erro por deslocamento temporal cresce com a inclinação do sinal. A estimativa SNR_jitter = −20 log10(2π·fin·tj) mostra redução da relação sinal-ruído ao elevar fin com jitter eficaz fixo.",
+      "section": "SNR ideal, ENOB e especificações de desempenho",
+      "difficulty": "DIFICIL",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O mesmo jitter rms é aplicado à amostragem de senoides de 10 kHz e 1 MHz. Qual tende a sofrer maior limitação por jitter?",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "A senoide de 10 kHz.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ambas necessariamente ficam com SNR idêntico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Nenhuma, pois jitter só altera a amplitude DC.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A mais lenta, pois seu período é maior.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A senoide de 1 MHz.",
+          "correct": true
+        }
+      ],
+      "explanation": "O erro de amplitude provocado por variação temporal cresce com a frequência de entrada. Na aproximação SNR_jitter ≈ −20 log10(2π·fin·tj), elevar fin reduz o teto de SNR quando tj permanece fixo.",
+      "section": "SNR ideal, ENOB e especificações de desempenho",
+      "difficulty": "FACIL",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um DAC converte códigos digitais em níveis de tensão ou corrente de saída, dependendo de sua estrutura.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A função do DAC é gerar grandeza analógica proporcional, dentro de uma função de transferência definida, ao código recebido. Pode fornecer tensão diretamente ou corrente que exige conversão externa para tensão.",
+      "section": "Conversores D/A, reconstrução e aplicações",
+      "difficulty": "MEDIA",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um DAC ideal de 10 bits segue Vout = 5,12·D/1024, com D de 0 a 1023. Qual é o passo de saída?",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "5 mV.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "10 mV.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "4 mV.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "0,5 mV.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "5,12 mV.",
+          "correct": false
+        }
+      ],
+      "explanation": "O passo é Vref/2^N = 5,12 V/1024 = 0,005 V, ou 5 mV. O código máximo produz 5,115 V sob essa convenção, e não a referência exata; usar 1023 como divisor mudaria o modelo.",
+      "section": "Conversores D/A, reconstrução e aplicações",
+      "difficulty": "DIFICIL",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um DAC ideal regido por Vout = Vref·D/2^N, o código máximo produz exatamente Vref.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Como D máximo é 2^N − 1, a saída extrema vale Vref(1 − 1/2^N), um passo abaixo de Vref. Só outra convenção de escala, expressamente adotada, faz o extremo coincidir com a referência.",
+      "section": "Conversores D/A, reconstrução e aplicações",
+      "difficulty": "FACIL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual topologia de DAC utiliza essencialmente duas grandezas resistivas, R e 2R?",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conversor flash.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Rede em escada R–2R.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Modulador sigma-delta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Rede de comparadores SAR.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Integrador de dupla rampa.",
+          "correct": false
+        }
+      ],
+      "explanation": "A escada R–2R faz divisões ponderadas por bits com resistores de apenas dois valores nominais. As outras opções descrevem princípios de conversão A/D, não a estrutura de somatória resistiva de um DAC.",
+      "section": "Conversores D/A, reconstrução e aplicações",
+      "difficulty": "MEDIA",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A rede R–2R requer basicamente resistores de dois valores em razão dois para um.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O arranjo usa R e 2R para criar contribuições ponderadas pelos bits, evitando uma sequência extensa de resistências com razões muito altas. A precisão continua dependendo de casamento, chaves e referência.",
+      "section": "Conversores D/A, reconstrução e aplicações",
+      "difficulty": "DIFICIL",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um DAC apresenta um pico transitório ao passar do código 01111111 para 10000000. O fenômeno é conhecido como:",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aliasing de pré-amostragem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Erro de arredondamento de senoide.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Glitch de comutação em transição de código.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Rejeição de modo comum perfeita.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumento automático da resolução efetiva.",
+          "correct": false
+        }
+      ],
+      "explanation": "A troca simultânea de vários bits pode não ser perfeitamente sincronizada, ocasionando pulsos transitórios na saída. O evento se relaciona ao comportamento de chaves e ao código de transporte, não a aliasing analógico.",
+      "section": "Conversores D/A, reconstrução e aplicações",
+      "difficulty": "FACIL",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma cadeia ADC–processamento–DAC, o filtro de reconstrução é posicionado antes do ADC para prevenir aliasing.",
+      "format": "TRUE_FALSE",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O passa-baixas analógico de antialiasing é aplicado antes da amostragem; o filtro de reconstrução atua depois do DAC, atenuando imagens e componentes de atualização que aparecem na saída analógica.",
+      "section": "Conversores D/A, reconstrução e aplicações",
+      "difficulty": "MEDIA",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de um DAC que mantém cada valor até a amostra seguinte, qual estágio é especialmente útil para atenuar imagens espectrais?",
+      "format": "MULTIPLE_CHOICE",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparador flash colocado na saída.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Filtro antialiasing exclusivamente digital antes da captura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Registrador que aumenta artificialmente o número de bits.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Filtro analógico de reconstrução.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Multiplexador que dobra a amplitude do clock.",
+          "correct": false
+        }
+      ],
+      "explanation": "A retenção de ordem zero produz degraus e imagens ligadas à taxa de atualização. O filtro de reconstrução atua após o DAC para atenuá-las, mantendo a banda desejada com resposta e transição adequadas.",
+      "section": "Conversores D/A, reconstrução e aplicações",
+      "difficulty": "DIFICIL",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "TI Precision Labs: Analog-to-Digital Converters",
+      "publisher": "Texas Instruments",
+      "reference": "Curso de conversores A/D: arquiteturas, ruído, filtros e parâmetros AC/DC",
+      "url": "https://www.ti.com/en-us/design-development/educational-resources/video/series/precision-labs/ti-precision-labs-analog-to-digital-converters-adcs",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MT-001: Taking the Mystery out of SNR = 6.02N + 1.76dB",
+      "publisher": "Analog Devices",
+      "reference": "Tutorial técnico MT-001: quantização e dedução da relação SNR",
+      "url": "https://www.analog.com/media/en/training-seminars/tutorials/mt-001.pdf",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Defining and Testing Dynamic Parameters in High-Speed ADCs, Part 1",
+      "publisher": "Analog Devices",
+      "reference": "Nota técnica sobre SNR, SINAD, ENOB e métricas dinâmicas",
+      "url": "https://www.analog.com/en/resources/technical-articles/defining-and-testing-dynamic-parameters-in-highspeed-adcs-part-1.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Analog-to-Digital Conversion (ADC)",
+      "publisher": "Microchip Technology",
+      "reference": "Documentação de amostragem, teorema de Nyquist e quantização",
+      "url": "https://onlinedocs.microchip.com/oxy/GUID-324A966D-1464-4B35-A7D1-DCAE052AC22C-en-US-5/GUID-096473B3-FC80-4189-A1CE-957E735CD96A.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ADC Acquisition Time",
+      "publisher": "Microchip Technology",
+      "reference": "Documentação técnica de tempo de aquisição e circuito de amostragem",
+      "url": "https://developerhelp.microchip.com/xwiki/bin/view/products/data-converters/adc-specs/acquisition-time/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Current Steering Digital-to-Analog Converters",
+      "publisher": "Analog Devices",
+      "reference": "Material técnico de arquiteturas DAC, rede R–2R e corrente comutada",
+      "url": "https://wiki.analog.com/university/courses/tutorials/cmos-dac-chapter",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Calculating the Error Budget in Precision DAC Applications",
+      "publisher": "Analog Devices",
+      "reference": "Parâmetros de exatidão e referência de conversores D/A",
+      "url": "https://www.analog.com/en/resources/technical-articles/calculating-the-error-budget-in-precision-dac-apps.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Active Filters for Video",
+      "publisher": "Analog Devices",
+      "reference": "Discussão de retenção de ordem zero e filtros de reconstrução após DAC",
+      "url": "https://www.analog.com/en/resources/technical-articles/active-filters-for-video.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "TI Precision Labs: Precision DACs",
+      "publisher": "Texas Instruments",
+      "reference": "Treinamento sobre R–2R, tempo de assentamento e métricas de DAC",
+      "url": "https://www.ti.com/video/series/precision-labs/ti-precision-labs-precision-dacs-10msps.html",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

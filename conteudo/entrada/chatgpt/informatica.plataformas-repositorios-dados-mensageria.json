@@ -1,0 +1,2304 @@
+{
+  "id": "informatica.plataformas-repositorios-dados-mensageria",
+  "subject": "Informática — arquitetura de dados, DevOps e integração",
+  "title": "Plataformas de repositórios, dados e mensageria",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Plataformas de repositórios, dados e mensageria",
+    "Plataformas de repositórios, dados e mensageria"
+  ],
+  "scope": {
+    "covers": "Controle e hospedagem de código; registries e gerenciadores de artefatos; CI/CD; data lake, warehouse, lakehouse, OLTP e OLAP; ETL/ELT, CDC, formatos, governança; filas, pub/sub, RabbitMQ, semânticas de entrega e padrões de integração; arquitetura e operação Kafka; ecossistema Confluent Cloud e Platform, Connect, Schema Registry, Flink, ksqlDB, Streams, segurança e Stream Governance; observabilidade, confiabilidade e recuperação.",
+    "excludes": "Operação passo a passo de consoles específicos, parametrização dependente de licenças, listas exaustivas de versões, detalhes proprietários não confirmados, administração avançada de bancos isolados e disposições legais fora do escopo conceitual."
+  },
+  "theoryTitle": "Repositórios, plataformas de dados, mensageria, Kafka e Confluent",
+  "chapters": [
+    {
+      "title": "Repositórios de código, pacotes e artefatos",
+      "markdown": "## 1. Finalidades e categorias\nO termo **repositório** designa mecanismos diferentes, que não devem ser confundidos em provas. Um repositório de **código-fonte** preserva alterações, autores, ramificações, versões e histórico de desenvolvimento. Um repositório de **pacotes e artefatos** recebe produtos do processo de construção, como bibliotecas, arquivos JAR, pacotes npm, pacotes Python e imagens de contêiner. Um **repositório de dados** reúne conjuntos de dados para ingestão, consulta, preservação ou análise. A palavra comum não torna equivalentes os controles, as operações ou os tipos de conteúdo.\n\n### Versionamento distribuído com Git\nNo Git, a cópia local contém o histórico necessário ao trabalho distribuído; o servidor remoto não é o único local que conhece os commits. `git init` inicia um repositório; `git clone` copia um repositório existente; `git status` exibe o estado da área de trabalho e do índice; `git add` prepara alterações para um commit; `git commit` registra um instantâneo versionado; `git fetch` obtém referências e objetos remotos sem fazer necessariamente integração na ramificação atual; `git pull` combina a obtenção de alterações com uma operação de integração; `git push` envia alterações e referências ao remoto, se houver autorização. **Commit, branch e tag são conceitos distintos:** commit identifica uma revisão do histórico; branch é uma referência móvel para uma linha de desenvolvimento; tag usualmente identifica uma versão ou marco de publicação. Uma solicitação de revisão (*pull request* ou *merge request*) é função da plataforma colaborativa, não um requisito inerente ao núcleo do Git.\n\nO trabalho colaborativo envolve políticas de proteção de ramificações, revisões, testes automatizados e resolução de conflitos. O merge reúne históricos por integração; o rebase reaplica commits sobre outra base, modificando o histórico desses commits. Por isso, reescrever histórico já compartilhado exige cautela. A existência de controle de versão não substitui cópias de segurança independentes, políticas de retenção ou controle de acesso. **Git LFS** é uma extensão voltada ao tratamento de arquivos grandes mediante ponteiros no histórico e armazenamento apropriado do conteúdo; não transforma Git em um banco analítico.\n\n## 2. Gerenciamento de pacotes e registries\nUm *registry* ou gerenciador de artefatos fornece distribuição controlada de componentes usados nas compilações e implantações. Maven utiliza coordenadas e dependências; npm organiza pacotes do ecossistema JavaScript; PyPI e ferramentas de instalação atendem ao Python; registries OCI distribuem imagens e outros artefatos compatíveis. Ferramentas como **Sonatype Nexus Repository**, **JFrog Artifactory** e **GitHub Packages** são exemplos de soluções para hospedar, intermediar ou distribuir artefatos, com funções e modelos de autorização próprios.\n\nNo Nexus, o tipo **hosted** hospeda componentes publicados na própria organização; o tipo **proxy** representa um repositório externo e pode armazenar cópias em cache; o tipo **group** fornece um ponto de acesso agregado a repositórios. Na terminologia usual do Artifactory, **local**, **remote** e **virtual** cumprem papéis comparáveis de publicação interna, intermediação e agregação. Não é correto deduzir que um repositório proxy substitua a origem externa em todas as situações nem que um repositório virtual seja mais uma cópia integral dos pacotes. Cache, disponibilidade do upstream e política de atualização podem influir na instalação de uma dependência.\n\n### Reprodutibilidade, integridade e segurança\nUm processo de CI/CD pode compilar um commit identificado, executar testes, produzir artefato versionado, assiná-lo e publicá-lo no registry. O *deploy* idealmente consome **o mesmo artefato previamente validado**, evitando reconstrução não controlada por ambiente. *Lockfiles* e referências a versões ou digests auxiliam a reprodutibilidade. Um **hash criptográfico** serve para verificar integridade do conteúdo; por si só, não prova a identidade do produtor. Assinaturas, atestações de procedência, inventário de componentes (**SBOM**) e regras de confiança podem compor a proteção contra alterações ou comprometimento da cadeia de suprimentos.\n\nA política de **menor privilégio** restringe publicação e leitura; tokens de CI devem ser protegidos e rotacionados conforme a política institucional. Varredura de vulnerabilidades não garante ausência de falhas, e publicar toda versão como `latest` prejudica rastreabilidade. Em certames, compare sempre três perguntas: *o que é versionado?* (código, pacote ou dado), *quem consome?* (desenvolvedor, compilador ou sistema analítico) e *qual garantia é oferecida?* (histórico, distribuição ou exploração)."
+    },
+    {
+      "title": "Plataformas de dados, armazenamento e governança",
+      "markdown": "## 1. Bancos operacionais e sistemas analíticos\nPlataformas de dados atendem necessidades distintas. Bancos **relacionais** organizam entidades em tabelas, relacionamentos e restrições, com consultas SQL e recursos transacionais. Tecnologias **NoSQL** incluem modelos documento, chave-valor, coluna ampla e grafo; a escolha depende dos padrões de consulta, consistência, escala e estrutura do problema. Não se deve interpretar NoSQL como ausência obrigatória de consultas estruturadas nem como garantia universal de maior velocidade.\n\n**OLTP** prioriza transações operacionais, atualizações frequentes, baixa latência e consistência adequada às regras do negócio. **OLAP** prioriza consultas analíticas, históricos, agregações e exploração de conjuntos volumosos. Um data warehouse integra dados preparados para análise e inteligência de negócios. Um **data lake** armazena dados estruturados, semiestruturados e não estruturados em formatos diversos, frequentemente preservando zonas de dados brutos e transformados. A ideia de *schema-on-read* indica que parte da interpretação da estrutura ocorre na leitura; não significa ausência de governança ou de metadados.\n\n### Lakehouse e tecnologias de arquivos\nA abordagem **lakehouse** procura combinar a flexibilidade e a economia do armazenamento em lago com mecanismos de confiabilidade e gestão tabular úteis em análises, a depender da tecnologia adotada. Parquet é um formato colunar frequentemente útil em agregações e projeção de poucas colunas; Avro permite serialização de registros associada a esquemas; JSON é legível, mas pode impor custos maiores de armazenamento e processamento. **Particionamento** de conjuntos analíticos pode reduzir leitura desnecessária quando filtros e layout são compatíveis, mas particionar excessivamente produz arquivos pequenos e sobrecarga de metadados. Compressão, tamanho de arquivo e distribuição de dados precisam ser considerados em conjunto.\n\n## 2. Ingestão: batch, eventos e mudanças\n**ETL** extrai, transforma e carrega; **ELT** extrai e carrega antes de transformações executadas no ambiente de destino. Nenhum dos dois exige, por definição, processamento em lotes: podem integrar arquiteturas com dados atualizados frequentemente. **Batch** executa processamento em conjuntos delimitados; **streaming** trata fluxo contínuo de eventos, com opções de janelas e estado. **CDC (*change data capture*)** propaga inserções, alterações ou exclusões detectadas na origem, frequentemente a partir de mecanismos de captura do banco, evitando a necessidade de consultar constantemente todas as tabelas. CDC não é sinônimo de simples sincronização integral por cópia diária.\n\nA ingestão precisa lidar com esquemas, chaves, duplicações, eventos fora de ordem, falhas de rede, consistência entre etapas e retenção. Um fluxo típico recebe alterações transacionais, publica eventos com metadados, realiza validação e fornece dados a sistemas operacionais e analíticos. As necessidades de **tempo de evento** e **tempo de processamento** diferem: o evento pode ter ocorrido antes de alcançar o consumidor. Tecnologias de processamento distribuído podem usar *watermarks* e janelas para tratar atrasos, sempre com limites e escolhas explícitas.\n\n## 3. Catálogo, linhagem e acesso\nGovernança de dados compreende classificação, qualidade, responsabilidade, regras de acesso, documentação e rastreabilidade. **Catálogo** permite descobrir ativos e entender sua finalidade; **linhagem (*lineage*)** registra relações de origem, transformações e destinos; **observabilidade** busca identificar atrasos, falhas e desvios em dados e pipelines. Classificação de informações pessoais, políticas de acesso mínimo, minimização de coleta e descarte compatível com o propósito fazem parte de desenho responsável. Um dashboard não substitui controles de qualidade, e um pipeline que executa sem erros pode produzir dados incorretos.\n\nA estratégia correta considera custo total, desempenho, retenção e capacidade de auditoria. Em prova, não confunda armazenamento de objetos com banco de dados transacional, catálogo com mecanismo de autorização, nem compatibilidade de formatos com qualidade semântica. O rótulo de uma tecnologia não dispensa verificar quais garantias o serviço efetivamente oferece."
+    },
+    {
+      "title": "Mensageria: filas, publicação e padrões de integração",
+      "markdown": "## 1. Comunicação assíncrona e desacoplamento\n**Mensageria** permite que componentes troquem comandos, notificações e eventos sem exigir processamento integral na mesma chamada síncrona. O produtor publica uma mensagem em um broker ou infraestrutura intermediária, e consumidores a recebem segundo rotas e regras configuradas. A comunicação assíncrona reduz acoplamento temporal, mas não elimina dependências de contratos, disponibilidade ou monitoração. Em **fila de trabalho**, o objetivo costuma ser distribuir tarefas entre consumidores concorrentes; em **publicação/assinatura**, uma mensagem pode ser destinada a diferentes interessados por assinaturas ou rotas independentes. A implementação concreta define o número de cópias, a forma de retenção e quem confirma o recebimento.\n\nEm **RabbitMQ**, exemplos usuais do modelo AMQP envolvem *exchange*, *binding*, *routing key* e *queue*. O produtor pode publicar em uma exchange, que encaminha para filas de acordo com o tipo e os vínculos configurados. Exchange **direct** usa correspondências de chave; **fanout** distribui para filas vinculadas sem usar a chave para escolher destino; **topic** admite padrões de roteamento. O consumidor normalmente retira a mensagem da fila e pode confirmar seu processamento. Essa organização difere do modelo central de log particionado empregado pelo Kafka, ainda que ambos possam dar suporte a arquiteturas orientadas a eventos.\n\n## 2. Garantias de entrega e reconhecimento\n**At-most-once** evita reentrega automática, mas permite perda após falha; **at-least-once** prioriza não perder mensagens, admitindo duplicações; **exactly-once** depende do **escopo da operação e das garantias técnicas configuradas**. Não se pode concluir que uma transação no broker torna automaticamente exatamente uma vez um efeito externo, como cobrar um cartão ou atualizar um serviço sem coordenação. Consumidores **idempotentes** tornam repetição do mesmo evento inofensiva para o estado de negócio, frequentemente por meio de identificadores estáveis, deduplicação e transações locais.\n\n**Acknowledgement (ack)** indica reconhecimento do consumo nas condições do protocolo, enquanto a confirmação de publicação, quando disponível, trata da aceitação do produtor pelo broker. Essas confirmações não são a mesma coisa. Um limite de mensagens não confirmadas (*prefetch*) influencia concorrência e pressão sobre consumidores. Uma **dead-letter queue (DLQ)** ou roteamento de mensagens inválidas separa itens que não puderam ser tratados normalmente, mas precisa de política para inspeção, reprocessamento e descarte. Tentativas repetidas com espera progressiva (*backoff*) podem amortecer falhas transitórias; retries ilimitados, sem limites, ocultam problemas permanentes e geram saturação.\n\n## 3. Contratos e padrões de projeto\nUma mensagem tem dados de negócio e, frequentemente, cabeçalhos como identificador, origem, versão de contrato, timestamp e correlação. **Evento** descreve fato ocorrido (por exemplo, pedido aprovado); **comando** solicita uma ação (por exemplo, reservar estoque). A nomeação deve revelar essa diferença, pois evento não deve ser interpretado automaticamente como uma ordem dirigida a um único serviço. Sistemas transacionais podem implementar o padrão **transactional outbox**: registram a alteração de negócio e o evento pendente na mesma transação local; um processo posterior publica os eventos. Isso evita a janela de inconsistência de gravar no banco e depois publicar diretamente, embora ainda seja necessário lidar com duplicações na entrega.\n\nO padrão **saga** coordena transações locais com etapas e, em caso de falhas, ações compensatórias planejadas; compensação não equivale, em todos os casos, a desfazer o mundo físico ou a restaurar exatamente o estado anterior. **Request/reply** pode ser construído sobre mensageria com identificadores de correlação, mas recria parte do acoplamento temporal quando o solicitante aguarda resposta. Avalie roteamento, TTL, persistência, prioridades, volumes, latência, observabilidade e finalidade antes de decidir entre fila clássica e plataforma de streaming."
+    },
+    {
+      "title": "Apache Kafka: tópicos, partições e confiabilidade",
+      "markdown": "## 1. Modelo de log distribuído\n**Apache Kafka** é uma plataforma distribuída de transmissão e armazenamento de eventos. Um **producer** escreve registros em um **topic**, que pode ser dividido em **partitions**; um ou mais **brokers** servem as partições do cluster. A posição de cada registro dentro de sua partição é identificada por um **offset**. A ordem é preservada **dentro de cada partição** para registros nela gravados; não há uma ordem total assegurada entre partições distintas do mesmo tópico. Quando uma chave de evento define a partição de maneira consistente, eventos da mesma chave tendem a seguir para a mesma partição, permitindo ordenação relativa por entidade, observadas configurações e alterações de particionamento.\n\nUm **consumer group** reúne consumidores que cooperam na divisão das partições: numa atribuição normal de um grupo, uma partição pertence a um consumidor por vez, mas outros grupos independentes podem processar os mesmos dados. Se houver mais consumidores do mesmo grupo do que partições disponíveis, alguns podem ficar ociosos em relação àquele tópico. Aumentar o número de partições pode ampliar paralelismo, mas repercute em custos operacionais e na distribuição de chaves. **Rebalanceamento** modifica atribuições após mudanças de membros, falhas ou condições de organização do grupo. O offset confirmado ajuda a determinar de onde retomar o processamento; confirmar uma posição antes de persistir o resultado pode causar perda lógica em uma falha.\n\n## 2. Retenção, compactação e replicação\nMensagens em Kafka não precisam ser apagadas imediatamente após o consumo: políticas do tópico controlam **retention** por tempo e/ou tamanho. Consumidores independentes podem reler eventos que ainda estejam disponíveis. **Log compaction** retém, segundo o funcionamento e os critérios de limpeza, uma representação das atualizações por chave; não garante que exista sempre apenas um registro por chave na partição em todo instante. Um **tombstone**, registro com valor nulo e chave relevante em contextos de compactação, sinaliza remoção de estado associado à chave, sujeito às políticas aplicáveis.\n\nA **replication factor** indica quantas réplicas são configuradas para uma partição; réplicas e liderança sustentam disponibilidade, de acordo com a configuração e o estado do cluster. `acks=all`, `min.insync.replicas` e produtor idempotente contribuem para garantias de escrita, mas não tornam impossível a indisponibilidade ou a perda sob todos os cenários. A quantidade de réplicas não equivale ao número de partições nem amplia diretamente o paralelismo de consumo do mesmo grupo. A lista de réplicas sincronizadas (*ISR*) é relevante para a política de confirmação. Segurança costuma incluir autenticação, criptografia em trânsito, ACLs e gestão de credenciais.\n\n## 3. Processamento, entrega e operação\nA semântica **at-least-once** admite reprocessamento se o resultado for produzido antes de uma confirmação de offset, por exemplo. Produtores idempotentes reduzem duplicações decorrentes de retentativas de publicação; transações Kafka podem coordenar consumo e produção em tópicos Kafka dentro de um escopo definido. **Integrações com bancos ou APIs externas** precisam de desenho adicional para não duplicar efeitos de negócio. Kafka Streams é uma biblioteca de processamento embarcado em aplicações; Kafka Connect é um framework para integração com sistemas externos, com componentes e objetivos diferentes.\n\nO **consumer lag** representa distância entre o avanço de partição e a posição do grupo consumidor, conforme métrica empregada; deve ser avaliado com taxa de entrada e capacidade do consumidor. Entre indicadores operacionais, observam-se latência de produção, throughput, grupos, partições indisponíveis, sub-replicação, erros de clientes, uso de disco e balanceamento de carga. Na arquitetura moderna, **KRaft** gerencia metadados por consenso sem depender de ZooKeeper; materiais antigos podem citar ZooKeeper, mas não devem ser interpretados como exigência geral de novas implantações. Segurança e disponibilidade exigem política de manutenção, recuperação, testes de falha e dimensionamento, não apenas adicionar brokers."
+    },
+    {
+      "title": "Ecossistema Confluent: Cloud, Platform, Connect e governança",
+      "markdown": "## 1. Kafka e os produtos Confluent\n**Confluent** é um ecossistema de tecnologias e serviços centrado em streaming de dados. **Apache Kafka** é a base aberta de eventos; **Confluent Platform** reúne componentes para implantação e operação em infraestrutura gerenciada pela organização, com recursos disponíveis conforme produto e licenciamento; **Confluent Cloud** é uma oferta gerenciada em nuvem. A diferença é operacional e comercial: não se deve afirmar que um componente existe exclusivamente em um dos modelos sem consultar versão, configuração e oferta. Confluent acrescenta recursos de integração, processamento, segurança, gestão e governança ao trabalho com Kafka.\n\nA **Confluent Platform** pode reunir Kafka/Confluent Server, Kafka Connect, Schema Registry, ferramentas administrativas, interfaces REST, mecanismos de processamento e operações de espelhamento. **Control Center** oferece interface de administração e observação conforme a edição e a implantação. Na nuvem, consoles, APIs, conectores gerenciados e serviços de processamento diminuem tarefas de infraestrutura, mas não transferem automaticamente ao provedor a responsabilidade pelos contratos de dados, autorizações de cada cliente ou regras da aplicação.\n\n## 2. Kafka Connect e conectores\nO **Kafka Connect** é um framework destinado a movimentar dados entre Kafka e sistemas externos. Um **source connector** lê de uma origem externa e publica registros em tópicos; um **sink connector** consome tópicos e envia registros a um destino. Os conectores podem trabalhar com tarefas paralelas, conversores e configurações específicas. Converter/serializar o valor não é o mesmo que transformar sua semântica de negócio. **Single Message Transforms (SMTs)** admitem operações pontuais por registro, mas não devem ser confundidas com um motor universal de joins complexos e processamento com estado.\n\nConectores de CDC podem entregar eventos de modificações de bancos relacionais. Exemplo de integração: alterações de pedidos são capturadas de um banco transacional, enviadas por um source connector para tópicos Kafka e lidas por sinks para plataformas de busca ou análise. Reprocessamento, snapshots iniciais, chaves primárias, atualização de esquema, idempotência no destino e estado das tarefas exigem decisão específica. Em Confluent Cloud há opções de conectores totalmente gerenciados e outros modelos; a disponibilidade varia por sistema e modalidade.\n\n## 3. Schema Registry: contratos de dados\n**Schema Registry** armazena e disponibiliza versões de esquemas associados a *subjects*, usados com serializadores/desserializadores e mecanismos de validação. Suporta esquemas de formatos como **Avro**, **JSON Schema** e **Protocol Buffers**. Seu uso ajuda produtores e consumidores a evoluir contratos de forma controlada; não equivale a armazenar os eventos ou a garantir validade semântica de todos os campos. A nomenclatura do subject depende da estratégia escolhida; na estratégia clássica `TopicNameStrategy`, usam-se convenções como `nome-do-topico-value` para o valor, conforme contexto de implantação.\n\nCompatibilidade **BACKWARD** preocupa-se com leitura de dados antigos por consumidor com esquema mais novo, conforme regras da modalidade. **FORWARD** analisa a direção oposta; **FULL** combina exigências dessas direções. Modos **TRANSITIVE** estendem verificações a todo o histórico pertinente, não apenas à versão imediatamente anterior. Determinar que um campo é obrigatório, opcional ou tem valor padrão pode alterar a possibilidade de evolução, com sutilezas distintas em Avro, JSON Schema e Protobuf. Compatibilidade estrutural não substitui avaliação de significado: mudar a unidade monetária sem modificar a definição do campo pode quebrar a aplicação mesmo se passar por verificações sintáticas.\n\n## 4. Processamento: Flink, ksqlDB e Kafka Streams\n**Confluent Cloud for Apache Flink** disponibiliza processamento de fluxos gerenciado, incluindo uso de **Flink SQL**, janelas, agregações e transformações segundo os recursos da oferta. **Confluent Platform for Apache Flink** atende implantação associada à plataforma sob gestão própria. **ksqlDB** permite construir consultas e processamento de streams sobre Kafka com sintaxe SQL; a documentação atual da Confluent recomenda **Flink para novas cargas de processamento em streaming** na Confluent Platform, mantendo suporte ao ksqlDB existente. **Kafka Streams** é biblioteca incorporada a aplicações: não se confunde com serviço SQL gerenciado. Essas opções compartilham possíveis casos de uso, mas possuem modelos operacionais, limites e APIs diferentes.\n\n## 5. Replicação, governança e segurança\n**Cluster Linking** permite replicação de tópicos entre clusters nos cenários suportados; **Replicator** é outra tecnologia de replicação presente no ecossistema. Não confunda réplica interna de partição para tolerância a falhas com espelhamento de dados entre clusters para integração, migração ou continuidade de negócios. **Stream Governance**, no Confluent Cloud, reúne recursos de catálogo, avaliação de esquemas, metadados e linhagem; o **Data Portal** facilita descoberta de tópicos conforme permissões e funcionalidades contratadas. Linhagem explica fluxos, mas não elimina necessidade de auditoria e minimização.\n\nControles de segurança podem abranger **TLS**, autenticação de clientes, ACLs e, onde oferecido, **RBAC**, além de integração de identidades, política de secrets, segregação de ambientes e governança de acesso. Diferencie **autenticação** (quem é o cliente), **autorização** (o que pode fazer) e **criptografia** (proteção dos dados em trânsito ou em repouso conforme o componente). Recursos de Confluent devem ser analisados por edição, ambiente e documentação atual: não há fundamento para afirmar que todo cluster possui sempre a mesma funcionalidade licenciada."
+    },
+    {
+      "title": "Arquiteturas integradas, operação, segurança e questões de prova",
+      "markdown": "## 1. Desenho ponta a ponta\nPlataformas de repositórios, dados e mensageria frequentemente compõem uma mesma arquitetura. Considere uma aplicação de comércio eletrônico: o código reside em Git; o CI gera uma imagem OCI e a publica em registry; o serviço implantado persiste pedidos em um banco OLTP; um mecanismo de **outbox ou CDC** disponibiliza alterações como eventos Kafka; serviços de fraude e notificações consomem os tópicos em grupos independentes; conectores transferem eventos para um data lake ou armazém analítico; um catálogo documenta proprietários, significados e acessos. Nessa cadeia, nenhum componente sozinho garante a correção de ponta a ponta. Mesmo com Kafka disponível, o destino pode rejeitar registros por erro de esquema, limite de taxa ou falta de credencial.\n\nDistinguir **fluxos de dados** de **fluxos de controle** evita arquiteturas confusas. Para comandar uma execução exclusiva de curta duração, fila de tarefas com reconhecimento e roteamento pode ser apropriada; para permitir várias aplicações independentes lerem histórico recente de alterações, um log de eventos com retenção e grupos de consumo pode ser vantajoso. Não há regra absoluta: requisitos de ordenação, replay, janela de retenção, latência, entrega, padrões de consumidores e experiência de operação pesam mais que o nome do produto.\n\n## 2. Confiabilidade fim a fim\nUm pedido gravado no banco e um evento publicado em broker constituem dois efeitos distintos. Se ambos são feitos em operações desacopladas, pode ocorrer sucesso no banco e falha antes da publicação, ou publicação seguida de falha local. O **transactional outbox** une alteração e marcação do evento na transação local e separa a entrega por publicador posterior; isso resolve a lacuna de atomicidade dentro daquele banco, mas não prova *exactly once* no sistema externo. Consumidores precisam de **idempotência** e identificação estável do evento. Para operações distribuídas, sagas explicitam dependências, passos e compensações.\n\nA **recuperação de falhas** deve prever reentrega, payload inválido, desvio de esquema, produtor lento, consumidor paralisado e destino indisponível. Backoff com limite de tentativas, DLQ com observabilidade, circuit breaker quando aplicável e estratégia de reprocessamento constituem controles complementares. É crucial manter **correlation ID** entre serviços, usar logs estruturados e evitar incluir segredos ou dados sensíveis em registros operacionais. O monitoramento não deve limitar-se a saber se o processo está de pé: **consumer lag**, taxa de erro, idade dos eventos, filas paradas, sub-replicação e qualidade dos dados revelam incidentes invisíveis à simples disponibilidade HTTP.\n\n## 3. Segurança e governança ao longo do ciclo\nAs práticas de segurança incluem proteção do registry de artefatos, revisão de dependências, varredura e assinatura de imagens, credenciais de curta duração quando possível, rotação de segredos, TLS, políticas de autorização mínimas e segregação de aplicações/ambientes. No universo de dados, adicionam-se descoberta, classificação, retenção, regras de qualidade e finalidade de tratamento. Um **Schema Registry** versiona contratos, mas não decide sozinho quem deveria receber dados pessoais; um catálogo melhora descoberta, mas não substitui autorização efetiva; uma cópia replicada melhora opções de continuidade, mas não substitui backup testado ou política de recuperação.\n\n**RPO** expressa a perda máxima de dados aceitável em termos de tempo; **RTO** indica o prazo objetivo para restabelecimento. Atingir essas metas requer testes de recuperação, capacidade suficiente, política de retenção e procedimentos documentados. Em ambientes híbridos ou multicloud, observem-se conectividade, latência, egressos, compatibilidade, governança de identidades e dependência do fornecedor. Não confunda dados replicados com dados imutáveis protegidos contra apagamento administrativo.\n\n## 4. Quadro de comparação para concursos\n| Necessidade | Solução típica | Erro recorrente |\n|---|---|---|\n| Histórico de código e colaboração | Git e hospedagem de código | Tratar commit como pacote executável |\n| Distribuição de componentes compilados | Registry de pacotes/artefatos | Considerar cache proxy a fonte única dos pacotes |\n| Consultas históricas e BI | Warehouse/lakehouse | Tratar banco OLTP como o mesmo tipo de carga |\n| Ingestão de alterações | CDC e conectores | Confundir CDC com varredura integral obrigatória |\n| Distribuição de tarefas | Fila com acknowledgements | Supor que ack e publicação sejam a mesma garantia |\n| Eventos com retenção e replay | Kafka com tópicos e grupos | Afirmar ordem global entre partições |\n| Contratos versionados de eventos | Schema Registry | Supor que schema substitui validação de negócio |\n| Processamento SQL de streams | Flink SQL ou ksqlDB conforme cenário | Confundir biblioteca Kafka Streams com serviço SQL |\n| Descoberta e rastreabilidade de dados | Catálogo e lineage | Equiparar catálogo a criptografia ou RBAC |\n\nEm itens assertivos, fique atento a expressões absolutas: **sempre**, **nunca**, **exclusivamente**, **sem risco** e **garante por si só**. A prova costuma apresentar tecnologia correta com garantia exagerada. Em casos práticos, identifique primeiro se a falha está na publicação, no consumo, na consistência transacional, no contrato ou na governança; só então escolha a ferramenta."
+    }
+  ],
+  "summary": "**Panorama de estudo:** repositórios de código (Git) preservam commits, branches e tags; registries (Nexus, Artifactory e serviços equivalentes) hospedam, intermedeiam e distribuem pacotes e imagens, com rastreabilidade de versões e controles de procedência. Data lakes, warehouses e lakehouses atendem a propósitos analíticos, enquanto OLTP prioriza operações transacionais. ETL, ELT e CDC descrevem estratégias de ingestão; catálogo, linhagem, classificação e autorização compõem a governança. Na mensageria, filas distribuem tarefas e pub/sub dissemina eventos, exigindo atenção a acknowledgements, duplicação, retries e DLQ. Em Kafka, tópicos possuem partições, offsets e consumer groups: ordenação é por partição, e reter eventos permite replay. No ecossistema Confluent, Cloud e Platform têm modelos de operação distintos; Connect fornece sources e sinks, Schema Registry controla versões de contratos, Flink e ksqlDB executam processamento de fluxos, e Stream Governance complementa metadados e linhagem. O eixo de prova é reconhecer escopos de garantias: exatamente uma vez no broker não implica efeito externo exatamente uma vez; replicação não dispensa backup; um catálogo não é um mecanismo automático de autorização.",
+  "flashcards": [
+    {
+      "front": "O que distingue Git de registry de artefatos?",
+      "back": "Git versiona fontes e histórico de commits; um registry distribui pacotes, binários e imagens construídos para utilização em compilações ou implantações."
+    },
+    {
+      "front": "Git fetch e Git pull são equivalentes?",
+      "back": "Não. Fetch obtém dados e referências remotas; pull também realiza integração no ramo corrente conforme a configuração."
+    },
+    {
+      "front": "Quais os tipos fundamentais de repositório Nexus?",
+      "back": "Hosted hospeda itens próprios; proxy intermedeia origens externas com cache; group agrega repositórios em um único endpoint."
+    },
+    {
+      "front": "Para que servem o digest e uma assinatura de artefato?",
+      "back": "Digest auxilia a confirmar integridade de conteúdo; assinatura ou atestação vinculada a confiança fornece evidência adicional de procedência."
+    },
+    {
+      "front": "OLTP e OLAP: diferença central?",
+      "back": "OLTP otimiza operações transacionais; OLAP concentra consultas analíticas, históricas e agregadas."
+    },
+    {
+      "front": "O que diferencia data lake de data warehouse?",
+      "back": "Lake aceita formatos e níveis de estrutura variados; warehouse é orientado a dados preparados e integrados para consultas analíticas."
+    },
+    {
+      "front": "Qual a distinção entre ETL e ELT?",
+      "back": "ETL transforma antes da carga final; ELT carrega e utiliza o destino para realizar transformações posteriores."
+    },
+    {
+      "front": "O que é CDC?",
+      "back": "Captura de alterações da origem, como inclusão, atualização e exclusão de registros, para alimentar integrações ou fluxos de eventos."
+    },
+    {
+      "front": "O que significam catálogo e linhagem de dados?",
+      "back": "Catálogo auxilia descoberta e documentação; linhagem mostra origens, transformações e destinos de conjuntos de dados."
+    },
+    {
+      "front": "Fila de trabalho e pub/sub se diferenciam como?",
+      "back": "A fila busca distribuir tarefas entre trabalhadores; publicação/assinatura permite entregar eventos a diferentes interessados."
+    },
+    {
+      "front": "O que é at-least-once?",
+      "back": "Semântica que pode reenviar mensagens para evitar perda, admitindo duplicações que exigem controle no consumidor."
+    },
+    {
+      "front": "Qual diferença entre ack do consumidor e confirmação do publisher?",
+      "back": "Ack de consumo trata de entrega ou processamento pelo consumidor; confirmação de publicação trata do envio aceito pelo broker, conforme protocolo."
+    },
+    {
+      "front": "O que resolve o transactional outbox?",
+      "back": "Une alteração local do negócio e registro do evento pendente na mesma transação; a publicação posterior ainda pode duplicar eventos."
+    },
+    {
+      "front": "O que é uma DLQ?",
+      "back": "Destino de mensagens que não seguiram pelo fluxo normal, exigindo monitoramento, diagnóstico, retenção e tratamento de reprocessamento."
+    },
+    {
+      "front": "Qual é a unidade de ordenação garantida no Kafka?",
+      "back": "A partição de tópico; não há ordem total garantida entre partições diferentes."
+    },
+    {
+      "front": "O que é consumer group no Kafka?",
+      "back": "Conjunto de consumidores que compartilha a atribuição das partições do tópico; grupos distintos podem consumir os mesmos dados independentemente."
+    },
+    {
+      "front": "O que representa o offset?",
+      "back": "Posição de um registro na sequência de determinada partição; offsets ajudam a acompanhar e retomar leitura."
+    },
+    {
+      "front": "O que é log compaction?",
+      "back": "Estratégia de retenção orientada a chaves para preservar atualizações de estado segundo regras de limpeza; não equivale a manter instantaneamente apenas um registro por chave."
+    },
+    {
+      "front": "O que é consumer lag?",
+      "back": "Diferença entre avanço disponível no log e progresso de leitura do grupo, de acordo com a métrica; não garante qualidade do processamento."
+    },
+    {
+      "front": "Para que serve KRaft?",
+      "back": "Gerenciamento consensual de metadados do Kafka sem a dependência histórica de ZooKeeper em novas arquiteturas."
+    },
+    {
+      "front": "Source e sink connector: sentidos?",
+      "back": "Source lê sistema externo e produz em Kafka; sink consome Kafka e grava em sistema externo."
+    },
+    {
+      "front": "Função do Confluent Schema Registry?",
+      "back": "Gerenciar schemas versionados por subjects, apoiar serializers e checagens de compatibilidade; não armazenar os eventos do tópico."
+    },
+    {
+      "front": "BACKWARD e FORWARD tratam que compatibilidade?",
+      "back": "Backward: leitores com esquema novo leem dados antigos. Forward: leitores antigos interpretam dados escritos com esquema novo, nas regras pertinentes."
+    },
+    {
+      "front": "Confluent Cloud difere de Platform em quê?",
+      "back": "Cloud é serviço gerenciado; Platform pode ser operada em infraestrutura sob gestão da organização, com ofertas e recursos conforme a edição."
+    },
+    {
+      "front": "O que faz Stream Governance?",
+      "back": "Oferece mecanismos de descoberta, metadados, esquema e linhagem de dados de eventos na oferta Confluent Cloud."
+    },
+    {
+      "front": "ksqlDB, Kafka Streams e Flink são iguais?",
+      "back": "Não. ksqlDB fornece interface SQL para streams Kafka; Kafka Streams é biblioteca; Flink é mecanismo próprio de processamento de fluxos."
+    },
+    {
+      "front": "RPO versus RTO?",
+      "back": "RPO é tolerância de perda de dados medida no tempo; RTO é prazo-alvo para restabelecer o serviço após incidente."
+    },
+    {
+      "front": "Por que replicação não substitui backup?",
+      "back": "Porque erros e exclusões podem se propagar entre réplicas; backups protegidos e testes de recuperação cobrem outros cenários."
+    },
+    {
+      "front": "O que agrega um correlation ID?",
+      "back": "Permite associar logs e eventos de uma mesma operação ao longo de serviços e filas para diagnóstico de fluxo distribuído."
+    },
+    {
+      "front": "Qual a garantia de um producer idempotente do Kafka sobre cobrança externa?",
+      "back": "Nenhuma garantia automática; o producer limita duplicações de publicação em seu escopo, enquanto a cobrança externa precisa de idempotência própria."
+    }
+  ],
+  "tips": [
+    "Em provas, distinga sempre repositório de código (Git), repositório de pacote (Nexus/Artifactory) e repositório analítico (lake/warehouse).",
+    "Na comparação Nexus/Artifactory, memorize hosted/local, proxy/remote e group/virtual como papéis comparáveis, não produtos idênticos.",
+    "Kafka: ordem é por partição; consumer groups compartilham partições internamente e são independentes entre si.",
+    "Confluent Connect: source entra no Kafka; sink sai do Kafka. Schema Registry guarda esquemas, nunca substitui o broker.",
+    "Associe BACKWARD a leitor novo com dado antigo e FULL à verificação de ambas as direções.",
+    "Evite promessas de exactly-once fim a fim sem demonstrar escopo transacional, idempotência e tratamento de sistemas externos.",
+    "Para observabilidade, avalie lag, erros, atrasos dos dados, DLQ e qualidade de resultados, não apenas saúde de processos.",
+    "Para projetos novos de processamento streaming na Confluent Platform, consulte Flink; ksqlDB mantém uso e suporte em aplicações existentes."
+  ],
+  "traps": [
+    "Git pull não é sinônimo operacional de git fetch: pull inclui integração conforme estratégia configurada.",
+    "Proxy de artefatos não é o mesmo que hosted; group/virtual é agregação lógica de fontes.",
+    "Schema-on-read não dispensa classificação, catálogo, permissões ou qualidade em data lake.",
+    "At-least-once pode duplicar efeitos; ack de consumidor não equivale a confirmação de publicação.",
+    "Kafka não assegura ordenação global entre partições e não apaga mensagem após o primeiro consumo.",
+    "Schema Registry não armazena payloads dos tópicos; compatibilidade de schema não assegura correção do significado dos campos.",
+    "Fator de replicação não aumenta, sozinho, número de consumidores efetivos no mesmo grupo.",
+    "Replicação entre clusters não equivale a réplica interna nem substitui backup testado."
+  ],
+  "activeRecall": [
+    {
+      "question": "Por que usar um repositório de artefatos após compilar em CI?",
+      "answer": "Para distribuir e promover binários versionados, controlados e rastreáveis sem depender de recompilação diferente em cada ambiente."
+    },
+    {
+      "question": "Quando CDC se distingue de ETL por lote clássico?",
+      "answer": "Quando captura alterações incrementais da origem e as entrega de forma recorrente, em vez de necessariamente reler toda a base em lotes."
+    },
+    {
+      "question": "Qual risco existe ao confirmar offset antes de salvar o resultado de um consumidor?",
+      "answer": "Se houver falha após a confirmação e antes da persistência, a aplicação poderá ignorar o registro no reprocessamento."
+    },
+    {
+      "question": "Por que aumentos de réplicas e de partições não são equivalentes em Kafka?",
+      "answer": "Réplicas buscam redundância/continuidade; partições permitem paralelismo e influenciam a ordenação dos eventos."
+    },
+    {
+      "question": "Como source e sink connectors cooperam com uma plataforma analítica?",
+      "answer": "Um source pode ingerir alterações de banco em Kafka e um sink pode descarregar os tópicos em armazenamento ou serviço de análise."
+    },
+    {
+      "question": "Como comparar BACKWARD, FORWARD e TRANSITIVE na evolução do esquema?",
+      "answer": "Backward verifica leitura de dados antigos por versão nova; forward trata sentido inverso; transitive amplia o histórico verificado."
+    },
+    {
+      "question": "Qual o limite de exatamente uma vez quando a aplicação chama uma API de pagamentos?",
+      "answer": "A transação do broker não abrange necessariamente a API; usa-se idempotência de negócio, deduplicação e mecanismos de coordenação."
+    },
+    {
+      "question": "O que monitorar para detectar pipeline ativo, mas incorreto?",
+      "answer": "Qualidade, contagens e reconciliação de dados, erros no destino, eventos atrasados, DLQ, throughput e consumer lag."
+    },
+    {
+      "question": "Como distinguir Cluster Linking de replicação de partições?",
+      "answer": "Cluster Linking replica entre clusters suportados; replicação de partição fornece redundância dentro de um cluster."
+    },
+    {
+      "question": "O que verificar ao decidir entre fila e log de eventos?",
+      "answer": "Se é tarefa para um trabalhador ou evento para múltiplos consumidores, além de replay, retenção, ordem, idempotência e escala."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre código, artefato e dados",
+      "summary": "Versionar fontes em Git, distribuir pacotes em registries e consultar repositórios analíticos são responsabilidades distintas."
+    },
+    {
+      "key": "e2",
+      "title": "Mensageria e garantias excessivas",
+      "summary": "Reconhecimento, at-least-once e exactly-once dependem de escopo; efeitos externos pedem idempotência e coordenação."
+    },
+    {
+      "key": "e3",
+      "title": "Ordenação e grupos no Kafka",
+      "summary": "Kafka mantém ordem por partição e atribui partições por consumidor dentro de grupos independentes."
+    },
+    {
+      "key": "e4",
+      "title": "Contratos e integração Confluent",
+      "summary": "Schema Registry administra esquemas, Connect move dados, Flink/ksqlDB processam streams; nenhum componente substitui os demais."
+    },
+    {
+      "key": "e5",
+      "title": "Governança e observabilidade",
+      "summary": "Catálogo, lineage, ACL, monitoramento de lag e qualidade atuam em dimensões diferentes e complementares."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em uma organização, a equipe quer preservar o histórico das mudanças do código de uma API e examinar revisões por commit. A tecnologia mais apropriada como mecanismo de versionamento distribuído é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Git.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "um data warehouse.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "um broker AMQP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "um banco de séries temporais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "um catálogo de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Git registra o histórico do código por commits e referências, permitindo ramificações e colaboração distribuída. Armazéns, brokers, bancos temporais e catálogos têm objetivos de armazenamento, troca ou descoberta de dados, não o controle versionado de código.",
+      "section": "Repositórios de código, pacotes e artefatos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um repositório Git distribuído, o desenvolvedor precisa consultar o servidor remoto antes de registrar qualquer commit, pois a cópia local não preserva o histórico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item está errado porque um clone do Git contém dados e histórico suficientes para registrar commits locais sem conexão permanente ao servidor. Enviar ou trazer alterações do remoto são operações distintas, como push e fetch.",
+      "section": "Repositórios de código, pacotes e artefatos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao preparar um ambiente de integração contínua, a área de infraestrutura pretende oferecer um endereço agregado para repositórios próprios e caches externos no Nexus Repository. O tipo adequado é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "hosted.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "group.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "proxy.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "branch.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "commit.",
+          "correct": false
+        }
+      ],
+      "explanation": "O repositório group agrega outros repositórios em um ponto de acesso para o gerenciador de dependências. Hosted recebe artefatos próprios e proxy intermedeia uma origem externa; branch e commit pertencem ao controle de versões, não aos tipos do Nexus.",
+      "section": "Repositórios de código, pacotes e artefatos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A operação git fetch necessariamente incorpora, por merge, os commits remotos à ramificação de trabalho corrente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Fetch obtém referências e objetos de remotos, mas não exige mesclar os commits à branch atual. A integração pode ser feita posteriormente por merge ou rebase; confundir fetch com pull leva à atribuição de um comportamento que não é obrigatório.",
+      "section": "Repositórios de código, pacotes e artefatos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer evitar que a imagem implantada em produção seja reconstruída com dependências distintas das testadas em homologação. A estratégia prioritária é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "recompilar livremente a cada implantação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "usar sempre a tag latest sem registrar o digest.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "promover o mesmo artefato imutável já testado entre ambientes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "substituir a revisão de código por uma mensagem de fila.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "apagar o histórico de publicação após cada release.",
+          "correct": false
+        }
+      ],
+      "explanation": "Promover o mesmo artefato identificado por versão ou digest preserva a relação entre teste e implantação. Reconstruções independentes, referências mutáveis e perda de rastreabilidade podem introduzir diferenças não avaliadas e dificultar auditoria.",
+      "section": "Repositórios de código, pacotes e artefatos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um repositório proxy de artefatos é projetado para intermediar uma origem externa e pode manter itens em cache, o que não torna irrelevante a disponibilidade ou a política de atualização da origem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O proxy reduz dependência de solicitações repetidas por meio de cache, mas o conteúdo disponível e atualizações podem depender da origem e de regras locais. Ele não é equivalente a um repositório hosted de publicação própria nem garante acesso universal offline.",
+      "section": "Repositórios de código, pacotes e artefatos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma revisão de segurança da cadeia de suprimentos, qual medida contribui para demonstrar a procedência do artefato, complementando a simples conferência de integridade por hash?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar o nome do arquivo compilado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Guardar somente o horário do último download.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar apenas uma ramificação sem revisões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Assinatura ou atestação vinculada a identidade confiável.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Remover a lista de dependências da compilação.",
+          "correct": false
+        }
+      ],
+      "explanation": "O hash detecta alteração do conteúdo quando comparado a um valor confiável, mas não identifica sozinho quem publicou o artefato. Assinaturas e atestações verificáveis acrescentam evidência de procedência; nomes, horários e ausência de revisão não oferecem tal garantia.",
+      "section": "Repositórios de código, pacotes e artefatos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Git, branch e tag são objetos conceitualmente idênticos em finalidade: ambos devem necessariamente avançar a cada novo commit da equipe.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A branch é uma referência tipicamente móvel utilizada no desenvolvimento; a tag costuma assinalar um marco ou versão e não precisa avançar. Reduzir ambos a referências que se movem automaticamente ignora seu uso e suas regras de atualização distintas.",
+      "section": "Repositórios de código, pacotes e artefatos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um auditor diferencia o repositório de código de um registry de imagens OCI. O elemento que caracteriza o segundo é a",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "manutenção exclusiva das revisões de arquivos-fonte por commit.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "execução de consultas OLAP diretamente nas imagens.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "garantia de entrega de eventos entre microsserviços.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "eliminação da necessidade de controle de acesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "distribuição de imagens e artefatos empacotados para consumo na implantação.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um registry de imagens concentra distribuição e controle de artefatos de contêiner usados na execução. Histórico Git, consultas analíticas e transporte de mensagens são outras responsabilidades; o registry ainda exige credenciais, autorização e proteção de conteúdo.",
+      "section": "Repositórios de código, pacotes e artefatos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo de bloqueio de dependências pode auxiliar a reprodução de uma compilação, mas não substitui o controle de integridade e a verificação da origem dos pacotes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Lockfiles tornam mais explícitas versões resolvidas e reduzem variações, sem assegurar que todos os pacotes são íntegros ou confiáveis. Hashes, controles de publicação e políticas de procedência tratam riscos complementares do fornecimento de dependências.",
+      "section": "Repositórios de código, pacotes e artefatos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa reúne registros brutos, tabelas e arquivos multimídia em armazenamento central para transformação posterior, com diferentes formatos e estruturas. A arquitetura descrita corresponde mais diretamente a um",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "exclusivo banco OLTP.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "data lake.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "broker de roteamento AMQP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "repositório de commits Git.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "servidor de autenticação.",
+          "correct": false
+        }
+      ],
+      "explanation": "O data lake recebe dados estruturados e não estruturados e pode organizar zonas de ingestão e tratamento. O banco OLTP é voltado a operações transacionais; as demais tecnologias atendem troca de mensagens, versionamento e identidade, não à finalidade analítica descrita.",
+      "section": "Plataformas de dados, armazenamento e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sistemas OLTP costumam privilegiar transações do cotidiano, enquanto soluções OLAP priorizam agregações e análises sobre conjuntos amplos de dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A afirmação corresponde ao contraste clássico: OLTP otimiza transações operacionais e OLAP concentra análises e agregações. São perfis de uso típicos e não impedem sobreposições pontuais; o erro seria afirmar que ambas as cargas são sempre idênticas.",
+      "section": "Plataformas de dados, armazenamento e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na ingestão de dados, a diferença essencial entre ETL e ELT é que, no ELT,",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "a extração da origem é proibida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "todo dado deve ser convertido em mensagem AMQP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "as transformações centrais podem ocorrer após o carregamento no destino.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "o carregamento só ocorre depois de todas as transformações externas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "nunca se realiza validação de qualidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "ELT carrega os dados antes de parte relevante da transformação, frequentemente usando capacidade computacional do próprio destino; ETL usualmente transforma antes de carregar. Ambas as abordagens podem exigir validação, extração de fontes e tratamentos complementares.",
+      "section": "Plataformas de dados, armazenamento e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O armazenamento em data lake dispensa classificação de dados e metadados, pois toda interpretação deve ficar a cargo exclusivo do consumidor final.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item está errado porque schema-on-read não dispensa governança. Catálogo, classificação, controle de acesso, qualidade e ciclo de vida dos dados seguem necessários, sobretudo quando arquivos brutos contêm informações pessoais ou sensíveis.",
+      "section": "Plataformas de dados, armazenamento e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma arquitetura precisa capturar alterações de linhas transacionais para alimentar tópicos de eventos sem reler continuamente a totalidade das tabelas. O mecanismo conceitual indicado é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "git rebase.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "push de imagens OCI.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "compactação de arquivos de log de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "change data capture (CDC).",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "somente consultas ad hoc de BI.",
+          "correct": false
+        }
+      ],
+      "explanation": "CDC captura eventos de alteração da fonte, muitas vezes por mecanismos de log transacional, e os disponibiliza para integração. Rebase e registries tratam código ou artefatos; consultas analíticas e compactação isolada não caracterizam captura contínua das mudanças de dados.",
+      "section": "Plataformas de dados, armazenamento e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em bancos ou arquivos analíticos, particionar uma tabela nunca pode piorar o desempenho, independentemente da cardinalidade e da quantidade de pequenos arquivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Partições excessivas ou arquivos muito pequenos aumentam sobrecarga de metadados e abertura de arquivos, reduzindo eficiência. O ganho depende dos filtros, do layout e do padrão de leitura; particionamento não é melhoria universal sem custos.",
+      "section": "Plataformas de dados, armazenamento e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para identificar de quais origens e transformações foi produzido um conjunto publicado no warehouse, o mecanismo de governança mais diretamente relacionado é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "variável de ambiente do deploy.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "chave de roteamento AMQP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "offset de commit do Git.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "nome físico de uma branch.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "linhagem de dados (data lineage).",
+          "correct": true
+        }
+      ],
+      "explanation": "A linhagem descreve relações entre fontes, operações e saídas, facilitando rastreabilidade e avaliação de impacto. Os demais elementos não fornecem, por si, o mapa de derivações do pipeline e não substituem registros de transformação e metadados.",
+      "section": "Plataformas de dados, armazenamento e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O formato Parquet, orientado a colunas, pode ser útil em cargas analíticas que consultam apenas um subconjunto de colunas de tabelas largas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Parquet organiza informações por colunas, o que pode favorecer leitura seletiva e compressão em determinadas consultas analíticas. A adequação depende do padrão de acesso e do layout; isso não torna Parquet ideal para toda atualização transacional individual.",
+      "section": "Plataformas de dados, armazenamento e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório precisa distinguir a informação de quando o fato ocorreu da informação de quando o pipeline o processou. Os conceitos pertinentes são, respectivamente,",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "tempo de evento e tempo de processamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "RPO e RTO.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "commit e branch.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "cache e proxy.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "acknowledgement e binding.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tempo de evento representa o instante associado à ocorrência; tempo de processamento refere-se à execução no sistema. A distinção é importante quando dados chegam atrasados, sobretudo em janelas de streaming. As outras duplas tratam recuperação, versionamento ou mensageria.",
+      "section": "Plataformas de dados, armazenamento e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ter um catálogo de dados com descrições de ativos equivale a aplicar automaticamente autorização mínima e criptografia a todos os registros catalogados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Catálogos tornam ativos encontráveis e documentados, mas as regras efetivas de autorização e criptografia exigem controles próprios nos serviços. Governança demanda integração entre descoberta, classificação, identidade e mecanismos de proteção, sem equivalência automática.",
+      "section": "Plataformas de dados, armazenamento e governança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema de processamento de boletos, cada tarefa deve ser executada por um dos trabalhadores concorrentes de uma fila. O padrão que melhor expressa o objetivo principal é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "broadcast obrigatório para todo trabalhador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "commit de Git por boleto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "fila de trabalho com consumidores concorrentes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "varredura OLAP contínua.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "catálogo de esquemas como executante.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fila de trabalho permite distribuir itens para que consumidores concorrentes processem tarefas, com estratégias de reconhecimento e reentrega. Broadcast criaria processamento por vários interessados; Git, OLAP e catálogo não são mecanismos de execução das tarefas.",
+      "section": "Mensageria: filas, publicação e padrões de integração",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No RabbitMQ, exchanges podem rotear publicações a filas mediante bindings e chaves, conforme o tipo de exchange configurado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Exchanges e bindings definem o encaminhamento de mensagens às filas. A direct observa chaves correspondentes, enquanto outras modalidades fazem distribuição ou aceitam padrões. O produtor não precisa publicar diretamente no processo consumidor para haver roteamento.",
+      "section": "Mensageria: filas, publicação e padrões de integração",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço consome mensagens sob garantia at-least-once e atualiza o saldo de pontos de um usuário. Para limitar efeitos de reentregas, deve priorizar",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "ignorar toda duplicação sem registro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "aumentar indefinidamente o número de retries.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "dispensar transações locais no banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "idempotência com identificação estável do evento processado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "remover os identificadores de correlação.",
+          "correct": false
+        }
+      ],
+      "explanation": "At-least-once admite reentregas, de modo que a aplicação precisa reconhecer eventos já aplicados, idealmente com verificação transacional e identificador estável. Retries ilimitados ou ausência de controle podem repetir efeitos financeiros e comprometer a integridade.",
+      "section": "Mensageria: filas, publicação e padrões de integração",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A confirmação de consumo por um consumidor e a confirmação de publicação ao produtor representam necessariamente o mesmo evento de protocolo e têm significado idêntico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A confirmação da publicação refere-se à recepção ou persistência do envio pelo broker, nos limites do protocolo; a confirmação do consumo refere-se ao processamento ou aceite da entrega. Confundir etapas distintas produz garantias inexistentes de ponta a ponta.",
+      "section": "Mensageria: filas, publicação e padrões de integração",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pedido foi persistido no banco, mas a aplicação caiu antes de publicar o evento correspondente. O padrão que ajuda a evitar essa lacuna usando uma única transação local é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "fanout exchange isoladamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "git cherry-pick.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "schema-on-read.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "mudança de nome de um tópico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "transactional outbox.",
+          "correct": true
+        }
+      ],
+      "explanation": "O transactional outbox registra mudança de negócio e evento pendente na mesma transação de banco, e outro processo realiza a publicação. Ele reduz inconsistência entre commit local e emissão do evento, embora ainda exija tolerância a mensagens publicadas mais de uma vez.",
+      "section": "Mensageria: filas, publicação e padrões de integração",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma dead-letter queue sempre soluciona automaticamente a causa de mensagens defeituosas e dispensa investigação, reprocessamento e política de retenção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "DLQ isola mensagens que falharam ou foram rejeitadas de acordo com regras configuradas, mas não corrige payloads, credenciais nem contratos. É preciso observar causas, estabelecer retenção, inspecionar itens e definir reprocessamento ou descarte responsável.",
+      "section": "Mensageria: filas, publicação e padrões de integração",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma solução AMQP deve encaminhar cada mensagem de um produtor a todas as filas vinculadas, sem filtrar pela routing key. A modalidade de exchange adequada é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "fanout.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "direct.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "topic com chave obrigatória específica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "registro de branch.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "repositório proxy.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fanout distribui mensagens a filas vinculadas independentemente da routing key para a escolha do destino. Direct e topic utilizam regras de chaves e padrões; branches e proxies são estruturas de versionamento e gestão de dependências, não modalidades de roteamento AMQP.",
+      "section": "Mensageria: filas, publicação e padrões de integração",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma saga pode coordenar etapas locais de uma operação distribuída e prever ações compensatórias, mas não garante que todas as consequências externas sejam fisicamente reversíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Sagas organizam sequências de transações locais e compensações de negócios quando algo falha. Uma compensação pode neutralizar efeitos lógicos, sem desfazer uma entrega física já ocorrida ou apagar comunicações enviadas; por isso o desenho precisa definir limites.",
+      "section": "Mensageria: filas, publicação e padrões de integração",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao escolher entre comando e evento em um contrato de mensageria, qual alternativa apresenta a distinção conceitual adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O evento sempre determina um único consumidor obrigatório.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O comando solicita uma ação, enquanto o evento relata um fato ocorrido.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O comando necessariamente grava diretamente uma tabela OLAP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os dois são estritamente sinônimos em qualquer arquitetura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O comando só pode ser transmitido de forma síncrona.",
+          "correct": false
+        }
+      ],
+      "explanation": "Comandos expressam intenção de executar uma operação e eventos representam ocorrências observadas, distinção útil para reduzir acoplamento. Eventos podem ter múltiplos assinantes; ambos podem transitar por mensageria, sem exigirem banco OLAP nem execução síncrona.",
+      "section": "Mensageria: filas, publicação e padrões de integração",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de backoff e limites de tentativas em reprocessamentos pode reduzir a pressão sobre dependências durante falhas transitórias, embora exija tratamento de erros persistentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item está correto: espaçar retries e limitar novas tentativas ajuda a evitar tempestades de requisições durante falhas transitórias. Erros permanentes continuam exigindo diagnóstico, DLQ ou tratamento explícito, sem repetição indefinida.",
+      "section": "Mensageria: filas, publicação e padrões de integração",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um tópico Kafka com quatro partições, qual garantia nativa de ordenação é a correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Há uma sequência total obrigatória entre todas as partições.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A ordenação depende apenas do nome do tópico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Todos os grupos leem um único registro por vez no cluster.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ordenação dos registros é garantida em cada partição, não globalmente entre todas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O broker apaga cada registro logo após o primeiro consumo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Kafka preserva a ordem por partição, e offsets identificam posições nesse log. O tópico não possui ordenação total garantida entre partições distintas; retenção e múltiplos grupos permitem releitura, sem remoção obrigatória após primeiro consumo.",
+      "section": "Apache Kafka: tópicos, partições e confiabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois consumer groups independentes podem consumir o mesmo tópico Kafka, cada qual mantendo sua própria progressão de leitura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Grupos independentes possuem posições de consumo distintas e podem processar eventos de um mesmo tópico sem se substituírem mutuamente. Dentro de cada grupo, partições são atribuídas a membros para dividir trabalho; a retenção controla a disponibilidade dos registros.",
+      "section": "Apache Kafka: tópicos, partições e confiabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um consumer group possui oito instâncias ativas, mas o tópico relevante tem apenas três partições. Em uma atribuição normal, o número máximo de instâncias que processam simultaneamente partições desse tópico nesse grupo é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "oito.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "onze.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "vinte e quatro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ilimitado, independentemente do tópico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "três.",
+          "correct": true
+        }
+      ],
+      "explanation": "Cada partição é atribuída a um consumidor do grupo em um dado momento, o que limita o paralelismo efetivo para esse tópico pelo número de partições. Consumidores excedentes podem ficar sem partições; aumentar réplicas de broker não remove essa limitação.",
+      "section": "Apache Kafka: tópicos, partições e confiabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Kafka, a política de retenção obriga que um evento seja excluído imediatamente depois que o primeiro consumidor confirma seu offset.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Kafka retém registros conforme configurações do tópico e não os apaga simplesmente porque um grupo confirmou consumo. Outros grupos podem ler os mesmos dados e usuários autorizados podem reler offsets disponíveis até que as políticas de limpeza atuem.",
+      "section": "Apache Kafka: tópicos, partições e confiabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um Kafka configurado para compactação de log, um registro com chave existente e valor nulo é comumente empregado para",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "sinalizar exclusão do estado associado à chave.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "criar automaticamente uma nova partição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "aumentar a replication factor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "autorizar um novo consumer group.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "converter o tópico em repositório Git.",
+          "correct": false
+        }
+      ],
+      "explanation": "O tombstone é um registro com chave e valor nulo usado para representar exclusão em cenários de log compaction. Limpeza e retenção continuam sujeitas às regras do sistema; o registro não altera partições, réplica, grupos ou tipo de repositório.",
+      "section": "Apache Kafka: tópicos, partições e confiabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A replication factor de um tópico indica o número de cópias configuradas para suas partições, e não a quantidade de consumidores paralelos de um grupo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A replicação diz respeito a redundância e disponibilidade de partições entre brokers. A concorrência de um consumer group depende das partições atribuíveis aos membros; aumentar fator de replicação não equivale a criar partições extras para consumir.",
+      "section": "Apache Kafka: tópicos, partições e confiabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe investiga grande atraso entre produção e processamento de eventos por determinado grupo Kafka. O indicador inicialmente mais diretamente associado a essa defasagem é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "quantidade de branches Git.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "consumer lag.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "número de subjects Avro sem uso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "digest da imagem OCI.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "volume de pull requests encerradas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Consumer lag mede a distância entre a posição disponível no log e o progresso de leitura do grupo, segundo a métrica usada. É um indício para investigar processamento lento, paradas e gargalos; métricas de versionamento, schema ou imagens não representam essa defasagem.",
+      "section": "Apache Kafka: tópicos, partições e confiabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O produtor idempotente do Kafka, isoladamente, garante que uma cobrança por cartão feita por um serviço externo nunca ocorrerá mais de uma vez.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A idempotência do producer restringe duplicações em seu escopo de publicação no Kafka, mas não governa efeitos externos ao broker. Uma cobrança exige mecanismos próprios de idempotência, correlação e controle transacional na integração com o serviço de pagamentos.",
+      "section": "Apache Kafka: tópicos, partições e confiabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao projetar um novo cluster Kafka sem ZooKeeper, a arquitetura atual que gerencia metadados por consenso no próprio ecossistema Kafka é denominada",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Git LFS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "AMQP fanout.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "KRaft.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Maven group.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "OLAP warehouse.",
+          "correct": false
+        }
+      ],
+      "explanation": "KRaft integra o gerenciamento consensual de metadados ao ecossistema Kafka, reduzindo a dependência histórica de ZooKeeper em arquiteturas atuais. As outras tecnologias servem a arquivos grandes, mensageria AMQP, artefatos e análise, respectivamente.",
+      "section": "Apache Kafka: tópicos, partições e confiabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A combinação de confirmações de escrita, réplicas sincronizadas e produtores idempotentes pode melhorar garantias do Kafka, mas não significa imunidade a toda falha ou inconsistência externa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Esses controles reduzem riscos específicos na produção e durabilidade dos registros, conforme configuração. Ainda são necessários dimensionamento, operação, tratamento de falhas e controles nos sistemas externos; a garantia não é absoluta nem automaticamente fim a fim.",
+      "section": "Apache Kafka: tópicos, partições e confiabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa precisa enviar alterações de uma origem externa para tópicos do Kafka com um componente padronizado do ecossistema Confluent. O tipo de conector apropriado é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "sink connector.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "consumer group usado como schema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "tag imutável do Git.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "repositório virtual Maven.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "source connector.",
+          "correct": true
+        }
+      ],
+      "explanation": "O source connector lê de um sistema externo e produz registros em tópicos Kafka; o sink connector faz o caminho típico de consumir Kafka e enviar para destino externo. Consumer groups, tags e registries não são tipos de conectores de ingestão.",
+      "section": "Ecossistema Confluent: Cloud, Platform, Connect e governança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Confluent Cloud oferece plataforma gerenciada de streaming, enquanto Confluent Platform pode ser operada em infraestrutura administrada pela organização, com recursos sujeitos à edição e configuração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item está correto: Confluent Cloud é uma oferta gerenciada de streaming, enquanto Confluent Platform pode ser implantada e operada em infraestrutura da própria organização. Recursos específicos dependem de edição, licenciamento e configuração.",
+      "section": "Ecossistema Confluent: Cloud, Platform, Connect e governança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao atualizar um contrato Avro, a equipe deseja que um consumidor com esquema novo consiga interpretar dados escritos segundo o esquema anterior, nos limites da política definida. A direção de compatibilidade é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "BACKWARD.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "FORWARD, exclusivamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "desativação de toda validação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "somente remoção do registry.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "retenção de tópicos sem contrato.",
+          "correct": false
+        }
+      ],
+      "explanation": "Compatibilidade backward verifica a capacidade de leitores com esquema novo trabalharem com dados produzidos com esquema anterior, segundo regras do formato. Forward examina a relação inversa; desativar controle ou apenas reter eventos não verifica evolução contratual.",
+      "section": "Ecossistema Confluent: Cloud, Platform, Connect e governança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Schema Registry da Confluent armazena os próprios eventos de cada tópico Kafka, assumindo a função de broker e substituindo suas partições.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item está errado: Schema Registry guarda esquemas e seus metadados, não substitui o log de eventos nem as partições do Kafka. O broker armazena os registros e os consumidores os recuperam de tópicos conforme offsets e retenção.",
+      "section": "Ecossistema Confluent: Cloud, Platform, Connect e governança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa pretende processar eventos por SQL em novas cargas de streaming usando a recomendação atual da documentação da Confluent Platform. A opção indicada é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "git merge.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Confluent Platform for Apache Flink.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "repositório hosted isolado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "exchange AMQP como SQL engine.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "apenas armazenar esquemas sem processar registros.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação Confluent recomenda Flink para novas cargas de stream processing na Platform, enquanto mantém suporte a aplicações existentes em ksqlDB. Flink oferece operadores e tratamento de fluxos; as demais opções não executam as transformações SQL de streams.",
+      "section": "Ecossistema Confluent: Cloud, Platform, Connect e governança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O ksqlDB utiliza uma interface SQL para processamento de dados no Kafka, mas sua existência não o torna sinônimo de Kafka Streams ou de todos os serviços Flink da Confluent.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "ksqlDB fornece processamento orientado a SQL, enquanto Kafka Streams é biblioteca embutida e Flink possui mecanismo e modelo operacional próprios. Embora resolvam classes semelhantes de problemas, não são o mesmo produto nem possuem contratos e implantação idênticos.",
+      "section": "Ecossistema Confluent: Cloud, Platform, Connect e governança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No ecossistema Confluent, o serviço que concentra versionamento de esquemas como Avro, Protobuf e JSON Schema em subjects é o",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Control Center, como substituto do broker.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Kafka Connect, como banco de metadados geral.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Schema Registry.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "consumer lag, como ferramenta de versionamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Git LFS, como validação nativa de eventos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Schema Registry mantém sujeitos e versões de esquemas e oferece políticas de compatibilidade. Control Center ajuda a administrar e observar; Connect integra fontes e destinos; lag e Git LFS não desempenham a função de registro de contratos de eventos.",
+      "section": "Ecossistema Confluent: Cloud, Platform, Connect e governança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Cluster Linking e replicação interna de partições Kafka são expressões equivalentes para o mesmo mecanismo obrigatório de cópias dentro de um broker.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A replicação interna serve à redundância das partições de um cluster, enquanto Cluster Linking trata replicação entre clusters nos cenários suportados. Misturar escalas distintas de replicação leva a uma visão errada de migração, continuidade e tolerância a falhas.",
+      "section": "Ecossistema Confluent: Cloud, Platform, Connect e governança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização precisa descobrir tópicos, compreender suas relações de origem e acompanhar contratos de dados em ambiente Confluent Cloud. O conjunto de recursos mais alinhado é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "apenas um arquivo .gitignore.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "exclusivamente um registry de imagens OCI.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "somente a configuração de acks do producer.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Stream Governance, incluindo catálogo, metadados e linhagem.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "um binding fanout de RabbitMQ.",
+          "correct": false
+        }
+      ],
+      "explanation": "Stream Governance agrega recursos de descoberta, esquema e linhagem para fluxos de dados em Confluent Cloud, de acordo com a oferta. Gitignore, imagens, confirmações do Kafka e bindings AMQP não substituem catalogação e rastreabilidade de dados.",
+      "section": "Ecossistema Confluent: Cloud, Platform, Connect e governança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sink connector do Kafka Connect consome registros de tópicos e pode encaminhá-los a um sistema externo de destino, conforme a implementação e suas configurações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A função típica do sink connector é ler tópicos Kafka e escrever em sistemas externos, como mecanismo de integração. Conectores variam em formato, tarefas, idempotência e garantias, que devem ser avaliados; o fluxo inverso é associado a source connectors.",
+      "section": "Ecossistema Confluent: Cloud, Platform, Connect e governança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema de pedidos, a equipe quer poder reenviar eventos de negócio armazenados por período definido a três aplicações independentes. A propriedade que mais favorece o uso de Kafka é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "retenção de registros e leitura independente por consumer groups.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "apagamento imediato após primeiro consumo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "necessidade de um único cliente para todos os eventos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "impossibilidade de novos consumidores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "armazenamento exclusivo de arquivos de código.",
+          "correct": false
+        }
+      ],
+      "explanation": "Kafka preserva registros segundo retenção e permite que diferentes grupos acompanhem ou releiam offsets disponíveis. A arquitetura separa produção do progresso de cada aplicação; ela não garante retenção infinita nem apaga mensagens ao primeiro reconhecimento.",
+      "section": "Arquiteturas integradas, operação, segurança e questões de prova",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O padrão transactional outbox pode tornar atômicos, no banco local, a alteração de negócio e o registro do evento a publicar, sem eliminar a necessidade de lidar com duplicações posteriores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item está correto: o padrão registra a alteração de negócio e a intenção de publicar o evento em uma transação local. A entrega posterior pode ser repetida após falhas, razão pela qual idempotência do consumidor permanece essencial.",
+      "section": "Arquiteturas integradas, operação, segurança e questões de prova",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um pipeline de eventos com dados pessoais, a existência de Schema Registry dispensa a definição de permissões, retenção e finalidade de uso dos dados. A avaliação correta é que",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "o Schema Registry substitui o controle de identidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "o Schema Registry apoia contratos, mas controles de acesso e governança continuam necessários.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "a existência de esquema remove o risco de exposição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "toda mensagem deve ser pública por natureza.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "a obrigação de retenção passa a ser ilimitada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Schema Registry versiona esquemas e facilita verificações de compatibilidade; não executa sozinho classificação, autorização, descarte e finalidade de tratamento. Esses controles são adicionais e devem ser coerentes com o desenho técnico e com a governança.",
+      "section": "Arquiteturas integradas, operação, segurança e questões de prova",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Consumer lag baixo, isoladamente, prova que todos os eventos foram interpretados corretamente e que nenhuma informação de negócio foi perdida no pipeline.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item está errado: lag mede progresso de leitura, não qualidade semântica ou sucesso de efeitos externos. O consumidor pode avançar offsets e ainda produzir cálculos incorretos, descartar registros ou falhar na persistência dos resultados.",
+      "section": "Arquiteturas integradas, operação, segurança e questões de prova",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um plano de continuidade define o intervalo máximo de dados cuja perda se admite após desastre, medido em tempo. Esse objetivo é conhecido como",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RTO.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "consumer lag.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RPO.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "git tag.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "routing key.",
+          "correct": false
+        }
+      ],
+      "explanation": "RPO expressa a tolerância temporal à perda de dados após incidente; RTO corresponde ao tempo-alvo para restaurar a operação. Lag, tag e chave de roteamento representam outras dimensões e não substituem os parâmetros de recuperação.",
+      "section": "Arquiteturas integradas, operação, segurança e questões de prova",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Reaproveitar exatamente o artefato aprovado no pipeline de testes, identificado por digest, contribui para reduzir discrepâncias entre os ambientes de validação e produção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O digest identifica o conteúdo do artefato e favorece sua promoção entre ambientes, aumentando rastreabilidade. Ainda é preciso controlar configuração, secrets e dependências externas; reuso do pacote não significa que os ambientes sejam integralmente idênticos.",
+      "section": "Arquiteturas integradas, operação, segurança e questões de prova",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao investigar eventos enviados, recebidos e processados por microsserviços, a equipe precisa correlacionar registros de uma mesma operação e observar causas de falhas. O conjunto de práticas mais adequado é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "eliminar identificadores para reduzir observabilidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "medir apenas se o servidor HTTP responde.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "desativar telemetria quando houver DLQ.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "correlation IDs, logs estruturados e métricas de pipeline.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "trocar os nomes dos tópicos sem rastreio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Identificadores de correlação e logs estruturados conectam etapas distribuídas; métricas de atraso, falha e filas permitem reconhecer gargalos. Disponibilidade HTTP isolada não prova sucesso do processamento, e perder identificadores dificulta análise de incidentes.",
+      "section": "Arquiteturas integradas, operação, segurança e questões de prova",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cópia replicada de dados elimina a necessidade de testar backups e procedimentos de recuperação, porque replicação e cópia imutável são equivalentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Replicação aumenta opções de disponibilidade ou continuidade, mas pode propagar exclusões e erros administrativos. Backups protegidos, recuperação testada e metas RPO/RTO cumprem papéis complementares; mecanismos não são intercambiáveis.",
+      "section": "Arquiteturas integradas, operação, segurança e questões de prova",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando a questão de prova descreve necessidade de executar tarefas de modo exclusivo entre trabalhadores, com reentrega em falhas, a escolha conceitual inicial mais direta é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "um data lake em estado bruto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "um commit de código por tarefa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "um catálogo de lineage como escalonador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "um objeto Parquet lido por cada trabalhador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "uma fila de trabalho com reconhecimentos configurados.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma fila de trabalho oferece distribuição entre concorrentes, confirmação de processamento e possibilidade de reentrega conforme configuração. Data lake, commit, lineage e armazenamento colunar servem a outras finalidades e não substituem a coordenação de tarefas.",
+      "section": "Arquiteturas integradas, operação, segurança e questões de prova",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O princípio do menor privilégio deve ser aplicado apenas a bancos de dados, sendo incompatível com registries de artefatos e tópicos de mensageria.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item está errado: o princípio do menor privilégio vale para bancos, registries e mensageria, adaptando as autorizações a cada serviço. Restringir leitura, publicação e administração reduz acessos indevidos em todas essas plataformas.",
+      "section": "Arquiteturas integradas, operação, segurança e questões de prova",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Pro Git — Getting Started: About Version Control",
+      "publisher": "Git",
+      "reference": "Documentação oficial do Git, livro Pro Git",
+      "url": "https://git-scm.com/book/en/v2/Getting-Started-About-Version-Control",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Repository Types",
+      "publisher": "Sonatype",
+      "reference": "Nexus Repository — tipos hosted, proxy e group",
+      "url": "https://help.sonatype.com/en/repository-types.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "What Is a Data Lake?",
+      "publisher": "Microsoft Learn",
+      "reference": "Azure Architecture Center — data lakes e ingestão",
+      "url": "https://learn.microsoft.com/en-us/azure/architecture/data-guide/scenarios/data-lake",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Consumer Acknowledgements and Publisher Confirms",
+      "publisher": "RabbitMQ",
+      "reference": "Documentação de reconhecimentos de consumo e publicação",
+      "url": "https://www.rabbitmq.com/docs/confirms",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Apache Kafka Documentation",
+      "publisher": "Apache Software Foundation",
+      "reference": "Introdução e conceitos de tópicos, partições, consumidores e replicação",
+      "url": "https://kafka.apache.org/documentation.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Confluent Platform Overview",
+      "publisher": "Confluent",
+      "reference": "Componentes do ecossistema Confluent Platform",
+      "url": "https://docs.confluent.io/platform/current/get-started/platform.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Confluent Cloud Overview",
+      "publisher": "Confluent",
+      "reference": "Serviço gerenciado de Kafka e componentes de streaming",
+      "url": "https://docs.confluent.io/cloud/current/overview.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Schema Evolution and Compatibility for Schema Registry",
+      "publisher": "Confluent",
+      "reference": "Evolução de esquemas e políticas de compatibilidade",
+      "url": "https://docs.confluent.io/platform/current/schema-registry/fundamentals/schema-evolution.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Connect to External Services in Confluent Cloud",
+      "publisher": "Confluent",
+      "reference": "Conectores de origem e destino no ambiente gerenciado",
+      "url": "https://docs.confluent.io/cloud/current/connectors/overview.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Stream Processing with Confluent Cloud for Apache Flink",
+      "publisher": "Confluent",
+      "reference": "Processamento de fluxos e Flink SQL",
+      "url": "https://docs.confluent.io/cloud/current/flink/overview.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Stream Governance on Confluent Cloud",
+      "publisher": "Confluent",
+      "reference": "Catálogo, linhagem e governança de streams",
+      "url": "https://docs.confluent.io/cloud/current/stream-governance/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ksqlDB for Confluent Platform",
+      "publisher": "Confluent",
+      "reference": "Função do ksqlDB e recomendação de Flink para novas cargas",
+      "url": "https://docs.confluent.io/platform/current/ksqldb/overview.html",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

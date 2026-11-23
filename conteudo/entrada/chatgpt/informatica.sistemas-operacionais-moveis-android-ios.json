@@ -1,0 +1,1966 @@
+{
+  "id": "informatica.sistemas-operacionais-moveis-android-ios",
+  "subject": "Informática",
+  "title": "Android e iOS: arquitetura, segurança, arquivos e memória",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Android e iOS: arquitetura, segurança, arquivos e memória",
+    "Sistemas operacionais móveis: Android e iOS"
+  ],
+  "scope": {
+    "covers": "Arquitetura Android e iOS, Linux/XNU, ART, HAL, Binder, aplicações e ciclo de vida; criptografia FDE/FBE, CE/DE, Direct Boot, metadados, APFS e Data Protection; ext4, F2FS, APFS, sandbox, scoped storage, SAF, armazenamento e backup; gerência de memória, paginação, GC, zRAM, lmkd, PSI e jetsam; permissões, atualizações, inicialização segura, MDM e energia.",
+    "excludes": "Exploração ofensiva de sistemas, procedimentos para contornar criptografia ou controles, especificações exclusivas de hardware de marcas, regras não verificadas de futuras versões e administração interna de kernels em nível de código-fonte."
+  },
+  "theoryTitle": "Sistemas operacionais móveis: fundamentos e questões de Android e iOS",
+  "chapters": [
+    {
+      "title": "Arquitetura, núcleo e ciclo de vida dos sistemas móveis",
+      "markdown": "## 1. Visão de sistema operacional móvel\n\nUm sistema operacional (SO) móvel gerencia hardware, processos, memória, armazenamento, energia, rede, acesso a sensores e a interação com o usuário. Os requisitos centrais diferem parcialmente dos de um computador de mesa: bateria limitada, conectividade variável, troca constante de aplicações, risco de perda física do dispositivo e presença de sensores sensíveis. Por isso, as plataformas mantêm políticas de suspensão, isolamento, assinatura de software e concessão de acesso a dados. **Kernel**, **ambiente de execução**, **bibliotecas**, **serviços** e **interfaces de programação** não são sinônimos: o kernel coordena recursos de baixo nível, enquanto frameworks expõem funcionalidades aos aplicativos.\n\n## 2. Pilha de software do Android\n\nO Android usa um **núcleo Linux** adaptado às necessidades dos dispositivos móveis. Acima dele encontram-se componentes de baixo nível e serviços nativos, interfaces com o hardware e componentes do framework. A **HAL** (Hardware Abstraction Layer) oferece interfaces padronizadas para características de equipamentos como câmera, áudio e sensores, reduzindo o acoplamento das camadas superiores a implementações específicas do fabricante. O **Binder** é um mecanismo fundamental de comunicação entre processos (IPC), permitindo solicitações entre aplicativos e serviços com controles de identidade e permissões. Bibliotecas nativas realizam funções como multimídia, gráficos e acesso a recursos do sistema.\n\nO **Android Runtime (ART)** executa aplicações que contêm bytecode DEX e utiliza técnicas de compilação e coleta de lixo. Não se deve igualar ART ao kernel: são camadas distintas. No desenvolvimento predominam Kotlin e Java para aplicativos convencionais, mas há componentes nativos em C/C++. Uma aplicação pode ter atividades (Activities), serviços (Services), receptores de broadcast e provedores de conteúdo (Content Providers). A **Activity** costuma representar uma superfície de interação; um **Service** executa trabalho sem fornecer interface própria de Activity, mas não significa execução ilimitada em segundo plano; um **Content Provider** disponibiliza dados por interface controlada. O manifesto descreve componentes, capacidades e permissões declaradas.\n\n## 3. Pilha do iOS e ecossistema\n\nO iOS integra a família de sistemas da Apple baseada em **Darwin**, com o núcleo **XNU**, que incorpora componentes Mach e BSD e utiliza drivers e serviços estruturados para os dispositivos suportados. Essa base não é o kernel Linux; chamar iOS de distribuição Linux é erro. Os desenvolvedores usam principalmente **Swift**, **Objective-C**, **UIKit**, **SwiftUI**, **Foundation** e outros frameworks. O conjunto de APIs e serviços de cada plataforma é diferente do sistema de arquivos ou de seu gerenciador de memória. Aplicações iOS normalmente são assinadas e executadas em ambientes isolados, com direitos específicos (*entitlements*) e políticas de acesso a recursos.\n\n## 4. Isolamento, autorização e ciclo de vida\n\n**Sandboxing** restringe os recursos acessíveis por um aplicativo; a existência de sandbox não elimina a necessidade de validação de entradas e de atualização do software. No Android, cada aplicativo normalmente recebe uma identidade Linux própria; permissões de execução e políticas como SELinux reforçam o isolamento. Algumas permissões são concedidas na instalação ou no momento de uso, conforme o tipo e a versão do sistema: declarar uma permissão no manifesto não garante que uma permissão sensível tenha sido concedida pelo usuário. No iOS, sandbox, assinatura de código, entitlements e solicitações de autorização do usuário atuam em conjunto. Autorizar acesso à câmera não significa autorizar acesso a fotos ou contatos.\n\nNo Android, o ciclo comum de Activity envolve `onCreate()`, `onStart()`, `onResume()`, `onPause()`, `onStop()` e `onDestroy()`. **Ciclo de Activity** e **vida do processo** são coisas diferentes: o sistema pode eliminar um processo em segundo plano sem chamar `onDestroy()`. Salve estado persistente oportunamente e trate a recriação. No iOS, apps e cenas transitam entre estados ativos, inativos e em segundo plano; aplicações podem ser suspensas para economizar CPU. Existem modos e APIs específicos para certas atividades em segundo plano, não uma garantia geral de execução contínua.\n\n## 5. Concorrência e consumo energético\n\nAmbos os sistemas oferecem processos, threads, prioridades, escalonamento e mecanismos de comunicação. Uma interface fluida evita tarefas demoradas na thread principal. A separação entre trabalho interativo e processamento assíncrono melhora responsividade, mas a execução em background depende de políticas do SO, permissões, condições de bateria e recursos. Atualizar um aplicativo em segundo plano não equivale a manter sua interface visível, e receber uma notificação push não prova que o processo do app permaneceu ativo o tempo inteiro.\n\n### Como a banca explora o tema\n\nDistingua **núcleo Linux × XNU**, **HAL × ART**, **componente × processo** e **declaração de permissão × consentimento**. O item absoluto “todo aplicativo continua executando quando perde o foco” é incorreto. Outro erro recorrente é confundir possibilidade técnica de comunicação entre apps com livre acesso aos dados privados: a integração deve ocorrer por interfaces autorizadas.\n"
+    },
+    {
+      "title": "Criptografia FBE e FDE, proteção de dados e inicialização segura",
+      "markdown": "## 1. Objetivos de proteção\n\nCriptografia de armazenamento visa reduzir a exposição de dados em repouso quando o aparelho é perdido, desligado ou acessado indevidamente. Ela não substitui autenticação, controle de acesso, integridade do software, atualização e proteção dos dados enquanto a sessão está aberta. Diferencie **confidencialidade** de **integridade**: criptografar dados não demonstra, isoladamente, que o código de inicialização não foi adulterado. Elementos como hardware dedicado, proteção de chaves e cadeia de inicialização conferem camadas complementares.\n\n## 2. Android: FDE e FBE não são equivalentes\n\n**Full-Disk Encryption (FDE)** cifra, em sua abordagem histórica do Android, o armazenamento no nível de dispositivo de bloco; a implementação tradicional utiliza **dm-crypt**. Antes de disponibilizar os dados necessários ao ambiente normal do usuário, era preciso efetuar o procedimento de desbloqueio apropriado. Como o acesso era organizado em torno do volume criptografado, o sistema tinha menos flexibilidade para deixar dados específicos disponíveis antes da primeira autenticação. Essa limitação ajudou a motivar a migração para **File-Based Encryption (FBE)**.\n\n**File-Based Encryption (FBE)** trabalha com políticas e chaves de arquivos e diretórios, permitindo classes de disponibilidade. No Android moderno, destacam-se o armazenamento **Device Encrypted (DE)**, acessível após o início do dispositivo para funções que precisam operar antes do primeiro desbloqueio, e o armazenamento **Credential Encrypted (CE)**, liberado depois da autenticação inicial do usuário conforme a política. O modo **Direct Boot** permite que componentes preparados explicitamente para esse momento usem dados DE; dados CE permanecem indisponíveis até a condição de desbloqueio. Um alarme que precisa funcionar após reinicialização, antes da primeira autenticação, deve ter desenho e dados compatíveis com Direct Boot. Isso **não** implica que qualquer aplicativo possa ler conteúdos CE sem credenciais.\n\nPara dispositivos **lançados com Android 10 ou superior**, a documentação do AOSP exige FBE e não admite FDE como substituta; versões antigas podem ter outro arranjo, de acordo com dispositivo e lançamento. Essa distinção diz respeito ao **lançamento do dispositivo**, não apenas à versão exibida após atualização. Não se deve afirmar que qualquer aparelho atualizado ao Android 10 necessariamente foi projetado originalmente com FBE. A documentação oficial associa a FBE a implementações em **ext4** e **F2FS**. O subsistema `vold` participa da administração de volumes e armazenamento criptografado.\n\n## 3. Metadados, chaves e proteção complementar\n\nConteúdo cifrado não significa automaticamente sigilo de todos os metadados. No Android, a **metadata encryption** acrescenta proteção a informações que a FBE, isoladamente, não cobre da mesma forma, como certos aspectos da organização de diretórios e do sistema de arquivos. Em dispositivos lançados com Android 11 ou superior, a criptografia de metadados do armazenamento interno é exigida na documentação oficial. Não confunda **metadados** com conteúdo do arquivo; podem demandar mecanismos e chaves diferentes. O hardware e serviços de gerenciamento de chaves buscam manter segredos protegidos e controlar seu uso.\n\n## 4. iOS: APFS e proteção baseada em classes\n\nNos dispositivos iOS modernos, o **Apple File System (APFS)** organiza volumes e possui arquitetura desenhada com criptografia. A plataforma emprega **Data Protection**, que usa chaves por arquivo ou extensão de arquivo e classes de proteção definidas por política. A disponibilidade de uma chave pode depender do bloqueio, desbloqueio e estado de autenticação do dispositivo. Classes como **Complete Protection**, **Protected Unless Open** e **Protected Until First User Authentication** expressam comportamentos diferentes. Em especial, a última permite, após a primeira autenticação, uma política de acesso diferente da proteção completa quando o dispositivo volta a ser bloqueado. Não se deduz que todo arquivo terá a mesma política de desbloqueio apenas por estar em APFS.\n\nO **Secure Enclave** desempenha funções relacionadas à proteção de chaves e a operações sensíveis de segurança em dispositivos compatíveis. O código de desbloqueio e materiais de chave são protegidos por mecanismos que incluem recursos de hardware; biometria não é “a chave AES do arquivo” nem substitui todas as políticas. O **Keychain** é serviço para segredos como credenciais e chaves, sujeito a classes e controles específicos, não uma pasta comum destinada à mídia do usuário.\n\n## 5. Inicialização segura e ameaças reais\n\nNo Android, **Verified Boot** verifica criptograficamente componentes do sistema e constrói uma cadeia de confiança para reduzir risco de executar componentes adulterados. No ecossistema Apple, há mecanismos de inicialização segura e verificação de software assinado. **Secure Boot/Verified Boot** dizem respeito principalmente à autenticidade/integridade do software iniciado, enquanto **FBE/FDE/Data Protection** dizem respeito sobretudo à confidencialidade de dados armazenados. Uma ameaça durante a sessão desbloqueada, um aplicativo malicioso com autorização ou uma sincronização indevida exigem medidas adicionais; a criptografia de repouso não torna imunes os dados já disponibilizados para uso legítimo.\n\n### Pegadinhas usuais\n\nFDE não é nome alternativo de FBE. O DE do Android **não** é um diretório publicamente acessível a todos os aplicativos. O “file-based” do Android não significa ausência de criptografia de metadados. A proteção por arquivo do iOS é conceitualmente comparável, em granularidade, à FBE, mas não é correto chamar o mecanismo da Apple de “FBE do Android”, pois implementações, gestão de chaves e interfaces são distintas.\n"
+    },
+    {
+      "title": "Sistemas de arquivos, armazenamento e acesso a dados",
+      "markdown": "## 1. Sistema de arquivos versus modelo de acesso\n\nUm **sistema de arquivos** estabelece estruturas e regras para nomes, diretórios, metadados, persistência e organização de blocos ou objetos. Isso é distinto de uma **API de armazenamento**, que expõe ao app caminhos, permissões, identificadores de conteúdo ou bancos de dados. É também distinto do sistema de **criptografia**, que pode trabalhar no nível de bloco, arquivo ou metadado. A organização observada em um gerenciador de arquivos não revela, sozinha, o formato físico da partição.\n\n## 2. Android: ext4 e F2FS\n\nO Android utiliza sistemas de arquivos como **ext4** e **F2FS**, de acordo com dispositivo, partição e projeto. O ext4 deriva da família de sistemas de arquivos estendidos do Linux e oferece mecanismos de registro e consistência; o F2FS (*Flash-Friendly File System*) foi concebido para características de armazenamento flash, com desenho voltado a padrões de escrita nessa mídia. Nenhum desses nomes é sinônimo de criptografia: **FBE pode operar com ext4 ou F2FS**, quando suportada e configurada. Não é correto exigir que todos os smartphones Android usem somente F2FS, nem supor que qualquer cartão de memória do aparelho adote o mesmo sistema de arquivos de `/data`.\n\n**Journaling** é mecanismo de recuperação de consistência usado por determinados sistemas de arquivos: registra informações relevantes sobre operações para facilitar a recuperação após falhas. Ele não equivale a backup, versionamento completo nem proteção criptográfica. O desempenho prático depende do padrão de acesso, do controlador, da implementação e de ajustes. **F2FS** é otimizado para mídia flash, mas isso não permite afirmar superioridade absoluta de desempenho em toda tarefa.\n\n## 3. Android: áreas privadas, conteúdo compartilhado e scoped storage\n\nO armazenamento **interno específico do app** costuma ficar isolado no sandbox, e outros aplicativos não têm direito irrestrito de acessar seus dados privados. O Android também dispõe de **áreas específicas do app em armazenamento externo** e coleções compartilhadas de fotos, áudio, vídeo e documentos. O termo **externo** em Android descreve uma categoria de armazenamento que pode ser emulada na memória interna e **não implica** necessariamente cartão SD removível.\n\nO **scoped storage** limita o acesso amplo ao armazenamento compartilhado, incentivando APIs adequadas ao caso: `MediaStore` para itens de mídia, **Storage Access Framework (SAF)** para documentos selecionados pelo usuário e diretórios próprios para dados exclusivos da aplicação. Autorizações variam conforme versão do SO, nível de API alvo, tipo de arquivo e escolha do usuário. O compartilhamento entre apps deve usar interfaces previstas e concessões apropriadas, como URI com autorização, em vez de liberar arbitrariamente os diretórios privados. Apagar um aplicativo normalmente remove os dados mantidos nas áreas privadas próprias da instalação, mas itens compartilhados e dados sincronizados ou respaldados podem seguir outras regras. Não generalize para backups ou serviços em nuvem.\n\n## 4. iOS: APFS, contêiner e diretórios\n\nO **APFS** é sistema de arquivos moderno da Apple, com recursos como suporte à criptografia e mecanismos de *copy-on-write* em determinadas operações, além de capacidades de snapshots e clones conforme a plataforma. Em iOS e iPadOS, a documentação de segurança descreve organização do armazenamento em volumes APFS, com separação entre sistema e dados. É incorreto confundir volume de sistema e diretório de documentos de um aplicativo. A existência de APFS não concede a um app acesso total aos arquivos de outro.\n\nA maioria dos apps de iOS trabalha no **contêiner (sandbox)** atribuído pelo sistema. `Documents` é apropriado para documentos do usuário; `Library/Application Support`, para dados de suporte e configuração necessários à aplicação; `Library/Caches`, para arquivos recriáveis que podem ser descartados; e `tmp`, para temporários. O sistema pode eliminar caches e temporários. A seleção de diretórios impacta persistência, gerenciamento de espaço e política de backup. Em vez de construir caminhos rígidos supondo localização fixa, a aplicação deve consultar APIs como `FileManager` e URLs de diretório. Compartilhamento pode ocorrer por mecanismos autorizados e recursos da plataforma, não pela quebra geral do sandbox.\n\n## 5. Dados estruturados, persistência e sincronização\n\n**SQLite** é um banco de dados embutido usado em vários cenários móveis; não é o sistema de arquivos subjacente nem o mecanismo de criptografia obrigatório de todos os arquivos. Bibliotecas e frameworks abstraem persistência, enquanto o armazenamento físico segue as políticas de sandbox e proteção de dados. Um app que utiliza SQLite ainda precisa gerir transações, acesso concorrente, migrações e risco de exposição de informações sensíveis.\n\n**Backup** difere de journaling e de snapshots locais: a possibilidade de restaurar dados depois de perda física depende de políticas de cópia, retenção, chaves, disponibilidade e inclusão dos arquivos pertinentes. **Cache** não é lugar seguro para o único exemplar de um documento importante. Sincronização automática não resolve necessariamente corrupção lógica ou exclusão replicada.\n\n### Comparação rápida para questões\n\nAndroid **ext4/F2FS** versus Apple **APFS** refere-se a implementação do sistema de arquivos; Android **FBE/FDE** versus Apple **Data Protection** refere-se a mecanismos de proteção; Android **scoped storage** versus iOS **sandbox** envolve modelos de acesso e autorização. Não se misturam esses eixos em uma única equivalência.\n"
+    },
+    {
+      "title": "Gerência de memória, processos, zRAM e jetsam",
+      "markdown": "## 1. Memória virtual em dispositivos móveis\n\nSmartphones e tablets executam múltiplas tarefas sobre quantidades finitas de RAM. **Memória virtual** oferece espaços de endereçamento por processo, proteção de páginas e mapeamentos que nem sempre estão residentes fisicamente. **RAM** é memória volátil de trabalho; armazenamento flash conserva arquivos, mas não possui a mesma latência e finalidade. O **cache de páginas** acelera acesso a dados e pode ser recuperado sob pressão. **Page fault** é um evento de resolução de referência à memória virtual e não significa necessariamente erro fatal de aplicação. **Vazamento de memória** ocorre quando recursos continuam retidos sem necessidade, ampliando uso de RAM e risco de encerramento.\n\n## 2. Android: ART, heap, mmap e reaproveitamento\n\nNo Android, a execução gerenciada pelo **ART** utiliza heap e **garbage collection (GC)** para recuperar objetos que deixaram de ser alcançáveis. GC não elimina a necessidade de fechar arquivos, liberar sensores, remover referências desnecessárias e administrar recursos nativos. O sistema recorre a **mmap** e compartilhamento de páginas de código e bibliotecas, reduzindo duplicações. Há memória compartilhável, privada, residente e virtual; métricas como **RSS** e **PSS** analisam aspectos diferentes do consumo. PSS distribui proporcionalmente a memória compartilhada entre os processos, sendo inadequado confundi-lo com tamanho bruto do espaço virtual.\n\nO Android mantém hierarquia de importância de processos: tarefas ligadas à interação presente costumam ter prioridade maior do que processos em cache sem papel visível. O sistema pode encerrar processos menos importantes para liberar recursos. É incorreto supor que um processo mantido no cache esteja permanentemente executando instruções ou que seu estado em RAM esteja garantido até a próxima abertura do app.\n\n## 3. Sob pressão: reclaim, zRAM e lmkd\n\nO kernel pode descartar páginas limpas de cache recuperáveis a partir da origem e realizar trabalho de **reclaim**. O mecanismo de swap disponibiliza outro caminho para lidar com páginas elegíveis. **zRAM** utiliza uma região comprimida em RAM como dispositivo de swap, trocando consumo de CPU por economia de espaço físico; **não** é uma memória flash adicional nem faz a RAM instalada crescer fisicamente. Em um dispositivo com zRAM, certas páginas podem ser comprimidas e armazenadas nessa área para aliviar pressão.\n\nO **lmkd** (*low memory killer daemon*) monitora pressão de memória e pode terminar processos de menor importância para preservar a experiência do usuário. Nas implementações modernas, informações de **PSI (Pressure Stall Information)** do kernel podem auxiliar o diagnóstico de pressão. Ele não é coletor de lixo da linguagem Java/Kotlin: atua sobre processos, enquanto GC atua na recuperação de objetos dentro de heaps gerenciados. A ordem real de recuperação ou encerramento depende de política, estado do processo, versão e fabricante. Matar um processo reduz a memória ocupada, mas pode exigir inicialização fria posterior, com custos de desempenho e bateria.\n\n## 4. iOS: memory pressure, compressão e jetsam\n\nO iOS mantém um sistema de **memória virtual**, proteção entre processos e recuperação sob pressão. A plataforma pode comprimir páginas pouco utilizadas; também espera que apps liberem caches e recursos que possam recriar. A documentação da Apple descreve eventos de **jetsam**, nos quais o sistema encerra aplicativos ou processos para recuperar memória. Um encerramento por jetsam não equivale automaticamente a exceção de programação e pode ocorrer sem a pilha de chamadas típica de um crash comum. Ferramentas do **Xcode** e instrumentos de análise ajudam a investigar footprint, picos, retenções e relatórios de jetsam.\n\nAo receber indicação de memória escassa, um aplicativo deve liberar recursos descartáveis e evitar reter grandes imagens ou dados duplicados. A recomendação **não** é que todo app tente reservar antecipadamente o máximo de RAM. Uma app suspensa não mantém uso irrestrito da CPU; o sistema poderá retomá-la, encerrá-la ou oferecer execução de background por condições autorizadas. A execução contínua de transferências pode recorrer a APIs próprias da plataforma, sem depender de processo ativo todo o tempo.\n\n## 5. Relação com experiência e persistência\n\nUma aplicação pode desaparecer da RAM e voltar a abrir sem que os dados do usuário tenham sido perdidos, desde que o estado relevante tenha sido salvo de modo persistente e recuperável. Estado transitório de interface, cache e arquivo persistido são categorias distintas. A engenharia de software deve considerar **cold start**, recuperação de atividades e cenas, tarefas que falham no meio e reinicialização do dispositivo. A afirmação “o sistema garante que onDestroy() executará antes de matar um processo” é falsa para o Android. No iOS, pressupor oportunidade ilimitada para salvar dados apenas no instante do encerramento também é prática inadequada.\n\n### Quadro de diferenciação\n\n**GC:** recupera objetos sem referência. **Reclaim:** recupera páginas ou recursos de memória. **zRAM:** comprime páginas destinadas a swap na própria RAM. **lmkd:** seleciona processos para encerramento no Android. **Jetsam:** mecanismo de encerramento relacionado à pressão de memória nas plataformas Apple. **Backup:** cópia persistente de dados, sem função de expandir RAM.\n"
+    },
+    {
+      "title": "Segurança operacional, permissões, atualizações e comparação prática",
+      "markdown": "## 1. Defesa em profundidade\n\nA segurança móvel moderna combina **atualizações**, isolamento de apps, integridade de inicialização, criptografia em repouso, proteção de chaves, políticas de autorização e controles de comunicação. Não existe um mecanismo isolado que cubra todas as ameaças. Por exemplo, um smartphone pode ter armazenamento criptografado e, ainda assim, apresentar risco se um app legítimo receber acesso desnecessário a documentos sigilosos. Práticas de redução de superfície incluem limitar privilégios, revisar permissões, aplicar correções de segurança e evitar instalar código de origem não confiável.\n\n## 2. Permissões no Android e autorização no iOS\n\nO Android distingue permissões conforme categoria e finalidade. Permissões consideradas perigosas podem exigir concessão em tempo de execução, conforme APIs e política vigente. A declaração no `AndroidManifest.xml` informa a solicitação, não a decisão final do usuário. **Permissão** é autorização de acesso; **URI** identifica um recurso; **Intent** pode transportar pedido de ação ou dados entre componentes. Autorizar o uso pontual de URI não autoriza vasculhar qualquer diretório privado de terceiros.\n\nNo iOS, o **sandbox** delimita recursos e arquivos acessíveis; **entitlements** expressam capacidades concedidas ao app por mecanismos de assinatura e provisionamento; solicitações de privacidade podem exigir autorização explícita para câmera, microfone, localização e outros dados. Os entitlements não substituem a interface de consentimento onde esta é exigida. **Keychain** armazena segredos com controles específicos, ao passo que `Documents` armazena arquivos do app e do usuário: trocar os dois em prova costuma resultar em enunciado falso.\n\n## 3. Distribuição, atualização e cadeia de confiança\n\nO Android dispõe de arquitetura de atualização de sistema e componentes, com diferenças por fabricante e configuração. **Atualizações OTA** distribuem atualizações pela rede e podem utilizar mecanismos de instalação e reinício controlados; o conceito não significa que todo dispositivo tenha o mesmo cronograma ou política. Partições e estratégias de atualização podem diferir entre modelos. No ambiente Apple, a integração entre hardware, software, cadeia de assinatura e atualização permite controles coordenados, mas não elimina a necessidade de instalar correções de segurança. **Assinatura de código** ajuda a verificar origem/integridade do binário; não demonstra, por si, que o aplicativo respeitará a privacidade em todos os fluxos.\n\n## 4. Redes, sensores e continuidade de atividades\n\nTelefones combinam Wi‑Fi, redes celulares, Bluetooth, serviços de localização, notificações e APIs para câmeras e sensores. Os sistemas controlam conexões e acesso a esses recursos, muitas vezes limitando solicitações ou frequência de execução no segundo plano. **Doze** e outros mecanismos de economia de energia do Android podem adiar atividades de background; no iOS, determinados modos de background e APIs especializadas permitem operações particulares sob controle do sistema. Uma notificação push é entregue por infraestrutura de mensagens, mas não pressupõe que a aplicação esteja executando constantemente. Aplicativos de localização, áudio e transferência devem usar as APIs e permissões adequadas, sem prometer execução irrestrita.\n\n## 5. Uso corporativo, perda e resposta a incidentes\n\nNo gerenciamento de aparelhos, mecanismos de **MDM/EMM** ajudam a aplicar políticas de configuração, distribuir aplicativos e definir requisitos de segurança conforme a plataforma e o contexto da organização. O uso corporativo não dá licença automática para ler todo conteúdo pessoal: capacidades dependem de modalidade de gerenciamento, permissões e legislação aplicável. Em cenário de extravio, bloqueio de tela, credenciais robustas, atualização e proteção do armazenamento reduzem riscos; contudo, políticas de backups, sincronização e sessões já autenticadas continuam relevantes.\n\n## 6. Comparativo orientado a concursos\n\n| Eixo | Android | iOS |\n|---|---|---|\n| Núcleo | Linux adaptado | XNU, base Darwin |\n| Ambiente de apps | ART e frameworks Android | Frameworks Apple, especialmente Swift/Objective-C |\n| Arquivos principais | ext4 ou F2FS, conforme equipamento | APFS |\n| Proteção de dados | FBE e, em legado, FDE; CE/DE e metadados | Data Protection por arquivo, classes e Secure Enclave |\n| Acesso | sandbox, permissões e scoped storage | sandbox, entitlements e autorizações |\n| Pressão de memória | reclaim, zRAM, lmkd, conforme configuração | compressão e jetsam |\n| Vida dos apps | Activities, Services, prioridades de processos | cenas, suspensão e modos autorizados de background |\n\nA tabela é conceitual: não garante que todas as versões ou dispositivos implementem cada recurso de maneira idêntica. **Priorize os significados** e a distinção entre camada física, sistema de arquivos, controle de acesso e política de execução. Questões costumam inserir um termo verdadeiro de outra camada para criar uma conclusão falsa.\n\n### Estratégia final\n\nAo resolver item, identifique primeiro se o tema é **arquitetura**, **dados em repouso**, **arquivo**, **isolamento**, **processo** ou **memória**. Depois, verifique palavras absolutas — “sempre”, “todo”, “exclusivamente”, “dispensa”, “indistintamente” — porque as políticas variam por versão, dispositivo e estado de autenticação. Uma boa resposta fundamenta a condição que torna a afirmação correta, não apenas memoriza nomes comerciais.\n"
+    }
+  ],
+  "summary": "**Panorama para concursos.** Android e iOS resolvem problemas semelhantes — processos, memória, isolamento, arquivos, segurança e energia — mas com arquiteturas diferentes. Android tem base Linux, HAL, Binder e ART; iOS tem XNU/Darwin, frameworks Apple, assinatura de código e sandbox. Na proteção de armazenamento, não confunda **FDE**, historicamente vinculada à criptografia de bloco por dm-crypt, com **FBE**, baseada em arquivos e políticas **CE/DE**, compatível com Direct Boot. Aparelhos lançados com Android 10 ou superior devem utilizar FBE, conforme a documentação oficial. O iOS emprega **APFS** e **Data Protection** por arquivo, com classes de disponibilidade de chaves e apoio do Secure Enclave. Em arquivos, Android pode utilizar **ext4 e F2FS** e dispõe de scoped storage, MediaStore e SAF; iOS organiza dados em contêineres com diretórios como Documents, Library/Caches e tmp. Em memória, diferencie **GC** (objetos), **zRAM** (swap comprimido), **lmkd** (eliminação de processos Android) e **jetsam** (pressão de memória Apple). **Verified Boot** e assinatura de código não equivalem à criptografia de dados em repouso. Declaração de permissão não significa concessão automática; modo background não garante CPU contínua; journaling e cache não substituem backup.",
+  "flashcards": [
+    {
+      "front": "Qual é o núcleo do Android?",
+      "back": "Kernel Linux adaptado ao ecossistema móvel, acompanhado por HAL, bibliotecas, serviços e Android Runtime."
+    },
+    {
+      "front": "Qual é o núcleo do iOS?",
+      "back": "XNU, da família Darwin, que incorpora componentes Mach e BSD; não é o kernel Linux."
+    },
+    {
+      "front": "O que faz a HAL Android?",
+      "back": "Padroniza interfaces entre o sistema e implementações de hardware, como câmera, áudio e sensores."
+    },
+    {
+      "front": "Qual a função do Binder?",
+      "back": "Intermediar comunicação entre processos (IPC) e serviços Android, sujeita aos controles da plataforma."
+    },
+    {
+      "front": "O que significa ART?",
+      "back": "Android Runtime, ambiente de execução de aplicativos Android com gerenciamento de heap e coleta de lixo."
+    },
+    {
+      "front": "Uma Activity e um processo são sinônimos?",
+      "back": "Não. Activity representa uma unidade de interação; o processo pode conter componentes e ser finalizado independentemente de callbacks."
+    },
+    {
+      "front": "O que é FDE?",
+      "back": "Full-Disk Encryption: criptografia histórica do Android no nível do dispositivo de bloco, frequentemente via dm-crypt."
+    },
+    {
+      "front": "O que é FBE?",
+      "back": "File-Based Encryption: criptografia organizada por arquivos e diretórios, permitindo políticas distintas de disponibilidade de dados."
+    },
+    {
+      "front": "Como distinguir DE e CE no Android?",
+      "back": "DE pode ser disponibilizado antes da primeira autenticação; CE depende do desbloqueio inicial do usuário."
+    },
+    {
+      "front": "Para que serve Direct Boot?",
+      "back": "Permitir que componentes preparados funcionem após reinício e antes do primeiro desbloqueio usando dados compatíveis com DE."
+    },
+    {
+      "front": "Qual regra de FBE importa para aparelhos lançados com Android 10+?",
+      "back": "A documentação do AOSP exige criptografia baseada em arquivos para os aparelhos lançados com essa versão ou superior."
+    },
+    {
+      "front": "Para que serve criptografia de metadados?",
+      "back": "Proteger informações estruturais de armazenamento que não recebem necessariamente a mesma proteção do conteúdo pela FBE."
+    },
+    {
+      "front": "O que é Data Protection no iOS?",
+      "back": "Arquitetura de proteção de dados com chaves por arquivo ou extensão e classes de disponibilidade ligadas à autenticação."
+    },
+    {
+      "front": "Complete Protection e Until First User Authentication são iguais?",
+      "back": "Não. As classes impõem regras diferentes de disponibilidade de chaves após desbloqueio e posterior bloqueio."
+    },
+    {
+      "front": "O que é Secure Enclave?",
+      "back": "Componente de segurança em dispositivos Apple compatíveis que contribui para operações sensíveis e proteção de chaves."
+    },
+    {
+      "front": "O que é Verified Boot?",
+      "back": "Verificação criptográfica da integridade e da origem de componentes iniciados no Android."
+    },
+    {
+      "front": "Quais sistemas de arquivos são encontrados no Android?",
+      "back": "ext4 e F2FS, conforme fabricante, dispositivo e partição; não confundir com FBE e FDE."
+    },
+    {
+      "front": "Qual o sistema de arquivos moderno usado no iOS?",
+      "back": "APFS, com recursos associados a criptografia, snapshots e operações copy-on-write segundo a plataforma."
+    },
+    {
+      "front": "O armazenamento externo Android é sempre cartão SD?",
+      "back": "Não. Pode ser armazenamento emulado no dispositivo e está sujeito a políticas específicas de acesso."
+    },
+    {
+      "front": "Qual a finalidade do scoped storage?",
+      "back": "Restringir acesso amplo ao armazenamento compartilhado e incentivar APIs controladas como MediaStore e SAF."
+    },
+    {
+      "front": "O que guardar em Library/Caches no iOS?",
+      "back": "Dados regeneráveis ou baixáveis novamente, sem depender deles como única cópia de informação importante."
+    },
+    {
+      "front": "Qual a diferença entre GC e lmkd?",
+      "back": "GC recupera objetos no heap gerenciado; lmkd pode encerrar processos sob pressão de memória."
+    },
+    {
+      "front": "O que é zRAM?",
+      "back": "Dispositivo de swap comprimido na própria RAM; otimiza espaço, mas não cria chips de memória física."
+    },
+    {
+      "front": "O que é jetsam no iOS?",
+      "back": "Mecanismo e relatórios associados ao encerramento de processos para recuperação de memória."
+    },
+    {
+      "front": "O que representa PSS?",
+      "back": "Estimativa de memória por processo que distribui proporcionalmente o custo das páginas compartilhadas."
+    },
+    {
+      "front": "O que é sandbox?",
+      "back": "Modelo de isolamento que limita recursos e dados acessíveis por cada aplicação."
+    },
+    {
+      "front": "O que são entitlements no iOS?",
+      "back": "Capacidades atribuídas ao aplicativo por controles de assinatura e configuração; não são sinônimo de consentimento."
+    },
+    {
+      "front": "MDM significa acesso irrestrito a dados pessoais?",
+      "back": "Não. Gestão de dispositivos aplica políticas dentro das capacidades da plataforma e dos controles aplicáveis."
+    }
+  ],
+  "tips": [
+    "Antes de escolher a resposta, classifique o conceito: kernel, runtime, criptografia, sistema de arquivos, permissão ou memória.",
+    "Memorize os pares Linux–Android e XNU–iOS, sem confundir HAL e ART com núcleos.",
+    "Para FBE, relacione DE com operação antes do primeiro desbloqueio e CE com dados dependentes de credencial.",
+    "Em questão sobre requisitos do Android, observe se o enunciado diz aparelho lançado com versão específica ou apenas atualizado.",
+    "No iOS, diferencie Data Protection, APFS, Keychain e Secure Enclave pelos seus papéis complementares.",
+    "Na gerência de memória, contraste zRAM, GC, lmkd, jetsam, cache de páginas e dados persistentes.",
+    "Observe termos absolutos como sempre, qualquer, exclusivamente e automaticamente: privilégios e políticas dependem de contexto."
+  ],
+  "traps": [
+    "FDE e FBE não são sinônimos: uma trabalha historicamente em blocos, a outra usa políticas por arquivos.",
+    "Criptografar conteúdo não significa que todas as informações estruturais estejam cifradas da mesma maneira.",
+    "Android com armazenamento externo não precisa possuir cartão removível.",
+    "APFS não é camada de autorização que permite acesso livre aos contêineres de outros aplicativos.",
+    "Uma Activity Android pode ter processo finalizado sem chamada garantida a onDestroy().",
+    "zRAM não adiciona RAM física; comprime páginas usando os recursos existentes.",
+    "Permissão no manifesto, entitlement, consentimento e assinatura de código representam controles distintos.",
+    "Cache, journaling, snapshot e backup não possuem o mesmo propósito nem a mesma garantia."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como o desenho dos núcleos diferencia Android e iOS?",
+      "answer": "Android parte de Linux, iOS de XNU/Darwin; ambos agregam bibliotecas, serviços e frameworks próprios."
+    },
+    {
+      "question": "Por que FBE favorece Direct Boot em relação à FDE legada?",
+      "answer": "FBE admite políticas distintas para DE e CE, permitindo serviços preparados antes da primeira autenticação sem liberar CE."
+    },
+    {
+      "question": "Qual o papel da criptografia de metadados no Android?",
+      "answer": "Proteger aspectos estruturais não cobertos da mesma maneira pela FBE; complementa, não substitui, sua proteção."
+    },
+    {
+      "question": "Quais diferenças entre F2FS, APFS e FBE?",
+      "answer": "F2FS e APFS são sistemas de arquivos de ecossistemas distintos; FBE é técnica de criptografia por arquivos."
+    },
+    {
+      "question": "Quando usar MediaStore, SAF e diretório privado no Android?",
+      "answer": "MediaStore para mídia compartilhada, SAF para documentos selecionados e diretório privado para dados exclusivos do app."
+    },
+    {
+      "question": "Em qual situação Library/Caches é inadequado no iOS?",
+      "answer": "Quando for a única cópia de informação que precisa sobreviver a limpezas ou descarte de arquivos temporários."
+    },
+    {
+      "question": "Qual diferença operacional entre lmkd e jetsam?",
+      "answer": "Ambos são associados a recuperação de memória, mas lmkd atua no Android e jetsam identifica encerramentos em plataformas Apple."
+    },
+    {
+      "question": "Por que não depender apenas de onDestroy() para persistir dados?",
+      "answer": "Porque o sistema pode finalizar o processo de uma Activity sem executar esse callback."
+    },
+    {
+      "question": "O que assinatura, Verified Boot e criptografia de repouso protegem?",
+      "answer": "Assinatura e verificação de boot tratam da autenticidade/integridade de software; criptografia protege sigilo dos dados armazenados."
+    },
+    {
+      "question": "O que acontece com um app suspenso que recebe push?",
+      "answer": "O serviço de notificações pode entregar o evento sem que o processo tenha estado executando continuamente."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre núcleos e camadas",
+      "summary": "Android usa kernel Linux; iOS usa XNU. ART, HAL, Binder e frameworks possuem funções distintas do kernel."
+    },
+    {
+      "key": "e2",
+      "title": "FBE, FDE e chaves CE/DE",
+      "summary": "FDE histórica atua em blocos; FBE usa políticas por arquivos. DE pode operar antes da primeira autenticação; CE depende de desbloqueio."
+    },
+    {
+      "key": "e3",
+      "title": "Sistemas de arquivos versus controle de acesso",
+      "summary": "ext4, F2FS e APFS são sistemas de arquivos. Scoped storage e sandbox organizam o acesso; criptografia protege dados."
+    },
+    {
+      "key": "e4",
+      "title": "Memória virtual versus persistência",
+      "summary": "GC recupera objetos; zRAM comprime swap na RAM; lmkd e jetsam terminam processos. Arquivos persistentes não são equivalentes à RAM."
+    },
+    {
+      "key": "e5",
+      "title": "Consentimento, assinatura e proteção",
+      "summary": "Assinatura, Verified Boot, entitlements, autorização de usuário e criptografia oferecem controles diferentes e complementares."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "O Android é construído sobre um núcleo Linux, ao passo que o iOS utiliza o núcleo XNU associado ao Darwin.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Os kernels possuem linhagens diferentes: Android emprega Linux, e a família iOS utiliza XNU. As camadas superiores fornecem frameworks e APIs, mas não alteram essa distinção fundamental entre núcleos.",
+      "section": "Arquitetura, núcleo e ciclo de vida dos sistemas móveis",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Android, ART e HAL são nomes intercambiáveis para a camada responsável exclusivamente pelo acesso ao hardware.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "ART trata da execução de aplicações gerenciadas, enquanto HAL padroniza interfaces para componentes de hardware. Confundir ambiente de execução e abstração de hardware mistura camadas com responsabilidades distintas.",
+      "section": "Arquitetura, núcleo e ciclo de vida dos sistemas móveis",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aplicativo iOS em sandbox pode ler livremente todos os arquivos privados dos demais aplicativos desde que ambos estejam assinados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A assinatura de código não elimina o isolamento por sandbox. O acesso entre aplicativos exige mecanismos expressamente autorizados; a simples assinatura de ambos não concede leitura irrestrita dos contêineres privados.",
+      "section": "Arquitetura, núcleo e ciclo de vida dos sistemas móveis",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Binder, no Android, dá suporte à comunicação entre processos e ao acesso a serviços sob controles pertinentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Binder é elemento central de IPC no Android e possibilita interação entre aplicativos e serviços conforme regras de segurança. Comunicação controlada não significa abertura dos dados privados nem dispensa de permissões.",
+      "section": "Arquitetura, núcleo e ciclo de vida dos sistemas móveis",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O encerramento do processo de uma aplicação Android por pressão de memória garante a execução prévia do callback onDestroy() da Activity.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A vida do processo não coincide necessariamente com o ciclo de Activity. O sistema pode matar o processo sem chamar onDestroy; por isso, dados críticos precisam de persistência em momentos apropriados.",
+      "section": "Arquitetura, núcleo e ciclo de vida dos sistemas móveis",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual associação identifica corretamente o núcleo empregado pelas plataformas móveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Android baseia-se no kernel Linux; iOS utiliza o núcleo XNU.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Android e iOS utilizam obrigatoriamente o kernel Linux.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Android usa XNU; iOS usa o kernel Linux.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Android utiliza exclusivamente o ART como núcleo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "iOS utiliza F2FS como seu núcleo de processamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Android tem como base o kernel Linux e o iOS pertence à família Darwin com núcleo XNU. ART é ambiente de execução de aplicações; F2FS é sistema de arquivos, não componente de escalonamento do núcleo.",
+      "section": "Arquitetura, núcleo e ciclo de vida dos sistemas móveis",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma fabricante Android, uma biblioteca precisa conversar com a câmera de diferentes fornecedores. Que elemento reduz o acoplamento a implementações específicas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O banco SQLite utilizado pelos aplicativos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O coletor de lixo do Android Runtime.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A camada de abstração de hardware, denominada HAL.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O mecanismo de armazenamento scoped storage.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A proteção de arquivo Complete Protection do iOS.",
+          "correct": false
+        }
+      ],
+      "explanation": "A HAL define interfaces para serviços de hardware com diferentes implementações. SQLite trata de dados estruturados, ART gerencia execução, scoped storage controla acesso a arquivos e classes Apple referem-se à proteção de dados.",
+      "section": "Arquitetura, núcleo e ciclo de vida dos sistemas móveis",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aplicativo Android deseja compartilhar registros com outra aplicação por interface controlada, sem abrir seus arquivos privados. Qual componente é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um kernel alternativo instalado pelo aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A substituição do Binder por um banco de dados público.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma Activity que torna automaticamente todo o sandbox legível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O uso de zRAM como canal de compartilhamento de registros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um Content Provider exposto com controles de acesso apropriados.",
+          "correct": true
+        }
+      ],
+      "explanation": "Content Provider é componente voltado a expor dados por uma interface controlada, sob regras de autorização. Activity é unidade de interação e não libera o sandbox; kernel, zRAM e banco público não substituem esse mecanismo.",
+      "section": "Arquitetura, núcleo e ciclo de vida dos sistemas móveis",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao revisar o ciclo de vida de uma Activity, uma equipe precisa decidir quando persistir dados críticos. Qual entendimento é seguro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "onDestroy() é sempre executado antes de qualquer eliminação de processo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O processo pode ser encerrado pelo sistema sem chamada garantida a onDestroy().",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "onPause() prova que a Activity foi definitivamente destruída.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "onResume() só ocorre após reinicialização do dispositivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "onStart() garante permanência na memória até o usuário encerrar o app.",
+          "correct": false
+        }
+      ],
+      "explanation": "O sistema pode finalizar processos em segundo plano sem conceder a última chamada de ciclo de vida. Persistir estado apenas em onDestroy é inseguro; pausa, retomada e início não são promessas de destruição ou permanência.",
+      "section": "Arquitetura, núcleo e ciclo de vida dos sistemas móveis",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No iOS, uma equipe solicita acesso à câmera e adiciona uma capacidade ao aplicativo assinado. Qual conclusão sobre os mecanismos é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O entitlement substitui toda solicitação de consentimento à câmera.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O sandbox permite ler dados privados de outros aplicativos assinados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A assinatura de código torna dispensável a proteção de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Entitlements e autorizações do usuário são controles distintos que podem atuar em conjunto.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A autorização da câmera concede também acesso geral aos contatos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Entitlements descrevem capacidades previstas pela plataforma e autorizações controlam dados e recursos sujeitos a consentimento. Assinatura e sandbox são camadas diferentes; acesso à câmera não implica privilégio sobre contatos ou arquivos alheios.",
+      "section": "Arquitetura, núcleo e ciclo de vida dos sistemas móveis",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "FDE e FBE descrevem, respectivamente, criptografia de armazenamento no nível de bloco e proteção baseada em políticas de arquivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Na nomenclatura Android, a FDE histórica opera com mecanismo no nível de bloco, enquanto a FBE permite políticas por arquivos e diferentes disponibilidades de chaves. Os nomes não são equivalentes.",
+      "section": "Criptografia FBE e FDE, proteção de dados e inicialização segura",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O modo Direct Boot do Android permite acessar indistintamente dados Credential Encrypted antes da primeira autenticação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Direct Boot foi desenhado para componentes preparados para operar com dados Device Encrypted antes da primeira autenticação. Dados Credential Encrypted permanecem protegidos até as condições de desbloqueio.",
+      "section": "Criptografia FBE e FDE, proteção de dados e inicialização segura",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A existência de FBE torna inútil qualquer mecanismo de criptografia adicional de metadados do sistema de arquivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A FBE e a criptografia de metadados protegem aspectos distintos da organização do armazenamento. Mesmo com conteúdos cifrados, determinadas informações estruturais podem exigir proteção específica.",
+      "section": "Criptografia FBE e FDE, proteção de dados e inicialização segura",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No iOS, classes de Data Protection podem estabelecer condições diferentes de acesso a arquivos conforme o bloqueio e a autenticação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A plataforma Apple emprega proteção por arquivo ou extensão com classes de disponibilidade de chaves. A proteção completa e a política até a primeira autenticação têm consequências distintas após o bloqueio.",
+      "section": "Criptografia FBE e FDE, proteção de dados e inicialização segura",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A exigência de FBE para o Android 10 se aplica, segundo o AOSP, a dispositivos lançados com essa versão ou superior, não bastando considerar toda atualização posterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A exigência documentada do AOSP usa como referência a versão de lançamento do dispositivo. Um aparelho legado atualizado deve ser analisado em seu contexto, sem equiparar atualização a lançamento de fábrica.",
+      "section": "Criptografia FBE e FDE, proteção de dados e inicialização segura",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na arquitetura histórica de criptografia do Android, qual mecanismo trabalha tradicionalmente no nível do dispositivo de bloco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Full-Disk Encryption com dm-crypt.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "File-Based Encryption com separação CE e DE como sinônimo de FDE.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Data Protection da Apple com classes APFS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Scoped storage com seleção de diretórios públicos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Android Runtime com coleta de lixo de objetos.",
+          "correct": false
+        }
+      ],
+      "explanation": "FDE foi implementada historicamente no Android no nível de bloco com dm-crypt. FBE opera por políticas de arquivos, enquanto Data Protection, scoped storage e ART têm finalidades e camadas distintas.",
+      "section": "Criptografia FBE e FDE, proteção de dados e inicialização segura",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após reinicialização, um alarme Android deve funcionar antes do primeiro desbloqueio. Onde devem residir os dados acessados por um componente compatível com Direct Boot?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente no armazenamento Credential Encrypted, inacessível até a autenticação inicial.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Em qualquer diretório de outro aplicativo, porque o sistema ainda não foi desbloqueado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "No armazenamento Device Encrypted, conforme a política aplicável.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Em uma área de memória zRAM persistente entre desligamentos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Obrigatoriamente no Keychain do iOS, mesmo em aparelhos Android.",
+          "correct": false
+        }
+      ],
+      "explanation": "O armazenamento DE pode ficar acessível antes da primeira autenticação e sustenta fluxos Direct Boot projetados para essa condição. CE requer desbloqueio inicial, zRAM é volátil e sandboxes não são abertos a outros apps.",
+      "section": "Criptografia FBE e FDE, proteção de dados e inicialização segura",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um edital compara FBE e criptografia de metadados no Android. Qual proposição é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A FBE é incapaz de criptografar conteúdo de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Metadados e conteúdo são nomes diferentes para exatamente os mesmos bits.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A criptografia de metadados substitui obrigatoriamente o controle de acesso entre apps.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O recurso transforma ext4 e F2FS no sistema APFS da Apple.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A criptografia de metadados pode proteger informações não cobertas do mesmo modo pela FBE.",
+          "correct": true
+        }
+      ],
+      "explanation": "A FBE protege dados conforme políticas de arquivos, e a proteção adicional de metadados cobre aspectos próprios da estrutura de armazenamento. O mecanismo não altera o sistema de arquivos nem dispensa sandbox e autorização.",
+      "section": "Criptografia FBE e FDE, proteção de dados e inicialização segura",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fabricante lança um novo aparelho já com Android 10 e considera usar somente FDE. À luz dos requisitos documentados pelo AOSP, qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Qualquer aparelho que atualize para Android 10 precisa migrar automaticamente de FDE para APFS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O dispositivo lançado com Android 10 deve implementar FBE, e FDE isolada não atende à exigência.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "FDE e FBE são exigidas simultaneamente em toda partição, sem exceções.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A exigência depende apenas da versão que o usuário instala anos depois do lançamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "F2FS é obrigatório e dispensa o uso de FBE no dispositivo lançado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A regra oficial distingue aparelhos lançados com Android 10 ou superior, para os quais FBE é obrigatória. Não se confunde o lançamento de fábrica com atualização posterior; ext4 ou F2FS podem fornecer suporte à FBE.",
+      "section": "Criptografia FBE e FDE, proteção de dados e inicialização segura",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação iOS precisa que determinado arquivo seja protegido de maneira mais restritiva quando o dispositivo estiver bloqueado. Qual conceito orienta a configuração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Instalação de dm-crypt do Android como camada obrigatória do APFS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Troca automática do volume APFS por ext4.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Transformação dos dados em URI pública sem autenticação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Classes de Data Protection aplicáveis aos arquivos e à disponibilidade das chaves.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uso de garbage collection como criptografia de conteúdo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O iOS oferece classes de proteção de dados por arquivo, com regras distintas relacionadas ao estado de bloqueio e autenticação. Sistemas de arquivos de outras plataformas, URIs e coleta de lixo não configuram a política criptográfica.",
+      "section": "Criptografia FBE e FDE, proteção de dados e inicialização segura",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O sistema F2FS foi projetado levando em conta as características de armazenamento flash e pode ser utilizado em dispositivos Android.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "F2FS é um sistema de arquivos orientado a flash e aparece entre os formatos admitidos em contextos de produção Android. Ele não é o mesmo que FBE e não precisa ser o sistema utilizado em todos os aparelhos.",
+      "section": "Sistemas de arquivos, armazenamento e acesso a dados",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A expressão armazenamento externo, nas APIs do Android, significa obrigatoriamente cartão microSD removível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O armazenamento externo pode ser emulado na memória interna do aparelho. A expressão caracteriza uma modalidade de armazenamento e acesso, e não determina que exista cartão de memória removível.",
+      "section": "Sistemas de arquivos, armazenamento e acesso a dados",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Journaling registra operações relevantes para ajudar a manter ou recuperar a consistência de um sistema de arquivos, sem equivaler a backup completo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O registro de operações pode facilitar a recuperação após falhas, mas não cria necessariamente uma cópia histórica de todos os dados. Backup tem objetivo próprio de restauração e retenção de informações.",
+      "section": "Sistemas de arquivos, armazenamento e acesso a dados",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A utilização de APFS no iOS implica que qualquer aplicativo pode alterar livremente o volume de sistema e os contêineres dos demais apps.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "APFS é uma tecnologia de sistema de arquivos e não substitui mecanismos de sandbox e proteção de volumes. O acesso dos aplicativos permanece subordinado a políticas e interfaces do sistema.",
+      "section": "Sistemas de arquivos, armazenamento e acesso a dados",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No iOS, o diretório Library/Caches pode ser limpo e não é adequado para manter a única cópia de um documento essencial.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Caches é reservado a arquivos regeneráveis e pode ser removido. Um documento essencial requer armazenamento persistente adequado e, se cabível, estratégia de backup; o nome do diretório não cria garantia de retenção.",
+      "section": "Sistemas de arquivos, armazenamento e acesso a dados",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um dispositivo Android utiliza uma implementação de sistema de arquivos adequada à memória flash. Qual das opções designa um sistema de arquivos, e não uma técnica de criptografia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "F2FS.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "FBE.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "FDE.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Direct Boot.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Verified Boot.",
+          "correct": false
+        }
+      ],
+      "explanation": "F2FS é um sistema de arquivos desenvolvido com características de armazenamento flash em mente. FBE e FDE protegem dados, Direct Boot trata da disponibilidade de dados após iniciar e Verified Boot verifica integridade do software.",
+      "section": "Sistemas de arquivos, armazenamento e acesso a dados",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um aplicativo Android precisa permitir que o usuário escolha um documento fora de sua pasta privada. Qual interface atende tipicamente a essa finalidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Leitura direta de qualquer sandbox sem controle.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Coletor de lixo do ART atuando sobre arquivos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Storage Access Framework, com seleção e concessão apropriadas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Comando de troca da partição por APFS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mecanismo jetsam para oferecer caminhos de documentos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O SAF oferece fluxos controlados para selecionar e acessar documentos mediante autorização. Ele não remove o isolamento entre apps nem é gerenciador de memória; alterar sistema de arquivos ou usar jetsam não concede acesso documental.",
+      "section": "Sistemas de arquivos, armazenamento e acesso a dados",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em relação aos diretórios de um app iOS, qual destinação é a mais adequada para arquivos que podem ser baixados novamente sem prejuízo ao usuário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Documents como única cópia permanente indispensável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Keychain como pasta de arquivos de vídeo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Partição de sistema modificada diretamente pelo app.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Contêiner privado de outro aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Library/Caches.",
+          "correct": true
+        }
+      ],
+      "explanation": "Caches serve a dados recuperáveis ou regeneráveis e pode ser limpo pelo sistema. Documents é destinado a documentos, Keychain guarda segredos e o sandbox impede acesso arbitrário aos arquivos privados de outros aplicativos.",
+      "section": "Sistemas de arquivos, armazenamento e acesso a dados",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um desenvolvedor afirma que “armazenamento externo” do Android implica obrigatoriamente um cartão removível. Qual opção corrige o conceito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É sempre uma segunda memória RAM dedicada aos aplicativos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É uma categoria lógica que também pode estar em armazenamento interno emulado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "É exclusivamente uma área APFS do fabricante Apple.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É o local universal de armazenagem das chaves do Secure Enclave.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É um endereço IP de serviço de backup obrigatório.",
+          "correct": false
+        }
+      ],
+      "explanation": "Armazenamento externo, nas APIs Android, pode ser emulado no próprio armazenamento do aparelho e não significa mídia removível. A distinção é de organização e política de acesso, não de RAM, criptografia Apple ou endereço de rede.",
+      "section": "Sistemas de arquivos, armazenamento e acesso a dados",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação mantém o único exemplar de um relatório relevante em diretório temporário do iOS. Qual risco decorre dessa decisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A pasta temporária assegura retenção permanente e cópia automática universal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O sistema de arquivos APFS converte automaticamente o relatório em item do Keychain.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A presença em tmp habilita acesso irrestrito a qualquer outro aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Arquivos temporários podem ser removidos pelo sistema e não são local indicado para a única cópia.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O armazenamento temporário torna impossível a limpeza pelo sistema operacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Diretórios temporários armazenam dados descartáveis e podem sofrer limpeza sem corresponder a uma política de retenção. Dados importantes exigem área apropriada e estratégia de persistência; APFS não muda essa semântica.",
+      "section": "Sistemas de arquivos, armazenamento e acesso a dados",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "zRAM amplia fisicamente a quantidade de chips de RAM presentes no smartphone, dispensando compressão de páginas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "zRAM utiliza compressão no espaço de RAM existente para fornecer área de swap. O recurso otimiza o uso da capacidade física disponível, mas não instala memória adicional nem elimina custos computacionais.",
+      "section": "Gerência de memória, processos, zRAM e jetsam",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O sistema pode manter processos Android em cache e encerrá-los posteriormente para liberar memória quando necessário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A manutenção de processos em cache pode acelerar uma reabertura, mas não assegura retenção permanente. O sistema pode priorizar tarefas ativas e eliminar processos menos essenciais sob pressão de memória.",
+      "section": "Gerência de memória, processos, zRAM e jetsam",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O daemon lmkd e o coletor de lixo do ART executam a mesma função de excluir objetos Java individualmente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O lmkd pode encerrar processos inteiros sob pressão de memória; o coletor de lixo do ART recupera objetos não mais alcançáveis no heap gerenciado. São mecanismos diferentes em níveis distintos.",
+      "section": "Gerência de memória, processos, zRAM e jetsam",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Relatórios jetsam no ecossistema Apple podem auxiliar a diagnosticar encerramentos associados à escassez de memória.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O iOS registra eventos de jetsam quando processos são eliminados para recuperação de memória. Esses relatórios contêm contexto de pressão e não são equivalentes aos registros tradicionais de exceções com stack trace.",
+      "section": "Gerência de memória, processos, zRAM e jetsam",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A métrica PSS contabiliza integralmente, para cada processo, todas as páginas de RAM compartilhadas com os demais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "PSS distribui proporcionalmente o custo de páginas compartilhadas entre processos. Atribuir toda a página a cada participante distorceria o consumo global e se aproxima de outra forma de contabilização.",
+      "section": "Gerência de memória, processos, zRAM e jetsam",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual mecanismo do Android compacta páginas de memória para criar uma área de swap na própria RAM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "zRAM.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Scoped storage.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Content Provider.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "APFS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Verified Boot.",
+          "correct": false
+        }
+      ],
+      "explanation": "zRAM usa compressão para otimizar o aproveitamento da RAM como dispositivo de swap. Scoped storage controla arquivos, Content Provider expõe dados, APFS é sistema de arquivos e Verified Boot cuida da confiança na inicialização.",
+      "section": "Gerência de memória, processos, zRAM e jetsam",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Android, uma coleta de lixo recupera objetos inacessíveis no heap do aplicativo. Que componente está mais diretamente envolvido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O módulo de Verified Boot que valida o sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O mecanismo scoped storage de mídia compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O ambiente de execução gerenciada ART.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O Secure Enclave responsável pelas chaves Apple.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sistema de arquivos F2FS encarregado do layout de blocos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A coleta de lixo de objetos da aplicação é função do ambiente de execução gerenciada, incluindo ART. Não equivale a limpar cache em disco, verificar o boot ou atuar em hardware seguro da Apple.",
+      "section": "Gerência de memória, processos, zRAM e jetsam",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sob forte pressão de memória, o Android encerra um processo em cache de baixa importância. Qual agente moderno pode tomar essa decisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um Content Provider, porque todos os provedores matam processos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O Keychain, por falta de chaves de criptografia.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A HAL, porque substitui o escalonador do kernel.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O SQLite, ao alterar automaticamente a quantidade de RAM física.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "lmkd, segundo políticas de prioridade e pressão de memória.",
+          "correct": true
+        }
+      ],
+      "explanation": "lmkd monitora condições de memória e encerra processos menos essenciais quando necessário. Esse mecanismo não é coleta de lixo de objetos nem depende de Keychain, provedor de dados ou banco de dados como agente decisor.",
+      "section": "Gerência de memória, processos, zRAM e jetsam",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma métrica distribui proporcionalmente páginas compartilhadas entre processos ao estimar seu consumo de memória. Trata-se de qual indicador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A simples capacidade total do armazenamento flash.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "PSS, proportional set size.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A contagem de pastas do sandbox.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A extensão do arquivo de swap em gigabytes de disco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O número de permissões declaradas no manifesto.",
+          "correct": false
+        }
+      ],
+      "explanation": "PSS pondera páginas compartilhadas entre processos para estimar seu custo de RAM. Esse conceito não se confunde com espaço de armazenamento, páginas de diretório ou número de permissões, que não medem essa contribuição.",
+      "section": "Gerência de memória, processos, zRAM e jetsam",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe iOS investiga encerramentos provocados por escassez de RAM sem pilha de chamadas típica de falha. Qual artefato é especialmente relevante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manifesto Android com permissões de instalação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Chaves CE do armazenamento Android.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Logs do componente F2FS obrigatório no iPhone.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Relatórios de eventos jetsam.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Histórico de chamadas da API MediaStore.",
+          "correct": false
+        }
+      ],
+      "explanation": "Relatórios de jetsam documentam condições de encerramento de processos por pressão de memória em sistemas Apple. Não devem ser confundidos com stack traces usuais de exceções ou com componentes de outras plataformas.",
+      "section": "Gerência de memória, processos, zRAM e jetsam",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Atualizações de segurança e criptografia em repouso são medidas complementares, pois protegem contra classes distintas de risco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A criptografia protege dados armazenados, enquanto correções tratam vulnerabilidades de software. Uma defesa eficaz também requer autenticação, autorização e práticas de configuração; nenhum recurso isolado cobre tudo.",
+      "section": "Segurança operacional, permissões, atualizações e comparação prática",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma permissão sensível declarada no manifesto Android está sempre concedida sem necessidade de participação do usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O manifesto registra a solicitação, mas permissões sujeitas a aprovação em execução dependem de regras da plataforma e, quando aplicável, da escolha do usuário. Declaração e concessão são atos distintos.",
+      "section": "Segurança operacional, permissões, atualizações e comparação prática",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No iOS, um entitlement e a autorização do usuário para acessar informações privadas representam controles de natureza diferente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Entitlements expressam capacidades previstas na assinatura e configuração do aplicativo; permissões de privacidade podem exigir consentimento em tempo de uso. Os controles são complementares, não idênticos.",
+      "section": "Segurança operacional, permissões, atualizações e comparação prática",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso corporativo de MDM permite, por definição, ignorar todas as políticas de privacidade da plataforma e ler qualquer dado pessoal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O gerenciamento corporativo oferece capacidades administrativas específicas, condicionadas ao modo de gerenciamento e às políticas disponíveis. Não produz, por si, acesso irrestrito a dados pessoais dos usuários.",
+      "section": "Segurança operacional, permissões, atualizações e comparação prática",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O recebimento de notificação push em um aparelho prova que o processo do aplicativo destinatário permaneceu continuamente em execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A infraestrutura de notificações pode operar independentemente da execução contínua do aplicativo. O sistema pode suspender ou encerrar processos, e a entrega de push não altera necessariamente essa política.",
+      "section": "Segurança operacional, permissões, atualizações e comparação prática",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um app Android declara permissão sensível no manifesto. Qual afirmação descreve corretamente a declaração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela identifica a permissão solicitada, sem assegurar toda concessão que dependa de autorização em execução.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ela concede automaticamente todas as permissões perigosas sem intervenção do usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela desativa o sandbox e o controle do sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela substitui atualizações de segurança do aparelho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela obriga o armazenamento de todos os arquivos em APFS.",
+          "correct": false
+        }
+      ],
+      "explanation": "A declaração no manifesto é parte do pedido de permissão; o sistema pode exigir autorização dinâmica conforme tipo de acesso e regras vigentes. Ela não suspende políticas de segurança nem altera sistema de arquivos.",
+      "section": "Segurança operacional, permissões, atualizações e comparação prática",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer adotar políticas de configuração e distribuição de apps em aparelhos corporativos sem presumir acesso irrestrito a conteúdos pessoais. Qual solução é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criptografar somente nomes de pastas e dispensar autenticação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar todos os aplicativos permanentemente em primeiro plano.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gerenciamento de dispositivos móveis por MDM/EMM, observados os controles da plataforma.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Conceder acesso global aos dados privados via journaling.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir o sandbox pelo mecanismo de coleta de lixo.",
+          "correct": false
+        }
+      ],
+      "explanation": "MDM/EMM oferece administração corporativa conforme capacidades e políticas disponíveis. Gerenciamento não implica automaticamente leitura irrestrita de dados; journaling e GC não são mecanismos de autorização.",
+      "section": "Segurança operacional, permissões, atualizações e comparação prática",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe planeja transferências em segundo plano no iOS sem manter o aplicativo executando continuamente. Qual princípio está correto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Exigir que o aplicativo mantenha CPU ilimitada mesmo suspenso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Presumir que notificações push garantem execução contínua.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar necessariamente a proteção por arquivo para transferir dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Montar a partição APFS de outro aplicativo antes da transferência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar APIs de transferência em background e aceitar escalonamento pelo sistema.",
+          "correct": true
+        }
+      ],
+      "explanation": "As APIs próprias de background permitem certos trabalhos controlados pelo sistema, inclusive transferências que não exigem processo sempre ativo. Suspensão, notificações e proteção de arquivos não dão liberdade irrestrita de CPU ou de acesso.",
+      "section": "Segurança operacional, permissões, atualizações e comparação prática",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao avaliar os controles de segurança de uma instituição, qual afirmação diferencia melhor assinatura de código e criptografia de dados em repouso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambas são exatamente a mesma operação e produzem o mesmo tipo de prova.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Assinatura sustenta verificação de origem e integridade do código; criptografia protege a confidencialidade dos dados armazenados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Criptografia em repouso confirma a assinatura do bootloader em tempo real.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Assinatura de código permite automaticamente ler qualquer arquivo criptografado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ambas dispensam autenticação, autorização e atualizações do sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "Assinatura de código e criptografia em repouso atendem objetivos diferentes: autenticidade/integridade do software e sigilo do armazenamento. São camadas complementares e não substituem políticas de autorização ou correções.",
+      "section": "Segurança operacional, permissões, atualizações e comparação prática",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador afirma que o recebimento de uma notificação push demonstra que o processo do app estava executando ininterruptamente. Qual resposta técnica é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim: notificações são impossíveis quando o app já foi suspenso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim: push desativa obrigatoriamente o gerenciamento de energia.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sim: receber push prova que o app detém acesso ao sandbox de terceiros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não: a infraestrutura de notificações pode entregar eventos sem execução contínua do processo do aplicativo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Não: notificações só existem em computadores de mesa, não em celulares.",
+          "correct": false
+        }
+      ],
+      "explanation": "O recebimento de push depende de serviços da plataforma e pode ocorrer com o aplicativo suspenso ou não ativo. Ele não prova uso contínuo de CPU, não desabilita política de energia e não autoriza acesso a dados de terceiros.",
+      "section": "Segurança operacional, permissões, atualizações e comparação prática",
+      "errorConceptKey": "",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Criptografia do Android: visão geral",
+      "publisher": "Android Open Source Project",
+      "reference": "Android Security — Encryption",
+      "url": "https://source.android.com/docs/security/features/encryption",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Criptografia baseada em arquivos",
+      "publisher": "Android Open Source Project",
+      "reference": "Android Security — File-based encryption",
+      "url": "https://source.android.com/docs/security/features/encryption/file-based",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Criptografia de disco completo",
+      "publisher": "Android Open Source Project",
+      "reference": "Android Security — Full-disk encryption",
+      "url": "https://source.android.com/docs/security/features/encryption/full-disk",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Criptografia de metadados",
+      "publisher": "Android Open Source Project",
+      "reference": "Android Security — Metadata encryption",
+      "url": "https://source.android.com/docs/security/features/encryption/metadata",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Suporte a sistemas de arquivos do kernel Android",
+      "publisher": "Android Open Source Project",
+      "reference": "Android kernel file system support",
+      "url": "https://source.android.com/docs/core/architecture/android-kernel-file-system-support",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Daemon de pressão de memória lmkd",
+      "publisher": "Android Open Source Project",
+      "reference": "Android OS — Low memory killer daemon",
+      "url": "https://source.android.com/docs/core/perf/lmkd",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Gerência de memória Android",
+      "publisher": "Google — Android Developers",
+      "reference": "Android Developers — Memory allocation among processes",
+      "url": "https://developer.android.com/topic/performance/memory-management",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Armazenamento de dados Android",
+      "publisher": "Google — Android Developers",
+      "reference": "Android Developers — Data and file storage overview",
+      "url": "https://developer.android.com/training/data-storage",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Papel do APFS na segurança Apple",
+      "publisher": "Apple Support",
+      "reference": "Apple Platform Security — Role of Apple File System",
+      "url": "https://support.apple.com/en-asia/guide/security/seca6147599e/web",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Classes de proteção de dados Apple",
+      "publisher": "Apple Support",
+      "reference": "Apple Platform Security — Data Protection classes",
+      "url": "https://support.apple.com/en-nz/guide/security/secb010e978a/web",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Proteção de dados em dispositivos Apple",
+      "publisher": "Apple Support",
+      "reference": "Apple Platform Security — Data Protection in Apple devices",
+      "url": "https://support.apple.com/en-mide/guide/security/sece8608431d/web",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Encerramento de aplicativos por pressão de memória",
+      "publisher": "Apple Developer",
+      "reference": "Xcode — Identifying high-memory use with jetsam event reports",
+      "url": "https://developer.apple.com/documentation/xcode/identifying-high-memory-use-with-jetsam-event-reports",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

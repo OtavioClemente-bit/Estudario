@@ -1,0 +1,1998 @@
+{
+  "id": "informatica.web-scraping-conceitos-aplicacoes-limites-legais-eticos",
+  "subject": "Informática",
+  "title": "Web scraping: fundamentos, Python e limites legais",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Web scraping: fundamentos, Python e limites legais",
+    "Web scraping: conceitos, aplicações e limites legais e éticos"
+  ],
+  "scope": {
+    "covers": "Conceitos de crawling e scraping, HTTP, HTML/DOM, APIs, seletores CSS, bibliotecas Python (Requests, Beautiful Soup, Scrapy, lxml, urllib, Playwright), extração, qualidade, paginação, limites de acesso, robots.txt, privacidade, LGPD, Marco Civil e direitos autorais.",
+    "excludes": "Tutoriais para burlar bloqueios, CAPTCHA, credenciais, anti-bot ou termos de serviço; engenharia reversa de mecanismos restritivos; conclusões jurídicas categóricas sem avaliação do caso."
+  },
+  "theoryTitle": "Web scraping: da extração responsável à conformidade legal",
+  "chapters": [
+    {
+      "title": "Fundamentos, arquitetura e ciclo da coleta",
+      "markdown": "# O que é web scraping\n\n**Web scraping** é a extração automatizada de informações de páginas ou respostas disponíveis na Web, com transformação em dados utilizáveis. Em regra, a automação solicita recursos, interpreta a resposta, identifica campos de interesse e os registra em uma estrutura organizada. Não se confunde com **web crawling**: o *crawler* descobre e percorre endereços por meio de links e regras de navegação; o *scraper* extrai dados específicos. Uma aplicação pode executar ambos. **Indexação** organiza conteúdos para busca; **mineração de dados** encontra padrões em conjuntos já obtidos. Um portal pode oferecer uma **API oficial**, em formato estruturado, que costuma ser preferível à interpretação da apresentação visual quando disponível e autorizado seu uso.\n\n## Fluxo técnico completo\n\n1. **Definição do objetivo:** determinar campos, granularidade, licenças, finalidade e necessidade real dos dados; não coletar por mera disponibilidade.\n2. **Identificação da origem:** examinar a URL, a documentação da API, o HTML, a organização de links e os termos aplicáveis. Registrar a fonte e as restrições pertinentes.\n3. **Requisição HTTP:** enviar uma solicitação como `GET` por uma conexão, receber código de status, cabeçalhos e corpo. `200` normalmente indica resposta bem-sucedida; `301/302` envolvem redirecionamento; `403` indica acesso negado; `404`, recurso não encontrado; `429`, excesso de solicitações; `500`, erro no servidor. O resultado exato depende do serviço.\n4. **Interpretação:** selecionar elementos HTML com CSS ou por atributos, consumir JSON de interface quando seu uso for permitido, ou renderizar JavaScript quando realmente necessário.\n5. **Normalização:** converter valores, datas, unidades e moeda; eliminar espaços e marcas HTML, preservando a semântica do campo. Distinguir registro ausente de zero e de cadeia vazia.\n6. **Persistência e verificação:** gravar CSV, JSON ou banco de dados, manter a proveniência, deduplicar, auditar alterações e acompanhar erros.\n\n## Estrutura HTTP, HTML e DOM\n\nUma página não é uma planilha: é um documento estruturado em elementos e atributos, muitas vezes representado no navegador como **DOM** (*Document Object Model*). No exemplo `<article class=\"produto\"><h2>Livro</h2><span data-preco=\"39\">R$ 39</span></article>`, `h2` contém o nome; `data-preco` é um atributo distinto do texto visível. O seletor `.produto h2` significa um `h2` descendente de um elemento da classe `produto`; `#identificador` seleciona elemento pelo ID; `article > h2` exige filho direto. `find_all('h2')` retorna todos os elementos correspondentes, enquanto `find('h2')` retorna o primeiro ou `None`.\n\n**Páginas estáticas** podem fornecer conteúdo relevante já no HTML recebido. Em **páginas dinâmicas**, JavaScript pode buscar dados depois do primeiro carregamento. Nesse caso, uma requisição simples pode retornar apenas a estrutura inicial, sem os produtos vistos no navegador. A avaliação deve diferenciar: conteúdo em HTML, conteúdo carregado por endpoints documentados ou autorizados e conteúdo que depende da execução do navegador. Evite confundir uma resposta HTTP válida com presença dos dados pretendidos.\n\n## Casos de aplicação e cautelas\n\nEntre usos legítimos sujeitos às condições aplicáveis estão monitoramento de indicadores públicos, pesquisa, inventário de publicações, acompanhamento de preços anunciados e coleta de metadados. Um caso adequado define periodicidade proporcional e verifica reutilização permitida. Nem toda página acessível é livre de restrições, nem toda coleta envolve dados pessoais: a análise depende da natureza dos dados, da finalidade, da origem, do modo de acesso e dos direitos de terceiros.\n\n**Armadilhas de prova:** scraping não significa invadir sistemas; contudo, automação não gera autorização de acesso. Uma API não elimina deveres legais e contratuais. Ausência de autenticação não é sinônimo de ausência de proteção jurídica. E o cabeçalho `Content-Type` identifica a representação informada pelo servidor, não garante que o corpo esteja válido ou corresponda ao esperado."
+    },
+    {
+      "title": "Python: Requests, Beautiful Soup e extração de dados",
+      "markdown": "# Ferramentas Python e papéis respectivos\n\nA biblioteca **Requests** executa requisições HTTP e fornece objetos `Response`, com `status_code`, `headers`, `text`, `content` e método `json()`. **Beautiful Soup 4**, importada por `from bs4 import BeautifulSoup`, interpreta HTML ou XML e permite percorrer a árvore de elementos. Ela **não é, por si só, um cliente HTTP completo nem um navegador que executa JavaScript**. Instalação típica: `python -m pip install requests beautifulsoup4`. O analisador `html.parser` é incluído na biblioteca-padrão do Python; analisadores como `lxml` dependem de instalação adicional. Seletores CSS podem ser usados com `select()` e `select_one()`.\n\n## Exemplo executável sem acesso à rede\n\n```python\nfrom bs4 import BeautifulSoup\nhtml = \"\"\"<ul><li class=\"item\" data-id=\"10\"><a href=\"/p/10\">Caderno</a></li>\n<li class=\"item\" data-id=\"11\"><a href=\"/p/11\">Caneta</a></li></ul>\"\"\"\nsoup = BeautifulSoup(html, 'html.parser')\nfor li in soup.select('li.item'):\n    print(li['data-id'], li.a.get_text(strip=True), li.a['href'])\n# 10 Caderno /p/10\n# 11 Caneta /p/11\n```\n\n`li['data-id']` obtém um atributo existente, mas lançará erro se estiver ausente; `li.get('data-id')` devolve `None` se não houver. `get_text(strip=True)` retorna o texto do elemento e descendentes, removendo espaços extremos; `select('li.item')` retorna uma lista de elementos, ao passo que `select_one('li.item')` devolve o primeiro elemento ou `None`. Um link relativo como `/p/10` deve ser resolvido com `urllib.parse.urljoin(base, href)`; não é um endereço completo por si só.\n\n## Requisição com tratamento de erros\n\n```python\nimport requests\nfrom bs4 import BeautifulSoup\nurl = 'https://exemplo.org/catalogo'  # URL fictícia: não executar sem autorização\ntry:\n    resposta = requests.get(url, timeout=10,\n        headers={'User-Agent': 'ColetorEducativo/1.0 (contato: equipe@example.org)'})\n    resposta.raise_for_status()\n    soup = BeautifulSoup(resposta.text, 'html.parser')\n    titulos = [h.get_text(' ', strip=True) for h in soup.select('h2.titulo')]\nexcept requests.exceptions.Timeout:\n    print('Tempo de espera esgotado')\nexcept requests.exceptions.RequestException:\n    print('Falha na comunicação HTTP')\n```\n\n**`timeout`** limita a espera de operações de conexão/leitura; não equivale, necessariamente, ao tempo máximo total de ponta a ponta. **`raise_for_status()`** sinaliza respostas HTTP de erro, mas não atesta completude, licitude nem qualidade dos dados. **`response.json()`** tenta decodificar o corpo em JSON mesmo se o cabeçalho não indicar JSON; sucesso da decodificação não significa sucesso HTTP. A execução repetida deve ter limites de tentativas, tratamento de exceções e recuo entre novas solicitações; uma falha de rede não deve provocar laço infinito.\n\n## Exemplo de leitura e transformação\n\nDiante de `<span class=\"preco\">R$ 1.234,50</span>`, `get_text(strip=True)` produz `R$ 1.234,50`, isto é, **uma string**, não `float`. A transformação robusta deve remover símbolo e separadores de milhar, substituir a vírgula decimal, usar um tipo numérico adequado e guardar a moeda ou contexto. Para valores monetários, `decimal.Decimal` pode evitar alguns problemas de representação binária de ponto flutuante. Na ausência do seletor, valide `None` antes de chamar `.get_text()`. Em atributos, use `.get()` se o campo for opcional.\n\n## Bibliotecas comparadas\n\n- `requests`: tráfego HTTP de alto nível, excelente para poucas páginas e endpoints permitidos; não executa scripts da página.\n- `bs4`/Beautiful Soup: interpretação flexível do HTML; funciona sobre texto previamente recebido.\n- `lxml`: analisador e navegação eficiente em HTML/XML, inclusive XPath; não substitui automaticamente o cliente HTTP.\n- `pandas.read_html`: identifica tabelas tabulares em HTML e cria estruturas tabulares; depende da qualidade da tabela e de dependências instaladas.\n- `urllib.request` e `urllib.parse`: recursos da biblioteca-padrão para acesso e tratamento de URLs; `urllib.robotparser` interpreta instruções do arquivo `robots.txt`.\n\n**Ponto recorrente:** a escolha de CSS, XPath ou busca por tags é independente da forma de obter o recurso. Além disso, usar `headers` com um identificador transparente não implica permissão para coletar o conteúdo; é apenas um elemento de boa prática operacional."
+    },
+    {
+      "title": "Crawling com Scrapy, páginas dinâmicas e qualidade dos dados",
+      "markdown": "# Escalando a coleta com parcimônia\n\n**Scrapy** é um framework de crawling e scraping que organiza requisições, respostas, extração, itens e pipelines. Uma **Spider** define por onde começar e como interpretar respostas. Um retorno com `yield` pode produzir um item extraído ou uma nova `Request`, permitindo seguir paginação quando isso for permitido. **Seletores CSS e XPath** podem extrair textos e atributos. Os resultados são gravados em arquivos ou passados por pipelines para limpeza, validação e persistência. O framework gerencia concorrência e integra tratamento de requisições, mas sua presença não constitui autorização para varrer domínios irrestritamente.\n\nExemplo ilustrativo de método de extração em uma Spider:\n\n```python\nimport scrapy\nclass CatalogoSpider(scrapy.Spider):\n    name = 'catalogo_exemplo'\n    start_urls = ['https://exemplo.org/catalogo']  # endereço ilustrativo\n    custom_settings = {'ROBOTSTXT_OBEY': True, 'DOWNLOAD_DELAY': 2}\n    def parse(self, response):\n        for card in response.css('article.produto'):\n            yield {\n                'nome': card.css('h2::text').get(),\n                'link': response.urljoin(card.css('a::attr(href)').get(''))\n            }\n```\n\n`::text` recupera nós de texto; `::attr(href)` acessa atributo. `.get()` traz a primeira correspondência ou `None`; `.getall()` retorna lista. `response.urljoin` resolve URL relativa em relação à URL da resposta. `DOWNLOAD_DELAY` introduz intervalo entre requisições em condições regidas pelo escalonador; não deve ser confundido com a garantia universal de frequência fixa. `ROBOTSTXT_OBEY=True` instrui o Scrapy a observar regras reconhecidas de `robots.txt`; a configuração específica precisa ser revisada, pois versões e modelos de projeto podem apresentar padrões diferentes. A extensão **AutoThrottle** ajusta atrasos a partir das respostas e trabalha com outras limitações de concorrência.\n\n## Página renderizada e automação de navegador\n\nQuando o HTML inicial possui `<div id=\"app\"></div>` e os dados são inseridos após execução de scripts, Beautiful Soup aplicada apenas a essa resposta não encontrará os itens finais. **Playwright** ou **Selenium** podem operar um navegador para carregar uma página e consultar o DOM renderizado, se o uso for autorizado. São mais custosos em memória e tempo, exigem gerenciamento de contexto e não devem ser empregados para contornar logins, verificações antiabuso ou proibições. Muitas interfaces expõem serviços internos; sua existência técnica não equivale a licença para extraí-los. Preferir a API publicada, se houver, pode ser mais estável e menos oneroso.\n\n## Robustez dos seletores\n\nSeletores baseados em nomes de classes geradas automaticamente podem mudar a cada publicação; expressões excessivamente posicionais, como `div:nth-child(7) > span`, são frágeis. Identifique atributos semânticos estáveis, quando presentes, e faça validação de amostras. Paginação pode surgir por links, `?page=2`, cursores ou carregamento incremental; não se deve presumir que `?page=3` funcione nem enumerar recursos fora do escopo autorizado. Uma coleta incremental guarda identificadores, versão ou data de atualização e evita repetir material já processado.\n\n## Integridade e rastreabilidade\n\nValide estrutura, tipos, completude, unicidade, amplitude dos valores e data da coleta. Registre URL de origem, instante de acesso, transformação aplicada e versão do extrator, respeitando a minimização de dados pessoais. **Deduplicação** não deve apagar ocorrências legitimamente distintas: dois livros podem ter títulos iguais, mas IDs diferentes. Dados ausentes não se transformam automaticamente em zero. **Reprodutibilidade** requer documentação de critérios, variáveis e versões de ferramentas, mas dados voláteis não garantem que a Web forneça exatamente a mesma resposta em outro dia.\n\nErros frequentes: interpretar `403` ou `429` como motivo para intensificar a frequência de acesso; confundir navegador automatizado com parser HTML; supor que um site sem link de próxima página não possua paginação; inserir dados sem escapar conteúdo na geração posterior de HTML; abandonar rastros de auditoria que permitiriam detectar defeitos de extração. Quando os elementos esperados desaparecem, a resposta adequada é interromper o fluxo e investigar, não preencher registros fictícios."
+    },
+    {
+      "title": "Robots.txt, limitações técnicas, ética e governança",
+      "markdown": "# Permissão, protocolo e responsabilidade\n\nO arquivo **`robots.txt`**, normalmente publicado na raiz de um host, expressa instruções para agentes automatizados sobre caminhos a acessar. A RFC 9309 padroniza o *Robots Exclusion Protocol*. Exemplos: `User-agent: *` indica grupo aplicável a todos os agentes; `Disallow: /privado/` orienta a não visitar caminhos desse prefixo; `Allow: /publico/` indica permissão de acesso sob as regras do protocolo. A interpretação envolve agrupamento de agentes e precedência, não simples busca de palavras. `Sitemap` pode informar endereços de mapas de site, mas mapa de site não é autorização para copiar dados.\n\n**Distinção decisiva:** `robots.txt` não implementa autenticação, não é mecanismo de segurança e não constitui, isoladamente, parecer jurídico sobre a legalidade de um acesso. Regras de robôs devem ser respeitadas como boa prática e conforme políticas aplicáveis, mas o coletor também deve verificar condições contratuais, legislação e permissões expressas. Um caminho não listado no arquivo não se torna juridicamente livre. Um site pode exigir autenticação, contratos ou restringir reutilizações mesmo quando uma URL responde com status 200.\n\n## Comportamento responsável\n\n1. Identificar o agente de forma verdadeira, observando políticas do provedor e contato apropriado quando indicado; não se passar por usuário específico para contornar restrições.\n2. Minimizar requisições, concorrer moderadamente, limitar profundidade e volume e respeitar janelas e limites documentados.\n3. Interpretar `429 Too Many Requests` como sinal de controle de fluxo e considerar instruções como `Retry-After`; reduzir a carga. Repetição agressiva causa dano e não é tolerância a falhas.\n4. Preferir cache legítimo, dados abertos e APIs oficiais, observar diretrizes de licença e reduzir carga sobre servidores.\n5. Suspender acesso em caso de bloqueio, dúvida material de autorização, advertência ou risco ao serviço, procurando canal adequado.\n6. Preservar credenciais próprias sob controle e não solicitar ou compartilhar dados de acesso de terceiros para superar barreiras.\n\n## Risco operacional e jurídico não são iguais\n\n**CAPTCHA, autenticação, paywall, token e bloqueio de IP** são sinais de regras de acesso, embora não sejam equivalentes tecnicamente. A existência de uma barreira não autoriza contorná-la. Uma interface publicamente visível pode conter obras protegidas, dados pessoais ou informações sujeitas a condições de uso. É importante separar **captura**, **armazenamento**, **publicação** e **redistribuição**: cada etapa pode produzir riscos próprios e depender de base jurídica ou licença adequada. O fato de obter uma cópia não transfere automaticamente direitos patrimoniais sobre seu conteúdo.\n\n## Ética prática e avaliação prévia\n\nPergunte: quem será afetado? O volume de acesso pode degradar um serviço de interesse coletivo? Os dados podem facilitar assédio, perfilamento discriminatório ou reidentificação? Há um meio menos invasivo de atingir o objetivo? O uso posterior reproduzirá informações fora do contexto de publicação original? Uma atividade em pesquisa acadêmica também deve considerar sua base legal, eventual avaliação ética aplicável e direitos das pessoas. Não há exceção ética automática pelo mero rótulo de 'pesquisa'.\n\n**Governança:** registrar objetivo, autorização, fonte, classificação de dados, limites de consulta, retenção, responsáveis e mecanismos de correção/exclusão. Testar em amostras pequenas e avaliar impactos antes da execução contínua. Não atribuir ao `robots.txt` a função de substituir controles de acesso nem ao silêncio dos termos de uso a função de consentimento. As políticas devem ser consideradas conforme o caso, sem afirmar que qualquer cláusula privada determine, por si só, uma conclusão legal universal."
+    },
+    {
+      "title": "LGPD, Marco Civil, direitos autorais e casos integrados",
+      "markdown": "# Regime jurídico brasileiro aplicado ao scraping\n\nNa **LGPD (Lei 13.709/2018)**, coleta, organização, armazenamento, compartilhamento e eliminação de informação relacionada a pessoa natural identificada ou identificável podem configurar **tratamento de dados pessoais**. Dado pessoal não se restringe a CPF: um nome combinado com cargo, contatos, identificadores ou histórico pode identificar alguém. Dados pessoais sensíveis exigem exame específico e hipóteses legais próprias. Dados efetivamente anonimizados podem deixar de ser dados pessoais para fins da lei quando atendidas as condições legais, mas apenas retirar o nome não garante anonimização, pois cruzamentos podem permitir reidentificação.\n\n## Dados públicos não são licença irrestrita\n\nConforme a orientação da ANPD, o simples fato de um dado estar acessível ao público **não afasta a incidência da LGPD**. No tratamento de dados pessoais de acesso público devem ser considerados finalidade, boa-fé e interesse público que justificaram sua disponibilização. A dispensa de consentimento para dados tornados manifestamente públicos pelo titular não elimina os princípios e os direitos envolvidos; eventuais usos subsequentes precisam atender aos requisitos legais aplicáveis. **Base legal** não se reduz a consentimento: a LGPD contém diversas hipóteses, que devem ser analisadas conforme tipo de dado, agente e finalidade. **Legítimo interesse** não é fórmula automática: requer avaliação dos interesses concretos, da necessidade e dos direitos e expectativas legítimas dos titulares; não deve ser usado indiscriminadamente para dados sensíveis.\n\nOs princípios mais cobrados são **finalidade** (propósito legítimo, específico e informado), **adequação** (compatibilidade com o contexto), **necessidade** (mínimo pertinente), **livre acesso**, **qualidade**, **transparência**, **segurança**, **prevenção**, **não discriminação** e **responsabilização/prestação de contas**. Um banco com milhares de currículos acessíveis na Web não pode ser tratado como lista irrestrita de pessoas para vendas ou perfilamento apenas porque cada página abre no navegador. Antes de coletar, estabeleça base legal pertinente e legitimidade do propósito, compatibilidade e medidas de proteção.\n\n## Marco Civil da Internet e proteção da comunicação\n\nO **Marco Civil da Internet (Lei 12.965/2014)** estabelece princípios, garantias, direitos e deveres no uso da rede, incluindo privacidade e proteção de dados, além de tratar de registros e conteúdos nas condições legais. Não é uma licença geral de coleta; tampouco contém um 'artigo geral que libera scraping'. A análise de um caso pode envolver essa lei, LGPD, direitos civis, regras de acesso e direitos autorais. Evite afirmar que uma única dessas fontes resolve sozinha qualquer situação de scraping.\n\n## Direitos autorais e condições de reutilização\n\nA **Lei 9.610/1998** tutela obras intelectuais conforme seus critérios e exceções. **Fatos isolados e meros dados brutos** não devem ser confundidos, sem exame, com textos originais, fotografias, artes, compilações com organização criativa ou bases juridicamente protegidas. Extrair um título ou preço não tem a mesma consequência potencial que copiar e redistribuir integralmente artigos e imagens. A ausência de aviso de copyright na página não autoriza presumir domínio público; licenças abertas devem ser lidas, especialmente quanto a atribuição, finalidades permitidas, alterações e redistribuição. A fonte e o direito de acesso não dispensam a verificação do direito de republicação.\n\n## Casos para concurso\n\n**Caso A: preços de produtos.** Uma equipe quer monitorar tendências. Deve consultar APIs ou licença quando disponíveis, planejar baixa frequência e armazenar apenas campos necessários; preços em si não constituem automaticamente dados pessoais, mas a coleta pode atingir outros direitos e regras.\n\n**Caso B: perfis profissionais públicos.** Uma empresa quer combinar milhares de perfis com telefones para prospecção. O caráter público do perfil não torna dispensável análise de LGPD, finalidade, necessidade, adequação e base legal. A criação de novo banco e suas utilizações são atos de tratamento.\n\n**Caso C: documentos governamentais.** Órgão publica dados de transparência. A publicidade deve ser conciliada com limites legais a informações pessoais e com as condições de reutilização. Preferir portais oficiais de dados abertos e formatos estruturados. Não converter a divulgação para controle social em salvo-conduto para criar cadastro de pessoas vulneráveis.\n\n**Caso D: página com bloqueio.** Respostas 403 e instruções restritivas não devem ser contornadas por rotação agressiva de identidade, credenciais alheias ou técnicas de evasão. O procedimento adequado é suspender, avaliar e solicitar autorização ou usar canal oficial.\n\n## Como a banca cobra\n\nEm questões de **Certo/Errado**, predomina a troca de conceitos: parser versus navegador, dado público versus dado livre de LGPD, `robots.txt` versus autenticação, status 200 versus autorização jurídica. Em questões de múltipla escolha, compare a solução tecnicamente correta com a compatível com limites éticos e legais. A resposta mais rápida não é necessariamente a adequada. Evite absolutos como 'sempre permitido', 'nunca envolve dados pessoais' ou 'basta retirar o nome'."
+    }
+  ],
+  "summary": "Web scraping é a extração automatizada de dados de recursos disponíveis na Web; crawling é a descoberta e navegação entre páginas. O fluxo compreende finalidade, exame de permissões e fonte, HTTP, interpretação de HTML/JSON, seleção de elementos, normalização, qualidade e armazenamento rastreável. Em Python, Requests executa requisições; Beautiful Soup consulta uma árvore HTML com `find`, `find_all`, `select` e `select_one`; Scrapy coordena spiders, requisições, itens e pipelines; Playwright permite trabalhar com o DOM renderizado quando necessário e permitido. `robots.txt` (RFC 9309) orienta crawlers, mas não constitui autenticação ou licença de reutilização. Na LGPD, a publicidade do dado pessoal não afasta automaticamente deveres de finalidade, base legal, necessidade, segurança e direitos dos titulares. O Marco Civil e as normas autorais também podem ser relevantes. Em provas, diferencie possibilidade técnica, integridade da extração e autorização jurídica.",
+  "flashcards": [
+    {
+      "front": "Web crawling e web scraping: qual diferença?",
+      "back": "Crawling localiza e percorre endereços; scraping extrai e estrutura dados dos recursos obtidos. Podem coexistir."
+    },
+    {
+      "front": "O que uma resposta HTTP 200 NÃO garante?",
+      "back": "Não garante presença dos campos esperados, precisão do conteúdo nem autorização jurídica para tratamento ou republicação."
+    },
+    {
+      "front": "Quando priorizar uma API oficial?",
+      "back": "Quando ela fornece os dados desejados, está documentada e seu uso é autorizado; geralmente reduz fragilidade da extração."
+    },
+    {
+      "front": "Qual é o papel de Requests?",
+      "back": "Enviar pedidos HTTP e disponibilizar status, cabeçalhos e conteúdo; não renderiza JavaScript da página."
+    },
+    {
+      "front": "Qual é o papel de Beautiful Soup?",
+      "back": "Analisar HTML/XML previamente obtido e localizar elementos, atributos e texto."
+    },
+    {
+      "front": "Diferença entre find e find_all na Beautiful Soup?",
+      "back": "find retorna o primeiro elemento ou None; find_all retorna uma lista de elementos encontrados."
+    },
+    {
+      "front": "Diferença entre select e select_one?",
+      "back": "select retorna coleção de correspondências CSS; select_one retorna a primeira ou None."
+    },
+    {
+      "front": "O que significa `.produto h2` em CSS?",
+      "back": "Seleciona elementos h2 descendentes de qualquer elemento de classe produto."
+    },
+    {
+      "front": "O que faz urljoin?",
+      "back": "Resolve URL relativa a partir de uma base, respeitando regras de composição de URLs."
+    },
+    {
+      "front": "O que faz raise_for_status() no Requests?",
+      "back": "Lança exceção em respostas HTTP de erro; não valida a semântica dos dados capturados."
+    },
+    {
+      "front": "O que significa erro HTTP 429?",
+      "back": "Excesso de requisições segundo regra de limitação do serviço; requer reduzir carga e avaliar Retry-After."
+    },
+    {
+      "front": "O que é uma Spider do Scrapy?",
+      "back": "Unidade que define início da coleta e processamento de respostas, gerando itens ou novas requisições."
+    },
+    {
+      "front": "Para que servem pipelines do Scrapy?",
+      "back": "Para processar itens, validá-los, limpá-los e/ou armazená-los conforme a arquitetura do projeto."
+    },
+    {
+      "front": "Quando usar Playwright?",
+      "back": "Quando, com autorização, é necessário operar navegador e consultar dados no DOM após renderização ou interação."
+    },
+    {
+      "front": "robots.txt é barreira de segurança?",
+      "back": "Não. É protocolo de instruções a agentes automatizados; não substitui autenticação nem define direitos autorais."
+    },
+    {
+      "front": "Dados pessoais públicos saem do alcance da LGPD?",
+      "back": "Não. Publicidade não dispensa automaticamente base legal, princípios ou direitos dos titulares."
+    },
+    {
+      "front": "O que é minimização de dados?",
+      "back": "Limitar a coleta ao necessário e pertinente a uma finalidade específica, evitando excesso e riscos adicionais."
+    },
+    {
+      "front": "Remover nomes é sempre anonimizar?",
+      "back": "Não. Se combinações remanescentes permitirem reidentificação, pode não existir anonimização suficiente."
+    },
+    {
+      "front": "Dado bruto e obra autoral são equivalentes?",
+      "back": "Não. Fatos e números isolados diferem de textos, fotos e compilações protegidas conforme o caso."
+    },
+    {
+      "front": "Como lidar com mudanças no layout?",
+      "back": "Validar seletores, registrar falha, revisar testes e evitar inventar ou preencher automaticamente dados ausentes."
+    }
+  ],
+  "tips": [
+    "Decore as funções: Requests obtém HTTP; Beautiful Soup interpreta HTML; Playwright renderiza com navegador; Scrapy coordena crawling em escala.",
+    "Leia códigos HTTP antes de interpretar o corpo: 200 não garante conteúdo correto; 429 indica redução da frequência; 403 indica acesso negado.",
+    "Em CSS, # identifica ID; . indica classe; espaço indica descendente; > exige filho direto.",
+    "Em provas de LGPD, desconfie de expressões absolutas como “dado público não é protegido” ou “sempre se exige consentimento”.",
+    "Prefira API oficial autorizada, amostra pequena, controle de taxa, registro de procedência e validação de campos.",
+    "Ao avaliar código, diferencie lista retornada por select/getall da primeira correspondência produzida por select_one/get."
+  ],
+  "traps": [
+    "Equiparar crawling, scraping, mineração e indexação como se fossem a mesma atividade.",
+    "Supor que Beautiful Soup ou Requests executem JavaScript e renderizem automaticamente páginas dinâmicas.",
+    "Confundir `robots.txt` com autenticação, licença autoral ou autorização jurídica universal.",
+    "Afirmar que acesso público elimina aplicação da LGPD ou permite qualquer novo uso de dados pessoais.",
+    "Interpretar JSON válido como prova de status HTTP bem-sucedido.",
+    "Presumir que retirar uma coluna identificadora torna dados irreversivelmente anônimos."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva uma cadeia de scraping desde a definição de finalidade até o armazenamento.",
+      "answer": "Delimitar campos, verificar permissões e fonte, obter resposta HTTP, interpretar, extrair, normalizar, validar e persistir com proveniência e controle de carga."
+    },
+    {
+      "question": "Por que uma página pode parecer vazia para Requests e cheia no navegador?",
+      "answer": "Porque scripts podem incluir conteúdo no DOM após a resposta HTML inicial, sem que Requests execute esse JavaScript."
+    },
+    {
+      "question": "Como obter todos os links href em Scrapy?",
+      "answer": "Em uma Response, utilizar um seletor como response.css(\"a::attr(href)\").getall(), analisando e resolvendo URLs relativas quando necessário."
+    },
+    {
+      "question": "O que torna frágil a deduplicação por título?",
+      "answer": "Títulos podem coincidir entre registros distintos; é melhor considerar IDs, fonte e outros atributos estáveis."
+    },
+    {
+      "question": "Qual a reação prudente a 429, 403 e bloqueios?",
+      "answer": "Reduzir ou interromper o acesso, inspecionar política e autorização, respeitar controles e, quando cabível, solicitar canal oficial."
+    },
+    {
+      "question": "Por que dados de acesso público podem continuar sujeitos à LGPD?",
+      "answer": "Porque a natureza pessoal e os princípios legais não desaparecem pela visibilidade da fonte; finalidades e base legal precisam ser examinadas."
+    },
+    {
+      "question": "Compare API documentada e scraping HTML em manutenção.",
+      "answer": "APIs estruturadas e autorizadas tendem a reduzir dependência de layout; scraping HTML exige seletores e validação contra alterações da apresentação."
+    },
+    {
+      "question": "Quando uma cópia tecnicamente possível não deve ser republicada automaticamente?",
+      "answer": "Quando houver direitos autorais, licença restritiva, dados pessoais, condições de uso ou outros limites a verificar; acesso não equivale a direito de redistribuição."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre navegação, extração e êxito HTTP",
+      "summary": "Crawler percorre links; scraper captura dados. Resposta HTTP bem-sucedida não garante a presença dos elementos nem licença para uso."
+    },
+    {
+      "key": "e2",
+      "title": "Papel e retorno de bibliotecas Python",
+      "summary": "Requests faz HTTP; Beautiful Soup analisa HTML; select e getall retornam coleções; parseadores não executam JavaScript."
+    },
+    {
+      "key": "e3",
+      "title": "Escala sem validação e sem navegador adequado",
+      "summary": "Spiders podem produzir itens e novas requisições; páginas dinâmicas podem exigir renderização autorizada; deduplicação precisa de chaves confiáveis."
+    },
+    {
+      "key": "e4",
+      "title": "Robots.txt confundido com controle ou autorização",
+      "summary": "O protocolo instrui agentes cooperativos, mas não substitui autenticação, análise de licenças, prevenção de sobrecarga ou governança."
+    },
+    {
+      "key": "e5",
+      "title": "Publicidade confundida com livre exploração de dados",
+      "summary": "Dados pessoais públicos não perdem automaticamente proteção; anonimização exige atenção à reidentificação, e cópia de obras requer exame autoral."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Web crawling e web scraping são expressões sinônimas: ambos designam exclusivamente a extração de campos de uma página.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item está errado. Crawling diz respeito principalmente à descoberta e navegação por páginas; scraping concentra-se na extração e estruturação de informações. Um sistema pode reunir os dois processos, mas a coexistência no mesmo projeto não elimina a distinção conceitual.",
+      "section": "Fundamentos, arquitetura e ciclo da coleta",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma repartição deseja extrair periodicamente títulos e datas de avisos publicados em site institucional. A etapa mais importante antes da implementação é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir finalidade, campos necessários, fontes e condições de uso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Varredura indiscriminada de todos os caminhos do domínio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenamento de todas as páginas, mesmo sem relação com a finalidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Troca automática de endereço IP sempre que surgir bloqueio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conversão prévia de todas as respostas em imagens.",
+          "correct": false
+        }
+      ],
+      "explanation": "A definição do escopo e dos requisitos permite escolher fontes adequadas, limitar volume e verificar permissões antes do tráfego automatizado. Executar varreduras sem objetivo ou contornar bloqueios amplia risco; converter a interface em imagem tampouco resolve a coleta de campos.",
+      "section": "Fundamentos, arquitetura e ciclo da coleta",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema identifica links em páginas e os segue para descobrir novas URLs, sem ainda produzir registros de preços. Essa atividade é principalmente:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Serialização de resultados em CSV.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Web crawling.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Normalização monetária.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Web scraping estrito de preços.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Anonimização de dados pessoais.",
+          "correct": false
+        }
+      ],
+      "explanation": "A navegação sistemática por links caracteriza a descoberta de recursos própria de crawling; nenhuma extração estruturada de preços foi descrita. Scraping pode ser acrescentado depois, mas normalizar, serializar ou anonimizar dados são operações de outra natureza.",
+      "section": "Fundamentos, arquitetura e ciclo da coleta",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O código HTTP 200 indica, em condições usuais, sucesso na resposta, mas não prova que os campos esperados estejam presentes no corpo recebido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item está correto. Uma resposta 200 informa resultado bem-sucedido no nível HTTP, não uma verificação da integridade semântica da extração. A página pode trazer conteúdo diferente do esperado ou depender de carregamento posterior por JavaScript.",
+      "section": "Fundamentos, arquitetura e ciclo da coleta",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao receber um endereço que respondeu 404, o coletor deve interpretar esse código como:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmação de acesso autorizado ao conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Prova de que o servidor está permanentemente indisponível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Indicação de que o recurso solicitado não foi encontrado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Sinal inequívoco de limite de taxa excedido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Comprovação de que o corpo é um JSON válido.",
+          "correct": false
+        }
+      ],
+      "explanation": "O status 404 é usado para indicar recurso não encontrado na requisição; por si só, não valida nem desautoriza outras páginas. Falhas do servidor são associadas a outra classe de códigos; limitação de taxa e sucesso HTTP têm significados distintos.",
+      "section": "Fundamentos, arquitetura e ciclo da coleta",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A existência de uma API documentada elimina a necessidade de verificar as condições de uso dos dados nela fornecidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item está errado. APIs simplificam o fornecimento de dados estruturados, mas o acesso e a reutilização continuam sujeitos a permissões, políticas e normas pertinentes. A tecnologia usada para obter os registros não substitui a definição lícita da finalidade da coleta.",
+      "section": "Fundamentos, arquitetura e ciclo da coleta",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um HTML apresenta <div id=\"painel\"><span class=\"valor\">35</span></div>. Qual seletor CSS alcança o span descrito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "painel valor",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": ".painel #valor",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "span#painel",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "#painel .valor",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "#valor .painel",
+          "correct": false
+        }
+      ],
+      "explanation": "O seletor #painel seleciona o elemento pelo identificador; .valor alcança o descendente cuja classe é valor. As demais expressões alteram os papéis de ID, classe ou tag, ou deixam de empregar a sintaxe CSS apropriada.",
+      "section": "Fundamentos, arquitetura e ciclo da coleta",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma página HTML foi obtida com sucesso, mas sua tabela de resultados só aparece depois de ações do JavaScript. A inferência correta é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O código 200 assegura a presença da tabela.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Beautiful Soup executará todos os scripts automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O arquivo robots.txt obrigatoriamente inclui os dados da tabela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O navegador sempre recebe planilha CSV em lugar de HTML.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O HTML inicial pode não conter os registros exibidos no navegador.",
+          "correct": true
+        }
+      ],
+      "explanation": "Os registros podem ser inseridos no DOM posteriormente, de modo que uma resposta HTML inicial, embora válida, não seja suficiente para extração. Nem status HTTP nem parser garantem execução de scripts; os formatos servidos dependem da aplicação.",
+      "section": "Fundamentos, arquitetura e ciclo da coleta",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um campo ausente em uma página deve ser convertido automaticamente para o número zero, a fim de manter o esquema tabular.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item está errado. Ausência de informação não equivale ao valor numérico zero: são estados distintos e relevantes para análise e auditoria. A conversão indiscriminada distorce indicadores; a modelagem precisa diferenciar valor nulo, vazio e valor existente.",
+      "section": "Fundamentos, arquitetura e ciclo da coleta",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto armazena valor de preço, data e URL de origem. A URL da página serve principalmente para:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Assegurar proveniência e facilitar auditoria do dado coletado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Garantir a titularidade dos direitos autorais sobre a página.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir todas as verificações de tipo e faixa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Provar que nenhum dado pessoal foi processado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conceder licença irrestrita de redistribuição.",
+          "correct": false
+        }
+      ],
+      "explanation": "A proveniência permite reconstituir de onde veio uma informação e investigar mudanças, omissões ou divergências ao longo do tempo. Guardar a origem não prova direitos de uso nem dispensa validação, minimização ou outras obrigações.",
+      "section": "Fundamentos, arquitetura e ciclo da coleta",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na Beautiful Soup, select_one pode retornar None quando o seletor CSS não localiza nenhum elemento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item está correto. O método select_one procura a primeira correspondência e, se ela não existir, pode devolver None, exigindo validação prévia ao uso. Chamar get_text diretamente em None causa erro; uma rotina robusta trata a ausência do nó.",
+      "section": "Python: Requests, Beautiful Soup e extração de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para interpretar uma string HTML guardada em html com o parser nativo, a construção adequada é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "requests.get(html, \"html.parser\")",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "BeautifulSoup(html, \"html.parser\")",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "BeautifulSoup.select(html)",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "json.loads(html, \"html.parser\")",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "urllib.parse(html)",
+          "correct": false
+        }
+      ],
+      "explanation": "O construtor BeautifulSoup recebe o conteúdo e um analisador, como html.parser; o objeto resultante oferece navegação na árvore. Requests obtém recursos, json.loads espera texto JSON e select atua sobre um objeto BeautifulSoup previamente criado.",
+      "section": "Python: Requests, Beautiful Soup e extração de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dado soup = BeautifulSoup(\"<p class='x'>Um</p><p class='x'>Dois</p>\", \"html.parser\"), soup.select(\"p.x\") devolve:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A cadeia de texto \"UmDois\".",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Apenas o primeiro elemento p.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma coleção de dois elementos p.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma requisição HTTP pendente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O número inteiro 2.",
+          "correct": false
+        }
+      ],
+      "explanation": "O seletor p.x coincide com ambas as tags p de classe x, e select retorna uma coleção dos elementos correspondentes. A extração apenas do primeiro elemento seria feita com select_one; o método não executa tráfego HTTP.",
+      "section": "Python: Requests, Beautiful Soup e extração de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O método requests.get, por padrão, executa o JavaScript da página antes de preencher response.text.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item está errado. Requests obtém a resposta HTTP; ele não atua como motor de navegador e não executa scripts do documento para montar o DOM. Dados inseridos apenas após a execução de JavaScript podem não constar do HTML inicial acessível ao parser.",
+      "section": "Python: Requests, Beautiful Soup e extração de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um script, elemento pode ser None. Qual prática evita erro ao extrair texto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Invocar get_text em None e ignorar a exceção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Converter qualquer campo ausente no número um.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Forçar todos os elementos a possuir atributo href.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Verificar se elemento não é None antes de usar get_text.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Recriar a página no navegador em qualquer situação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Métodos de elementos HTML exigem um objeto existente; checar a ausência evita acessar atributo ou método de None. Valores artificiais não corrigem a estrutura e a renderização só é necessária em cenários específicos.",
+      "section": "Python: Requests, Beautiful Soup e extração de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O método response.json() também atesta que o servidor retornou um código de sucesso HTTP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item está errado. O método tenta decodificar o corpo da resposta como JSON, independentemente de o status HTTP representar êxito ou erro. Para avaliar erro HTTP, é necessário conferir status_code ou chamar raise_for_status, além de validar o formato.",
+      "section": "Python: Requests, Beautiful Soup e extração de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para transformar o endereço relativo \"/noticias/2\" em absoluto a partir de uma URL de base, recomenda-se:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "json.dumps(base, \"/noticias/2\")",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "BeautifulSoup(base).get_text()",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "int(\"/noticias/2\")",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "requests.get(\"/noticias/2\") sem URL base",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "urllib.parse.urljoin(base, \"/noticias/2\")",
+          "correct": true
+        }
+      ],
+      "explanation": "urljoin resolve caminhos relativos conforme regras de URL, preservando esquema e host apropriados da referência fornecida. Concatenação ingênua e funções de serialização ou conversão não realizam corretamente essa resolução.",
+      "section": "Python: Requests, Beautiful Soup e extração de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma resposta HTTP contém JSON bem formado com status 500. Sobre requests, é correto dizer:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "response.json() pode decodificar o corpo, apesar de o status indicar erro.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "response.json() converte automaticamente 500 em 200.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "status_code é apagado ao interpretar JSON.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "raise_for_status() garantirá sucesso por haver JSON válido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "JSON é incompatível com respostas HTTP de erro.",
+          "correct": false
+        }
+      ],
+      "explanation": "A análise sintática de JSON e o sucesso HTTP são verificações diferentes: servidores também podem devolver descrições de erro em JSON. Por isso, devem ser considerados status e esquema esperado, além da eventual capacidade de decodificação.",
+      "section": "Python: Requests, Beautiful Soup e extração de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na expressão soup.select(\"a.link\"), o seletor identifica elementos a que possuam a classe CSS link.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item está correto. Na sintaxe CSS, a.link designa elemento com nome de tag a e classe link; select devolve as correspondências encontradas. A notação difere de #link, que utiliza um identificador ID, e de .link, aplicável a várias tags.",
+      "section": "Python: Requests, Beautiful Soup e extração de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao extrair o texto \"R$ 1.234,50\" por get_text(), o tipo obtido inicialmente será:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Decimal já normalizado pelo navegador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Texto, que precisa ser convertido com atenção a símbolos e separadores.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Inteiro 123450 retornado automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Número em ponto flutuante convertido pelo HTML parser.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dicionário com moeda e centavos já separados.",
+          "correct": false
+        }
+      ],
+      "explanation": "get_text recupera uma representação textual do elemento; conversão monetária é uma etapa adicional de limpeza e tipagem. Supor conversão automática pode produzir erro de cálculo e perda do contexto da moeda apresentada.",
+      "section": "Python: Requests, Beautiful Soup e extração de dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Scrapy organiza spiders e requisições e pode produzir itens estruturados e novos pedidos de navegação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item está correto. Uma Spider do Scrapy pode processar respostas e emitir itens ou outras requisições que serão administradas pelo framework. Essa arquitetura facilita projetos de crawling, mas não amplia por si só as permissões de acesso.",
+      "section": "Crawling com Scrapy, páginas dinâmicas e qualidade dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Scrapy, um método parse pode fazer yield de um dicionário com nome e preço. Nesse contexto, o dicionário constitui:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma autenticação do servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma regra obrigatória de robots.txt.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um item extraído, destinado ao fluxo de processamento de resultados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma alteração do HTML original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um pedido de execução de JavaScript.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os itens são registros estruturados produzidos por spiders, que podem ser processados por pipelines e exportadores. Retornar dados não equivale a autenticar, alterar a página remota ou executar script no navegador.",
+      "section": "Crawling com Scrapy, páginas dinâmicas e qualidade dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em resposta.css(\"a::attr(href)\").getall(), o retorno corresponde a:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente ao texto do primeiro link.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ao HTML completo da página original.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "À quantidade de links como número inteiro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Lista dos valores href de todos os links que coincidirem com o seletor.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "À lista de códigos HTTP de cada link.",
+          "correct": false
+        }
+      ],
+      "explanation": "A pseudoextensão ::attr(href) seleciona atributos href, e getall reúne o conteúdo de todas as correspondências. Texto visível, contagem e status de destino exigem operações diferentes; a extração não visita os links.",
+      "section": "Crawling com Scrapy, páginas dinâmicas e qualidade dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando o HTML entregue pelo servidor contém apenas um contêiner vazio, a Beautiful Soup necessariamente encontrará os itens criados depois por JavaScript no navegador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item está errado. Beautiful Soup interpreta apenas o documento que recebeu; não executa JavaScript nem espera a atualização do DOM do navegador. Se os itens aparecerem depois, devem ser obtidos por meio autorizado de dados ou de renderização apropriada.",
+      "section": "Crawling com Scrapy, páginas dinâmicas e qualidade dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer extrair dados de uma interface que constrói toda a tabela com JavaScript. Havendo autorização, a ferramenta indicada para ler o DOM renderizado pode ser:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Beautiful Soup isoladamente, executando scripts da página.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Decimal, pela conversão das strings.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "urllib.parse.urljoin, que interpreta scripts.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "csv.writer, que carrega o DOM remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Playwright, com navegador automatizado e consulta ao documento já renderizado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Playwright permite automação de navegador para acessar o documento renderizado quando a página exige execução de scripts. Parser HTML, ferramenta de URL e bibliotecas de arquivo não executam essa renderização por si próprias.",
+      "section": "Crawling com Scrapy, páginas dinâmicas e qualidade dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma estratégia de deduplicação que utiliza exclusivamente o título do produto pode mesclar indevidamente registros distintos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item está correto. Títulos iguais não garantem identidade do objeto: produtos diferentes podem compartilhar o mesmo nome exibido no catálogo. Identificadores confiáveis, origem e atributos complementares ajudam a reduzir falsos positivos na deduplicação.",
+      "section": "Crawling com Scrapy, páginas dinâmicas e qualidade dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma mudança do layout, o seletor antigo passou a retornar lista vazia. A primeira medida de qualidade deve ser:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Detectar a falha e revisar o seletor e a estrutura efetiva da página.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir todas as linhas por zeros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Repetir pedidos indefinidamente sem registrar a falha.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Publicar a base parcial como se estivesse completa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar o monitoramento de erros do coletor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mudanças na estrutura do HTML podem quebrar seletores e requerem inspeção e testes antes de retomar a extração. Valores fictícios e supressão de alertas escondem defeitos que contaminam a base de dados.",
+      "section": "Crawling com Scrapy, páginas dinâmicas e qualidade dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois produtos compartilham o título \"Caderno Azul\", mas exibem códigos diferentes. Para deduplicá-los, o melhor procedimento é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Unir automaticamente os registros pelo título.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Considerar identificadores confiáveis e outros atributos, além do nome.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Descartar o código e manter só a primeira linha.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformar todos os códigos em zero.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tratar cada palavra do título como registro novo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A identidade de um item deve ser avaliada com base em chaves e contexto, pois nomes de apresentação não são necessariamente únicos. Excluir duplicatas apenas pela igualdade textual do título pode eliminar produtos legitimamente distintos.",
+      "section": "Crawling com Scrapy, páginas dinâmicas e qualidade dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando CSS ::attr(href) no seletor do Scrapy tem por objetivo capturar o texto visível dentro da âncora, não seu atributo de destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item está errado. Em seletores Scrapy, ::attr(href) extrai o valor do atributo href; o texto do elemento é obtido por outro tipo de seleção. Confundir atributo e texto pode produzir URLs vazias ou armazenar rótulos como se fossem endereços.",
+      "section": "Crawling com Scrapy, páginas dinâmicas e qualidade dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Entre as medidas de cortesia operacional do Scrapy para limitar impacto no servidor está:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Forçar o máximo de requisições paralelas sem limite.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ignorar permanentemente todos os códigos 429.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Configurar atraso entre pedidos e controlar concorrência.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Criar múltiplas identidades para evitar a política do serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eliminar toda informação sobre frequência das requisições.",
+          "correct": false
+        }
+      ],
+      "explanation": "Atrasos e limites de concorrência ajudam a moderar carga sobre o serviço e podem ser usados com o recurso AutoThrottle. Aumentar agressividade ou ocultar o comportamento do coletor contraria uma operação responsável.",
+      "section": "Crawling com Scrapy, páginas dinâmicas e qualidade dos dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O protocolo robots.txt, definido na RFC 9309, substitui controles de autenticação e impede tecnicamente o acesso a caminhos proibidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item está errado. Robots.txt contém instruções para agentes cooperativos, não um mecanismo que bloqueie por si só o acesso às páginas indicadas. Restrições reais de acesso dependem de controles próprios; o arquivo de robôs não equivale a proteção de conteúdo.",
+      "section": "Robots.txt, limitações técnicas, ética e governança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um site possui robots.txt com \"User-agent: *\" e \"Disallow: /restrito/\". Uma interpretação apropriada é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todos os usuários estão tecnicamente impedidos de abrir o caminho.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O conteúdo de /restrito/ torna-se automaticamente sigiloso pela lei.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Qualquer redistribuição das demais páginas está legalmente autorizada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O arquivo instrui agentes abrangidos a não buscar URLs nesse caminho.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O servidor apagará fisicamente os documentos naquele caminho.",
+          "correct": false
+        }
+      ],
+      "explanation": "A regra Disallow orienta a conduta do crawler cooperativo quanto à visitação de caminhos correspondentes. Robots.txt não controla autenticação nem concede licença de cópia e não remove arquivos do servidor.",
+      "section": "Robots.txt, limitações técnicas, ética e governança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um coletor recebe 429 e cabeçalho Retry-After. A conduta mais compatível com boas práticas é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o número de conexões para terminar mais rápido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reenviar a mesma requisição em laço sem pausa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Disfarçar a origem para superar o limite.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar todos os cabeçalhos e presumir falha permanente do HTML.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reduzir a taxa, considerar a espera indicada e reavaliar a permissão de continuidade.",
+          "correct": true
+        }
+      ],
+      "explanation": "429 informa limitação de requisições; observar Retry-After e reduzir tráfego protege a estabilidade do serviço. Insistência e evasão do controle não transformam o acesso em autorizado e agravam o risco operacional.",
+      "section": "Robots.txt, limitações técnicas, ética e governança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A resposta HTTP 429 recomenda avaliar a frequência das requisições e aplicar recuo, em vez de aumentar indiscriminadamente a concorrência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item está correto. O status 429 indica limitação por volume de solicitações; insistir agressivamente pode ampliar sobrecarga e bloqueios. Uma coleta responsável reduz carga, atende indicações pertinentes e pode suspender a execução.",
+      "section": "Robots.txt, limitações técnicas, ética e governança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No contexto da RFC 9309, robots.txt deve ser compreendido como:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Protocolo de exclusão de robôs, distinto de controle técnico de acesso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituto universal de senhas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Licença obrigatória de direitos autorais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Base legal específica da LGPD para coleta de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mecanismo criptográfico de sigilo de páginas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A RFC trata de regras de visitação a URLs por agentes automatizados e ressalta que o protocolo não substitui segurança de conteúdo. Autenticação, proteção de dados e licenciamento possuem objetos e exigências distintos.",
+      "section": "Robots.txt, limitações técnicas, ética e governança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ausência de regra Disallow em robots.txt concede, por si só, licença de direitos autorais para republicar integralmente as páginas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item está errado. A regra de robôs trata de orientações de visitação por agentes automatizados, não de titularidade ou licenças para reprodução. Direitos autorais e condições de reutilização devem ser verificados separadamente do comportamento do crawler.",
+      "section": "Robots.txt, limitações técnicas, ética e governança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pesquisador encontrou uma coleção pública de páginas. Qual decisão atende melhor ao princípio ético de minimização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardar todos os telefones disponíveis para uso futuro indefinido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Coletar apenas campos estritamente relacionados ao objetivo declarado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Replicar fotografias de pessoas sem verificar necessidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenar credenciais de terceiros por conveniência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar a distinção entre dado pessoal e indicador agregado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Minimizar dados reduz exposição e facilita justificar a coleta de acordo com objetivos específicos. A abundância de dados publicamente alcançáveis não demonstra necessidade nem legitima reutilização indiscriminada.",
+      "section": "Robots.txt, limitações técnicas, ética e governança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa pretende obter a íntegra de textos jornalísticos por scraping e vendê-los em seu portal. A postura correta é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Presumir domínio público porque o texto aparece sem senha.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Concluir que status 200 transfere direitos sobre a obra.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Verificar licenças e direitos autorais antes da reprodução e comercialização.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar o arquivo robots.txt como contrato de cessão autoral.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alegar que o uso comercial sempre dispensa autorização.",
+          "correct": false
+        }
+      ],
+      "explanation": "A possibilidade técnica de captura não resolve titularidade, licenças ou exceções aplicáveis à reprodução de obras. Disponibilidade pública e códigos HTTP não equivalem a autorização para exploração editorial ou comercial.",
+      "section": "Robots.txt, limitações técnicas, ética e governança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Registrar a finalidade, a origem, a periodicidade e a retenção dos dados integra a governança responsável de uma operação de scraping.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item está correto. Documentar propósito e procedimentos favorece avaliação prévia, rastreabilidade e correção de problemas técnicos ou jurídicos. Esses registros não dispensam autorização, mas permitem examinar se o projeto respeita seus limites declarados.",
+      "section": "Robots.txt, limitações técnicas, ética e governança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coleta automatizada causa falhas no portal durante o pico de acesso. A resposta operacional mais adequada é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Multiplicar o número de processos para compensar o atraso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Retirar qualquer identificação do agente e continuar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar o registro de erros para reduzir alertas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Suspender ou reduzir a atividade e reavaliar limites, janela e autorização.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Usar contas de terceiros para ignorar as restrições.",
+          "correct": false
+        }
+      ],
+      "explanation": "A continuidade automática diante de impacto observável pode prejudicar serviço e usuários; mitigar carga e consultar o responsável é prudente. Aumentar concorrência ou disfarçar a origem aprofunda o problema sem solucionar a questão de autorização.",
+      "section": "Robots.txt, limitações técnicas, ética e governança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Informações sobre pessoa identificável podem continuar protegidas pela LGPD mesmo quando foram obtidas em páginas acessíveis publicamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item está correto. A publicidade de acesso não retira automaticamente a natureza pessoal da informação nem afasta princípios e direitos de proteção de dados. O tratamento deve observar finalidade, adequação, necessidade e a hipótese legal pertinente ao caso concreto.",
+      "section": "LGPD, Marco Civil, direitos autorais e casos integrados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe extrai nomes, cargos e contatos de páginas profissionais públicas para criar cadastro comercial. É correto afirmar que:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A acessibilidade pública exclui automaticamente a aplicação da LGPD.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A ausência de CPF impede reconhecer qualquer dado pessoal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O consentimento é sempre a única hipótese legal possível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O uso de Python transfere a responsabilidade ao site de origem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Deve avaliar a LGPD e a base legal, apesar da origem publicamente acessível.",
+          "correct": true
+        }
+      ],
+      "explanation": "Informações capazes de identificar pessoas naturais podem configurar dados pessoais mesmo se expostas em perfis públicos. A base legal e os princípios dependem do caso; disponibilidade pública, tecnologia e ausência de CPF não os dispensam.",
+      "section": "LGPD, Marco Civil, direitos autorais e casos integrados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após coletar perfis pessoais, um grupo apaga nomes, mas mantém combinação rara de cargo, empresa e endereço. Conclui-se que:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A possibilidade de reidentificação ainda precisa ser avaliada antes de afirmar anonimização.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A remoção de nome torna irrelevante todo o restante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Qualquer dado de emprego é anônimo por definição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Anonimização e pseudonimização sempre produzem o mesmo resultado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A LGPD proíbe de forma absoluta o tratamento de qualquer dado público.",
+          "correct": false
+        }
+      ],
+      "explanation": "O cruzamento de atributos pode permitir identificar titulares, de modo que ocultar uma coluna não é prova bastante de anonimização. A avaliação considera meios razoáveis de identificação e contexto; não se deve equiparar mascaramento simples a anonimização.",
+      "section": "LGPD, Marco Civil, direitos autorais e casos integrados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A simples supressão do nome de uma planilha garante a anonimização irreversível, ainda que o conjunto permita identificar titulares por cruzamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item está errado. A retirada do nome pode configurar apenas uma pseudonimização ou alteração insuficiente, quando outros atributos permitem reidentificar pessoas. A avaliação de anonimização deve considerar meios razoáveis de associação e o contexto da base.",
+      "section": "LGPD, Marco Civil, direitos autorais e casos integrados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instituição quer justificar coleta pelo legítimo interesse. A análise adequada é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar o rótulo legítimo interesse sem documentar finalidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Examinar necessidade, finalidade concreta e direitos e expectativas legítimas dos titulares.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Presumir que qualquer finalidade comercial supera direitos fundamentais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar sempre a mesma hipótese a dados sensíveis e comuns.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dispensar toda transparência porque a coleta é automatizada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A hipótese de legítimo interesse demanda avaliação contextual da finalidade, necessidade e possíveis efeitos sobre direitos das pessoas. Não basta invocar expressão genérica, e dados sensíveis exigem análise das hipóteses legais específicas.",
+      "section": "LGPD, Marco Civil, direitos autorais e casos integrados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A coleta de dados pessoais para organizar um banco pesquisável pode constituir tratamento de dados segundo a LGPD.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O item está correto. Coleta, classificação, armazenamento e organização estão entre operações que podem caracterizar tratamento de dados pessoais. A atividade não deixa de ser tratamento porque é automatizada ou porque ainda não ocorreu divulgação a terceiros.",
+      "section": "LGPD, Marco Civil, direitos autorais e casos integrados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma agência pública divulga planilha para transparência administrativa. Um terceiro pretende reempregá-la em sistema de perfilamento de cidadãos. É necessário:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Considerar toda informação divulgada como livre para qualquer perfilamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Presumir que a administração pública eliminou todos os direitos dos titulares.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Avaliar compatibilidade de finalidades, dados pessoais e condições aplicáveis ao novo tratamento.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Tratar o novo banco como idêntico à finalidade original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ignorar a possibilidade de reidentificação a partir dos campos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Publicidade voltada à transparência não torna automaticamente legítimo qualquer tratamento posterior, sobretudo quando pessoas podem ser identificadas. Novo propósito exige análise própria de finalidade, adequação, necessidade, base legal e riscos associados.",
+      "section": "LGPD, Marco Civil, direitos autorais e casos integrados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sobre o Marco Civil da Internet, a assertiva correta é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Revoga todas as obrigações de privacidade de aplicações na rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Declara domínio público todo conteúdo disponível por HTTP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substitui a LGPD em qualquer atividade de coleta de dados pessoais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Estabelece princípios, garantias, direitos e deveres para o uso da internet, sem licença geral de scraping.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Obriga sites a liberar irrestritamente seus endpoints internos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Marco Civil contém regras e garantias para o uso da internet, inclusive ligadas à privacidade e aos dados pessoais. A lei não transforma conteúdo público em propriedade coletiva nem elimina a aplicação das demais normas pertinentes.",
+      "section": "LGPD, Marco Civil, direitos autorais e casos integrados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Marco Civil da Internet estabelece autorização geral e irrestrita para extração automatizada de quaisquer páginas publicadas no Brasil.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O item está errado. O Marco Civil disciplina princípios, direitos e deveres no uso da internet, incluindo privacidade e proteção de informações. Não cria licença universal de scraping; o uso concreto depende também de outras normas, políticas e direitos envolvidos.",
+      "section": "LGPD, Marco Civil, direitos autorais e casos integrados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa quer extrair apenas números de preços anunciados, mas também copiar fotografias e descrições criativas. A avaliação correta é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tratar qualquer elemento visual como dado bruto sem proteção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Presumir que a extração de preços libera o uso de fotografias.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Considerar toda compilação automaticamente fora da tutela autoral.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Afirmar que citar a URL sempre basta para republicação integral.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Distinguir dados factuais de conteúdos que podem receber proteção autoral e examinar licenças.",
+          "correct": true
+        }
+      ],
+      "explanation": "Dados factuais e obras originais não devem ser equiparados; a possibilidade de reutilização depende de proteção, licença e exceções aplicáveis. A coleta legítima de preços não confere, por si só, direito de reproduzir integralmente imagens e textos criativos.",
+      "section": "LGPD, Marco Civil, direitos autorais e casos integrados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Perguntas frequentes sobre LGPD",
+      "publisher": "Autoridade Nacional de Proteção de Dados (ANPD)",
+      "reference": "Conceito de dado pessoal; dados de acesso público; bases legais",
+      "url": "https://www.gov.br/anpd/pt-br/acesso-a-informacao/perguntas-frequentes",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Guia orientativo: hipóteses legais de tratamento – legítimo interesse",
+      "publisher": "Autoridade Nacional de Proteção de Dados (ANPD)",
+      "reference": "Orientações sobre finalidade, necessidade e legítimo interesse",
+      "url": "https://www.gov.br/anpd/pt-br/centrais-de-conteudo/materiais-educativos-e-publicacoes/guia_orientativo_hipoteses_legais_tratamento_de_dados_pessoais_legitimo_interesse",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Lei Geral de Proteção de Dados Pessoais",
+      "publisher": "Presidência da República – Planalto",
+      "reference": "Lei nº 13.709/2018",
+      "url": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Marco Civil da Internet",
+      "publisher": "Presidência da República – Planalto",
+      "reference": "Lei nº 12.965/2014",
+      "url": "https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2014/lei/l12965.htm",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Lei de Direitos Autorais",
+      "publisher": "Presidência da República – Planalto",
+      "reference": "Lei nº 9.610/1998",
+      "url": "https://www.planalto.gov.br/ccivil_03/leis/l9610.htm",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 9309: Robots Exclusion Protocol",
+      "publisher": "Internet Engineering Task Force (IETF) / RFC Editor",
+      "reference": "RFC 9309, setembro de 2022",
+      "url": "https://www.rfc-editor.org/rfc/rfc9309.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Beautiful Soup 4 documentation",
+      "publisher": "Beautiful Soup / Crummy",
+      "reference": "Métodos find_all, select, get_text, atributos e parsers",
+      "url": "https://beautiful-soup-4.readthedocs.io/en/latest/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Requests: Quickstart",
+      "publisher": "Requests Project",
+      "reference": "Status, resposta JSON, timeout, raise_for_status",
+      "url": "https://requests.readthedocs.io/en/latest/user/quickstart/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Scrapy at a glance",
+      "publisher": "Scrapy Project",
+      "reference": "Spiders, crawling, itens e concorrência",
+      "url": "https://docs.scrapy.org/en/latest/intro/overview.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Scrapy settings",
+      "publisher": "Scrapy Project",
+      "reference": "ROBOTSTXT_OBEY, DOWNLOAD_DELAY e configurações de acesso",
+      "url": "https://docs.scrapy.org/en/latest/topics/settings.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "urllib.robotparser — Python standard library",
+      "publisher": "Python Software Foundation",
+      "reference": "RobotFileParser e consulta de robots.txt",
+      "url": "https://docs.python.org/3/library/urllib.robotparser.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Playwright for Python documentation",
+      "publisher": "Microsoft / Playwright",
+      "reference": "Navegador programático e páginas renderizadas",
+      "url": "https://playwright.dev/python/docs/intro",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

@@ -1,0 +1,1887 @@
+{
+  "id": "informatica.configuracao-redes-servidores-estacoes-windows-linux",
+  "subject": "Informática — Redes de Computadores e Administração de Sistemas",
+  "title": "Configuração de redes em servidores e estações Windows e Linux",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Configuração de redes em servidores e estações Windows e Linux",
+    "Configuração de redes em servidores e estações Windows e Linux"
+  ],
+  "scope": {
+    "covers": "IPv4/IPv6, roteamento, diagnóstico; interfaces Windows/Windows Server, PowerShell, firewall e AD/DNS; Linux iproute2, NetworkManager/nmcli, Netplan e systemd-networkd; Kea DHCPv4 e BIND 9 DNS; NIS, NFS, SMB/CIFS/Samba; CUPS, impressão e segurança operacional.",
+    "excludes": "Certificações específicas, configuração de appliances proprietários, design avançado de BGP/OSPF, instalação de AD completo, tuning de alta disponibilidade e substituição de manuais específicos de versão."
+  },
+  "theoryTitle": "Configuração, serviços e diagnóstico de redes Windows e Linux",
+  "chapters": [
+    {
+      "title": "Fundamentos de endereçamento e diagnóstico de redes",
+      "markdown": "## Endereçamento, máscaras e encaminhamento\nUma estação comunica-se em redes IP por meio de uma interface com endereço, comprimento de prefixo, rotas e configuração de resolução de nomes. **IPv4** usa endereços de 32 bits; a notação `192.0.2.10/24` indica 24 bits de rede e 8 de host. A máscara equivalente é `255.255.255.0`; para esse exemplo didático, a rede é `192.0.2.0/24`. Endereços dos blocos `192.0.2.0/24`, `198.51.100.0/24` e `203.0.113.0/24` destinam-se à documentação, não ao endereçamento real de produção. Em um laboratório, uma sub-rede privada poderia ser `192.168.50.0/24`. A rota padrão (`default route`, `0.0.0.0/0`) direciona destinos que não coincidam com rotas mais específicas ao próximo salto, geralmente um roteador. Uma máquina pode alcançar os vizinhos da própria sub-rede e falhar ao acessar outras sub-redes se não existir gateway adequado.\n\nO **IPv6** usa 128 bits, como `2001:db8::10/64` (prefixo de documentação). Endereços link-local (`fe80::/10`) atuam no enlace e podem exigir identificação da interface; endereços globais usam escopo mais amplo quando roteados. Não existe broadcast IPv6: o protocolo utiliza multicast e descoberta de vizinhos (NDP). A autoconfiguração por anúncios de roteador (SLAAC) não é sinônimo de DHCPv6: anúncios podem informar prefixos e rotas, enquanto DHCPv6 pode fornecer parâmetros conforme a arquitetura adotada. IPv4 usa ARP para resolução de endereço físico de vizinhos; IPv6 usa mensagens de descoberta de vizinhos por ICMPv6. Desabilitar indiscriminadamente ICMPv6 prejudica operações essenciais.\n\n## DHCP, DNS e diferentes camadas\nO **DHCP** automatiza o fornecimento de parâmetros aos clientes; em DHCPv4, o ciclo típico é DISCOVER, OFFER, REQUEST e ACK, com concessão temporária (*lease*). Uma reserva vincula uma identificação de cliente a um endereço específico; ela não equivale a endereço fixo configurado localmente. **DNS** traduz nomes para dados como registros A (IPv4) e AAAA (IPv6); PTR realiza resolução reversa; MX identifica destinos de correio; CNAME é alias. DNS e DHCP são serviços independentes, embora frequentemente sejam integrados. Um servidor DNS pode estar alcançável e, ainda assim, não conhecer o nome consultado; outro pode responder incorretamente por configuração de zona ou *cache*.\n\n## Caminho do diagnóstico\n1. Verifique interface física/virtual, sinal, driver e estado administrativo.\n2. Inspecione endereço, prefixo, rota padrão e DNS; compare a configuração com a topologia.\n3. Teste endereço local, vizinho na sub-rede, gateway e destino remoto **por IP**, nesta ordem lógica.\n4. Teste **por nome**, separando falha de conectividade de falha de resolução.\n5. Examine rotas, políticas de firewall, VLANs, disponibilidade do serviço e logs.\n\nNo Windows, `ipconfig /all`, `route print`, `arp -a`, `ping`, `tracert`, `nslookup` e `Test-NetConnection` ajudam na investigação. No Linux, `ip -br address`, `ip route`, `ip -6 route`, `ip neigh`, `ss -lntup`, `resolvectl status` (quando disponível), `dig`, `getent hosts`, `ping`, `tracepath` e `journalctl` desempenham papéis complementares. `ping` usa ICMP e não comprova que uma aplicação TCP esteja disponível; `Test-NetConnection -ComputerName servidor -Port 445` testa especificamente uma conexão TCP. Um `dig @192.168.50.10 exemplo.interno A` distingue o resolvedor selecionado da resolução padrão. Respostas dependem também de regras locais, do serviço e de políticas de filtragem.\n\n### Falhas típicas e armadilhas\nUm endereço automático IPv4 de link-local (`169.254.0.0/16`) sugere que a máquina não obteve configuração IPv4 convencional via DHCP, mas não prova, isoladamente, que o servidor esteja desligado: podem existir bloqueios, cabo, VLAN ou retransmissão incorreta. A presença de endereço válido não garante gateway, DNS ou caminho de retorno. Uma rota de prefixo mais específico prevalece sobre rota menos específica, antes da comparação de métricas de rotas equivalentes. Em redes segmentadas, um agente *DHCP relay* encaminha mensagens entre clientes e servidores em segmentos distintos. Documente cada teste com horário, destino e resultado; evite alterar simultaneamente várias variáveis da configuração."
+    },
+    {
+      "title": "Configuração de clientes e servidores Windows",
+      "markdown": "## Adaptadores, TCP/IP e interfaces de administração\nEm Windows 10/11 e Windows Server recentes, as configurações podem ser feitas nas interfaces gráficas do sistema ou por PowerShell. A identificação da interface importa: `Get-NetAdapter` lista adaptadores; `Get-NetIPConfiguration` reúne dados relevantes de IP; `Get-NetIPAddress` lista endereços; `Get-NetRoute` examina rotas; `Get-DnsClientServerAddress` informa resolvedores configurados. `ipconfig /all` exibe dados de TCP/IP, incluindo informações de DHCP e DNS, enquanto `ipconfig /release` e `ipconfig /renew` solicitam operações de concessão DHCPv4; não criam magicamente um servidor DHCP e devem ser usados em contexto adequado.\n\nPara uma configuração IPv4 estática ilustrativa, confirme primeiro o nome da interface e que o endereço está livre no segmento:\n```powershell\nNew-NetIPAddress -InterfaceAlias 'Ethernet' -IPAddress 192.168.50.20 -PrefixLength 24 -DefaultGateway 192.168.50.1\nSet-DnsClientServerAddress -InterfaceAlias 'Ethernet' -ServerAddresses 192.168.50.10,192.168.50.11\n```\n`New-NetIPAddress` cria endereço; `Set-NetIPAddress` modifica propriedades de endereço já existente. Para restaurar obtenção automática, o procedimento precisa contemplar tanto o **endereço por DHCP** (por exemplo, `Set-NetIPInterface -InterfaceAlias 'Ethernet' -Dhcp Enabled` em cenário apropriado) quanto o **DNS do cliente** (`Set-DnsClientServerAddress -InterfaceAlias 'Ethernet' -ResetServerAddresses`); a configuração efetiva depende do estado prévio da interface. Cautela em sessões remotas: alterar IP ou rota pode interromper a administração.\n\n## DNS, nomes e domínio\n`Resolve-DnsName servidor.exemplo.interno` pesquisa dados DNS por nome; `nslookup` permite consultar um resolvedor específico. O arquivo `hosts` pode mapear nomes localmente, mas não substitui administração de zonas DNS. O nome do computador, o sufixo DNS e os servidores DNS não têm a mesma função. Em ambiente Active Directory, clientes e controladores precisam de resolução correta dos registros do domínio, inclusive os usados para localizar serviços; configurar exclusivamente DNS público no cliente pode inviabilizar a descoberta interna mesmo que a navegação na internet funcione. O processo de ingresso em domínio não equivale à simples atribuição de grupo de trabalho, nem se reduz a descobrir o IP do controlador.\n\n## Rotas, perfil de rede e firewall\n`route print` mostra rotas, mas rotas efetivas podem ser administradas com cmdlets do módulo NetTCPIP. **Firewall do Windows Defender**, perfis de rede e regras de entrada e saída podem bloquear o serviço mesmo com IP e DNS corretos. Não é recomendável desligar todo o firewall para resolver falhas de acesso: inspecionam-se regras específicas, portas, origem, destino e perfil aplicável. `Test-NetConnection -ComputerName host -Port 3389`, por exemplo, testa disponibilidade TCP daquela porta, não a autorização do usuário nem a qualidade do serviço de área de trabalho remota. Identifique se o sistema atua como cliente ou como servidor de recursos.\n\n## Serviços de infraestrutura e interoperabilidade\nWindows Server pode hospedar funções como DNS, DHCP, compartilhamento SMB e serviços de domínio. Endereços estáveis ou reservas de DHCP, plano DNS, sincronização de horário, segmentação e backups devem ser previstos conforme a função e o desenho adotado. A integração com Linux frequentemente utiliza **SMB** para arquivos e impressoras, DNS para descoberta, NTP para coerência de horário e mecanismos de identidade compatíveis com as políticas da organização. As permissões de compartilhamento SMB e as permissões do sistema de arquivos são camadas distintas: permissões amplas no compartilhamento não anulam restrições NTFS. A ferramenta `net use` pode conectar um recurso UNC como `\\\\servidor\\dados` quando existe autenticação e conectividade adequadas.\n\n### Procedimento seguro\nRegistre configuração original, confirme máscara/prefixo, gateway no enlace, DNS interno correto, roteamento e segurança antes de implantar. Em servidores críticos, planeje janela de mudança, acesso alternativo e validação após o ajuste. Um ping bem-sucedido para o servidor comprova alcance ICMP, não que o compartilhamento SMB esteja autorizado. Para uma estação com IP válido mas incapaz de abrir nomes internos, diagnostique DNS e sufixos antes de reinstalar o adaptador."
+    },
+    {
+      "title": "Configuração de interfaces e rotas no Linux",
+      "markdown": "## Ferramentas transitórias e persistentes\nNo Linux, comandos `ip` da suíte iproute2 mostram ou ajustam o estado da rede: `ip link show`, `ip -br addr`, `ip route show`, `ip -6 route`, `ip neigh`. `sudo ip address add 192.168.50.30/24 dev enp1s0` adiciona um endereço à interface em execução, mas, isoladamente, **não garante persistência após reinicialização**. `sudo ip route add default via 192.168.50.1` adiciona uma rota padrão no estado corrente, desde que o próximo salto seja válido. O nome da interface não é universal: pode ser `enp1s0`, `ens33` ou outro. Verifique o gerenciador de rede realmente ativo, pois editar um arquivo alheio à pilha de gerenciamento não necessariamente altera a configuração.\n\n## NetworkManager e nmcli\nO **NetworkManager** usa perfis de conexão, que podem armazenar endereços, gateway, DNS e métodos de configuração. `nmcli device status` inspeciona dispositivos; `nmcli connection show` relaciona perfis. Exemplo de perfil existente chamado `Conexao cabeada`:\n```bash\nsudo nmcli connection modify 'Conexao cabeada' ipv4.method manual ipv4.addresses 192.168.50.30/24 ipv4.gateway 192.168.50.1 ipv4.dns '192.168.50.10 192.168.50.11'\nsudo nmcli connection up 'Conexao cabeada'\n```\nPara voltar a DHCPv4 nesse perfil, usa-se `nmcli connection modify 'Conexao cabeada' ipv4.method auto`, verificando e limpando os parâmetros manuais que não devem persistir. `nmcli device` é diferente de `nmcli connection`: um dispositivo pode existir sem conexão ativada e um perfil pode estar salvo sem estar em uso. É incorreto concluir que reiniciar a pilha é sempre necessário: ajustes podem ser ativados ao subir a conexão, conforme o caso.\n\n## Netplan no Ubuntu\n**Netplan** descreve configuração de rede em arquivos YAML geralmente situados em `/etc/netplan/`, delegando a aplicação a um *renderer*, como `systemd-networkd` ou NetworkManager. Exemplo conceitual para interface `enp1s0`:\n```yaml\nnetwork:\n  version: 2\n  ethernets:\n    enp1s0:\n      dhcp4: false\n      addresses: [192.168.50.30/24]\n      routes:\n        - to: default\n          via: 192.168.50.1\n      nameservers:\n        addresses: [192.168.50.10, 192.168.50.11]\n```\nYAML é sensível à indentação, e o nome da interface precisa corresponder ao ambiente. `sudo netplan generate` gera a configuração para o backend; `sudo netplan try` permite testar com mecanismo de reversão em ambientes compatíveis; `sudo netplan apply` aplica alterações. Não confunda arquivo declarativo com o estado da interface: é necessário verificar o resultado com `ip` e os comandos do resolvedor. Configurações simultâneas e conflitantes em arquivos distintos podem causar resultados inesperados.\n\n## systemd-networkd, resolução e rotas\nEm sistemas que usam **systemd-networkd**, arquivos `.network` fornecem configuração de interfaces, mas seu local e gestão dependem da distribuição e implantação. `networkctl status` ajuda a diagnosticar o estado; `resolvectl status` mostra configurações relacionadas ao serviço `systemd-resolved`, quando instalado e ativo. `/etc/resolv.conf` pode ser arquivo comum, gerenciado ou ligação simbólica; sobrescrevê-lo manualmente sem identificar o serviço responsável pode gerar mudanças transitórias. O arquivo `/etc/hosts` faz mapeamentos estáticos locais e é distinto de `/etc/nsswitch.conf`, que controla fontes e ordem de consultas em ambientes que usam NSS. O comando `getent hosts nome` testa a cadeia de resolução do sistema de maneira mais abrangente que uma consulta DNS pura.\n\n## Configuração avançada e manutenção\nPara múltiplas interfaces, planeje rotas, métricas e, quando necessário, tabelas de roteamento/política específicas. VLAN é separação lógica no nível de enlace; uma porta com VLAN errada pode impedir resposta do DHCP apesar de o servidor estar funcional. Interfaces de ponte (*bridge*) e agregação (*bonding*) dependem do desenho. `ss -lntup` exibe *sockets* de escuta conforme permissões e opções; não prova que o firewall externo permite acesso. Verifique `systemctl status NetworkManager`, `systemctl status systemd-networkd` e logs conforme a distribuição, sem supor que ambos administrem simultaneamente a mesma interface."
+    },
+    {
+      "title": "Servidores DHCP e DNS no Linux",
+      "markdown": "## Projeto do DHCPv4\nUm servidor DHCPv4 distribui concessões de endereços dentro de **sub-redes e faixas** definidas e pode fornecer opções como roteador padrão, servidores DNS e domínio de pesquisa. Uma implementação moderna é o **Kea DHCP**, mantido pelo ISC; a documentação do Ubuntu o apresenta como substituto do servidor legado ISC DHCP. O `isc-dhcp-server` continua aparecendo em questões e ambientes antigos, mas a documentação do Ubuntu informa sua descontinuação/situação de suporte na versão 24.04 LTS. DHCPv4 emprega normalmente UDP 67 (servidor) e UDP 68 (cliente); roteadores não retransmitem mensagens de broadcast entre sub-redes sem agente relay/configuração própria.\n\nPara laboratório isolado, a seguinte estrutura do Kea ilustra a lógica sem pretender substituir todos os requisitos de produção:\n```json\n{\n  \"Dhcp4\": {\n    \"interfaces-config\": {\"interfaces\": [\"enp1s0\"]},\n    \"lease-database\": {\"type\": \"memfile\", \"persist\": true},\n    \"valid-lifetime\": 3600,\n    \"subnet4\": [{\n      \"subnet\": \"192.168.50.0/24\",\n      \"pools\": [{\"pool\": \"192.168.50.100 - 192.168.50.180\"}],\n      \"option-data\": [\n        {\"name\": \"routers\", \"data\": \"192.168.50.1\"},\n        {\"name\": \"domain-name-servers\", \"data\": \"192.168.50.10\"}\n      ]\n    }]\n  }\n}\n```\nA configuração completa, esquema aceito e caminhos variam com a versão e o empacotamento: confira documentação e valide a sintaxe com ferramentas da instalação antes de ativar. A interface precisa pertencer à rede atendida, salvo desenho de relay. Reservas exigem identificadores estáveis e política de controle; não coloque dois servidores DHCP distribuindo faixas conflitantes sem projeto de redundância. O servidor fornece o **endereço do DNS**, não substitui a consulta ao servidor DNS pelo cliente.\n\n## DNS com BIND 9\nO **BIND 9** implementa o serviço DNS e pode atuar como autoritativo, recursivo ou ambos sob controles definidos. Um **autoritativo** contém dados das zonas pelas quais responde; um **recursivo** resolve consultas para clientes permitidos, consultando outros servidores e utilizando cache. A recursão não deve ficar aberta indiscriminadamente à internet. DNS usa normalmente porta 53 UDP e TCP, inclusive TCP em situações como respostas grandes e operações específicas. **Zona direta** associa nomes a recursos; **zona reversa** usa registros PTR para nomes correspondentes a endereços.\n\nNo Ubuntu, a configuração comumente envolve arquivos como `/etc/bind/named.conf.options` e `/etc/bind/named.conf.local` e arquivos de zona próprios. Exemplo de definição autoritativa de zona:\n```conf\nzone \"exemplo.interno\" {\n    type primary;\n    file \"/etc/bind/db.exemplo.interno\";\n};\n```\nTrecho ilustrativo de arquivo de zona:\n```dns\n$TTL 3600\n@ IN SOA ns1.exemplo.interno. admin.exemplo.interno. (\n  2026111801 3600 900 1209600 3600 )\n@   IN NS ns1.exemplo.interno.\nns1 IN A 192.168.50.10\nsrv IN A 192.168.50.20\n```\nO número serial do SOA é um **controle de versão da zona**, não porta ou TTL; ao modificar uma zona primária, seu serial deve progredir para informar atualizações aos secundários. A forma `type primary` é nomenclatura moderna; materiais antigos usam `master`. O nome em SOA que representa contato administrativo tem sintaxe própria de domínio, e o ponto final em nomes absolutos impede expansão indesejada pelo sufixo da zona. Não presuma que o DNS público conhecerá nomes exclusivamente internos.\n\n## Validação e integração\nUse `named-checkconf` para analisar configuração BIND e `named-checkzone exemplo.interno /etc/bind/db.exemplo.interno` para validar uma zona. `dig @192.168.50.10 srv.exemplo.interno A` testa a resposta diretamente; `dig -x 192.168.50.20` consulta o reverso pelo resolvedor selecionado. Consulte logs via `journalctl -u bind9` ou unidade efetiva da distribuição. `ss -lntup` e firewalls auxiliam na avaliação de portas. Um cliente DHCP recebe parâmetros, mas pode manter dados de cache ou de concessão até renovação; uma mudança no DNS não atualiza instantaneamente todos os clientes. Evite misturar na mesma investigação falhas de DHCP, roteamento e autoridade da zona sem testar cada camada."
+    },
+    {
+      "title": "Serviços NIS, NFS e CIFS/Samba",
+      "markdown": "## NIS: diretório legado\nO **Network Information Service (NIS)** compartilha bases (*maps*) de informações administrativas, como contas e grupos, entre sistemas Unix/Linux. Tradicionalmente, servidores usam `ypserv`, clientes usam `ypbind`, e utilitários como `ypcat` e `ypwhich` consultam mapas e o servidor associado. O domínio NIS é uma organização lógica para a base e **não equivale** a domínio DNS nem a domínio de Active Directory. NSS pode consultar dados de identidade provenientes de NIS, quando configurado. NIS depende historicamente de RPC/rpcbind e apresenta fragilidades de segurança, especialmente pelo tráfego e modelo de confiança legados; não deve ser recomendado como alternativa moderna por padrão. Documentação da Red Hat informa a retirada de componentes NIS no RHEL 9. Em ambientes novos, mecanismos contemporâneos de gestão de identidade devem ser preferidos conforme os requisitos.\n\n## NFS: diretórios remotos Unix/Linux\nO **Network File System (NFS)** permite exportar diretórios do servidor para clientes que os montam como sistemas de arquivos. Em implantação Ubuntu, o pacote servidor é comumente `nfs-kernel-server`, e `/etc/exports` descreve exportações e clientes autorizados. Uma linha ilustrativa:\n```exports\n/srv/arquivos 192.168.50.0/24(rw,sync,root_squash)\n```\n`rw` permite operações de leitura e escrita sujeitas a permissões; `sync` solicita tratamento síncrono das alterações na política da exportação; `root_squash` reduz privilégios do usuário root remoto, mapeando-o para uma identidade não privilegiada. **Não** confunda `root_squash` com cifragem nem com proibição absoluta de toda gravação. Após editar exportações, utilize `exportfs -ra` para reaplicá-las conforme o serviço instalado e confirme com `exportfs -v`. Em clientes, um exemplo é `mount -t nfs servidor:/srv/arquivos /mnt/arquivos`, com ponto de montagem existente e permissões adequadas. NFSv4 utiliza principalmente TCP 2049; versões e opções anteriores podem depender de serviços RPC adicionais. O modelo de segurança exige atenção a UID/GID, identidade, rede e, quando aplicável, Kerberos; a mera montagem não ignora permissões do servidor.\n\n## CIFS/SMB e Samba\n**SMB (Server Message Block)** é o protocolo de compartilhamento de arquivos e impressoras amplamente usado no Windows; **CIFS** é designação associada à família de protocolos e frequentemente aparece como nome do tipo de montagem Linux (`-t cifs`). Não é correto reduzir todas as versões modernas de SMB ao protocolo legado SMB1/CIFS. **Samba** fornece implementação de serviços compatíveis com SMB em Linux/Unix, permitindo compartilhamentos com clientes Windows e Linux. O arquivo de configuração típico é `/etc/samba/smb.conf`; `testparm` verifica aspectos da configuração. Exemplo ilustrativo:\n```ini\n[dados]\n  path = /srv/samba/dados\n  browseable = yes\n  read only = no\n  valid users = @equipe\n```\nA configuração de Samba não altera automaticamente as permissões POSIX/ACL do diretório: para gravar, o usuário precisa passar tanto pelas regras do serviço quanto pelas do sistema de arquivos. Em servidores autônomos com autenticação local Samba, ferramentas como `smbpasswd` administram credenciais SMB conforme a instalação. Em integração com diretórios corporativos, a estratégia de autenticação e identidade é diferente. O protocolo SMB moderno usa tipicamente TCP 445, e a descoberta ou compatibilidade legada pode envolver outros mecanismos; não exponha serviços de arquivos indiscriminadamente à internet.\n\n## Clientes, montagem e proteção\nNo Windows, um caminho UNC tem forma `\\\\servidor\\dados`; no Linux, `smbclient -L //servidor -U usuario` pode enumerar recursos quando autorizado. `mount -t cifs //servidor/dados /mnt/dados -o credentials=/caminho/restrito` é um exemplo de montagem que pressupõe pacote apropriado, montagem autorizada e arquivo protegido. Para montagem persistente, `/etc/fstab` pode conter entrada CIFS ou NFS; valide opções, permissões e dependências de inicialização. **Nunca** grave senha em texto puro em `/etc/fstab` acessível a usuários; use arquivo de credenciais protegido e políticas corporativas. NFS não é um serviço de nomes, e Samba não é sinônimo de servidor DNS. Arquivos exportados, autorização, bloqueio de versões inseguras, *backups* e auditoria compõem o projeto seguro de compartilhamento."
+    },
+    {
+      "title": "Impressão em rede, segurança e operação integrada",
+      "markdown": "## CUPS: filas e protocolos\nO **Common UNIX Printing System (CUPS)** administra filas, impressoras e trabalhos de impressão em Unix/Linux; dispõe de comandos como `lp`, `lpstat`, `cancel`, `lpadmin` e `cupsctl`. O compartilhamento moderno costuma utilizar **IPP (Internet Printing Protocol)**, normalmente sobre TCP 631, com controles de acesso e possibilidade de comunicação protegida por TLS conforme a configuração. CUPS também pode interagir com impressoras de rede via AppSocket/JetDirect ou LPD em instalações compatíveis; os protocolos têm diferenças e não são sinônimos de CUPS. A fila retém informações e coordena trabalhos; o driver/filtro ou a impressão sem driver converte a solicitação para o formato aceito pela impressora, conforme o dispositivo e o ambiente.\n\nComandos usuais de inspeção incluem `lpstat -t` (estado de filas e sistema) e `lp -d impressora arquivo.pdf` (envio de trabalho, se a fila e o formato forem suportados). O administrador pode habilitar compartilhamento global com `cupsctl --share-printers` **e também** marcar cada fila específica como compartilhada; somente a primeira operação não compartilha necessariamente todas as filas. `lpadmin` gerencia a configuração de impressoras, mas parâmetros dependem do modelo e do método de acesso. Consulte as opções do ambiente instalado antes de automatizar. CUPS pode disponibilizar interface administrativa via web, cujo acesso remoto exige controles e revisão das políticas.\n\n## Impressão Linux–Windows\nUm servidor Linux pode compartilhar uma impressora via **Samba** para clientes Windows ou anunciar uma fila via **IPP** quando os clientes e a política de rede suportam. Samba atua como camada de interoperabilidade SMB; CUPS normalmente gerencia os trabalhos locais. Não se deve afirmar que a presença de Samba, sozinha, instala uma impressora no CUPS. Um problema de impressão pode surgir em diferentes pontos: nome/IP da impressora, fila parada, autenticação, driver, formato, firewall, permissões ou papel/toner físico. Teste a disponibilidade da fila e envie um documento simples; analise logs do CUPS antes de reinstalar componentes ao acaso.\n\n## Endurecimento de serviços\nA segurança depende da **menor exposição necessária**: permita apenas portas, origens e serviços exigidos; utilize atualização de software, monitoramento, cópias de segurança e gestão de contas. Em servidores DNS recursivos, restrinja os clientes autorizados; em SMB, limite a rede e evite versões antigas inseguras; em NFS, controle exportações, identidades e permissões; em NIS, avalie migração do serviço legado; em CUPS, evite administração aberta e compartilhamentos acidentais. Servidores DHCP indevidos (*rogue DHCP*) podem distribuir gateway ou DNS malicioso. Embora um firewall bloqueie tráfego, ele não substitui autenticação, autorização e criptografia de protocolos.\n\n## Projeto integrado e continuidade\nConsidere duas VLANs com Windows e Linux, um servidor Kea para DHCP, um BIND para DNS interno, Samba para documentos e CUPS para impressão. O DHCP informa a cada cliente **seu gateway e o DNS interno**; o relay atende a VLAN que não compartilha o mesmo domínio de broadcast com o servidor; o DNS resolve nomes da zona interna; o firewall permite apenas fluxos aprovados; o compartilhamento exige autenticação e permissão efetiva; a impressão depende da fila e de seu protocolo. Se apenas clientes de uma VLAN falharem ao obter endereço, investigue segmentação/relay antes de editar a zona DNS. Se ambos acessarem o servidor por IP mas não por nome, examine DNS. Se somente gravação falhar, compare permissões de serviço e sistema de arquivos.\n\nUma operação profissional usa inventário de endereços e reservas, documentação da zona, testes automatizados de resolução e conectividade, backups de arquivos de configuração, acompanhamento de concessões, monitoramento de filas e logs, além de procedimento de reversão. Alterações que afetem servidores de DNS, DHCP, diretórios e impressão demandam validação ponta a ponta. Questões de concurso costumam trocar função de serviço: DHCP **não** resolve nomes, DNS **não** entrega arquivos, NFS **não** autentica usuários por si só como um domínio corporativo, Samba **não** equivale a NIS e CUPS **não** fornece endereçamento IP."
+    }
+  ],
+  "summary": "A configuração de redes em Windows e Linux combina **endereçamento IP**, máscara/prefixo, **rotas**, **gateway**, **DNS** e disponibilidade dos serviços de aplicação. No Windows, `ipconfig /all`, `Get-NetIPConfiguration`, `New-NetIPAddress` e `Set-DnsClientServerAddress` oferecem inspeção e administração. No Linux, `ip`, `nmcli`, **Netplan**, `networkctl` e `resolvectl` dependem do gerenciador empregado e diferem quanto à persistência. Para infraestrutura, **Kea** atende concessões DHCP e **BIND 9** opera DNS autoritativo e/ou recursivo. **NIS** é tecnologia antiga para mapas de identidade; **NFS** exporta diretórios; **SMB/CIFS com Samba** integra compartilhamentos Linux e Windows, sempre sob permissões efetivas do serviço e dos arquivos. **CUPS** gerencia filas e impressão de rede, frequentemente via IPP. Em provas, é decisivo não confundir função de protocolos: um endereço válido não assegura resolução, uma resposta a ping não garante porta aberta, e habilitar compartilhamento não dispensa autenticação, firewall, auditoria nem testes de ponta a ponta.",
+  "flashcards": [
+    {
+      "front": "O que significa o prefixo /24 em IPv4?",
+      "back": "São 24 bits de rede; a máscara em notação decimal é 255.255.255.0."
+    },
+    {
+      "front": "Quando é usada a rota padrão?",
+      "back": "Quando não há rota mais específica para o endereço de destino."
+    },
+    {
+      "front": "DHCPv4 e DNS exercem a mesma função?",
+      "back": "Não. DHCP fornece configuração de rede; DNS resolve nomes e registros."
+    },
+    {
+      "front": "O que significa o ciclo DORA?",
+      "back": "DISCOVER, OFFER, REQUEST e ACK no procedimento usual de concessão DHCPv4."
+    },
+    {
+      "front": "Quais registros relacionam nome a IPv4 e IPv6?",
+      "back": "A aponta para IPv4 e AAAA aponta para IPv6; PTR é usado para resolução reversa."
+    },
+    {
+      "front": "Que comando Windows mostra detalhes de configuração IP?",
+      "back": "ipconfig /all; em PowerShell, Get-NetIPConfiguration também é útil."
+    },
+    {
+      "front": "Qual cmdlet configura servidores DNS de cliente Windows?",
+      "back": "Set-DnsClientServerAddress."
+    },
+    {
+      "front": "Como testar uma porta TCP específica no Windows?",
+      "back": "Test-NetConnection -ComputerName <host> -Port <porta>."
+    },
+    {
+      "front": "Como listar endereços e rotas no Linux?",
+      "back": "ip -br address e ip route; ip -6 route para rotas IPv6."
+    },
+    {
+      "front": "Qual comando administra conexões NetworkManager?",
+      "back": "nmcli; os perfis podem ser vistos com nmcli connection show."
+    },
+    {
+      "front": "O que é Netplan?",
+      "back": "Uma camada declarativa YAML que fornece configuração ao renderer de rede no Ubuntu."
+    },
+    {
+      "front": "O que testa getent hosts?",
+      "back": "Consulta nomes conforme as fontes NSS configuradas, que podem incluir arquivos locais e DNS."
+    },
+    {
+      "front": "Qual serviço DHCP moderno é mantido pelo ISC?",
+      "back": "Kea DHCP."
+    },
+    {
+      "front": "Qual software Linux implementa DNS autoritativo/recursivo?",
+      "back": "BIND 9, configurado com políticas apropriadas."
+    },
+    {
+      "front": "Para que servem named-checkconf e named-checkzone?",
+      "back": "O primeiro valida configuração BIND; o segundo analisa arquivo de zona especificado."
+    },
+    {
+      "front": "Para que serve o serial do SOA?",
+      "back": "Para representar a revisão dos dados de uma zona e orientar atualização de secundários."
+    },
+    {
+      "front": "O que é NIS?",
+      "back": "Serviço legado de mapas administrativos de contas/grupos em Unix/Linux; não é DNS."
+    },
+    {
+      "front": "Qual arquivo pode definir exportações NFS em Linux?",
+      "back": "/etc/exports, aplicado/inspecionado com ferramentas como exportfs."
+    },
+    {
+      "front": "O que faz root_squash no NFS?",
+      "back": "Remapeia o usuário root remoto a uma identidade menos privilegiada no servidor."
+    },
+    {
+      "front": "Qual função do Samba?",
+      "back": "Oferecer serviços compatíveis com SMB, como compartilhamento de arquivos e impressão."
+    },
+    {
+      "front": "Onde fica configuração típica do Samba no Linux?",
+      "back": "/etc/samba/smb.conf; testparm auxilia a validar parâmetros."
+    },
+    {
+      "front": "Como montar compartilhamento SMB no Linux?",
+      "back": "Com cliente CIFS, por exemplo mount -t cifs //servidor/dados /mnt/dados com autenticação apropriada."
+    },
+    {
+      "front": "O que é CUPS?",
+      "back": "Sistema de gerenciamento de impressoras, filas e trabalhos em Linux/Unix."
+    },
+    {
+      "front": "Que protocolo é comum para impressão compartilhada CUPS?",
+      "back": "IPP, geralmente associado a TCP 631; compartilhar exige controles de acesso."
+    }
+  ],
+  "tips": [
+    "Diagnostique em camadas: enlace → IP/máscara → rota/gateway → DNS → porta → autorização.",
+    "No Windows, distinga cmdlets de consulta (Get-*) dos de configuração (New-*, Set-*).",
+    "No Linux, descubra qual gerenciador de rede administra a interface antes de editar arquivos.",
+    "Em DHCP, analise endereço concedido, opções, relay, sub-rede e conflitos de escopo.",
+    "Em BIND, valide named-checkconf, named-checkzone e depois consulte com dig ao servidor esperado.",
+    "Em NFS/Samba, lembre-se de que exportação/compartilhamento não substitui permissões de arquivo.",
+    "Em impressão, separe porta, fila, autorização, driver/filtro e condição física do dispositivo.",
+    "Planeje acesso alternativo antes de aplicar mudanças de IP ou gateway em servidores remotos."
+  ],
+  "traps": [
+    "DHCP distribui o endereço do DNS, mas não executa o serviço de resolução de nomes.",
+    "Ping por IP confirma apenas uma etapa do caminho; não garante acesso SMB, NFS ou impressão.",
+    "Alterar ip address add não torna o endereço persistentemente configurado.",
+    "Netplan não é sinônimo de NetworkManager: delega a um renderer.",
+    "O domínio NIS não equivale ao domínio DNS nem ao domínio de Active Directory.",
+    "CIFS como tipo de montagem não implica que toda conexão SMB use obrigatoriamente SMB1.",
+    "root_squash protege contra certos privilégios root remotos, mas não criptografa NFS.",
+    "cupsctl --share-printers não dispensa verificar o compartilhamento de cada fila."
+  ],
+  "activeRecall": [
+    {
+      "question": "Uma estação acessa 192.168.50.20 mas não srv.exemplo.interno. Como diagnosticar?",
+      "answer": "Testar o resolvedor configurado, sufixo DNS, registros A/AAAA, caches e consultas diretas com dig ou Resolve-DnsName."
+    },
+    {
+      "question": "Como verificar se uma estação Windows recebeu DHCP e qual é seu DNS?",
+      "answer": "Examinar ipconfig /all e os cmdlets Get-NetIPConfiguration / Get-DnsClientServerAddress."
+    },
+    {
+      "question": "Por que uma mudança com ip address add pode desaparecer?",
+      "answer": "O comando modifica o estado em execução; é necessário ajustar o gerenciador persistente da rede."
+    },
+    {
+      "question": "Qual é a diferença prática entre autoritativo e recursivo DNS?",
+      "answer": "O autoritativo responde com dados das zonas sob sua responsabilidade; o recursivo busca respostas em outros servidores e mantém cache para clientes autorizados."
+    },
+    {
+      "question": "Qual a importância do relay para DHCP entre VLANs?",
+      "answer": "Encaminha pedidos DHCPv4 de segmentos diferentes até o servidor sem depender do broadcast cruzar roteadores."
+    },
+    {
+      "question": "Como a permissão de um arquivo compartilhado por Samba é efetivamente determinada?",
+      "answer": "Combina autenticação, política de compartilhamento, identidade e permissões POSIX/ACL do diretório e arquivo."
+    },
+    {
+      "question": "Por que é incorreto chamar NIS de serviço moderno de autenticação segura por padrão?",
+      "answer": "É legado, com modelo de confiança e proteção de tráfego limitados, exigindo avaliação de migração."
+    },
+    {
+      "question": "Que testes devem ser realizados quando a impressão falha, mas o servidor responde ao ping?",
+      "answer": "Verificar fila, IPP/SMB e porta, estado do cupsd, permissões, logs, driver/filtro e impressora física."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre endereçamento, rota e nomes",
+      "summary": "IP, gateway e DNS são camadas distintas: reachability por IP não assegura resolução por nome ou abertura de porta; uma rota mais específica precede outra mais ampla."
+    },
+    {
+      "key": "e2",
+      "title": "Comandos e configuração Windows",
+      "summary": "Cmdlets de consulta não configuram endereços; IP, DNS, rotas e firewall devem ser analisados em conjunto, especialmente na localização de serviços de domínio."
+    },
+    {
+      "key": "e3",
+      "title": "Persistência e gerenciadores Linux",
+      "summary": "Ajustes com ip podem ser temporários; NetworkManager, Netplan e systemd-networkd têm funções próprias. Editar o arquivo errado não altera o perfil ativo."
+    },
+    {
+      "key": "e4",
+      "title": "Papéis de DHCP e DNS",
+      "summary": "Kea distribui endereços e opções; BIND fornece respostas DNS. Relay resolve a travessia de segmentos no DHCP, e zonas DNS exigem validação e serial."
+    },
+    {
+      "key": "e5",
+      "title": "Protocolos de diretórios e compartilhamento",
+      "summary": "NIS distribui mapas legados; NFS exporta diretórios; SMB/Samba faz compartilhamento interoperável. Acesso efetivo depende de identidade e permissões."
+    },
+    {
+      "key": "e6",
+      "title": "Impressão e controles de segurança",
+      "summary": "CUPS gerencia filas e IPP transporta trabalhos; a exposição de serviços deve ser limitada. Ping não comprova impressão, e firewall não substitui autorização."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma estação com endereço IPv4 e máscara corretos pode comunicar-se na própria sub-rede, mesmo que nenhuma rota padrão esteja configurada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A comunicação entre hosts do mesmo segmento pode ocorrer pela rota diretamente conectada. A rota padrão é necessária para destinos sem rota mais específica, não para todo tráfego local.",
+      "section": "Fundamentos de endereçamento e diagnóstico de redes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um técnico verifica que a estação alcança o IP de um servidor externo, mas não consegue acessar seu nome DNS. Qual investigação deve ser priorizada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar os servidores DNS configurados e a resposta para o nome consultado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Trocar imediatamente a máscara IPv4 por uma máscara mais ampla.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eliminar todas as rotas estáticas e dinâmicas da estação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Formatar a estação e reinstalar o sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o endereço MAC da interface de rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "O acesso por endereço IP já confirma um caminho até o destino; a falha ao usar o nome sugere resolução DNS, sufixo ou informação de zona. Medidas invasivas não atacam a causa identificada.",
+      "section": "Fundamentos de endereçamento e diagnóstico de redes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O DHCPv4 informa parâmetros de rede ao cliente e, como parte de sua função essencial, traduz nomes de domínio em endereços IPv4.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O DHCP fornece parâmetros, como endereço, roteador e IP do resolvedor. A tradução de nomes é tarefa do DNS. Confundir a distribuição do endereço do servidor DNS com o serviço de resolução é a pegadinha.",
+      "section": "Fundamentos de endereçamento e diagnóstico de redes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma sub-rede IPv4, uma estação recebe 169.254.10.20 automaticamente. Qual é a interpretação tecnicamente mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A estação recebeu obrigatoriamente um endereço do servidor DNS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A estação pode não ter obtido uma concessão DHCPv4 válida; deve-se examinar cliente, enlace, relay e servidor.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O sistema comprovou conexão IPv6 global plenamente funcional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A atribuição demonstra que o gateway está acessível.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O endereço é público e foi roteado pela operadora.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um endereço IPv4 link-local automático é compatível com falha na obtenção de parâmetros DHCP convencionais. O sintoma não demonstra isoladamente a causa, sendo necessário verificar o caminho completo.",
+      "section": "Fundamentos de endereçamento e diagnóstico de redes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No IPv6, a descoberta de vizinhos emprega ICMPv6 e substitui a função que o ARP exerce no IPv4.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O NDP utiliza mensagens ICMPv6 para funções como descoberta de vizinhos e resolução de endereços no enlace. ARP é mecanismo IPv4; bloquear ICMPv6 indiscriminadamente pode romper a operação.",
+      "section": "Fundamentos de endereçamento e diagnóstico de redes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rota IPv4 para 10.20.0.0/16 e uma rota para 10.20.30.0/24 coexistem. Para 10.20.30.8, qual rota é selecionada em condições normais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A rota 10.20.0.0/16, por abranger mais endereços.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A rota padrão, mesmo existindo rotas específicas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A rota 10.20.30.0/24, porque possui o prefixo mais específico.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A rota com gateway cujo IP seja numericamente menor, sempre.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Nenhuma rota pode ser utilizada enquanto houver duas entradas.",
+          "correct": false
+        }
+      ],
+      "explanation": "O encaminhamento IP privilegia a correspondência de maior comprimento de prefixo. Métricas são comparadas entre alternativas pertinentes, não tornam preferível um prefixo menos específico.",
+      "section": "Fundamentos de endereçamento e diagnóstico de redes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando ping bem-sucedido para um servidor prova que a porta TCP 445 desse servidor está disponível para compartilhamento de arquivos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Ping verifica respostas ICMP e não testa a aceitação de conexões TCP em uma porta específica. O compartilhamento pode estar bloqueado por firewall, serviço parado ou autorização insuficiente.",
+      "section": "Fundamentos de endereçamento e diagnóstico de redes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instituição dispõe de clientes em VLANs distintas e um único servidor DHCPv4 situado apenas em uma delas. Qual recurso é usualmente necessário no equipamento de camada 3?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um registro CNAME em todas as zonas DNS existentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um compartilhamento CIFS sem autenticação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um serviço de impressão CUPS por VLAN.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um agente DHCP relay para encaminhar as mensagens entre os segmentos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma substituição do protocolo IPv4 por ARP em todos os clientes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Requisições DHCPv4 iniciais podem depender de broadcast no segmento local. O relay permite atender redes distintas a partir de um servidor remoto, sem confundir configuração IP com DNS ou arquivos.",
+      "section": "Fundamentos de endereçamento e diagnóstico de redes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PowerShell, Get-NetIPConfiguration ajuda a inspecionar a configuração IP; Set-DnsClientServerAddress altera a lista de servidores DNS de uma interface.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Um cmdlet consulta a situação das interfaces e outro define os resolvedores do cliente. Isso não instala um servidor DNS nem muda automaticamente a estrutura de zonas de um domínio.",
+      "section": "Configuração de clientes e servidores Windows",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador precisa adicionar um endereço IPv4 estático em uma interface Windows Server já identificada. Qual cmdlet atende diretamente à criação do endereço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Get-NetAdapter",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Get-DnsClientServerAddress",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Resolve-DnsName",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Get-NetRoute",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "New-NetIPAddress",
+          "correct": true
+        }
+      ],
+      "explanation": "New-NetIPAddress cria um endereço associado à interface com prefixo e, quando aplicável, gateway. Os demais cmdlets do cenário são de consulta ou resolução, não de criação de endereço.",
+      "section": "Configuração de clientes e servidores Windows",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando ipconfig /all configura automaticamente uma reserva de endereço para a estação no servidor DHCP do domínio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O comando apresenta informações da configuração TCP/IP local. Reservas de DHCP são definidas no servidor por identificação de cliente e não são criadas por uma simples consulta no Windows.",
+      "section": "Configuração de clientes e servidores Windows",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após receber endereço correto, uma estação Windows ingressada em domínio navega na internet, mas não localiza serviços internos. O cliente aponta somente para DNS público. Qual ajuste é o mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Configurar os servidores DNS internos responsáveis pelos registros necessários ao domínio.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Forçar o compartilhamento administrativo de todas as unidades locais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir SMB por NIS na estação Windows.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar as permissões NTFS do sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eliminar o sufixo de pesquisa e bloquear todas as consultas DNS.",
+          "correct": false
+        }
+      ],
+      "explanation": "A localização de controladores e serviços de domínio depende da resolução dos registros internos. DNS público não possui necessariamente essas informações; navegação externa funcional não descarta falha DNS interna.",
+      "section": "Configuração de clientes e servidores Windows",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Permissão de escrita no compartilhamento SMB dispensa a permissão de escrita no sistema de arquivos NTFS do servidor Windows.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O acesso efetivo considera as permissões relevantes do compartilhamento e do sistema de arquivos. Autorizar na primeira camada não neutraliza uma negação ou ausência de direito na segunda.",
+      "section": "Configuração de clientes e servidores Windows",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor Windows responde a ping, mas a equipe precisa testar especificamente sua porta de arquivos SMB por TCP. Qual comando se ajusta melhor ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ipconfig /displaydns",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Test-NetConnection -ComputerName servidor -Port 445",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "hostname",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Get-Date",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "arp -d *",
+          "correct": false
+        }
+      ],
+      "explanation": "Test-NetConnection com parâmetro Port pode testar conectividade TCP específica. Ping, cache DNS, hostname ou manipulação ARP não demonstram que o servidor aceita conexões na porta 445.",
+      "section": "Configuração de clientes e servidores Windows",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A alteração do IP de uma interface utilizada para administração remota pode interromper a sessão de gerenciamento, razão pela qual se deve prever acesso alternativo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Mudar endereçamento ou rota da interface pela qual a sessão chega ao servidor pode cortar o caminho de rede. Procedimentos seguros preveem reversão, acesso local ou outro canal e validação posterior.",
+      "section": "Configuração de clientes e servidores Windows",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Windows, ao retornar uma interface de IP estático para obtenção automática de IPv4 e DNS, qual cuidado é indispensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apagar permanentemente todos os adaptadores virtuais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar o nome do computador para o do roteador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Rever separadamente a obtenção do endereço IP e a configuração do resolvedor DNS.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Habilitar NFS para que o DHCP volte a funcionar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar todas as rotas diretamente conectadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A obtenção automática do endereço e a lista de resolvedores DNS são aspectos de configuração distintos. Ajustar somente um deles pode manter parâmetros estáticos indesejados.",
+      "section": "Configuração de clientes e servidores Windows",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma atribuição de endereço realizada apenas com ip address add no Linux pode não persistir após reinicialização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O comando modifica o estado corrente da interface. Persistência exige configuração por mecanismo apropriado, como NetworkManager, Netplan ou systemd-networkd, conforme o sistema.",
+      "section": "Configuração de interfaces e rotas no Linux",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um Linux gerenciado por NetworkManager, qual ferramenta é indicada para visualizar perfis de conexão e modificá-los pela linha de comando?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "named-checkzone",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "lpstat",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "exportfs",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "nmcli",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "smbpasswd",
+          "correct": false
+        }
+      ],
+      "explanation": "nmcli administra dispositivos e perfis do NetworkManager. As demais ferramentas se destinam à validação DNS, impressão, NFS ou credenciais Samba e não substituem o gerenciamento de conexões.",
+      "section": "Configuração de interfaces e rotas no Linux",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Netplan é um protocolo de roteamento dinâmico que substitui o DNS para todas as estações Ubuntu.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Netplan é uma ferramenta declarativa de configuração de interfaces e rede, geralmente em YAML, que delega ao backend. Não é protocolo de roteamento nem serviço de nomes.",
+      "section": "Configuração de interfaces e rotas no Linux",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um servidor Ubuntu com Netplan, uma alteração remota de gateway pode cortar o acesso administrativo. Qual comando oferece mecanismo de teste e possível reversão, quando suportado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "dig -x",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "testparm",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ypwhich",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "lpstat -t",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "netplan try",
+          "correct": true
+        }
+      ],
+      "explanation": "netplan try é voltado a testar a configuração com possibilidade de recuperação em cenários suportados. O operador ainda deve manter procedimento alternativo; as outras ferramentas tratam de serviços alheios ao gateway.",
+      "section": "Configuração de interfaces e rotas no Linux",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Editar manualmente /etc/resolv.conf sempre garante que o servidor DNS configurado permanecerá após reiniciar qualquer distribuição Linux.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O arquivo pode ser gerenciado por systemd-resolved, NetworkManager ou outro serviço, inclusive como ligação simbólica. Mudanças manuais podem ser sobrescritas; identifique a fonte de configuração persistente.",
+      "section": "Configuração de interfaces e rotas no Linux",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador quer testar a resolução de nome seguindo a cadeia NSS do Linux, inclusive possíveis entradas locais, e não apenas fazer consulta DNS direta. Qual comando é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "getent hosts servidor.interno",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "dig @192.168.50.10 servidor.interno",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ip link set dev enp1s0 down",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ss -lntup",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ip route flush table main",
+          "correct": false
+        }
+      ],
+      "explanation": "getent consulta bases disponibilizadas pelo mecanismo NSS e pode considerar arquivos locais e fontes configuradas. dig consulta DNS; as demais opções alteram ou exibem elementos sem reproduzir a cadeia de nomes.",
+      "section": "Configuração de interfaces e rotas no Linux",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma configuração YAML de Netplan com indentação incorreta pode impedir a aplicação do endereçamento planejado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "YAML depende de estrutura e recuos corretos. Além de validar o texto, o administrador deve conferir interface, renderer, existência de outros arquivos e estado resultante da aplicação.",
+      "section": "Configuração de interfaces e rotas no Linux",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um servidor Linux, ip -br address mostra o endereço correto, mas uma aplicação externa não conecta na porta TCP esperada. Qual observação é tecnicamente correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O comando ip -br address demonstra que qualquer porta TCP está aberta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Endereço correto não comprova que o serviço esteja ouvindo nem que o firewall permita a conexão.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A aplicação é necessariamente bloqueada por falha de DHCP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O problema só pode estar na zona reversa do DNS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A única solução admissível é desativar todo firewall permanentemente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A configuração de IP é só uma camada: escuta do processo, regra de firewall, rota e autenticação também condicionam o serviço. ss e testes específicos ajudam a localizar a falha.",
+      "section": "Configuração de interfaces e rotas no Linux",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No DHCPv4, a concessão de um endereço ao cliente pode incluir opções para gateway padrão e servidor DNS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O protocolo fornece endereçamento e outros parâmetros de rede, conforme as opções do servidor. O cliente usa posteriormente o endereço DNS informado para fazer consultas, se houver conectividade.",
+      "section": "Servidores DHCP e DNS no Linux",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ferramenta de serviço no Linux é voltada a oferecer concessões DHCP e figura como substituta moderna do ISC DHCP em documentação do Ubuntu?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "BIND 9",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "CUPS",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Kea DHCP",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Samba",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "NIS",
+          "correct": false
+        }
+      ],
+      "explanation": "Kea é servidor DHCP desenvolvido pelo ISC e recomendado na documentação atual do Ubuntu. BIND fornece DNS; CUPS, impressão; Samba, serviços SMB; NIS, bases de identidade legadas.",
+      "section": "Servidores DHCP e DNS no Linux",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O BIND 9 pode servir dados de zona como autoritativo e, quando configurado adequadamente, realizar resolução recursiva para clientes autorizados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O mesmo software comporta funções distintas conforme configuração. A recursão deve ser controlada para evitar resolvedor aberto, e dados autoritativos dependem das zonas configuradas.",
+      "section": "Servidores DHCP e DNS no Linux",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador alterou um registro A em arquivo de zona BIND, mas não revisou a versão lógica da zona. Qual campo merece atenção por sinalizar atualizações para servidores secundários?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O campo de peso de registro MX, ainda que inexista MX.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O endereço de broadcast da interface do servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O nome da fila padrão do CUPS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O serial do registro SOA",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O identificador de grupo NIS da estação.",
+          "correct": false
+        }
+      ],
+      "explanation": "O serial no SOA identifica a revisão de uma zona e deve avançar conforme o procedimento de atualização. Ele não é porta DNS, TTL global ou atributo de compartilhamento.",
+      "section": "Servidores DHCP e DNS no Linux",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No BIND, named-checkzone é usado para examinar arquivos de zona, enquanto named-checkconf verifica a configuração do servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "As ferramentas verificam categorias diferentes de erros: conteúdo de zona e sintaxe de configuração do named. Ambas auxiliam a validação, mas não substituem teste de resolução e conectividade após implantação.",
+      "section": "Servidores DHCP e DNS no Linux",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rede corporativa, o resolvedor autoritativo atende a zona interna, mas clientes não a consultam porque usam exclusivamente DNS externo. Qual medida resolve o desenho sem confundir os serviços?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar fila de impressão em cada host para publicar o nome.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar exportação NFS que contenha a zona DNS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atribuir a todas as estações o mesmo endereço IPv4 do DNS.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eliminar registros SOA e NS do servidor autoritativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Informar aos clientes os resolvedores DNS internos, diretamente ou por opção do DHCP.",
+          "correct": true
+        }
+      ],
+      "explanation": "Clientes precisam saber a quem consultar as zonas internas; a opção de DHCP pode distribuir endereços de DNS, mas não executa a resolução. O desenho também deve considerar encaminhamento e políticas de consulta.",
+      "section": "Servidores DHCP e DNS no Linux",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor DNS autoritativo deve obrigatoriamente permitir recursão aberta a qualquer origem da internet para responder pela própria zona.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Responder autoritativamente pela zona não exige abrir recursão ao público. Consultas recursivas indiscriminadas aumentam risco de abuso; as políticas de acesso devem distinguir as funções.",
+      "section": "Servidores DHCP e DNS no Linux",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas VLANs usam um único Kea; a primeira obtém endereço e a segunda não, embora o servidor e a configuração da sub-rede estejam corretos. Qual hipótese deve ser examinada antes de alterar arquivos DNS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Falha ou ausência do relay DHCP na comunicação da segunda VLAN com o servidor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ausência de servidor de impressão Samba em cada estação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Inexistência de alias CNAME para o endereço físico da placa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Carência de permissão de escrita NTFS no cliente Linux.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uso de registro PTR em vez de registro MX no servidor DNS.",
+          "correct": false
+        }
+      ],
+      "explanation": "O DHCPv4 cruza segmentos com apoio de retransmissão apropriada. Defeitos de relay, VLAN ou interface podem impedir pedidos, independentemente de os registros DNS existirem.",
+      "section": "Servidores DHCP e DNS no Linux",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O domínio NIS é necessariamente idêntico ao domínio DNS, pois ambos são geridos pelo mesmo protocolo de resolução de nomes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O domínio NIS identifica agrupamento de bases administrativas do serviço legado, enquanto domínio DNS integra a hierarquia de nomes da rede. Os mecanismos, dados e protocolos são distintos.",
+      "section": "Serviços NIS, NFS e CIFS/Samba",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Linux, qual serviço é tipicamente utilizado para compartilhar diretórios com clientes Unix/Linux por meio de exportações descritas em /etc/exports?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CUPS",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "NFS",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "BIND 9",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Kea DHCP",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "NIS",
+          "correct": false
+        }
+      ],
+      "explanation": "NFS exporta sistemas de arquivos remotos e usa definições como /etc/exports em vários sistemas. CUPS imprime, BIND resolve nomes, Kea fornece configuração IP e NIS distribui mapas administrativos.",
+      "section": "Serviços NIS, NFS e CIFS/Samba",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A opção root_squash em uma exportação NFS procura reduzir privilégios do usuário root remoto, não proporcionar criptografia de todo o tráfego.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O mecanismo remapeia a identidade root que chega do cliente, limitando o poder desse usuário no servidor. Confidencialidade do trânsito exige proteção apropriada e não decorre da opção.",
+      "section": "Serviços NIS, NFS e CIFS/Samba",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um cliente Windows acessará um compartilhamento chamado dados em um servidor Linux. Qual combinação está tecnicamente alinhada ao serviço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "BIND 9 com resolução PTR para montar a fila de impressão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Kea como servidor de arquivos e ipconfig para abrir a pasta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Samba/SMB no servidor e caminho UNC \\\\servidor\\dados no cliente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "NIS como protocolo SMB nativo do Windows.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CUPS para exportar a árvore de diretórios como NFS.",
+          "correct": false
+        }
+      ],
+      "explanation": "Samba implementa compartilhamento SMB interoperável, acessível por caminhos UNC no Windows. Serviços de nomes, endereçamento, diretório legado e impressão têm propósitos diferentes.",
+      "section": "Serviços NIS, NFS e CIFS/Samba",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A configuração read only = no em uma seção de smb.conf concede, por si só, permissão POSIX de escrita no diretório do Linux a todo usuário remoto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A diretiva não elimina controles da camada do sistema de arquivos nem regras de usuários do Samba. É necessário verificar autorização SMB, propriedade, bits POSIX/ACL e identidade efetiva.",
+      "section": "Serviços NIS, NFS e CIFS/Samba",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe pretende automatizar montagem CIFS autenticada e persistente no Linux. Qual procedimento reduz exposição de senha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gravar usuário e senha na descrição pública do compartilhamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Publicar a senha como registro TXT em zona DNS pública.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar SMB por HTTP sem autenticação em toda a rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Referenciar no fstab um arquivo de credenciais protegido e restringir suas permissões.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Permitir leitura universal do arquivo que armazena a senha.",
+          "correct": false
+        }
+      ],
+      "explanation": "O uso de arquivo de credenciais com acesso restrito evita expor a senha diretamente na linha de montagem amplamente legível. Ainda é necessário controlar permissão, auditoria e método de autenticação.",
+      "section": "Serviços NIS, NFS e CIFS/Samba",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O NIS é serviço legado de identidade com limitações de segurança; sua implantação como solução nova deve ser avaliada criticamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A tecnologia antiga distribui mapas administrativos e tem fragilidades conhecidas relacionadas à confiança e proteção de tráfego. Documentação da Red Hat registra inclusive remoção de componentes em versões recentes.",
+      "section": "Serviços NIS, NFS e CIFS/Samba",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um servidor NFS, por que é inadequado supor que todo cliente autorizado à exportação poderá modificar qualquer arquivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque NFS só transporta nomes DNS e nunca conteúdo de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque o protocolo NFS exige uma impressora configurada em cada cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque toda montagem NFS automaticamente concede root no servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque a presença de uma exportação impede qualquer escrita, mesmo com rw.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque permissões de arquivos, identidade e opções da exportação também condicionam o acesso.",
+          "correct": true
+        }
+      ],
+      "explanation": "A política de exportação define parte do acesso, mas não substitui identidade e permissões do sistema de arquivos. Opções como root_squash mostram que a autorização envolve múltiplos controles.",
+      "section": "Serviços NIS, NFS e CIFS/Samba",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Linux, CUPS administra filas de impressão; o comando lpstat -t pode auxiliar na inspeção do estado do serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "CUPS organiza impressoras e trabalhos e oferece ferramentas para administração e consulta. Ver o estado da fila é uma etapa do diagnóstico, mas não comprova, isoladamente, a conectividade física da impressora.",
+      "section": "Impressão em rede, segurança e operação integrada",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma rede Linux moderna, qual protocolo é comumente empregado pelo CUPS para publicar filas e receber trabalhos de impressão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "IPP",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "DHCPv4",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "NIS",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "NFS",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ARP",
+          "correct": false
+        }
+      ],
+      "explanation": "IPP é protocolo de impressão em rede e pode usar TCP 631 com configuração adequada. DHCP configura endereços, NIS centraliza mapas antigos, NFS compartilha arquivos e ARP resolve vizinhos IPv4.",
+      "section": "Impressão em rede, segurança e operação integrada",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Executar cupsctl --share-printers dispensa verificar a configuração de compartilhamento de cada fila no CUPS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Habilitar compartilhamento em nível global não garante que cada impressora individual esteja autorizada para compartilhamento. O administrador deve revisar configurações de fila e acesso.",
+      "section": "Impressão em rede, segurança e operação integrada",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário alcança o servidor de impressão pelo IP, mas não consegue imprimir. Qual procedimento produz diagnóstico mais útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reinstalar imediatamente o sistema operacional do cliente e do servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conferir fila CUPS, permissões, serviço, protocolo, firewall, logs e estado da impressora.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Mudar a máscara de rede de todas as estações sem testar portas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Excluir os registros DNS do domínio inteiro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar conta NIS root sem senha para permitir os trabalhos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Conectividade IP é só parte do fluxo de impressão. As causas também incluem filas paradas, autenticação, protocolos, filtros e problemas do equipamento, exigindo testes por camadas.",
+      "section": "Impressão em rede, segurança e operação integrada",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O protocolo de compartilhamento SMB e o serviço CUPS podem trabalhar em conjunto: Samba expõe recursos a clientes Windows e CUPS administra filas locais no Linux.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A integração permite que clientes heterogêneos usem impressoras gerenciadas no Linux. A presença de Samba não significa que a fila já esteja criada ou compartilhada no CUPS.",
+      "section": "Impressão em rede, segurança e operação integrada",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização quer minimizar o risco de servidor DHCP não autorizado fornecer gateway e DNS falsos. Qual abordagem é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Abrir o acesso recursivo do BIND ao mundo sem restrições.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Publicar as credenciais de rede no diretório de impressão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Controlar a infraestrutura de acesso, identificar serviços DHCP indevidos e monitorar concessões e tráfego.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desativar todo registro de eventos das estações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Autorizar compartilhamento SMB anônimo em todos os hosts.",
+          "correct": false
+        }
+      ],
+      "explanation": "DHCP indevido pode alterar parâmetros críticos que os clientes recebem. A defesa requer controles de rede e monitoramento, além de políticas de acesso; abrir outros serviços agrava os riscos.",
+      "section": "Impressão em rede, segurança e operação integrada",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um firewall configurado com portas corretas substitui totalmente a necessidade de autenticação e de permissões em Samba e NFS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O firewall limita fluxos de rede, mas não identifica todos os direitos do usuário nem concede autorização adequada aos arquivos. Segurança exige combinar segmentação, identidade, permissões e proteção de dados.",
+      "section": "Impressão em rede, segurança e operação integrada",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma alteração no DNS, usuários conseguem abrir um servidor por IP, mas não por nome; outros serviços por IP operam normalmente. Qual hipótese é mais aderente ao sintoma?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Falha obrigatória do motor físico de todas as impressoras.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ausência generalizada de enlaces Ethernet funcionais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Exigência de trocar o NFS pelo protocolo ARP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Problema de resolução, sufixo, cache ou conteúdo da zona DNS.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Defeito comprovado no banco de concessões DHCP de todo o parque.",
+          "correct": false
+        }
+      ],
+      "explanation": "O funcionamento por IP indica alcance básico ao servidor e direciona a investigação para o caminho de nomes. Outras causas não ficam impossíveis, mas não são implicações lógicas do quadro.",
+      "section": "Impressão em rede, segurança e operação integrada",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Windows PowerShell: Get-NetIPConfiguration",
+      "publisher": "Microsoft",
+      "reference": "Windows PowerShell: Get-NetIPConfiguration",
+      "url": "https://learn.microsoft.com/pt-br/powershell/module/nettcpip/get-netipconfiguration?view=windowsserver2025-ps",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Windows PowerShell: Set-DnsClientServerAddress",
+      "publisher": "Microsoft",
+      "reference": "Windows PowerShell: Set-DnsClientServerAddress",
+      "url": "https://learn.microsoft.com/pt-br/powershell/module/dnsclient/set-dnsclientserveraddress?view=windowsserver2025-ps",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Test-NetConnection (NetTCPIP)",
+      "publisher": "Microsoft",
+      "reference": "Test-NetConnection (NetTCPIP)",
+      "url": "https://learn.microsoft.com/en-us/powershell/module/nettcpip/test-netconnection?view=windowsserver2025-ps",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Configuring networks — Ubuntu Server",
+      "publisher": "Canonical",
+      "reference": "Configuring networks — Ubuntu Server",
+      "url": "https://ubuntu.com/server/docs/configuring-networks/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Configuring and managing basic network access — RHEL",
+      "publisher": "Red Hat",
+      "reference": "Configuring and managing basic network access — RHEL",
+      "url": "https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/8/html/configuring_basic_system_settings/assembly_configuring-and-managing-network-access_configuring-basic-system-settings",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "How to install and configure isc-kea",
+      "publisher": "Canonical",
+      "reference": "How to install and configure isc-kea",
+      "url": "https://ubuntu.com/server/docs/how-to/networking/install-isc-kea/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "DNS — Ubuntu Server",
+      "publisher": "Canonical",
+      "reference": "DNS — Ubuntu Server",
+      "url": "https://ubuntu.com/server/docs/how-to/networking/install-dns/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "BIND 9: Configurations and Zone Files",
+      "publisher": "Internet Systems Consortium",
+      "reference": "BIND 9: Configurations and Zone Files",
+      "url": "https://bind9.readthedocs.io/en/v9.18.36/chapter3.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Network File System (NFS) — Ubuntu Server",
+      "publisher": "Canonical",
+      "reference": "Network File System (NFS) — Ubuntu Server",
+      "url": "https://ubuntu.com/server/docs/network-file-system-nfs/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Samba as a file server — Ubuntu Server",
+      "publisher": "Canonical",
+      "reference": "Samba as a file server — Ubuntu Server",
+      "url": "https://ubuntu.com/server/docs/how-to/samba/file-server/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Securing NIS — Red Hat Enterprise Linux",
+      "publisher": "Red Hat",
+      "reference": "Securing NIS — Red Hat Enterprise Linux",
+      "url": "https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/7/html/security_guide/sec-securing_services",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Printer Sharing — OpenPrinting CUPS",
+      "publisher": "OpenPrinting",
+      "reference": "Printer Sharing — OpenPrinting CUPS",
+      "url": "https://openprinting.github.io/cups/doc/sharing.html",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

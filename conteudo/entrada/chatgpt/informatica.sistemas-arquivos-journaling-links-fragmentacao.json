@@ -1,0 +1,1938 @@
+{
+  "id": "informatica.sistemas-arquivos-journaling-links-fragmentacao",
+  "subject": "Informática",
+  "title": "Sistemas de arquivos: journaling, links e fragmentação",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Sistemas de arquivos: journaling, links e fragmentação",
+    "Sistemas de arquivos: journaling, links e fragmentação"
+  ],
+  "scope": {
+    "covers": "Arquitetura e organização de sistemas de arquivos; VFS, metadados, inodes, MFT, alocação e extents; journaling e modos do ext4, falhas, consistência e recuperação; hard links, symlinks, junctions; fragmentação, TRIM, SSD/HDD; comparação FAT/FAT32/exFAT, NTFS, ext2/ext3/ext4, HFS+, APFS contextual e F2FS; HDFS e seus nós; particionamento MBR/GPT, MBR protetor, UEFI e ESP.",
+    "excludes": "Implementação de drivers em código-fonte, comandos destrutivos de formatação e migração passo a passo, técnicas forenses avançadas, tuning de produção dependente de kernel e políticas específicas de armazenamento em nuvem."
+  },
+  "theoryTitle": "Sistemas de arquivos: estrutura, integridade, links, fragmentação e comparações",
+  "chapters": [
+    {
+      "title": "Fundamentos, estruturas e operação dos sistemas de arquivos",
+      "markdown": "# Fundamentos dos sistemas de arquivos\n\nUm **sistema de arquivos** (file system) estabelece como nomes, diretórios, dados e metadados são organizados e recuperados em um volume. Não se confunde com o dispositivo físico (HD, SSD, pen drive), com o controlador, com o esquema de partições nem com o sistema operacional, embora interaja com todos eles. Um mesmo dispositivo pode conter várias partições, cada uma formatada com sistema de arquivos próprio; um sistema de arquivos também pode operar sobre volumes lógicos, dispositivos virtuais ou infraestrutura distribuída. **Formatar** normalmente cria estruturas necessárias à organização do volume; não equivale, por si só, a sobrescrever com segurança todos os dados antigos.\n\nA interface usual apresenta uma **hierarquia de diretórios**: caminhos absolutos partem de uma raiz; caminhos relativos dependem do diretório de trabalho. Sistemas diferem quanto à sensibilidade a maiúsculas e minúsculas, regras de nomes, caracteres permitidos e forma de montar volumes. No Unix, o caminho `/var/log/app.log` percorre diretórios a partir de `/`; no Windows, `C:\\Dados\\relatorio.txt` usa uma designação de unidade, embora também existam pontos de montagem. O **VFS** (Virtual File System), em sistemas Unix-like, oferece uma camada de abstração para que programas usem chamadas similares com ext4, F2FS ou outros sistemas. Não se deve confundir o VFS com um formato concreto gravado no disco.\n\nArquivos contêm **conteúdo** e **metadados**: tamanho lógico, proprietário, permissões, horários, tipo, referências a blocos, atributos e contagem de links, conforme o formato. O diretório relaciona nomes a objetos. Nos sistemas da família ext, o **inode** identifica um objeto e seus metadados; normalmente o nome está na entrada do diretório, não no inode. Essa distinção explica por que dois nomes podem designar o mesmo arquivo por links físicos. No NTFS, a **Master File Table (MFT)** concentra registros dos arquivos e diretórios, com atributos e informações de localização. Na FAT, a tabela de alocação encadeia clusters de cada arquivo; é incorreto exigir inodes POSIX como estrutura universal.\n\nO disco é organizado em unidades de endereçamento físico e lógico; o sistema de arquivos agrupa espaço em **blocos** ou **clusters**. O tamanho de alocação pode produzir **fragmentação interna**: um arquivo pequeno ocupa espaço reservado na última unidade mesmo que não a preencha. Exemplo: em clusters de 4 KiB, conteúdo de 1 KiB pode ocupar um cluster de 4 KiB; os 3 KiB não utilizados constituem espaço interno desperdiçado, não um segundo arquivo. **Fragmentação externa**, em sentido operacional de sistemas de arquivos, ocorre quando partes de um arquivo se distribuem por regiões não contíguas; isso pode aumentar movimentos de cabeça de leitura em HDDs. Não confunda esses fenômenos com partições.\n\nOs métodos de alocação clássicos incluem **contígua**, **encadeada** e **indexada**. A contígua facilita acesso sequencial, mas tem dificuldade de expansão sem realocação; a encadeada permite crescimento simples, porém acesso aleatório pode exigir percorrer referências; a indexada usa estruturas que mapeiam blocos do arquivo. Sistemas modernos combinam estruturas e otimizações. **Extents** são descrições de intervalos contíguos de blocos, reduzindo a quantidade de metadados quando há grandes sequências. Um extent não garante que o arquivo inteiro esteja contíguo.\n\nOperações essenciais: criar, abrir, ler, escrever, renomear, truncar, sincronizar e excluir. Apagar uma entrada de diretório pode apenas remover uma referência: espaços associados ao objeto tornam-se reutilizáveis quando não restam referências e/ou descritores que o mantenham, conforme o sistema. Dados recuperáveis e exclusão segura são temas distintos. O **cache de páginas** e os buffers melhoram desempenho, mas uma gravação concluída na aplicação nem sempre foi persistida fisicamente. Chamadas como `fsync` têm a finalidade de solicitar sincronização de dados pertinentes, observadas garantias da plataforma e do hardware.\n\n**Estudo dirigido para provas:** diferencie nome, inode/MFT, conteúdo e bloco; diferencie tamanho lógico de espaço efetivamente alocado; e não trate montagem, particionamento, formatação e desfragmentação como sinônimos. A escolha do sistema de arquivos envolve recursos, compatibilidade, robustez, carga de trabalho e características do meio de armazenamento."
+    },
+    {
+      "title": "Journaling, consistência, falhas e recuperação",
+      "markdown": "# Por que registrar transações?\n\nUma atualização de arquivo costuma envolver mais de uma gravação: por exemplo, atualizar uma entrada de diretório, mapa de blocos e metadados. Uma **queda de energia** entre essas etapas pode deixar estruturas incompatíveis entre si. O **journaling**, ou registro transacional, é um mecanismo pelo qual determinadas alterações são registradas em um diário antes de serem efetivadas definitivamente nas estruturas principais, segundo o protocolo do sistema. Após interrupção, o sistema pode **reexecutar (replay)** transações comprometidas ou ignorar operações não confirmadas, reduzindo a necessidade de examinar integralmente o volume. A ordem de persistência, os registros de commit e as barreiras de escrita importam: simples existência de um arquivo chamado journal não produz garantia automática.\n\n**Consistência estrutural não equivale a durabilidade de todo conteúdo do usuário.** Journaling costuma priorizar metadados: evita, por exemplo, que estruturas de alocação indiquem blocos inconsistentes, mas não assegura, isoladamente, que os últimos caracteres digitados estejam preservados depois de desligamento abrupto. Tampouco substitui backup, replicação, snapshots, controle de versões ou proteção contra malware. Uma falha física do dispositivo pode afetar simultaneamente dados e diário. Sistemas podem empregar checksums, redundância e verificação adicional para enfrentar classes diferentes de falha, mas cada recurso deve ser examinado separadamente.\n\nNo **ext3**, a grande inovação sobre ext2 foi a incorporação de journaling, mantendo parentesco estrutural. O **ext4** conserva e amplia essa tradição com extents, alocação atrasada (*delayed allocation*), mecanismos de alocação multibloco e melhorias de desempenho. Os modos usuais de journaling do ext4 são:\n\n- **`data=journal`**: dados e metadados passam pelo diário; oferece journaling completo dessas alterações, com custo adicional de escrita e restrições de uso de outros recursos.\n- **`data=ordered`**: registra principalmente metadados; impõe que os blocos de dados pertinentes cheguem ao armazenamento antes de o commit correspondente dos metadados ser considerado concluído. É o modo tradicionalmente padrão, mas não registra o conteúdo de cada arquivo no journal.\n- **`data=writeback`**: também registra metadados, porém sem a mesma garantia de ordenação entre dados modificados e metadados; pode deixar conteúdo antigo ou não esperado em arquivos recentes após falha.\n\nÉ armadilha afirmar que `writeback` **desativa todo journaling**: o que não é registrado nele são os blocos de dados do arquivo; o diário de metadados continua atuando. É igualmente errado descrever `ordered` como journaling integral de dados. O subsistema de diário do ext4 é associado ao **JBD2**. **Commit** de transação não é sinônimo de cópia de segurança; e o registro de alterações do NTFS, embora transacional para aspectos estruturais, não funciona como histórico universal de versões de documentos.\n\nO **NTFS** possui registro de transações de metadados, com arquivo de log de sistema; seus recursos incluem permissões e outros mecanismos que a FAT32 não oferece. O **HFS+** pode operar com journaling; é historicamente conhecido como Mac OS Extended (Journaled) quando habilitado. O **F2FS** segue outra estratégia de projeto: um sistema orientado a flash baseado em técnicas de escrita sequencial, **checkpoints** e mecanismos de recuperação próprios. Não se deve presumir que qualquer mecanismo de tolerância a falhas corresponde exatamente ao mesmo journal do ext3/ext4. O APFS moderno utiliza mecanismos próprios de proteção contra falhas e não deve ser equiparado conceitualmente ao diário tradicional do HFS+.\n\nA recuperação pode envolver **replay de journal**, inspeção de estruturas com utilitários como `fsck` e verificações específicas. Nem todo comando de checagem é adequado em volume montado para escrita; a documentação do sistema precisa ser seguida. Um **checkpoint** consolida ou referencia um estado recuperável, mas seu significado técnico varia de sistema para sistema. O journal costuma ser **circular**, reutilizando espaço quando registros deixam de ser necessários; não é um arquivo cumulativo com todas as operações históricas.\n\n**Exemplo de cobrança:** um computador reinicia após falha de energia. Se o volume ext4 estava em `data=ordered`, a expectativa é maior consistência dos metadados e ordenação do conteúdo relacionado aos commits, não garantia de que todo dado no cache foi preservado. Para proteção contra perda acidental, precisa-se combinar mecanismos de consistência com backup testado e estratégias adequadas de sincronização."
+    },
+    {
+      "title": "Links físicos, simbólicos e fragmentação de arquivos",
+      "markdown": "# Links e identidade de arquivos\n\n**Link físico** (*hard link*) é outro nome para o mesmo objeto de arquivo no mesmo sistema de arquivos que oferece essa função. Em Unix, dois nomes criados com `ln original outro_nome` normalmente apontam para **o mesmo inode**. A contagem de links do inode aumenta; editar o conteúdo por um dos caminhos altera o conteúdo visto pelo outro. Se um nome for removido, o arquivo permanece acessível pelo outro. A liberação definitiva do armazenamento depende de não haver mais links e, conforme o sistema, de não haver processo com o objeto aberto. Não existe um arquivo 'mais original' do que o outro pelo mero fato de ter sido criado primeiro.\n\nO hard link usualmente **não atravessa sistemas de arquivos**, pois depende da identidade interna do objeto naquele volume. A criação de links físicos para diretórios é geralmente restringida em sistemas Unix comuns para preservar invariantes da árvore. Já o **link simbólico** (*symbolic link*, *symlink*) é um objeto que armazena uma referência a um caminho ou destino. Pode apontar para arquivo ou diretório e, conforme a plataforma e as permissões, para destinos em outro volume. A exclusão ou movimentação do destino pode deixar um link simbólico **quebrado**, com referência que não resolve. A existência do symlink não aumenta a contagem de links físicos do alvo.\n\nNo terminal GNU/Linux, `ln arquivo atalho_fisico` cria um hard link, quando permitido; `ln -s arquivo atalho_simbolico` cria um symlink. Com `ls -li`, a identificação de inode auxilia a reconhecer nomes compartilhando objeto; `readlink` examina o destino codificado no link simbólico. Ao usar caminhos relativos em symlinks, o significado depende do diretório em que o link reside, não necessariamente do diretório corrente do usuário ao invocá-lo. Em operações de cópia, arquivamento e varredura, é importante controlar se links serão preservados ou seguidos, para evitar referências quebradas, duplicações e ciclos aparentes.\n\nNo **NTFS**, links físicos, links simbólicos e **junctions** são conceitos distintos. Junctions são pontos de redirecionamento usados sobretudo para caminhos de diretório, implementados com recursos do NTFS. Não são sinônimos de hard links. A capacidade efetiva de criar um symlink em Windows depende de condições de sistema, privilégios e configuração; não generalize que 'Windows não possui symlinks'. Na FAT32, não há suporte nativo comparável aos hard links do NTFS.\n\n# Fragmentação\n\nA **fragmentação de arquivos** ocorre quando os blocos de um arquivo ocupam regiões separadas. Em HDDs, leituras com muitos deslocamentos físicos podem ficar mais lentas; em SSDs, o custo de acesso não depende do mesmo movimento mecânico, embora fragmentação e metadados continuem a poder trazer custos. **Desfragmentar** tenta reorganizar a localização lógica dos dados para reduzir dispersão; não modifica a semântica dos nomes, nem é meio de recuperar arquivos excluídos.\n\n**Fragmentação interna** é o desperdício dentro da unidade mínima alocada; **fragmentação externa**, em contextos de alocação, descreve espaço disponível ou extents distribuídos em posições descontínuas, dificultando a alocação contígua. O uso de extents e a alocação atrasada no ext4 podem reduzir a fragmentação, mas não tornam o volume imune. O grau real depende do padrão de gravações, crescimento dos arquivos e quantidade de espaço livre. Em um volume muito cheio, pode haver poucas extensões longas disponíveis.\n\nEm unidades flash, as camadas são mais complexas: o **FTL** (*Flash Translation Layer*) traduz endereços lógicos para células físicas, realiza nivelamento de desgaste e operações de coleta de lixo. O comando **TRIM/discard** permite informar blocos lógicos que não estão mais em uso, ajudando o controlador a gerenciar gravações; **TRIM não é desfragmentação**. Ferramentas modernas de otimização podem tratar HDD e SSD diferentemente. Defragmentar repetidamente um SSD, sem necessidade, não é regra geral de melhor prática e acrescenta gravações; isso não significa que qualquer otimização em SSD seja proibida ou inútil.\n\n**Cenário de prova:** uma pasta contém `texto.txt`, `copia-link` (hard link) e `atalho` (symlink). Remover `texto.txt` não destrói o conteúdo acessível por `copia-link`, mas pode quebrar `atalho` se este fazia referência textual apenas ao nome removido. Essa questão testa identidade versus localização por caminho, e não conceitos de backup."
+    },
+    {
+      "title": "Comparação de FAT, NTFS, ext, HFS+ e F2FS",
+      "markdown": "# Como comparar formatos sem absolutismos\n\nA banca costuma reunir siglas e cobrar **finalidade, estruturas, integridade e compatibilidade**. **FAT12/FAT16/FAT32** pertencem à família da File Allocation Table. Em FAT, entradas da tabela encadeiam clusters pertencentes aos arquivos; o modelo é relativamente simples e amplamente interoperável. **FAT32** é frequente em cartões e dispositivos destinados a várias plataformas, mas tem limites importantes, incluindo tamanho máximo de arquivo de aproximadamente **4 GiB menos 1 byte**. Não fornece journaling nativo, semântica de permissões POSIX nem os recursos de controle de acesso do NTFS. As limitações de tamanho de *volume* dependem também de implementação e ferramenta de formatação; não confunda limite imposto por utilitário com limite teórico do formato.\n\n**exFAT**, embora não esteja no centro da comparação solicitada, é útil como contraste: foi concebido para dispositivos removíveis e arquivos maiores que os admitidos pela FAT32; não se deve atribuir automaticamente a ele o journaling e os recursos de segurança do NTFS. A comparação oficial da Microsoft diferencia NTFS, exFAT e FAT32. Em aplicações práticas, escolha por compatibilidade não significa que qualquer sistema possa oferecer recursos ausentes da estrutura do volume.\n\n**NTFS (New Technology File System)**: é um formato amplamente usado pelo Windows em volumes do sistema e de dados. Organiza registros de arquivos na **MFT**, sustenta permissões por listas de controle de acesso (**ACLs**), journaling de metadados, suporte a hard links, recursos de compressão e outros atributos, com disponibilidade e restrições dependentes da versão. É falso dizer que sua tabela principal é a FAT ou que seus arquivos precisam estar em blocos fisicamente contíguos. O recurso de journaling do NTFS não é substituto de cópias de segurança nem de sistemas de versionamento.\n\nA família **ext** é tradicional no Linux. O **ext2** não tem journaling nativo; o **ext3** introduz journaling; o **ext4** aperfeiçoa escalabilidade e desempenho usando, entre outros recursos, **extents**, **delayed allocation** e verificação de integridade do journal. Ext4 pode aplicar diversos modos de registro, conforme configuração. É incorreto dizer que ext4 é sinônimo de Linux, pois o sistema operacional também pode usar XFS, Btrfs e F2FS. Tampouco todo sistema que trabalha com inode é automaticamente ext4. Permissões Unix e metadados estão presentes na família, sujeitas às configurações.\n\n**HFS+ (Hierarchical File System Plus)**, também chamado de Mac OS Extended, foi um sistema relevante no ecossistema Apple. Adota estruturas como árvores B para metadados e pode usar **journaling**. Diferencie-o de **HFS** mais antigo e de **APFS**, que é o formato moderno da Apple, projetado com características distintas, incluindo proteção contra falhas e recursos de snapshots. Há particularidades sobre sensibilidade a maiúsculas, dependendo do formato/configuração; por isso, não diga que um mesmo comportamento é obrigatório para todo volume HFS+ em qualquer situação. Não confunda a sigla HFS+ com HDFS: um é formato local histórico da Apple; o outro é um sistema distribuído associado ao Hadoop.\n\n**F2FS (Flash-Friendly File System)** foi desenhado para armazenamento baseado em memória flash, buscando adequar padrões de escrita ao meio. Seu desenho é de inspiração **log-structured**, com organização por segmentos, políticas de limpeza e **checkpoints**; inclui tratamento da alocação e da recuperação compatível com esse objetivo. Não equivale a 'FAT otimizada' nem ao HDFS. O sistema mantém metadados e diretórios como um formato local do kernel Linux, não como serviço distribuído. **Flash-friendly não significa necessariamente melhor desempenho em qualquer carga**: benchmarks, versão do kernel, dispositivo e padrão de escrita importam.\n\n| Sistema | Perfil usual | Estrutura / integridade em destaque |\n|---|---|---|\n| FAT32 | Intercâmbio e compatibilidade | Tabela de alocação, sem journal nativo |\n| NTFS | Windows, volumes com controle de acesso | MFT, ACLs, log de metadados |\n| ext2 | Linux e usos específicos | Inodes, sem journal nativo |\n| ext3 | Linux | Inodes e journaling |\n| ext4 | Linux | Extents, alocação atrasada, journaling configurável |\n| HFS+ | Formato Apple histórico | Estruturas em árvore, journaling opcional |\n| F2FS | Flash sob Linux | Escrita orientada a log, segmentos e checkpoints |\n\n**Critério de escolha em questões:** para volume Windows com ACLs, pense em NTFS; para pendrive que precisa transportar arquivos grandes, compare exFAT a FAT32; para Linux e robustez genérica, ext4 é candidato comum; para flash em Linux, F2FS foi projetado especificamente para esse meio. Em provas, não transforme vocação típica em requisito exclusivo: NTFS não só funciona em HDD, ext4 não exige SSD, e HFS+ não é sistema distribuído."
+    },
+    {
+      "title": "HDFS e estilos de partição MBR e GPT",
+      "markdown": "# HDFS: sistema distribuído, não uma partição local\n\n**HDFS (Hadoop Distributed File System)** é um sistema de arquivos **distribuído**, voltado a armazenar grandes conjuntos de dados em um cluster de máquinas, com tolerância a falhas de nós e alto rendimento para fluxos de leitura e processamento. Não é uma versão de HFS+ nem uma alternativa de formatação de pendrive. Os arquivos são divididos em **blocos** gerenciados pelo HDFS; blocos podem ter **réplicas** em servidores diferentes de acordo com configuração e políticas de posicionamento. O modelo favorece arquivos grandes e acessos predominantemente sequenciais, e não operações frequentes com minúsculos arquivos ou gravação aleatória de baixa latência como prioridade.\n\nO **NameNode** mantém o espaço de nomes e **metadados** do HDFS: diretórios, arquivos, mapeamento dos blocos e informações associadas. **DataNodes** mantêm dados dos blocos e executam tarefas de armazenamento e replicação. O cliente consulta o NameNode para localizar blocos, mas o conteúdo de um arquivo normalmente trafega entre o cliente e os DataNodes, e não como fluxo obrigatório passando todo pelo NameNode. Há monitoramento por mensagens de estado e relatórios de blocos. A replicação pode aumentar disponibilidade; no entanto, não substitui política de backup, porque exclusões lógicas, corrupção propagada e erros administrativos exigem outros controles.\n\nA descrição tradicional usa o modelo **write once, read many** com possibilidade controlada de **append**. Não é correto inferir suporte equivalente ao de um sistema local para modificações arbitrárias de bytes no meio do arquivo. HDFS pode coexistir com ext4, XFS ou outros formatos **nos discos locais dos DataNodes**: o HDFS é uma camada distribuída acima desses recursos. Existem mecanismos modernos de alta disponibilidade para o NameNode, que não devem ser confundidos com replicação de cada bloco de dados.\n\n# MBR versus GPT: particionar antes de formatar\n\n**MBR (Master Boot Record)** e **GPT (GUID Partition Table)** são **estilos de particionamento**, isto é, formas de descrever como o dispositivo é dividido em regiões. Nenhum deles é um sistema de arquivos: uma partição descrita por GPT pode ser formatada, por exemplo, em NTFS ou ext4. No MBR clássico, a tabela principal está associada ao início do disco e possui até **quatro entradas de partições primárias**; o esquema de partição estendida/lógica contorna parcialmente essa organização. Em discos com setores lógicos de 512 bytes, o endereçamento clássico do MBR costuma produzir limite de aproximadamente **2 TiB** de área endereçável por esse formato. O alcance efetivo depende de características técnicas do dispositivo e da implementação.\n\n**GPT** usa identificadores globais, tabela de entradas de partição e cópia de estruturas relevantes, incluindo informações de integridade por CRC. Foi concebido no contexto da especificação UEFI e supera as restrições clássicas de quantidade de partições e capacidade endereçável do MBR. Em um disco GPT existe um **MBR protetor** para desencorajar utilitários antigos de tratar o disco como vazio; sua presença não transforma o disco em 'MBR convencional'. O setor inicial também contém detalhes específicos da estrutura GPT; cabeçalhos e tabelas têm cópias de reserva conforme o formato.\n\n**UEFI** é interface de firmware e não se confunde com GPT, que é estilo de tabela de partições. No cenário típico de instalação do Windows em UEFI, a inicialização usa GPT e uma **partição de sistema EFI (ESP)**, frequentemente com formato FAT. Isso não significa que a partição que abriga o sistema operacional tenha de ser FAT: ela pode ser NTFS. A relação UEFI/GPT é particularmente relevante para regras de instalação do Windows, mas firmware, modo legado e outros sistemas operacionais admitem cenários específicos; não se afirme que um disco GPT seja fisicamente incapaz de coexistir com qualquer firmware BIOS.\n\nA conversão de MBR para GPT pode demandar ajustes no **método de inicialização**, no carregador, nas partições de boot e na configuração do firmware. Mesmo quando há ferramenta para conversão sem apagar todos os arquivos, **backup prévio é essencial**. Inicialização, particionamento e sistema de arquivos são três camadas distintas: firmware inicia o carregador, tabela de partições delimita regiões e o sistema de arquivos organiza os dados dentro dessas regiões. Questões frequentes apresentam 'GPT é o sistema de arquivos mais moderno que NTFS' ou 'HDFS substitui o particionamento do SSD'; ambas confundem camadas tecnológicas."
+    }
+  ],
+  "summary": "## Síntese para revisão\n\nO **sistema de arquivos** organiza nomes, diretórios, metadados e blocos; **MBR e GPT** apenas descrevem partições. Em NTFS, a estrutura central é a **MFT**; na família ext, os **inodes** identificam objetos e os diretórios associam nomes. **Journaling** visa consistência após falha, não backup: no ext4, `data=journal` registra dados e metadados, `data=ordered` registra metadados impondo ordenação relevante de dados e `data=writeback` mantém journaling de metadados sem essa ordenação. **Hard links** são dois nomes para o mesmo arquivo; **symlinks** armazenam uma referência a caminho e podem quebrar. **Fragmentação interna** é espaço desperdiçado no cluster; fragmentação de arquivo envolve extents dispersos. Desfragmentação e TRIM têm objetivos diferentes. **FAT32** é simples e interoperável, mas limita arquivos individuais; **NTFS** oferece ACLs e log de metadados; **ext2/3/4** evoluem em journaling e alocação; **HFS+** é formato Apple histórico; **F2FS** é orientado a flash. **HDFS** é distribuído: NameNode administra metadados, DataNodes armazenam blocos. Na inicialização UEFI moderna do Windows, GPT e ESP atuam em conjunto, sem transformar GPT em sistema de arquivos.",
+  "flashcards": [
+    {
+      "front": "O que um sistema de arquivos organiza?",
+      "back": "Nomes, diretórios, metadados, alocação e acesso aos dados dentro de um volume; não corresponde ao hardware ou à tabela de partições."
+    },
+    {
+      "front": "Qual é a distinção entre inode e nome no ext4?",
+      "back": "O inode identifica o objeto e guarda metadados e referências de blocos; a entrada de diretório associa um nome ao inode."
+    },
+    {
+      "front": "O que é a MFT?",
+      "back": "Master File Table: estrutura central de registros dos arquivos e diretórios no NTFS."
+    },
+    {
+      "front": "O que é fragmentação interna?",
+      "back": "Espaço inutilizado dentro do último bloco ou cluster alocado para armazenar um arquivo."
+    },
+    {
+      "front": "O que é fragmentação externa de arquivo?",
+      "back": "Dispersão de blocos ou extents de um arquivo por regiões descontínuas, potencialmente onerosa em discos mecânicos."
+    },
+    {
+      "front": "O que são extents?",
+      "back": "Representações de intervalos contíguos de blocos, usadas para reduzir o custo de metadados de alocação."
+    },
+    {
+      "front": "Qual é a finalidade do journaling?",
+      "back": "Registrar transações para apoiar consistência estrutural e recuperação após falhas; não substitui backup."
+    },
+    {
+      "front": "O que caracteriza data=ordered no ext4?",
+      "back": "Journaling de metadados com ordenação de blocos de dados relacionados antes do commit dos metadados."
+    },
+    {
+      "front": "O que caracteriza data=journal no ext4?",
+      "back": "Passagem de dados e metadados pelo journal, com maior custo de gravação e características de configuração específicas."
+    },
+    {
+      "front": "O que caracteriza data=writeback no ext4?",
+      "back": "Diário de metadados sem a mesma garantia de ordenação dos dados associados."
+    },
+    {
+      "front": "O que é hard link?",
+      "back": "Outro nome para o mesmo arquivo/inode no mesmo sistema de arquivos; não é cópia independente."
+    },
+    {
+      "front": "O que é symlink?",
+      "back": "Objeto que referencia um caminho e pode ficar quebrado caso o alvo deixe de existir."
+    },
+    {
+      "front": "Qual comando GNU cria symlink?",
+      "back": "ln -s origem nome_do_link; a forma usual ln origem nome_do_link cria link físico quando permitido."
+    },
+    {
+      "front": "TRIM equivale a desfragmentação?",
+      "back": "Não. TRIM informa ao armazenamento flash quais blocos lógicos deixaram de ser usados; desfragmentação reorganiza a disposição dos dados."
+    },
+    {
+      "front": "Qual limite clássico de arquivo da FAT32?",
+      "back": "Um único arquivo pode ter no máximo 4 GiB menos 1 byte, enquanto exFAT admite arquivos maiores."
+    },
+    {
+      "front": "Como se diferenciam ext2, ext3 e ext4?",
+      "back": "Ext2 sem journal nativo; ext3 com journaling; ext4 incorpora aperfeiçoamentos como extents e alocação atrasada."
+    },
+    {
+      "front": "O que diferencia HFS+ de F2FS?",
+      "back": "HFS+ é formato local histórico da Apple, com journal opcional; F2FS é sistema local Linux projetado para flash e orientado a segmentos."
+    },
+    {
+      "front": "O que é HDFS?",
+      "back": "Sistema de arquivos distribuído do Hadoop, com NameNode para metadados e DataNodes para blocos de dados."
+    },
+    {
+      "front": "O que é um MBR protetor em disco GPT?",
+      "back": "Registro de proteção para evitar que programas antigos interpretem o disco GPT como não particionado; não o converte em MBR comum."
+    },
+    {
+      "front": "Qual a distinção entre GPT e NTFS?",
+      "back": "GPT descreve a divisão do disco em partições; NTFS organiza arquivos dentro de um volume formatado."
+    },
+    {
+      "front": "Como se relacionam UEFI, GPT e ESP?",
+      "back": "UEFI é firmware; GPT é estilo de particionamento; ESP é a partição de sistema EFI usada na inicialização de sistemas compatíveis."
+    },
+    {
+      "front": "Replicação HDFS é backup?",
+      "back": "Não necessariamente: replicação aumenta disponibilidade frente a falhas de nós, mas erros lógicos e exclusões podem ser replicados."
+    }
+  ],
+  "tips": [
+    "Antes de escolher uma sigla, identifique a camada: hardware, firmware UEFI, estilo de partição MBR/GPT, sistema de arquivos local ou sistema distribuído.",
+    "No ext4, memorize a tríade journal/ordered/writeback: dados+metadados; metadados com ordenação; metadados sem a mesma ordenação.",
+    "Em questões de links, pergunte se há dois nomes para o mesmo objeto (hard link) ou um arquivo que referencia um caminho (symlink).",
+    "Diferencie fragmentação interna (sobra no cluster) de dispersão dos blocos do arquivo; TRIM não deve ser tratado como desfragmentação.",
+    "Lembre que FAT32 limita arquivo individual a cerca de 4 GiB; exFAT é contraste importante para mídia removível.",
+    "Associe NameNode a metadados e DataNodes a conteúdo de blocos, sem supor que o NameNode encaminhe todos os bytes.",
+    "Na inicialização Windows/UEFI, visualize GPT + ESP + partição do Windows com formato próprio, frequentemente NTFS."
+  ],
+  "traps": [
+    "Chamar GPT ou MBR de sistema de arquivos, confundindo o particionamento com FAT32, NTFS ou ext4.",
+    "Presumir que journaling é backup permanente e assegura a persistência de todas as gravações recentes.",
+    "Afirmar que data=ordered registra conteúdo completo dos arquivos no journal, ou que writeback desativa journal de metadados.",
+    "Tratar hard link como cópia independente ou symlink como segundo nome do mesmo inode do alvo.",
+    "Confundir HFS+ (Apple, local) com HDFS (Hadoop, distribuído).",
+    "Ensinar que SSD precisa de desfragmentação mecânica frequente ou que TRIM simplesmente move blocos para torná-los contíguos.",
+    "Imaginar que a presença de MBR protetor anula a GPT e restaura apenas quatro partições primárias."
+  ],
+  "activeRecall": [
+    {
+      "question": "Por que um sistema de arquivos não é a mesma coisa que uma tabela de partições?",
+      "answer": "A tabela de partições delimita regiões do disco; o sistema de arquivos organiza objetos, metadados e espaço de armazenamento dentro de uma região."
+    },
+    {
+      "question": "Quais garantias o journaling geralmente oferece e quais não oferece?",
+      "answer": "Favorece consistência estrutural e recuperação de transações; não assegura por si só retenção de versões antigas, backup nem persistência integral de dados recentes."
+    },
+    {
+      "question": "Explique os três modos de journaling comuns do ext4.",
+      "answer": "Journal registra dados e metadados; ordered registra metadados e ordena blocos de dados antes do commit; writeback registra metadados sem a mesma exigência de ordenação."
+    },
+    {
+      "question": "O que ocorre ao excluir um dos nomes de um arquivo com dois hard links?",
+      "answer": "O outro nome continua apontando para o objeto. A exclusão de uma entrada não duplica nem elimina automaticamente o conteúdo enquanto ainda houver referências."
+    },
+    {
+      "question": "Como distinguir TRIM de desfragmentação?",
+      "answer": "TRIM comunica blocos lógicos descartados ao dispositivo flash; desfragmentação tenta reorganizar a alocação do conteúdo de arquivos."
+    },
+    {
+      "question": "Escolha o formato mais associado a MFT, a inodes com extents, a journal Apple histórico e a segmentos flash.",
+      "answer": "NTFS; ext4; HFS+; F2FS, respectivamente."
+    },
+    {
+      "question": "Qual a diferença funcional entre NameNode e DataNode?",
+      "answer": "NameNode mantém metadados e namespace do HDFS; DataNode armazena blocos e atende transferência de dados."
+    },
+    {
+      "question": "Explique o papel do MBR protetor no disco GPT e a importância da ESP.",
+      "answer": "O MBR protetor protege contra ferramentas antigas; a ESP guarda arquivos usados na inicialização UEFI, dentro de uma estrutura típica baseada em GPT."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre camadas e metadados",
+      "summary": "Mistura sistema de arquivos, VFS, dispositivo, inode, MFT e particionamento MBR/GPT. Corrigir identificando a função de cada estrutura e a separação entre nome e objeto."
+    },
+    {
+      "key": "e2",
+      "title": "Journaling confundido com backup",
+      "summary": "Supõe que diário de transações guarde versões permanentes de documentos ou que qualquer modo ext4 registre dados integralmente. Estudar persistência, replay e modos do journal."
+    },
+    {
+      "key": "e3",
+      "title": "Fragmentação e otimização mal compreendidas",
+      "summary": "Confunde desperdício interno, dispersão dos extents, desfragmentação e TRIM. Separar problemas de alocação dos mecanismos específicos de flash."
+    },
+    {
+      "key": "e4",
+      "title": "Hard links, symlinks e junctions",
+      "summary": "Trata referências por caminho como cópias ou hard links e ignora efeito de exclusão do nome, identidade de inode e limitações entre volumes."
+    },
+    {
+      "key": "e5",
+      "title": "Formatos locais e características tecnológicas",
+      "summary": "Troca FAT, NTFS, ext2/3/4, HFS+ e F2FS, atribuindo journaling ou ACLs nativos a formatos que não os oferecem. Focar arquitetura e casos de uso."
+    },
+    {
+      "key": "e6",
+      "title": "Arquitetura do HDFS confundida com formato local",
+      "summary": "Descreve NameNode como armazenamento obrigatório de todos os bytes ou confunde HDFS com HFS+, FAT e volumes formatados. Separar metadados, DataNodes e replicação."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "O sistema de arquivos define regras de organização lógica de arquivos e diretórios, não se confundindo com o dispositivo físico que armazena seus dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Sistema de arquivos é a estrutura lógica de nomes, metadados, alocação e acesso. HD e SSD são meios físicos; tabela de partições e firmware também pertencem a camadas distintas. Confundir essas funções gera conclusões erradas sobre formatação.",
+      "section": "Fundamentos, estruturas e operação dos sistemas de arquivos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em sistemas baseados em inodes, cada inode deve armazenar obrigatoriamente o nome completo do arquivo para permitir sua identificação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O inode armazena atributos e referências ao objeto, enquanto entradas de diretório associam nomes a ele. A separação permite que múltiplos nomes identifiquem o mesmo inode por meio de links físicos, sem duplicar necessariamente o conteúdo.",
+      "section": "Fundamentos, estruturas e operação dos sistemas de arquivos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A existência de espaço livre no volume garante que um arquivo em expansão receba blocos fisicamente contíguos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Espaço livre total não implica uma região contínua suficientemente grande. A alocação pode distribuir blocos por trechos separados, conforme política do sistema e ocupação do volume; daí surge fragmentação externa de arquivos.",
+      "section": "Fundamentos, estruturas e operação dos sistemas de arquivos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A fragmentação interna pode ocorrer mesmo quando os blocos usados por um arquivo são contíguos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Fragmentação interna decorre do espaço não utilizado dentro da unidade de alocação reservada, sobretudo na última unidade do arquivo. Portanto, independe de os clusters estarem próximos ou dispersos no dispositivo.",
+      "section": "Fundamentos, estruturas e operação dos sistemas de arquivos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O VFS do Linux é um formato persistente único que substitui ext4 e F2FS na gravação dos metadados dos volumes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "VFS é uma camada de abstração de interface entre operações do sistema e implementações concretas, não um formato obrigatório de disco. Ext4 e F2FS mantêm estruturas próprias de metadados, alocação e recuperação no armazenamento.",
+      "section": "Fundamentos, estruturas e operação dos sistemas de arquivos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao examinar um volume Linux formatado em ext4, uma administradora quer identificar a estrutura que guarda metadados e referências aos blocos de um arquivo, sem necessariamente guardar seu nome. Trata-se de:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "inode",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "registro de inicialização mestre",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "setor da tabela GPT",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "célula da memória flash",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ponteiro de firmware UEFI",
+          "correct": false
+        }
+      ],
+      "explanation": "O inode reúne metadados e endereçamento de dados do objeto, enquanto o diretório associa o nome ao identificador. MBR e GPT descrevem partições; flash é um meio físico e UEFI é interface de firmware.",
+      "section": "Fundamentos, estruturas e operação dos sistemas de arquivos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema de arquivos com clusters de 4 KiB, um arquivo de 1 KiB usa apenas um cluster. Qual consequência é esperada, desconsiderados metadados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O arquivo necessariamente foi dividido em quatro fragmentos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Há 3 KiB não utilizados dentro do cluster alocado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O sistema ocupou 1 KiB físico sem reserva adicional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A tabela de partições passou a ter três entradas extras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os 3 KiB livres exigem criação de um novo inode.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com unidade de alocação de 4 KiB, o conteúdo de 1 KiB não preenche o espaço reservado. Os 3 KiB restantes exemplificam fragmentação interna, sem relação necessária com fragmentação externa ou partições.",
+      "section": "Fundamentos, estruturas e operação dos sistemas de arquivos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma comparação de técnicas de alocação, qual descrição corresponde ao uso de extents?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dividir um disco obrigatoriamente em quatro partições primárias.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir a necessidade de diretórios por caminhos de firmware.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Registrar intervalos de blocos contíguos em vez de listar individualmente todos os blocos do intervalo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Gravar todo arquivo exclusivamente em um único bloco físico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter duas cópias idênticas de cada arquivo no mesmo volume.",
+          "correct": false
+        }
+      ],
+      "explanation": "Extents compactam a representação de sequências contíguas, reduzindo estruturas de mapeamento. Eles não impõem que todo arquivo ocupe um único trecho, não replicam arquivos e não representam partições ou caminhos de firmware.",
+      "section": "Fundamentos, estruturas e operação dos sistemas de arquivos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação registra sucesso ao escrever um documento, mas ocorre queda de energia antes de todas as páginas modificadas saírem do cache. Qual conclusão é tecnicamente adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Toda chamada de escrita comum equivale a um backup completo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O journaling sempre sincroniza instantaneamente cada byte do usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Caches de escrita só existem em unidades mecânicas, não em SSDs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O sucesso de uma chamada de escrita comum não prova que todas as alterações já estejam persistidas no meio físico.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Metadados e dados de aplicações possuem invariavelmente a mesma garantia de durabilidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "A escrita pode ser confirmada enquanto parte das informações ainda está em memória ou cache. O mecanismo de sincronização e as garantias do hardware devem ser considerados; journal não dispensa sincronização nem backup.",
+      "section": "Fundamentos, estruturas e operação dos sistemas de arquivos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo com várias extensões foi excluído do diretório, mas um processo mantém um descritor aberto para ele em um sistema Unix típico. O que pode ocorrer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O descritor aberto obriga a recriação imediata do nome excluído.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A remoção da entrada apaga instantaneamente todos os blocos físicos por sobrescrita segura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O inode passa a ser, necessariamente, uma entrada da tabela de partições.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O desligamento do processo converte automaticamente o arquivo em link simbólico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O objeto permanece acessível ao processo até o fechamento da última referência pertinente.",
+          "correct": true
+        }
+      ],
+      "explanation": "Em sistemas Unix, a remoção do nome reduz as referências de diretório, mas objetos ainda abertos podem continuar acessíveis. A liberação de armazenamento depende das referências remanescentes; excluir não significa sobrescrever com segurança.",
+      "section": "Fundamentos, estruturas e operação dos sistemas de arquivos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O journaling pode acelerar a recuperação de consistência após desligamento abrupto ao permitir reprocessar alterações de metadados registradas e confirmadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Transações devidamente registradas podem ser reaplicadas após falha, recuperando a consistência estrutural sem depender exclusivamente de verificação completa. Isso não significa recuperação garantida de cada versão do conteúdo de usuário.",
+      "section": "Journaling, consistência, falhas e recuperação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um volume com journaling dispensa rotinas de backup, pois o diário guarda versões completas de todos os arquivos ao longo do tempo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O journal é mecanismo de consistência, frequentemente circular e focado em metadados, e não repositório de versões históricas. Exclusões, falhas físicas, ataques e corrupção lógica exigem controles separados, especialmente backup testado.",
+      "section": "Journaling, consistência, falhas e recuperação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No ext4 em modo data=ordered, os metadados são registrados no diário, enquanto a ordenação de certos blocos de dados em relação ao commit é controlada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O modo ordered trabalha com journaling de metadados e impõe ordem de gravação pertinente dos dados antes da confirmação dos metadados. Não se deve concluir que o conteúdo integral de cada arquivo também foi registrado no diário.",
+      "section": "Journaling, consistência, falhas e recuperação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No ext4, selecionar data=writeback implica desligar o journaling de metadados e usar somente gravações diretas sem registro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O modo writeback ainda utiliza journaling de metadados. O que muda é a ausência da mesma garantia de ordenação dos blocos de dados em relação ao commit, aumentando riscos de conteúdo inesperado após uma falha.",
+      "section": "Journaling, consistência, falhas e recuperação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A recuperação por replay depende da interpretação de registros de transações e não equivale à restauração de uma cópia de segurança histórica de todo o volume.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O replay reconstrói alterações confirmadas segundo o protocolo do journal, voltado à consistência. Ele não devolve, por si, versões anteriores de documentos nem substitui backup, snapshots e procedimentos de recuperação de desastres.",
+      "section": "Journaling, consistência, falhas e recuperação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um técnico compara ext2 e ext3 em uma prova sobre recuperação após falhas. Qual recurso clássico caracteriza o ext3 em relação ao ext2?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Suporte a journaling.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uso obrigatório de NameNode e DataNodes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituição de arquivos por partições GPT.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criação automática de snapshots imutáveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eliminação completa de blocos e metadados.",
+          "correct": false
+        }
+      ],
+      "explanation": "A introdução de journaling é a distinção tradicional destacada no ext3 em comparação com ext2. HDFS usa nós distribuídos; GPT é estilo de partição; snapshots e eliminação de blocos não definem essa diferença.",
+      "section": "Journaling, consistência, falhas e recuperação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja que o ext4 registre, em seu diário, tanto dados quanto metadados das operações, aceitando maior custo de escrita. Que modo é o mais adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`data=writeback`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`data=journal`",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`data=ordered`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`noatime`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`discard`",
+          "correct": false
+        }
+      ],
+      "explanation": "No modo journal, as alterações de dados e metadados passam pelo diário. Ordered e writeback não fazem journaling integral dos dados de arquivo; noatime e discard tratam de outros comportamentos de montagem e armazenamento.",
+      "section": "Journaling, consistência, falhas e recuperação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma falha elétrica, um volume recupera a árvore de diretórios, mas o último parágrafo de um documento não aparece. Qual interpretação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O episódio comprova que nenhum journal foi utilizado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A recuperação deveria ter criado uma nova partição automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Consistência dos metadados não assegura necessariamente a persistência de toda escrita recente do usuário.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A falta do parágrafo prova corrupção irreparável do hardware.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O fato demonstra que todos os dados do arquivo passaram pelo journal.",
+          "correct": false
+        }
+      ],
+      "explanation": "O diário pode preservar coerência estrutural sem garantir todo conteúdo recente. É necessário diferenciar atomicidade e consistência de metadados da durabilidade do documento; sincronização e proteção contra perdas são medidas adicionais.",
+      "section": "Journaling, consistência, falhas e recuperação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em análise de armazenamento, um candidato afirma que o journal deve conter, permanentemente, o histórico de toda alteração já realizada. Por que a afirmação é inadequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque um journal sempre é um disco físico separado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque o NTFS impede qualquer registro de metadados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque a recuperação usa obrigatoriamente a tabela MBR como histórico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque o diário pode reutilizar espaço à medida que transações antigas deixam de ser necessárias à recuperação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Porque sistemas com journal não mantêm diretórios.",
+          "correct": false
+        }
+      ],
+      "explanation": "O diário é usado para completar ou recuperar transações recentes e pode operar como estrutura circular. Não é arquivo permanente de auditoria ou controle de versões, e sua existência não determina um dispositivo separado.",
+      "section": "Journaling, consistência, falhas e recuperação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador propõe usar somente o log transacional do NTFS para recuperar arquivos apagados por engano uma semana antes. A avaliação adequada é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A proposta é suficiente, pois o journal retém todos os arquivos indefinidamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A proposta funciona apenas quando a unidade está em MBR, nunca em GPT.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A proposta converte automaticamente hard links em cópias independentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A proposta exige substituir a MFT pela tabela de alocação da FAT32.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A proposta é inadequada, pois o log de consistência não substitui uma política de backup e retenção de versões.",
+          "correct": true
+        }
+      ],
+      "explanation": "O log transacional do NTFS está associado à consistência das operações e não garante recuperar versões antigas ou exclusões. Backup, retenção e testes de restauração são necessários; o estilo de partição não altera tal finalidade.",
+      "section": "Journaling, consistência, falhas e recuperação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao criar um hard link Unix para um arquivo comum, o novo nome passa a referenciar um novo inode independente, contendo cópia integral dos dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Um hard link oferece outra entrada de diretório que referencia o mesmo inode do arquivo, não uma cópia com objeto independente. Alterações de conteúdo aparecem por ambos os nomes; a existência de links afeta a liberação do objeto.",
+      "section": "Links físicos, simbólicos e fragmentação de arquivos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um link simbólico pode tornar-se quebrado quando o caminho ao qual aponta deixa de existir.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O symlink representa uma referência ao destino. A exclusão ou movimentação do alvo pode tornar a resolução impossível, embora o link simbólico ainda exista como objeto separado; esse comportamento difere de um hard link.",
+      "section": "Links físicos, simbólicos e fragmentação de arquivos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando `ln -s origem destino`, em um sistema GNU/Linux, cria obrigatoriamente uma segunda cópia independente dos bytes de origem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A opção -s cria um link simbólico que referencia o caminho de destino pretendido; não duplica os bytes do conteúdo. Dependendo de como o caminho foi informado, o link pode até ser criado apontando para alvo inexistente.",
+      "section": "Links físicos, simbólicos e fragmentação de arquivos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em condições normais, a remoção de um dos dois hard links de um mesmo inode não elimina o conteúdo enquanto o outro nome ainda o referencia.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Como os dois nomes apontam ao mesmo objeto, apagar um deles só reduz a contagem de links. O outro nome continua acessando o arquivo; a recuperação do espaço depende das referências restantes, e não da antiguidade do nome.",
+      "section": "Links físicos, simbólicos e fragmentação de arquivos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em SSDs, a operação TRIM é idêntica à desfragmentação tradicional, pois ambas necessariamente movem arquivos para blocos contíguos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "TRIM informa ao dispositivo quais blocos lógicos não estão mais em uso; desfragmentação reorganiza extents ou alocações do sistema de arquivos. As duas técnicas têm finalidades distintas, ainda que ferramentas modernas as agrupem como otimização.",
+      "section": "Links físicos, simbólicos e fragmentação de arquivos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário quer criar, em Linux, uma referência por caminho para um diretório, sem copiá-lo, mesmo que esteja localizado em outro sistema de arquivos. Qual escolha é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Link simbólico, usando `ln -s`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Link físico obrigatório entre dois volumes diferentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cópia integral do diretório pela tabela MBR.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criação de um novo inode idêntico em outro volume via `ln` simples.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desfragmentação automática da árvore de diretórios.",
+          "correct": false
+        }
+      ],
+      "explanation": "Links simbólicos referenciam caminhos e podem indicar diretórios em volumes distintos. Hard links comuns não atravessam sistemas de arquivos, e a operação de criar atalho não é um procedimento de particionamento ou desfragmentação.",
+      "section": "Links físicos, simbólicos e fragmentação de arquivos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois nomes exibidos por `ls -li` possuem o mesmo número de inode dentro de um mesmo volume Unix. Em contexto usual de arquivos regulares, isso sugere:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Que são cópias independentes produzidas por journaling.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Que ambos são entradas que se referem ao mesmo objeto por links físicos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Que necessariamente constituem dois sistemas de arquivos montados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que um deles é sempre um symlink para o outro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Que seus conteúdos precisam ocupar regiões físicas diferentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "A igualdade do inode dentro do mesmo sistema de arquivos indica identidade do objeto, compatível com hard links. Symlinks possuem objetos próprios e cópias independentes normalmente têm inodes distintos.",
+      "section": "Links físicos, simbólicos e fragmentação de arquivos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Windows, um ponto de junção (junction) criado em NTFS deve ser compreendido como:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um clone integral de cada arquivo contido na pasta apontada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O nome dado ao journal de metadados do NTFS.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um mecanismo de redirecionamento de caminho de diretório, distinto de hard link.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Um esquema substituto da tabela de partições GPT.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um cluster especial da FAT32 para links físicos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Junctions são recursos de redirecionamento usados para diretórios no NTFS. Não são hard links, não duplicam automaticamente a árvore apontada e não correspondem nem ao diário do volume nem ao particionamento.",
+      "section": "Links físicos, simbólicos e fragmentação de arquivos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um HDD intensamente utilizado, arquivos crescem em vários trechos separados. Qual medida tem maior relação direta com o problema de acesso causado por dispersão de blocos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar o estilo de partição GPT por MBR sem analisar arquivos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar hard links para cada arquivo para assegurar cópia contígua.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar o cache de páginas como solução universal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Avaliar a fragmentação e a pertinência de desfragmentação do volume mecânico.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Converter links simbólicos em novos setores de boot.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em HDD, dispersão de extents pode aumentar movimentos mecânicos; avaliar desfragmentação faz sentido conforme uso e ferramenta. Particionamento e links não reorganizam automaticamente dados, e desativar cache não resolve a causa.",
+      "section": "Links físicos, simbólicos e fragmentação de arquivos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma administradora cria `ln -s ../docs/relatorio.txt /srv/atalhos/r`. A que localização o caminho relativo codificado no symlink é interpretado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sempre a partir do diretório pessoal da administradora.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A partir do último diretório usado pelo shell que abrir o link.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sempre a partir da raiz do primeiro disco físico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A partir do setor inicial da partição GPT.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A partir do diretório que contém o próprio link simbólico.",
+          "correct": true
+        }
+      ],
+      "explanation": "O destino relativo de um symlink é resolvido em relação à localização do próprio link, aqui o diretório que o contém. Esse detalhe explica links quebrados após movimentações; a posição do shell não redefine o texto do alvo.",
+      "section": "Links físicos, simbólicos e fragmentação de arquivos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A FAT32 não possui journaling nativo equivalente ao mecanismo transacional de metadados presente no NTFS.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A FAT32 é baseada em tabela de alocação e não oferece o journal de metadados característico do NTFS. Essa distinção é relevante em desligamentos abruptos, embora a existência de journaling não torne o NTFS imune a perdas.",
+      "section": "Comparação de FAT, NTFS, ext, HFS+ e F2FS",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O ext2 foi projetado como sistema de arquivos distribuído do Hadoop, enquanto o ext4 é apenas uma tabela de partições.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Ext2 e ext4 pertencem à família de sistemas locais usados no Linux, com estruturas de inodes; ext4 possui recursos de journaling. O sistema distribuído do Hadoop é o HDFS, e MBR/GPT são esquemas de partições.",
+      "section": "Comparação de FAT, NTFS, ext, HFS+ e F2FS",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No NTFS, a MFT é estrutura central de registros de arquivos, incluindo atributos relevantes à organização do volume.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A Master File Table contém registros de objetos do volume NTFS. Ela não é a FAT nem a tabela GPT; atributos e informações de armazenamento participam da representação de arquivos e diretórios.",
+      "section": "Comparação de FAT, NTFS, ext, HFS+ e F2FS",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O HFS+ e o HDFS são variações do mesmo formato local de disco da Apple, distinguindo-se apenas por uma letra na sigla.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "HFS+ é formato local histórico associado ao Mac OS Extended; HDFS é serviço distribuído do ecossistema Hadoop, baseado em NameNode e DataNodes. As arquiteturas, aplicações e mecanismos de armazenamento são profundamente diferentes.",
+      "section": "Comparação de FAT, NTFS, ext, HFS+ e F2FS",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O desenho do F2FS procura adequar padrões de gravação a características de armazenamento flash, adotando estruturas orientadas a segmentos e mecanismos de checkpoint.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "F2FS é flash-friendly, utiliza abordagem de inspiração log-structured e mecanismos próprios de recuperação, com segmentos e checkpoints. Isso não o transforma em sistema distribuído nem garante superioridade para toda carga de trabalho.",
+      "section": "Comparação de FAT, NTFS, ext, HFS+ e F2FS",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa precisa transportar em pendrive um único arquivo com tamanho acima de 4 GiB e compara FAT32 com exFAT. Qual é a escolha mais coerente entre esses dois formatos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "exFAT, porque não apresenta o limite clássico de arquivo da FAT32.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "FAT32, porque permite qualquer tamanho individual sem restrição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "FAT32, porque usa obrigatoriamente ACLs e compressão nativas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "FAT32, porque journaling completo elimina limites de arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "exFAT, porque funciona como NameNode distribuído.",
+          "correct": false
+        }
+      ],
+      "explanation": "FAT32 tem limitação conhecida para um único arquivo de cerca de 4 GiB menos um byte. exFAT permite arquivos maiores e é opção comum de mídia removível; isso não o torna sistema distribuído ou NTFS.",
+      "section": "Comparação de FAT, NTFS, ext, HFS+ e F2FS",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em comparação histórica entre sistemas da família ext, qual associação está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ext2 com HDFS; ext3 como partição GPT; ext4 como firmware UEFI.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ext2 sem journaling nativo; ext3 com journaling; ext4 com extents e recursos adicionais.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ext2 baseado em MFT; ext3 em FAT; ext4 exclusivamente em HFS+.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ext2 e ext3 exclusivamente distribuídos; ext4 sem estruturas de diretório.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ext4 sem journaling possível; ext3 sem inodes; ext2 obrigatório em flash.",
+          "correct": false
+        }
+      ],
+      "explanation": "A evolução didática da família ext destaca ausência de journal nativo no ext2, introdução do journal no ext3 e melhorias de alocação no ext4. As opções incorretas misturam formatos locais com firmware, particionamento e HDFS.",
+      "section": "Comparação de FAT, NTFS, ext, HFS+ e F2FS",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe utiliza Windows e precisa de controle de acesso detalhado a arquivos por ACLs, além de recursos de journaling. Qual formato se ajusta melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "FAT12",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "FAT16",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "NTFS",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "FAT32",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MBR",
+          "correct": false
+        }
+      ],
+      "explanation": "NTFS oferece controles de acesso, estrutura de metadados como a MFT e registro de operações. A família FAT não possui a mesma semântica de ACLs e journaling; MBR é um esquema de partição, não um sistema de arquivos.",
+      "section": "Comparação de FAT, NTFS, ext, HFS+ e F2FS",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sobre os formatos Apple, qual enunciado distingue de maneira correta HFS+ e APFS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "HFS+ e APFS são nomes intercambiáveis para a MFT do NTFS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "HFS+ é serviço distribuído do Hadoop, e APFS é um estilo de partições.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "APFS é uma extensão da FAT32, sem estrutura própria de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "HFS+ é formato anterior com suporte a journaling, enquanto APFS é formato mais moderno com mecanismos próprios de proteção contra falhas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "HFS+ não possui diretórios e, por isso, exige FAT32 para navegação.",
+          "correct": false
+        }
+      ],
+      "explanation": "HFS+ pertence à geração Mac OS Extended, podendo usar journal. APFS é formato posterior com projeto próprio, não mera renomeação do HFS+. Nenhum deles se confunde com HDFS, MBR/GPT ou MFT do Windows.",
+      "section": "Comparação de FAT, NTFS, ext, HFS+ e F2FS",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao avaliar F2FS para um dispositivo flash Linux, que argumento é tecnicamente válido sem incorrer em promessa universal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele substitui obrigatoriamente o controlador físico e elimina a FTL.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele converte todos os SSDs em clusters HDFS automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele é sempre superior ao ext4 em qualquer benchmark possível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele é apenas um nome comercial de FAT32 com ACLs adicionais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Seu projeto orientado a flash busca adequar gravações e gerenciamento de segmentos ao meio, mas o resultado depende da carga e do dispositivo.",
+          "correct": true
+        }
+      ],
+      "explanation": "F2FS foi desenvolvido pensando nas características de flash, com organização e limpeza de segmentos; desempenho varia com workload e dispositivo. Não substitui hardware, não é HDFS e não há ganho universal garantido.",
+      "section": "Comparação de FAT, NTFS, ext, HFS+ e F2FS",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O NameNode do HDFS é o servidor pelo qual devem obrigatoriamente trafegar todos os bytes dos arquivos lidos pelos clientes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O NameNode administra metadados e localização dos blocos. No fluxo típico, o cliente obtém informações de localização e transfere conteúdo diretamente dos DataNodes, evitando usar o NameNode como canal obrigatório de dados.",
+      "section": "HDFS e estilos de partição MBR e GPT",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "MBR e GPT são formas de organizar a tabela de partições e não determinam, por si sós, o sistema de arquivos contido em cada partição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A tabela de partições descreve regiões do dispositivo; o formato de arquivos é definido dentro do volume correspondente. Tanto NTFS quanto ext4 podem coexistir com diferentes arranjos de particionamento, conforme suporte técnico.",
+      "section": "HDFS e estilos de partição MBR e GPT",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "GPT é um tipo de sistema de arquivos mais recente que o NTFS, razão pela qual não podem existir em conjunto na mesma partição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "GPT identifica partições do dispositivo e NTFS organiza arquivos dentro de volume, sendo camadas complementares, não concorrentes. Uma instalação comum do Windows em UEFI utiliza disco GPT e partição de dados NTFS.",
+      "section": "HDFS e estilos de partição MBR e GPT",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No HDFS, a política de replicação pode manter cópias de blocos em DataNodes distintos a fim de aumentar a tolerância a falhas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A replicação de blocos em diferentes nós é mecanismo central do HDFS para disponibilidade e tolerância a falhas. A política concreta é configurável e não é equivalente a backup histórico contra exclusão ou erro lógico.",
+      "section": "HDFS e estilos de partição MBR e GPT",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O MBR protetor presente em um disco GPT transforma sua tabela de partições em uma tabela MBR convencional com quatro partições primárias utilizáveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O MBR protetor serve principalmente para compatibilidade defensiva com programas antigos que só entendem MBR. O disco continua adotando GPT, com cabeçalhos e tabelas próprias; não há conversão automática para quatro partições MBR tradicionais.",
+      "section": "HDFS e estilos de partição MBR e GPT",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma infraestrutura Hadoop utiliza servidores para armazenar blocos de arquivos e um serviço para gerenciar diretórios e a localização dos blocos. Qual par indica corretamente essas funções?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DataNodes armazenam blocos; NameNode administra os metadados do sistema distribuído.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "NameNode armazena todos os blocos; DataNodes apenas controlam a tabela GPT.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MBR armazena os blocos; NTFS administra os metadados globais do cluster.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "HFS+ guarda as réplicas; BIOS determina os caminhos dos arquivos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "F2FS substitui o NameNode; FAT32 substitui os DataNodes.",
+          "correct": false
+        }
+      ],
+      "explanation": "No HDFS, DataNodes mantêm os blocos e NameNode administra namespace e informações de localização. Os outros termos se referem a sistemas locais, tabelas de partições e firmware, que não exercem tais papéis no cluster.",
+      "section": "HDFS e estilos de partição MBR e GPT",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na instalação de Windows em modo UEFI, qual combinação expressa o arranjo usual esperado pelo instalador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Disco obrigatoriamente sem tabela de partições, com NTFS na memória de firmware.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Disco GPT com partição de sistema EFI, além das demais partições necessárias.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Disco MBR com quatro partições primárias exigidas para iniciar UEFI.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Disco HDFS, com NameNode substituindo a partição de sistema EFI.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Disco somente com ext2 e sem carregador de inicialização.",
+          "correct": false
+        }
+      ],
+      "explanation": "O cenário típico de instalação UEFI do Windows usa tabela GPT e ESP para arquivos de inicialização; o volume Windows pode usar NTFS. O firmware, as partições e os sistemas de arquivos cumprem funções diferentes.",
+      "section": "HDFS e estilos de partição MBR e GPT",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve adequadamente o MBR clássico em setores lógicos de 512 bytes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Utiliza cópia de segurança da tabela GPT como estrutura exclusiva de partição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Armazena arquivos em DataNodes e replica dados entre racks.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sua estrutura tradicional prevê quatro entradas primárias e limite prático de endereçamento da ordem de 2 TiB.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "É um sistema de arquivos com journaling completo de dados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substitui o sistema de arquivos NTFS por uma MFT obrigatória.",
+          "correct": false
+        }
+      ],
+      "explanation": "A tabela MBR clássica tem quatro entradas principais e utiliza endereços com alcance limitado em discos de setores de 512 bytes. GPT adota estruturas distintas; HDFS, journaling e MFT não integram a definição do MBR.",
+      "section": "HDFS e estilos de partição MBR e GPT",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um disco está particionado com GPT. Um utilitário antigo encontra uma entrada MBR protetora. Qual interpretação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A entrada prova que o disco usa somente quatro partições primárias MBR.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A entrada é um link físico que aponta para arquivos do sistema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A entrada indica que o NameNode está instalado no setor de boot.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A entrada protetora ajuda a evitar que ferramentas antigas tratem o disco GPT como espaço totalmente não particionado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A entrada substitui as cópias e verificações da estrutura GPT.",
+          "correct": false
+        }
+      ],
+      "explanation": "O MBR protetor preserva compatibilidade defensiva diante de software que interpreta apenas MBR, sem mudar o estilo GPT. Cabeçalhos, tabelas e verificações de integridade pertencem ao próprio esquema GPT.",
+      "section": "HDFS e estilos de partição MBR e GPT",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe pretende usar HDFS para armazenar milhares de arquivos pequenos com atualizações aleatórias e frequentes de bytes no meio de cada arquivo. Que ressalva se impõe?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O HDFS exige que cada arquivo pequeno seja guardado integralmente no NameNode como dado de usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O uso de NameNode torna leitura e escrita aleatórias equivalentes ao NTFS local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O HDFS converte arquivos em partições primárias GPT a cada modificação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A replicação dos blocos elimina toda sobrecarga de metadados de arquivos pequenos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O modelo do HDFS favorece arquivos grandes e fluxos sequenciais, não sendo otimizado para esse padrão de operações.",
+          "correct": true
+        }
+      ],
+      "explanation": "HDFS foi projetado para grandes arquivos e throughput, com modelo de escrita distinto do sistema local de atualização aleatória. Muitos arquivos pequenos pressionam metadados; replicação protege blocos, não elimina esse custo.",
+      "section": "HDFS e estilos de partição MBR e GPT",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Comparação de funcionalidades do sistema de arquivos",
+      "publisher": "Microsoft Learn",
+      "reference": "NTFS, exFAT e FAT32; journal, hard links e recursos",
+      "url": "https://learn.microsoft.com/pt-br/windows/win32/fileio/filesystem-functionality-comparison",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Hard Links and Junctions",
+      "publisher": "Microsoft Learn",
+      "reference": "Links físicos, junctions e links simbólicos no NTFS",
+      "url": "https://learn.microsoft.com/en-us/windows/win32/fileio/hard-links-and-junctions",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ext4 General Information",
+      "publisher": "Linux Kernel Documentation",
+      "reference": "Recursos do ext4 e modos data=journal, ordered e writeback",
+      "url": "https://docs.kernel.org/admin-guide/ext4.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "3.6. Journal (jbd2)",
+      "publisher": "Linux Kernel Documentation",
+      "reference": "Estrutura e recuperação por journal do ext4",
+      "url": "https://docs.kernel.org/filesystems/ext4/journal.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Flash-Friendly File System (F2FS)",
+      "publisher": "Linux Kernel Documentation",
+      "reference": "Projeto do F2FS, segmentos e checkpoints",
+      "url": "https://docs.kernel.org/filesystems/f2fs.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Volume Format Comparison",
+      "publisher": "Apple Developer Documentation",
+      "reference": "Comparação HFS+ e APFS",
+      "url": "https://developer.apple.com/library/archive/documentation/FileManagement/Conceptual/APFS_Guide/VolumeFormatComparison/VolumeFormatComparison.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Technical Note TN1150: HFS Plus Volume Format",
+      "publisher": "Apple Developer Documentation",
+      "reference": "Estruturas e journaling do formato HFS+",
+      "url": "https://developer.apple.com/library/archive/technotes/tn/tn1150.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "HDFS Architecture",
+      "publisher": "Apache Hadoop",
+      "reference": "Arquitetura NameNode, DataNode, blocos e replicação",
+      "url": "https://hadoop.apache.org/docs/current/hadoop-project-dist/hadoop-hdfs/HdfsDesign.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Windows Setup: Installing using the MBR or GPT partition style",
+      "publisher": "Microsoft Learn",
+      "reference": "Correspondência entre modo de inicialização e estilo de partição",
+      "url": "https://learn.microsoft.com/pt-br/windows-hardware/manufacture/desktop/windows-setup-installing-using-the-mbr-or-gpt-partition-style?view=windows-11",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Convert a disk to GPT or MBR",
+      "publisher": "Microsoft Learn",
+      "reference": "Diferenças de esquema, partições e capacidade do GPT",
+      "url": "https://learn.microsoft.com/en-us/windows-server/storage/disk-management/change-disk-partition-scheme?tabs=diskpart",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ln invocation",
+      "publisher": "GNU Coreutils Manual",
+      "reference": "Criação e semântica de links físicos e simbólicos",
+      "url": "https://www.gnu.org/software/coreutils/manual/html_node/ln-invocation.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "defrag",
+      "publisher": "Microsoft Learn",
+      "reference": "Otimização de HDD e SSD, retrim e desfragmentação",
+      "url": "https://learn.microsoft.com/pt-br/windows-server/administration/windows-commands/defrag",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}
