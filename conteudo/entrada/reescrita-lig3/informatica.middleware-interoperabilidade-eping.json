@@ -1,0 +1,1767 @@
+{
+    "id":  "informatica.middleware-interoperabilidade-eping",
+    "subject":  "Informática",
+    "title":  "Middleware, APS e interoperabilidade ePING",
+    "version":  3,
+    "status":  "PUBLISHED",
+    "aliases":  [
+                    "Desenvolvimento de integrações com middleware",
+                    "Tecnologia Middleware em integrações",
+                    "Middleware e interoperabilidade de sistemas",
+                    "Middleware para integração de aplicações",
+                    "Application Platform Suite e middleware",
+                    "Plataforma de aplicações APS e integração",
+                    "Application Platform Suite para sistemas",
+                    "Interoperabilidade de sistemas governamentais",
+                    "Padrões de interoperabilidade ePING",
+                    "Padrões ePING para integração de sistemas",
+                    "ePING e tecnologia middleware"
+                ],
+    "scope":  {
+                  "covers":  "Desenvolvimento de integrações com middleware: finalidade, funções, componentes, padrões de comunicação e mediação, cenários de uso, limites e cuidados operacionais; Application Platform Suite (APS) como suíte integrada de serviços de plataforma para executar e integrar aplicações; interoperabilidade técnica, semântica e organizacional; arquitetura ePING, alcance e obrigatoriedade no Executivo federal, cinco segmentos, políticas gerais, classificação das especificações e exemplos de padrões e práticas relevantes a integrações.",
+                  "excludes":  "Interoperabilidade e regulação de dados de saúde, implementação de produtos específicos de middleware ou APS, configuração detalhada de servidores, protocolos de rede em profundidade e catálogo integral de cada especificação técnica da ePING."
+              },
+    "theoryTitle":  "Integração de aplicações com middleware, APS e padrões ePING",
+    "chapters":  [
+                     {
+                         "title":  "1. Integração e middleware",
+                         "markdown":  "### Por que os sistemas precisam de uma camada de integração\n\nUma organização pode depender de vários sistemas que nasceram em momentos diferentes. Ana registra o pedido em um portal; o estoque consulta outro programa; a cobrança é feita por um serviço separado. Se cada aplicação precisar conhecer por dentro todas as outras, qualquer mudança em uma delas pode quebrar várias conexões. A integração fica cara, difícil de acompanhar e vulnerável a falhas em cadeia.\n\n**Middleware** é o software intermediário que oferece serviços para aplicações se comunicarem e cooperarem sem precisarem implementar sozinhas todos os detalhes da comunicação. Pode conectar tecnologias distintas, encaminhar uma chamada, converter uma mensagem ou coordenar o processamento. Ele facilita o intercâmbio, mas não decide por si só o significado correto de cada dado nem resolve divergências entre instituições.\n\n\u003e **Siglas e termos deste capítulo**\n\u003e - **Middleware**: software que presta serviços intermediários de comunicação, mediação ou coordenação entre aplicações.\n\u003e - **Endpoint**: endereço lógico pelo qual um serviço pode ser chamado.\n\u003e - **Contrato**: descrição acordada das operações, mensagens, formatos e regras de uso de um serviço.\n\u003e - **Acoplamento**: dependência entre componentes; quanto mais um sistema depende dos detalhes internos do outro, maior o acoplamento.\n\u003e - **Broker**: componente que recebe mensagens de produtores e as encaminha a consumidores.\n\u003e - **API (Application Programming Interface)**: interface que define como um programa pode solicitar operações ou dados de outro.\n\n### Funções e limites\n\nConforme a arquitetura, o middleware pode oferecer conectores para tecnologias diferentes, roteamento de solicitações, transformação de formatos, adaptação de protocolos, filas, autenticação, registro de chamadas e monitoramento. Uma equipe combina essas funções segundo o problema. Uma camada de integração não substitui o contrato: os participantes ainda precisam concordar sobre campos obrigatórios, unidades, erros, permissões e versões.\n\n| Situação | Função que pode ajudar | O que precisa ser definido além dela |\n| --- | --- | --- |\n| Aplicações usam mecanismos diferentes de comunicação | Conector ou adaptador | Conversão que preserve conteúdo e erros relevantes |\n| Uma mensagem deve chegar a vários destinos | Roteamento ou publicação e assinatura | Responsável por processar cada cópia e tratar falhas |\n| O endereço do serviço muda | Registro ou configuração de destinos | Processo para atualizar e verificar a configuração |\n| Uma aplicação antiga não usa o formato novo | Transformação de mensagem | Regras de mapeamento e compatibilidade semântica |\n\nUm **gateway de API** é um componente que intermedeia chamadas a interfaces de serviço. Pode autenticar consumidores, aplicar políticas, registrar solicitações e encaminhar tráfego para diferentes versões. Um **broker de mensagens** concentra o recebimento e a distribuição de mensagens, frequentemente por filas ou tópicos. Um servidor de aplicações hospeda e executa aplicações. Um barramento de serviços pode integrar diversas funções. São soluções relacionadas, não nomes equivalentes para o mesmo objeto.\n\n### Chamada síncrona e processamento assíncrono\n\nEm uma interação **síncrona**, o solicitante aguarda a resposta associada à chamada. É conveniente quando a pessoa precisa do resultado imediatamente, como consultar a situação de um protocolo. Se o serviço remoto estiver lento, a espera pode se propagar aos componentes que aguardam.\n\nEm uma interação **assíncrona**, o produtor entrega uma mensagem para processamento posterior, normalmente por uma fila ou broker, e não espera que o trabalho inteiro termine naquela mesma conversa. Isso ajuda a absorver picos e permite que produtor e consumidor estejam ativos em momentos diferentes. O custo é aceitar atraso e monitorar mensagens pendentes, falhas e repetição.\n\nMensageria não garante automaticamente que cada operação seja executada uma única vez. Um consumidor pode concluir o trabalho e falhar antes de confirmar a mensagem; a entrega repetida pode fazê-lo processá-la de novo. Uma operação **idempotente** produz o mesmo efeito relevante quando repetida com os mesmos dados. Quando a repetição for possível, a equipe deve projetar idempotência, deduplicação ou reconciliação e definir destino para mensagens que esgotam as tentativas.\n\n### Exemplo passo a passo\n\n1. Ana envia um pedido pelo portal. O portal valida os campos e registra um identificador único do pedido.\n2. O sistema publica uma mensagem para o broker, em vez de chamar diretamente cada serviço interno.\n3. O serviço de estoque recebe a mensagem e reserva os itens. O serviço de cobrança recebe outra mensagem e prepara a cobrança.\n4. Se o estoque estiver temporariamente indisponível, a mensagem pode aguardar ou ser tentada outra vez; o portal não precisa manter Ana conectada durante toda a recuperação.\n5. A equipe acompanha o identificador, registra o resultado e trata a duplicata sem reservar o mesmo item duas vezes.\n\nO middleware organiza a passagem entre componentes, mas as regras de pedido, estoque e cobrança continuam pertencendo às aplicações e aos responsáveis pelo processo.\n\n### Como cai na prova\n\n- Middleware medeia a comunicação e pode conectar, rotear, transformar e coordenar interações.\n- Uma chamada síncrona espera resposta; o processamento assíncrono desacopla o tempo de envio e execução.\n- Gateway, broker e servidor de aplicações têm responsabilidades diferentes, embora possam compor uma solução integrada.\n- Filas apoiam resiliência e desacoplamento, mas exigem tratamento de atraso, repetição e falha.\n\n**Pegadinha:** afirmar que a fila garante processamento exatamente uma vez ou que o middleware corrige sozinho dados com significado incompatível. A fila pode entregar novamente, e a mediação técnica não substitui contrato e governança dos dados.\n\n**Resumo para a prova**\n\n- Middleware é software intermediário que apoia a comunicação entre aplicações.\n- Conectores, roteamento, transformação, autenticação e monitoramento são funções possíveis.\n- Síncrono espera resposta na chamada; assíncrono permite processar depois.\n- Repetições exigem idempotência, deduplicação ou reconciliação.\n- A camada de integração não define sozinha o sentido dos dados nem as regras de negócio.\n"
+                     },
+                     {
+                         "title":  "2. APS",
+                         "markdown":  "### O que uma suíte de plataforma resolve\n\nUma equipe que desenvolve aplicações precisa de mais do que código: precisa de um ambiente para executar serviços, conectar componentes, controlar acessos, administrar versões e acompanhar falhas. Se cada projeto monta tudo de forma diferente, tarefas comuns se repetem e a operação fica inconsistente.\n\n**APS (Application Platform Suite)** é uma suíte de plataforma de aplicações: um conjunto integrado de recursos para desenvolver, executar, integrar e administrar aplicações. É uma categoria ampla de solução, não um padrão técnico único nem um produto universal. O conteúdo depende da oferta adotada.\n\n\u003e **Siglas e termos deste capítulo**\n\u003e - **APS (Application Platform Suite)**: suíte integrada de serviços de plataforma usados por aplicações.\n\u003e - **Runtime**: ambiente de execução que fornece recursos para uma aplicação funcionar.\n\u003e - **Servidor de aplicações**: plataforma que hospeda componentes de software e oferece serviços de execução e administração.\n\u003e - **Conector**: componente que permite a uma aplicação acessar outra tecnologia, sistema ou protocolo.\n\u003e - **API (Application Programming Interface)**: interface que declara operações que outro software pode utilizar.\n\u003e - **Observabilidade**: capacidade de entender o estado e o comportamento do sistema por registros, métricas e rastreamento de eventos.\n\n### Componentes possíveis e responsabilidades\n\nUma APS pode reunir runtimes, servidores de aplicações, conectores, mensageria, gestão de interfaces, identidade, administração e monitoramento. Nem toda suíte oferece os mesmos elementos. O nome APS não basta para concluir que determinado produto tenha um recurso: é preciso examinar a arquitetura e as responsabilidades efetivamente fornecidas.\n\n| Recurso | Uso típico | Decisão que continua com a equipe |\n| --- | --- | --- |\n| Runtime e servidor de aplicações | Executar e hospedar componentes | Dimensionar recursos, isolamento e atualizações |\n| Mensageria | Trocar mensagens sem chamada direta contínua | Definir repetição, ordenação e confirmação necessárias |\n| Conectores | Acessar sistemas antigos ou tecnologias distintas | Conferir a conversão dos dados e o tratamento de erros |\n| Gestão de API | Publicar e mediar interfaces | Definir contrato, autorização, limites e versões |\n| Identidade | Associar solicitações a usuários ou serviços | Determinar permissões e responsabilidades de acesso |\n| Monitoramento e administração | Acompanhar instâncias e chamadas | Criar alertas, designar responsáveis e responder a incidentes |\n\nAPS não é sinônimo de **middleware**. Middleware descreve software intermediário que apoia a comunicação ou mediação; uma APS pode incluir middleware entre seus vários serviços. Também não é, por definição, sistema operacional, banco de dados ou aplicação de negócio. Um servidor de aplicações pode ser um componente de uma APS, sem constituir por si só toda a suíte.\n\n### Benefícios e escolhas\n\nUma plataforma compartilhada pode reduzir a repetição de mecanismos, facilitar implantação e padronizar configuração, conexões, acesso e monitoramento. Também pode ajudar a integrar sistemas antigos e novos. Esses benefícios dependem de escolhas conscientes: compatibilidade com aplicações existentes, capacidade de expansão, disponibilidade, controles de segurança, suporte técnico, habilidades da equipe, licenciamento e portabilidade.\n\nUma plataforma ampla também cria dependências comuns. Atualizar uma versão pode afetar diversos serviços; uma falha central pode atingir várias aplicações. A equipe precisa governar configurações e mudanças, planejar redundância e recuperação e avaliar a dependência de fornecedor. Padronizar a execução não torna automaticamente compatíveis os contratos de negócio nem o significado dos campos trocados.\n\n### Exemplo passo a passo\n\n1. Ana coordena a implantação de um serviço de consulta que combina dados de um sistema antigo e de um portal novo.\n2. A APS fornece um runtime para hospedar a nova aplicação e um conector para conversar com o sistema antigo.\n3. A equipe documenta que o campo `identificador` do legado corresponde ao número de protocolo do portal, e valida formato, ausência de valor e erros possíveis.\n4. O serviço é publicado por uma API; a equipe define quem pode consultar cada operação e como uma nova versão será anunciada.\n5. Métricas e registros permitem detectar lentidão. A equipe ainda define alertas e quem age quando uma dependência fica indisponível.\n\nO exemplo mostra o papel da plataforma como base operacional. O entendimento dos dados, a autorização e o processo de recuperação continuam exigindo decisões humanas e regras do serviço.\n\n### Como cai na prova\n\n- APS agrupa serviços de plataforma para desenvolver, executar, integrar e administrar aplicações.\n- O conjunto concreto de componentes varia; o rótulo não garante que todo produto tenha as mesmas capacidades.\n- Middleware pode fazer parte de uma APS, mas os conceitos não são intercambiáveis.\n- Uma plataforma padronizada não corrige contrato incompatível, dado ambíguo nem permissão mal definida.\n\n**Pegadinha:** tratar APS como nome de um protocolo ou afirmar que um servidor de aplicações é necessariamente uma suíte completa. APS é uma categoria de conjunto integrado; o servidor pode ser somente um de seus componentes.\n\n**Resumo para a prova**\n\n- APS significa Application Platform Suite, ou suíte de plataforma de aplicações.\n- Pode reunir execução, hospedagem, conectores, mensageria, identidade, gestão de interfaces e monitoramento.\n- Middleware pode compor a suíte, sem ser sinônimo dela.\n- A equipe mantém responsabilidade por contratos, dados, acessos, capacidade e recuperação.\n- Padronização operacional não cria, por si só, interoperabilidade semântica.\n"
+                     },
+                     {
+                         "title":  "3. Interoperabilidade",
+                         "markdown":  "### Quando conectar não significa interoperar\n\nDois sistemas podem trocar mensagens com sucesso e ainda assim produzir resultados errados. Imagine que o sistema de Ana envia o campo `data` e o sistema receptor o lê como data do pagamento, quando o emissor pretendia informar a data do atendimento. A transmissão foi tecnicamente bem-sucedida, mas o dado foi interpretado de forma incorreta.\n\n**Interoperabilidade** é a capacidade de sistemas e organizações trabalharem em conjunto para trocar informações de modo eficaz e utilizá-las de forma compatível. Exige mais do que conexão: participantes precisam compreender o conteúdo e coordenar o que farão com ele.\n\n\u003e **Siglas e termos deste capítulo**\n\u003e - **ePING**: Padrões de Interoperabilidade de Governo Eletrônico, arquitetura de referência que organiza premissas, políticas e especificações técnicas.\n\u003e - **Interoperabilidade técnica**: compatibilidade de redes, protocolos, formatos e mecanismos de comunicação.\n\u003e - **Interoperabilidade semântica**: compreensão compatível do significado e contexto dos dados.\n\u003e - **Interoperabilidade organizacional**: alinhamento de processos, responsabilidades e regras entre organizações.\n\u003e - **Vocabulário controlado**: conjunto organizado de termos com significados definidos para uso consistente.\n\u003e - **Ontologia**: representação formal de conceitos de um domínio e das relações entre eles.\n\n### Três dimensões complementares\n\n| Dimensão | Pergunta que responde | Exemplo de falha |\n| --- | --- | --- |\n| Técnica | Os sistemas conseguem se conectar e processar a estrutura? | Um serviço envia formato que o receptor não consegue ler |\n| Semântica | As partes atribuem o mesmo sentido aos campos? | `valor` significa reais para um sistema e centavos para outro |\n| Organizacional | Há acordo sobre processo, papéis e responsabilidade? | A solicitação chega, mas nenhuma instituição sabe quem deve atendê-la |\n\nAs três dimensões dependem umas das outras. Escolher um protocolo comum não define o sentido dos dados. Um vocabulário claro não resolve quem autoriza o acesso. Um acordo entre equipes não faz um formato ilegível se tornar processável. A integração precisa combinar conectividade, interpretação e cooperação.\n\n### Contratos e qualidade da informação\n\nUm contrato de serviço registra o que pode ser solicitado, quais dados são enviados, quais respostas e erros podem ocorrer e que condições os participantes devem cumprir. Um bom mapeamento entre sistemas preserva significado, unidade de medida, origem, regras de atualização e representação de informação ausente. A gestão de versões permite alterar o contrato de modo previsível e comunicar mudanças aos consumidores.\n\nA ePING organiza premissas, políticas e especificações para interoperabilidade de serviços de governo eletrônico. Ela não é um barramento central que encaminha as mensagens dos órgãos. A arquitetura orienta decisões institucionais e técnicas; cada integração continua precisando de implementação, contratos, dados governados e responsáveis definidos.\n\nA dimensão semântica pode ser apoiada por vocabulários controlados, taxonomias, ontologias e modelos de dados. Uma **taxonomia** classifica conceitos em categorias e relações hierárquicas. Esses recursos favorecem o cruzamento de dados provenientes de fontes distintas, desde que as equipes os mantenham e apliquem de forma coerente. Dados abertos, quando apropriados e compatíveis com as regras de privacidade, também podem apoiar transparência e reutilização.\n\n### Exemplo passo a passo\n\n1. Ana envia um pedido de atendimento do portal de uma instituição para uma equipe de outro órgão.\n2. A conexão técnica funciona e os campos chegam sem erro.\n3. O contrato esclarece que `dataInicio` indica o começo do atendimento, não a data de cadastro; ambos os sistemas usam o mesmo formato e fuso definido.\n4. Um vocabulário compartilhado informa o significado dos códigos de serviço, e o mapeamento identifica quais códigos antigos correspondem aos atuais.\n5. As duas instituições concordam que a equipe destinatária assume o caso após o recebimento e como devolverá o resultado.\n\nSe o passo 3 falhar, o problema é semântico; se o passo 2 falhar, é técnico; se o passo 5 não tiver acordo, é organizacional. Uma única integração pode apresentar mais de um tipo de falha.\n\n### Como cai na prova\n\n- Interoperabilidade combina capacidade de conexão, compreensão do conteúdo e coordenação entre organizações.\n- A dimensão técnica trata comunicação e compatibilidade; a semântica trata sentido; a organizacional trata processos e responsabilidades.\n- A ePING orienta por meio de premissas, políticas e especificações; não executa a troca por conta própria.\n- Contratos, vocabulários e mapeamentos reduzem ambiguidades, mas precisam ser mantidos.\n\n**Pegadinha:** concluir que, porque a mensagem chegou, houve interoperabilidade completa. A entrega comprova apenas parte da dimensão técnica; o significado e o processo ainda precisam estar alinhados.\n\n**Resumo para a prova**\n\n- Interoperar é trocar e utilizar informação com eficácia entre sistemas e organizações.\n- Técnica, semântica e organização são dimensões distintas e complementares.\n- Contrato e mapeamento devem explicitar significado, unidade, origem, versão e regras de ausência.\n- Vocabulários, taxonomias e ontologias ajudam a organizar conceitos.\n- ePING é arquitetura de referência, não middleware que realiza as integrações.\n"
+                     },
+                     {
+                         "title":  "4. Segurança e integração",
+                         "markdown":  "### Segurança começa antes da primeira mensagem\n\nUma integração pode transportar dados pessoais, informações operacionais ou decisões importantes. Se a equipe só pensar em segurança depois que o serviço entra em produção, pode descobrir tarde que qualquer sistema conectado consegue chamar operações sensíveis, que os registros não permitem investigar um incidente ou que uma falha interrompe todo o processo.\n\nSegurança em integrações é o conjunto de medidas para proteger os sistemas e informações durante criação, operação, manutenção e encerramento do serviço. A ePING trata segurança como dimensão própria e orienta que o nível de proteção seja adequado ao serviço e às informações. O fato de dois componentes estarem dentro da rede institucional não torna confiável todo acesso entre eles.\n\n\u003e **Siglas e termos deste capítulo**\n\u003e - **TIC**: Tecnologia da Informação e Comunicação.\n\u003e - **Confidencialidade**: acesso à informação restrito a quem tem autorização.\n\u003e - **Integridade**: proteção contra alteração ou destruição indevida.\n\u003e - **Autenticidade**: possibilidade de verificar a origem ou identidade associada a uma informação ou registro.\n\u003e - **Log**: registro cronológico de eventos relevantes de um sistema.\n\u003e - **ICP-Brasil**: Infraestrutura de Chaves Públicas Brasileira, estrutura relacionada a certificados e serviços de confiança digital no país.\n\u003e - **Risco residual**: risco que permanece depois da aplicação de controles.\n\n### Controles ao longo do ciclo de vida\n\nO planejamento começa identificando quais informações circularão, sua classificação e o impacto de acesso indevido, alteração, indisponibilidade ou divulgação. A equipe avalia riscos e define controles compatíveis com o nível de serviço. A análise acompanha o ciclo de desenvolvimento: requisitos, construção, testes, implantação, operação e mudanças.\n\nAutenticação verifica quem ou o que está fazendo a chamada; autorização determina quais operações essa identidade pode realizar. Devem ser aplicadas permissões necessárias ao serviço, evitando que uma credencial de integração tenha acesso amplo sem justificativa. A proteção dos dados em trânsito e armazenados deve considerar sua sensibilidade. Registros operacionais precisam permitir auditoria sem expor desnecessariamente valores secretos ou conteúdo pessoal.\n\n| Controle | Pergunta prática | Erro que ajuda a evitar |\n| --- | --- | --- |\n| Classificação e análise de risco | Que dano pode ocorrer e qual proteção é necessária? | Aplicar a mesma proteção a dados de sensibilidade diferente |\n| Autenticação e autorização | Quem chama e quais operações pode executar? | Tratar toda chamada da rede interna como confiável |\n| Proteção criptográfica | Como impedir leitura ou alteração indevida no trânsito ou armazenamento? | Expor dados porque o transporte parece privado |\n| Logs e auditoria | Que evento ocorreu, quando e sob qual identidade? | Não conseguir reconstruir falha ou uso indevido |\n| Sincronismo de tempo | Os registros de sistemas diferentes podem ser ordenados? | Investigar eventos com relógios divergentes |\n| Continuidade | Como manter ou recuperar o serviço após incidente? | Descobrir dependências críticas somente durante a interrupção |\n\nA ePING orienta manter registros para auditoria, sincronismo centralizado de tempo e mecanismos que protejam a autenticidade dos logs. Documentação de sistemas, controles e topologias deve ser atualizada e protegida. Quando a solução empregar criptografia ou certificação digital, devem ser observadas as regras aplicáveis, inclusive as relacionadas à ICP-Brasil. Isso não significa que toda integração precise usar a mesma técnica: o controle depende do risco e do contexto.\n\n### Segurança e disponibilidade\n\nUma integração segura também deve considerar disponibilidade. Se um serviço participa de processo crítico, a organização precisa saber quais dependências podem falhar e como manter níveis mínimos de operação ou recuperar o serviço. A continuidade complementa a prevenção: não elimina o risco, mas prepara a resposta ao risco residual.\n\nLogs devem ser úteis, protegidos contra adulteração e limitados ao necessário. Guardar todo conteúdo de mensagem sem critério pode criar um novo risco de privacidade e exposição. Do mesmo modo, apagar registros de falhas para reduzir volume impede diagnóstico. A política de retenção e o acesso aos registros devem ser definidos conforme finalidade, proteção e regras aplicáveis.\n\n### Exemplo passo a passo\n\n1. Ana envia uma consulta que contém dados pessoais a um serviço de outro órgão.\n2. A integração identifica o serviço e valida a identidade técnica do chamador; a autorização limita a chamada aos campos e operações necessários.\n3. O conteúdo é protegido durante a transmissão e fica armazenado apenas onde o processo precisa dele.\n4. O sistema registra identificador da transação, horário sincronizado, identidade e resultado, evitando copiar dados sensíveis para o log sem necessidade.\n5. Uma falha de destino gera alerta e procedimento de recuperação. A equipe compara os registros dos dois órgãos usando o mesmo referencial de tempo.\n\n### Como cai na prova\n\n- Segurança é considerada desde o planejamento e ao longo do ciclo de vida.\n- Classificação da informação e análise de risco orientam os controles necessários.\n- Autenticação e autorização são funções distintas: identidade comprovada não implica acesso irrestrito.\n- Logs, sincronismo, autenticidade, documentação protegida e continuidade apoiam auditoria e operação.\n\n**Pegadinha:** dizer que a rede interna dispensa autenticação, proteção ou registro; ou que registrar tudo em texto aberto melhora a auditoria sem criar risco. Integração segura requer controles proporcionais e logs úteis, íntegros e protegidos.\n\n**Resumo para a prova**\n\n- A segurança deve ser planejada em todas as etapas do serviço.\n- Classificação e análise de risco determinam proteção adequada.\n- Autenticação identifica; autorização limita ações permitidas.\n- Logs precisam de horário confiável e proteção de autenticidade, sem expor dados desnecessários.\n- Continuidade prepara o serviço para riscos que controles preventivos não eliminam.\n"
+                     },
+                     {
+                         "title":  "5. ePING",
+                         "markdown":  "### Quem aplica a ePING e quando\n\nUma arquitetura de referência só ajuda se as equipes souberem em quais projetos devem considerá-la e como incorporar seus padrões às decisões de compra e desenvolvimento. Sem essa orientação, um órgão pode adquirir soluções que não conversam com o restante do governo, ou tratar como universal uma regra que se dirige a um âmbito institucional específico.\n\nA **ePING (Padrões de Interoperabilidade de Governo Eletrônico)** foi concebida como estrutura básica da estratégia de governo eletrônico do Poder Executivo federal. O documento oficial de referência consultado estabelece a adoção obrigatória de seus padrões e políticas para os órgãos do governo federal do Poder Executivo. Outros Poderes e esferas de governo podem participar por adesão voluntária. O escopo e as regras devem ser lidos conforme a versão e as orientações oficiais aplicáveis ao caso.\n\n\u003e **Siglas e termos deste capítulo**\n\u003e - **ePING**: Padrões de Interoperabilidade de Governo Eletrônico.\n\u003e - **SISP**: Sistema de Administração dos Recursos de Tecnologia da Informação do Poder Executivo federal.\n\u003e - **TIC**: Tecnologia da Informação e Comunicação.\n\u003e - **Sistema legado**: sistema existente, construído ou adquirido anteriormente e ainda usado pela organização.\n\u003e - **Adesão voluntária**: adoção feita por decisão do participante, sem decorrer da obrigatoriedade institucional indicada para o Executivo federal.\n\n### Situações que entram no escopo\n\nNa referência consultada, as especificações da ePING são obrigatórias para novos sistemas de informação desenvolvidos e implantados no governo federal quando estejam no escopo de interação interno ou com a sociedade. Também se aplicam a sistemas legados que recebam implementações envolvendo serviços de governo eletrônico ou interação entre sistemas e à aquisição ou atualização de equipamentos de TIC.\n\nO legado, portanto, não significa que tudo existente já esteja automaticamente reconstruído conforme cada especificação. A manutenção ou atualização que afete a solução é o momento de considerar os padrões pertinentes e substituir soluções proprietárias quando aplicável. A equipe deve distinguir a regra para novas implementações da descrição do parque que já está em funcionamento.\n\n| Cenário | Como pensar na aplicação da ePING |\n| --- | --- |\n| Novo serviço eletrônico federal que troca dados com outros sistemas | Considerar as políticas e especificações pertinentes ao escopo da interação |\n| Sistema legado que recebe nova integração | Avaliar padrões aplicáveis à implementação e à substituição progressiva de soluções proprietárias |\n| Compra ou atualização de equipamento de TIC | Incluir interoperabilidade e requisitos aplicáveis no planejamento da aquisição ou atualização |\n| Projeto de outro Poder ou ente federativo | Verificar adesão voluntária e regras próprias do participante |\n\n### Políticas que orientam as escolhas\n\nA ePING favorece padrões abertos, que são especificações documentadas e disponíveis para implementação. Padrões proprietários podem ser aceitos transitoriamente em soluções legadas e quando não houver padrão aberto disponível, até que exista alternativa aberta. Requisitos de segurança e integridade da informação continuam relevantes; preferência por padrão aberto não elimina controles de proteção.\n\nA arquitetura também orienta priorizar software público e/ou software livre na implementação, em conformidade com as normas do SISP. Considera suporte de mercado com objetivo de reduzir custos e riscos na concepção e produção dos serviços governamentais. Essas políticas não significam que se escolha qualquer ferramenta sem avaliar adequação, capacidade da equipe, suporte, risco e interoperabilidade.\n\nNa prática, planejamento de contratação e desenvolvimento deve registrar os requisitos de integração, os padrões usados, eventuais exceções e o tratamento de compatibilidade com sistemas existentes. A transparência de decisões ajuda outras equipes a entenderem as dependências e a planejar mudanças. A adoção de uma tecnologia não deve ser presumida pela marca do produto: deve-se verificar se a especificação atende ao uso e à versão pertinente.\n\n### Exemplo passo a passo\n\n1. Ana coordena a contratação de um serviço federal que trocará informações com o portal de atendimento e com um sistema legado.\n2. Ela identifica que o serviço novo está dentro do escopo de interação e registra as especificações aplicáveis da ePING no planejamento.\n3. A equipe verifica se há padrão aberto para a função. Se o legado ainda depender de padrão proprietário, registra o motivo e planeja a substituição quando aplicável, mantendo segurança e integridade.\n4. A contratação avalia suporte, capacidade de integração e requisitos de atualização, em vez de decidir apenas pela familiaridade com um fornecedor.\n5. O contrato e a documentação indicam formatos, responsabilidades, exceções e como futuras mudanças serão comunicadas.\n\n### Como cai na prova\n\n- A obrigatoriedade descrita na ePING se refere ao governo federal, Poder Executivo; outros Poderes e esferas podem aderir voluntariamente.\n- O escopo inclui novos sistemas de interação, implementações em legados que envolvam serviços eletrônicos ou interação, e aquisição ou atualização de equipamentos de TIC.\n- A política prefere padrões abertos e prevê uso transitório de proprietários em situações delimitadas.\n- Software público e/ou livre deve ser priorizado segundo as normas do SISP; segurança e integridade continuam sendo consideradas.\n\n**Pegadinha:** afirmar que qualquer órgão de qualquer esfera está automaticamente obrigado, ou que sistema legado está dispensado de toda consideração de interoperabilidade. O alcance institucional e os cenários de aplicação precisam ser distinguidos.\n\n**Resumo para a prova**\n\n- ePING orienta a interoperabilidade no governo eletrônico e é obrigatória no Poder Executivo federal segundo o documento de referência.\n- Outros Poderes e entes podem aderir voluntariamente.\n- Novos sistemas de interação, implementações pertinentes em legados e aquisição ou atualização de equipamentos entram no escopo descrito.\n- Padrões abertos são preferidos; proprietários têm usos transitórios delimitados.\n- Planejamento deve registrar padrões, contratos, exceções e compatibilidade.\n"
+                     },
+                     {
+                         "title":  "6. Segmentos e classificação",
+                         "markdown":  "### Como navegar pelo catálogo da ePING\n\nAo escolher uma tecnologia para integrar serviços, a equipe pode se perder entre especificações de rede, formatos de informação, acesso de usuários e proteção de dados. A ePING organiza esse catálogo por assunto e indica a situação técnica de cada especificação. Essa organização ajuda a localizar a referência pertinente, mas não substitui a análise do problema concreto nem a consulta à versão aplicável.\n\nO documento de referência da ePING apresenta cinco segmentos para agrupar políticas e especificações. Eles descrevem áreas de interoperabilidade, não etapas obrigatórias de um projeto. Um serviço pode envolver vários segmentos ao mesmo tempo.\n\n\u003e **Siglas e termos deste capítulo**\n\u003e - **ePING**: Padrões de Interoperabilidade de Governo Eletrônico.\n\u003e - **A — Adotado**: especificação homologada ou aprovada formalmente no processo descrito pela arquitetura.\n\u003e - **R — Recomendado**: item que atende às políticas técnicas e é sugerido, sem a obrigatoriedade associada ao nível Adotado.\n\u003e - **T — Em Transição**: item em uso significativo, mas não recomendado, destinado a ser substituído quando houver alternativa adequada.\n\u003e - **E — Em Estudo**: componente ainda em avaliação.\n\n### Os cinco segmentos\n\n| Segmento | Pergunta central | Exemplo de assunto |\n| --- | --- | --- |\n| Interconexão | Como redes e sistemas estabelecem comunicação? | Conexão entre redes e protocolos de transporte |\n| Segurança | Como proteger informação e serviços? | Requisitos de segurança de tecnologia da informação |\n| Meios de Acesso | Por quais dispositivos se acessam os serviços? | Padrões relacionados aos dispositivos de acesso |\n| Organização e Intercâmbio de Informações | Como estruturar, interpretar e transferir informação? | Vocabulários, taxonomias, ontologias e formatos |\n| Áreas de Integração para Governo Eletrônico | Que temas transversais precisam de especificações comuns? | Dados e processos, informações contábeis, geográficas e estatísticas |\n\nInterconexão não é o mesmo que organização semântica. O primeiro segmento trata das condições de conexão entre redes; organização e intercâmbio trata de estrutura, tratamento, transferência e recursos para interpretar informações. Meios de acesso se refere aos dispositivos de acesso, enquanto segurança trata dos aspectos de proteção. Áreas de integração reúnem temas transversais cuja padronização favorece a interoperabilidade governamental.\n\n### O que os níveis dizem\n\nOs níveis A, R, T e E descrevem o grau de aderência ou situação da especificação dentro da arquitetura. Adotado corresponde ao padrão submetido a processo formal de homologação ou aprovado pelo procedimento previsto. Componentes desse nível devem ser adotados em novos produtos e projetos de tecnologia da informação segundo a versão consultada. Recomendado atende às políticas técnicas e é sugerido para novos produtos e projetos, mas não passou pela mesma homologação formal e não é obrigatório como categoria.\n\nEm Transição indica componente que o governo não recomenda por não atender a requisitos, mas que continua listado devido ao uso significativo enquanto se encaminha sua substituição. A arquitetura orienta evitar componentes transitórios em novos serviços ou em reconstruções significativas. Em Estudo identifica item ainda avaliado; não se deve tratá-lo como padrão aprovado.\n\n| Nível | Situação da especificação | Leitura prática |\n| --- | --- | --- |\n| Adotado | Homologado ou aprovado formalmente | Aplicar nos novos produtos e projetos abrangidos pela regra |\n| Recomendado | Atende às políticas e é sugerido | Considerar para adoção; não confundir com categoria obrigatória |\n| Em Transição | Uso existente, mas caminho de substituição | Evitar em novas soluções quando a orientação assim determinar |\n| Em Estudo | Avaliação em andamento | Não presumir aprovação ou recomendação consolidada |\n\nEsses rótulos não determinam, por si, quais instituições estão sujeitas à ePING. Uma coisa é o status técnico de um item; outra é o alcance institucional da arquitetura e os projetos abrangidos. Também é preciso associar exemplos à versão consultada, pois o catálogo pode mudar. A versão 2018, por exemplo, classificava SMTP/MIME para transporte de correio e IMAP para acesso à caixa postal como adotados, POP3 como em transição, e HTTP/2 como recomendado. A referência atual aplicável deve ser conferida antes de usar tais classificações como fato vigente.\n\n### Exemplo passo a passo\n\n1. Ana precisa escolher como um portal e um sistema interno trocarão informações de atendimento.\n2. Ela identifica que a conexão entre redes pertence ao tema de Interconexão e a estrutura dos campos pertence a Organização e Intercâmbio de Informações.\n3. A equipe consulta a especificação na versão pertinente e encontra um item com status Recomendado.\n4. O grupo registra que o item é sugerido, verifica se há requisito adicional aplicável e não o confunde com um item Adotado.\n5. Se surgir uma especificação Em Estudo, a equipe não a trata como aprovação final; se um item estiver Em Transição, avalia a alternativa prevista e evita ampliar a dependência em novos desenvolvimentos.\n\n### Como cai na prova\n\n- Interconexão trata da conexão entre redes; Organização e Intercâmbio de Informações trata da estrutura e interpretação dos dados.\n- Os cinco segmentos organizam áreas distintas, e uma integração pode atravessar várias delas.\n- Adotado, Recomendado, Em Transição e Em Estudo indicam situação técnica da especificação.\n- Recomendado é sugerido, não obrigatório como a categoria Adotado; Em Estudo não é aprovação.\n- O status não responde quem deve observar a ePING; isso depende do alcance institucional e do escopo aplicável.\n\n**Pegadinha:** usar o rótulo Recomendado como se fosse obrigatório ou inferir que um item Em Transição é recomendado por ainda aparecer no catálogo. Também é comum trocar Interconexão, ligada à conexão, por Organização e Intercâmbio, ligada ao tratamento da informação.\n\n**Resumo para a prova**\n\n- Os cinco segmentos são Interconexão, Segurança, Meios de Acesso, Organização e Intercâmbio de Informações e Áreas de Integração.\n- Os níveis são Adotado, Recomendado, Em Transição e Em Estudo.\n- Adotado passou pelo processo de homologação/aprovação da arquitetura; Recomendado é sugerido.\n- Em Transição tende à substituição; Em Estudo ainda está sendo avaliado.\n- Consulte a versão pertinente e separe status técnico de alcance institucional.\n"
+                     }
+                 ],
+    "summary":  "Middleware intermedeia a comunicação entre aplicações e pode rotear, transformar, adaptar, enfileirar, proteger e monitorar interações. Uma Application Platform Suite (APS) reúne serviços de plataforma para desenvolver, executar, integrar e administrar aplicações; pode conter middleware, mas não é sinônimo dele. Interoperabilidade demanda compatibilidade técnica, entendimento semântico e cooperação organizacional. A ePING define premissas, políticas e especificações para serviços de governo eletrônico, com adoção obrigatória no Executivo federal para os órgãos e situações cobertos e adesão voluntária por outros Poderes e entes. A arquitetura organiza padrões em cinco segmentos: interconexão, segurança, meios de acesso, organização e intercâmbio de informações e áreas de integração. Favorece padrões abertos, prioriza software público ou livre e classifica especificações como adotadas, recomendadas, em transição ou em estudo. Integrações devem considerar segurança preventiva, análise de risco, logs autênticos, sincronismo de tempo, documentação protegida e requisitos de continuidade.",
+    "flashcards":  [
+                       {
+                           "front":  "O que é middleware?",
+                           "back":  "Software intermediário que oferece serviços de comunicação, mediação ou coordenação entre aplicações e recursos."
+                       },
+                       {
+                           "front":  "Que funções middleware pode oferecer?",
+                           "back":  "Conectividade, adaptação, transformação, roteamento, mensageria, autenticação, registro e monitoramento."
+                       },
+                       {
+                           "front":  "O que é um endpoint?",
+                           "back":  "Endereço lógico pelo qual um serviço ou sistema pode ser alcançado."
+                       },
+                       {
+                           "front":  "O que é um contrato de integração?",
+                           "back":  "Descrição de operações, mensagens, formatos, regras e expectativas da interação entre sistemas."
+                       },
+                       {
+                           "front":  "O que é uma Application Platform Suite?",
+                           "back":  "Uma suíte integrada de serviços de plataforma para desenvolver, executar, integrar e administrar aplicações."
+                       },
+                       {
+                           "front":  "APS e middleware são sinônimos?",
+                           "back":  "Não. Middleware é software intermediário; APS reúne diversos serviços de plataforma e pode incluir middleware."
+                       },
+                       {
+                           "front":  "O que caracteriza interação síncrona?",
+                           "back":  "O solicitante aguarda a resposta dentro da mesma interação lógica."
+                       },
+                       {
+                           "front":  "O que caracteriza mensageria assíncrona?",
+                           "back":  "O produtor entrega a mensagem para processamento posterior, sem aguardar a conclusão do consumidor."
+                       },
+                       {
+                           "front":  "Por que retentativas podem duplicar operações?",
+                           "back":  "Uma resposta pode se perder mesmo após o processamento; o produtor repete e o consumidor recebe novamente."
+                       },
+                       {
+                           "front":  "O que é idempotência em um consumidor?",
+                           "back":  "Propriedade de repetir uma operação sem causar efeitos adicionais indevidos."
+                       },
+                       {
+                           "front":  "Quais dimensões de interoperabilidade a ePING considera?",
+                           "back":  "Técnica, semântica e organizacional."
+                       },
+                       {
+                           "front":  "O que resolve a dimensão semântica?",
+                           "back":  "Permite que os participantes compreendam de forma compatível os conceitos e dados trocados."
+                       },
+                       {
+                           "front":  "O que a ePING estabelece?",
+                           "back":  "Premissas, políticas e especificações técnicas para interoperabilidade de serviços de governo eletrônico."
+                       },
+                       {
+                           "front":  "A ePING é uma ferramenta de integração?",
+                           "back":  "Não. É uma arquitetura de padrões e políticas, não um software que executa integrações."
+                       },
+                       {
+                           "front":  "A quem se aplica obrigatoriamente a ePING?",
+                           "back":  "Aos órgãos e entidades do Executivo federal abrangidos pelo SISP e nos casos previstos na referência."
+                       },
+                       {
+                           "front":  "Como outros Poderes e entes podem adotar a ePING?",
+                           "back":  "Por adesão voluntária, conforme a orientação oficial consultada."
+                       },
+                       {
+                           "front":  "Quais são os cinco segmentos da ePING?",
+                           "back":  "Interconexão; Segurança; Meios de Acesso; Organização e Intercâmbio de Informações; Áreas de Integração para Governo Eletrônico."
+                       },
+                       {
+                           "front":  "O que significa status A na ePING?",
+                           "back":  "Adotado: especificação homologada ou aprovada conforme o processo previsto na arquitetura."
+                       },
+                       {
+                           "front":  "O que significa status R na ePING?",
+                           "back":  "Recomendado: atende às políticas e é sugerido para novos projetos, sem equivaler a obrigatório."
+                       },
+                       {
+                           "front":  "Que prática de segurança a ePING exige para logs?",
+                           "back":  "Logs para auditoria, sincronismo centralizado de tempo e mecanismos para assegurar autenticidade dos registros."
+                       },
+                       {
+                           "front":  "O que cobre o segmento Organização e Intercâmbio?",
+                           "back":  "Tratamento e transferência de informações, incluindo vocabulários, taxonomias, ontologias e recuperação."
+                       },
+                       {
+                           "front":  "Qual é a preferência geral de padrões da ePING?",
+                           "back":  "Adotar preferencialmente padrões abertos, respeitando segurança e integridade da informação."
+                       },
+                       {
+                           "front":  "Quando a referência admite padrão proprietário?",
+                           "back":  "Transitoriamente em legado ou quando não há padrão aberto disponível, até que haja alternativa aberta."
+                       },
+                       {
+                           "front":  "Dê um exemplo de especificação adotada na ePING 2018.",
+                           "back":  "SMTP/MIME para transporte de mensagem eletrônica aparece como adotado."
+                       },
+                       {
+                           "front":  "Que diferença há entre Adoptado e Recomendado?",
+                           "back":  "Adotado passou por homologação ou aprovação; Recomendado é sugerido, mas sem o caráter obrigatório dessa categoria."
+                       }
+                   ],
+    "tips":  [
+                 "Associe middleware a mediação e serviços entre aplicações, e não ao significado de negócio dos dados.",
+                 "Lembre que APS pode reunir middleware, runtime, mensageria, gestão de APIs e administração.",
+                 "Separe interoperabilidade técnica, semântica e organizacional ao analisar uma integração.",
+                 "Recite os cinco segmentos ePING na ordem: interconexão, segurança, meios de acesso, organização e intercâmbio, áreas de integração.",
+                 "Não confunda a classificação A/R/T/E da especificação com o alcance institucional da obrigação.",
+                 "Mensageria assíncrona reduz dependência temporal, mas demanda idempotência, retentativas e tratamento de mensagens problemáticas."
+             ],
+    "traps":  [
+                  "Dizer que a ePING é um produto ou barramento que integra os sistemas por conta própria.",
+                  "Usar APS como sinônimo exato de middleware ou de servidor de aplicações.",
+                  "Supor que uma API tecnicamente funcional garante que os sistemas entendem o mesmo conceito.",
+                  "Tratar adesão de estados e municípios à ePING como obrigatória pela regra geral da referência consultada.",
+                  "Interpretar Recomendado como padrão formalmente adotado e obrigatório.",
+                  "Supor que fila e retentativa asseguram processamento exatamente uma vez, sem duplicidade."
+              ],
+    "activeRecall":  [
+                         {
+                             "question":  "Explique como middleware reduz integrações ponto a ponto e que novos riscos pode concentrar.",
+                             "answer":  "Ele oferece interfaces e serviços comuns de mediação, mas pode concentrar dependência, falhas e carga; precisa de redundância, capacidade, segurança e operação."
+                         },
+                         {
+                             "question":  "Compare uma chamada síncrona com uma fila assíncrona.",
+                             "answer":  "A chamada aguarda resposta na interação; a fila permite processamento posterior e desacopla temporalmente, mas aumenta a importância de monitoramento e consistência eventual."
+                         },
+                         {
+                             "question":  "Por que um consumidor de mensagens pode precisar ser idempotente?",
+                             "answer":  "Retentativas podem entregar novamente uma mensagem, e a repetição não deve gerar efeitos de negócio indevidos."
+                         },
+                         {
+                             "question":  "Diferencie APS, middleware e servidor de aplicações.",
+                             "answer":  "APS é uma suíte de serviços de plataforma; middleware intermedeia aplicações; servidor de aplicações hospeda componentes e oferece serviços de execução."
+                         },
+                         {
+                             "question":  "Dê exemplo de falha semântica apesar de comunicação técnica bem-sucedida.",
+                             "answer":  "Dois sistemas trocam o campo data, mas um registra data do pedido e o outro interpreta como data de pagamento."
+                         },
+                         {
+                             "question":  "Quais são as dimensões de interoperabilidade relevantes à ePING?",
+                             "answer":  "Técnica, semântica e organizacional, cobrindo conexão e formatos, significados e processos/responsabilidades."
+                         },
+                         {
+                             "question":  "Quais casos federais a orientação ePING destaca para observância?",
+                             "answer":  "Novos sistemas no escopo de interação, legados com implementações de serviços ou integração e aquisição ou atualização de equipamentos de TIC."
+                         },
+                         {
+                             "question":  "Quais são os cinco segmentos da ePING?",
+                             "answer":  "Interconexão, Segurança, Meios de Acesso, Organização e Intercâmbio de Informações e Áreas de Integração para Governo Eletrônico."
+                         },
+                         {
+                             "question":  "Como distinguir A e R na classificação da ePING?",
+                             "answer":  "A é adotado após homologação ou aprovação prevista; R atende às políticas e é sugerido para novos projetos, mas não é obrigatório por essa categoria."
+                         },
+                         {
+                             "question":  "Que exceções a política de padrões abertos reconhece?",
+                             "answer":  "Uso transitório de padrão proprietário em legado e ausência de padrão aberto disponível, sem desconsiderar segurança e integridade."
+                         }
+                     ],
+    "errorConcepts":  [
+                          {
+                              "key":  "e1",
+                              "title":  "Middleware não é semântica",
+                              "summary":  "A mediação encaminha mensagens, mas os participantes ainda precisam acordar significado e contexto dos dados trocados."
+                          },
+                          {
+                              "key":  "e2",
+                              "title":  "APS não se confunde com um componente",
+                              "summary":  "APS reúne serviços de plataforma; middleware, servidor de aplicações e gateway têm responsabilidades próprias."
+                          },
+                          {
+                              "key":  "e3",
+                              "title":  "ePING é arquitetura de referência",
+                              "summary":  "A ePING estabelece premissas, políticas e especificações técnicas, sem ser software que centraliza e executa integrações."
+                          },
+                          {
+                              "key":  "e4",
+                              "title":  "Classificação não é alcance da obrigação",
+                              "summary":  "A, R, T e E indicam situação da especificação; o alcance institucional decorre do campo de aplicação da ePING."
+                          },
+                          {
+                              "key":  "e5",
+                              "title":  "Entrega confiável requer desenho de repetição",
+                              "summary":  "Filas e retentativas podem duplicar mensagens; idempotência, monitoramento e tratamento de falhas continuam necessários."
+                          }
+                      ],
+    "questions":  [
+                      {
+                          "statement":  "Um middleware pode receber uma mensagem, adaptar seu formato e encaminhá-la ao sistema de destino.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Certo. Mediação, transformação e roteamento são funções comuns de middleware. A transformação precisa preservar os dados e erros relevantes ao contrato entre as aplicações.",
+                          "section":  "1. Integração e middleware",
+                          "errorConceptKey":  "e1",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Uma fila assíncrona obriga o produtor a esperar o consumidor terminar o processamento antes de continuar.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  true
+                                          }
+                                      ],
+                          "explanation":  "Errado. O produtor entrega a mensagem para processamento posterior e pode prosseguir sem aguardar a conclusão do consumidor. O resultado pode ficar disponível mais tarde.",
+                          "section":  "1. Integração e middleware",
+                          "errorConceptKey":  "e5",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Middleware elimina a necessidade de definir o significado dos campos trocados quando dois sistemas usam o mesmo protocolo.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  true
+                                          }
+                                      ],
+                          "explanation":  "Errado. O mesmo protocolo pode transportar campos interpretados de modo diferente. As partes precisam definir o significado, contexto, unidades e regras dos dados.",
+                          "section":  "1. Integração e middleware",
+                          "errorConceptKey":  "e1",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Uma retentativa após timeout pode levar o consumidor a receber novamente uma mensagem já processada.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Certo. O processamento pode ter sido concluído mesmo que a confirmação não tenha chegado ao produtor. Retentativas devem considerar duplicidade e operações idempotentes.",
+                          "section":  "1. Integração e middleware",
+                          "errorConceptKey":  "e5",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Uma transação local no broker torna automaticamente atômicas as gravações realizadas em bancos independentes pelos consumidores.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  true
+                                          }
+                                      ],
+                          "explanation":  "Errado. A transação local cobre operações dentro de seu limite, não coordena automaticamente bancos independentes. A consistência entre sistemas exige desenho distribuído e recuperação apropriados.",
+                          "section":  "1. Integração e middleware",
+                          "errorConceptKey":  "e5",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Ao centralizar mediação, o middleware pode reduzir dependências ponto a ponto, mas sua indisponibilidade também pode afetar vários fluxos.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Certo. Serviços comuns reduzem conexões bilaterais, mas concentram dependência operacional. Redundância, monitoramento e capacidade ajudam a evitar que a camada seja ponto único de falha.",
+                          "section":  "1. Integração e middleware",
+                          "errorConceptKey":  "e1",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Uma APS designa uma suíte integrada de recursos de plataforma que pode incluir middleware e serviços de execução.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Certo. APS agrupa serviços para desenvolver, executar, integrar e administrar aplicações. O conjunto concreto varia conforme a solução.",
+                          "section":  "2. APS",
+                          "errorConceptKey":  "e2",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Um servidor de aplicações e uma APS sempre representam a mesma coisa, pois ambos executam aplicações.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  true
+                                          }
+                                      ],
+                          "explanation":  "Errado. O servidor de aplicações é um componente que hospeda aplicações e oferece serviços de execução; APS é uma suíte que pode reunir vários recursos de plataforma.",
+                          "section":  "2. APS",
+                          "errorConceptKey":  "e2",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "A adoção de uma plataforma comum garante interoperabilidade sem contratos ou mapeamento entre sistemas.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  true
+                                          }
+                                      ],
+                          "explanation":  "Errado. A plataforma padroniza serviços técnicos, mas produtores e consumidores ainda precisam acordar operações, formatos, dados, responsabilidades e falhas.",
+                          "section":  "2. APS",
+                          "errorConceptKey":  "e2",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "A gestão de APIs pode ser um serviço de plataforma sem que, por si só, constitua toda a APS.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Certo. Um gateway ou gestor de APIs é um componente de escopo definido. A suíte pode reunir esse serviço com runtime, mensageria, administração e outros recursos.",
+                          "section":  "2. APS",
+                          "errorConceptKey":  "e2",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "A interoperabilidade semântica se ocupa de compatibilidade na compreensão dos conceitos e contextos trocados.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Certo. Ela busca que participantes atribuam significado compatível aos dados, além de conseguirem transmiti-los tecnicamente.",
+                          "section":  "3. Interoperabilidade",
+                          "errorConceptKey":  "e1",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "A interoperabilidade organizacional considera processos e responsabilidades entre instituições que cooperam.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Certo. Além de conexão e significado compartilhado, a cooperação exige papéis, regras e processos compatíveis entre as organizações.",
+                          "section":  "3. Interoperabilidade",
+                          "errorConceptKey":  "e1",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "A ePING é um software de barramento que recebe e roteia as mensagens dos órgãos federais.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  true
+                                          }
+                                      ],
+                          "explanation":  "Errado. A ePING define premissas, políticas e especificações técnicas; a execução das integrações cabe às soluções implantadas pelos órgãos.",
+                          "section":  "5. ePING",
+                          "errorConceptKey":  "e3",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Segundo a orientação oficial consultada, outros Poderes e entes federativos podem adotar a ePING por adesão voluntária.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Certo. A adoção é obrigatória para órgãos do Executivo federal abrangidos; a página oficial descreve adesão facultativa para os demais Poderes e entes.",
+                          "section":  "5. ePING",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "A categoria Recomendado equivale a adoção formal obrigatória de uma especificação para todas as instituições públicas.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  true
+                                          }
+                                      ],
+                          "explanation":  "Errado. Recomendado sinaliza item alinhado às políticas e sugerido para novos projetos, sem a obrigatoriedade própria da categoria Adotado.",
+                          "section":  "6. Segmentos e classificação",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "A arquitetura ePING favorece padrões abertos e admite padrão proprietário em situações delimitadas, como ausência de alternativa aberta disponível.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Certo. A preferência é por padrões abertos; a referência prevê uso proprietário quando não há padrão aberto e de forma transitória em legado, sem afastar requisitos de segurança e integridade.",
+                          "section":  "6. Segmentos e classificação",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "A segurança de uma integração deve ser considerada preventivamente e ao longo das etapas de desenvolvimento do sistema.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Certo. A ePING trata segurança como processo preventivo incorporado ao ciclo de desenvolvimento, considerando riscos e requisitos do serviço.",
+                          "section":  "4. Segurança e integração",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Na ePING, logs de sistemas devem permitir auditoria e contar com sincronismo centralizado de tempo e autenticidade dos registros.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Certo. A referência prevê registros históricos para auditoria, sincronismo centralizado e mecanismos para assegurar autenticidade, com assinatura digital quando possível.",
+                          "section":  "4. Segurança e integração",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "A categoria Em Estudo identifica especificação já homologada e pronta para uso obrigatório em novos sistemas.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  true
+                                          }
+                                      ],
+                          "explanation":  "Errado. Em Estudo indica que a especificação continua sob análise, sem status de homologação ou recomendação consolidada. A classificação não deve ser confundida com a obrigação de observar a arquitetura.",
+                          "section":  "6. Segmentos e classificação",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "A seção de segurança da ePING prevê documentação atualizada e protegida para sistemas, controles e topologias dos ambientes.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Certo. A documentação deve permanecer atualizada e protegida, com grau de sigilo compatível com as informações nela contidas.",
+                          "section":  "4. Segurança e integração",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Qual componente intermediário permite que produtor e consumidor não precisem estar disponíveis ao mesmo tempo?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Uma fila de mensagens.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Uma chamada síncrona, que aguarda resposta no mesmo fluxo.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Um arquivo local do consumidor, que substitui o canal compartilhado.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Uma transação de banco, que conecta aplicações sem mensageria.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Um endpoint direto, que exige o destino sempre acessível.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "A fila armazena a mensagem para consumo posterior e reduz a dependência temporal entre os participantes. A chamada síncrona e o endpoint direto precisam do destino disponível durante a interação.",
+                          "section":  "1. Integração e middleware",
+                          "errorConceptKey":  "e5",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Em uma integração com repetição após timeout, qual medida reduz o risco de duplicar efeitos de negócio?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Aumentar indefinidamente o tempo de espera antes de cada chamada.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Processamento idempotente com chave da operação.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Desativar confirmações para o produtor considerar tudo concluído.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Eliminar o log do consumidor para evitar reprocessamento visível.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Enviar a mensagem a vários consumidores sem identificar o destino.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Timeout não prova que o processamento falhou: a operação pode ter sido concluída e a confirmação perdida. Idempotência combinada com identificação da operação permite reconhecer a repetição e evitar aplicar o mesmo efeito duas vezes.",
+                          "section":  "1. Integração e middleware",
+                          "errorConceptKey":  "e5",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Qual risco deve ser considerado ao concentrar várias rotas de integração em um único middleware?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "O contrato de cada destino passa a ser desnecessário para os consumidores.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Os dados passam a ter significado comum sem vocabulário controlado.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Uma falha ou sobrecarga pode afetar diversos fluxos simultaneamente.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "A autenticação deixa de se aplicar entre os sistemas conectados.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "A mensageria transforma qualquer chamada em transação distribuída.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Centralizar mediação facilita políticas comuns, mas aumenta o impacto potencial de indisponibilidade ou saturação. Redundância, dimensionamento e monitoramento tratam esse risco sem dispensar contratos ou controles de acesso.",
+                          "section":  "1. Integração e middleware",
+                          "errorConceptKey":  "e1",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Uma equipe precisa que a aplicação publique uma operação com autenticação, limites e acompanhamento de chamadas. Qual recurso de plataforma é mais diretamente adequado?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Um servidor de arquivos, que distribui os executáveis da aplicação.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Um runtime, que administra somente a execução do processo.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Uma fila de tarefas, que mantém mensagens para consumo posterior.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Um gestor de APIs.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Um banco relacional, que guarda o estado persistente da aplicação.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Gestão de APIs trata de publicação e políticas para interfaces de serviços, podendo incluir autenticação, limites e observabilidade. Runtime, fila, servidor de arquivos e banco exercem funções distintas.",
+                          "section":  "2. APS",
+                          "errorConceptKey":  "e2",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Qual afirmação descreve melhor a relação entre uma APS e middleware?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Middleware é sempre a suíte completa e inclui todo o ciclo de vida da aplicação.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "APS pode agrupar serviços de plataforma e incluir middleware entre eles.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "APS é somente o banco de dados compartilhado por aplicações corporativas.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Middleware executa interfaces de usuário, mas não integra componentes.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "APS substitui a necessidade de contratos entre serviços publicados.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "APS designa um conjunto integrado de serviços de plataforma. Middleware pode ser um dos componentes de integração dessa suíte, mas não precisa representar todos os seus recursos.",
+                          "section":  "2. APS",
+                          "errorConceptKey":  "e2",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Uma plataforma executa aplicações em runtime gerenciado e oferece conectores, mensageria e monitoramento integrados. Como esse conjunto é mais bem caracterizado?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Como um protocolo de transporte que define a sintaxe de cada mensagem.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Como um sistema operacional dedicado a armazenar registros de negócio.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Uma APS com serviços integrados.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Como uma API isolada, sem serviços de execução ou administração.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Como um endpoint remoto que apenas identifica uma aplicação.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "O cenário descreve um conjunto de serviços de plataforma para executar, integrar e operar aplicações, compatível com a categoria APS. Um protocolo, sistema operacional, API isolada ou endpoint não representa todo esse conjunto.",
+                          "section":  "2. APS",
+                          "errorConceptKey":  "e2",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Dois sistemas usam o mesmo formato JSON, mas interpretam o campo `valor` como moeda e quantidade física. Que dimensão precisa de alinhamento?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Interoperabilidade técnica, pois ambos precisam trocar o formato JSON.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Interoperabilidade semântica.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Interoperabilidade organizacional, para escolher a versão do runtime.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Interconexão física, para definir um endereço de rede comum.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Disponibilidade, para que os sistemas aceitem conexões simultâneas.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "A estrutura é tecnicamente processável, mas o significado de `valor` diverge. Vocabulário, unidade e contexto precisam ser acordados para evitar interpretar quantidade como preço.",
+                          "section":  "3. Interoperabilidade",
+                          "errorConceptKey":  "e1",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Qual situação representa principalmente um problema de interoperabilidade organizacional?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "As instituições não definiram quem recebe e trata a solicitação encaminhada.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "O serviço receptor não aceita o protocolo escolhido pelo emissor.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Os campos são enviados em ordem incompatível com o esquema acordado.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "O destinatário interpreta um código com conceito distinto do emissor.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "A conexão de rede falha antes de estabelecer uma sessão segura.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "A falta de atribuição de responsabilidades e de processo para encaminhar solicitações é organizacional. Protocolo e estrutura são técnicos; conceito divergente é semântico; falha de conexão é de comunicação.",
+                          "section":  "3. Interoperabilidade",
+                          "errorConceptKey":  "e1",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Qual é a natureza da ePING no contexto da integração de sistemas governamentais?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Uma plataforma proprietária que hospeda as bases de todos os órgãos.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Um sistema central que executa mensagens sem contratos locais.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Uma arquitetura de referência.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Um protocolo de transporte que substitui redes institucionais.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Uma suíte comercial de aplicações de governo digital.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "A ePING é uma arquitetura de referência que estabelece condições e padrões para interoperabilidade de serviços de governo eletrônico. Ela não hospeda bases nem executa integrações como produto.",
+                          "section":  "5. ePING",
+                          "errorConceptKey":  "e3",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Segundo a página oficial consultada, qual grupo deve observar a ePING no planejamento de tecnologia?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Somente empresas privadas fornecedoras de sistemas ao governo.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Apenas governos estaduais e municipais que aderirem voluntariamente.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Todos os Poderes da União com idêntico regime de obrigatoriedade.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Órgãos e entidades integrantes do SISP no Executivo federal.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Somente instituições que desenvolvam sistemas de saúde pública.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "A orientação oficial dirige a observância aos órgãos e entidades integrantes do SISP para planejamento de contratação, aquisição e atualização de sistemas e equipamentos. Adoção por outros Poderes e entes é facultativa.",
+                          "section":  "5. ePING",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Qual conjunto corresponde aos segmentos da arquitetura ePING?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Dados, processos, aplicações, infraestrutura e gestão de serviços.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Interconexão, segurança, meios de acesso, organização/intercâmbio e áreas de integração.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Autenticação, autorização, auditoria, disponibilidade e contingência.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Planejamento, contratação, desenvolvimento, teste e operação.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Rede local, internet, nuvem, banco de dados e aplicações web.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "A arquitetura organiza-se em cinco segmentos: Interconexão; Segurança; Meios de Acesso; Organização e Intercâmbio de Informações; Áreas de Integração para Governo Eletrônico.",
+                          "section":  "6. Segmentos e classificação",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Em qual segmento a equipe deve buscar padrões de vocabulários, taxonomias e ontologias para organizar dados?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Interconexão, que trata das condições para redes se comunicarem.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Meios de Acesso, que organiza dispositivos de acesso aos serviços.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Segurança, que protege informação contra ameaças técnicas.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Áreas de Integração, que cobre somente protocolos de transporte.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Organização e Intercâmbio de Informações.",
+                                              "correct":  true
+                                          }
+                                      ],
+                          "explanation":  "O segmento Organização e Intercâmbio de Informações aborda tratamento e transferência de informações e inclui vocabulários controlados, taxonomias e ontologias.",
+                          "section":  "6. Segmentos e classificação",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Na versão 2018 da ePING, como aparece classificado o uso de IMAP para acesso remoto à caixa postal?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Em estudo, sem recomendação para emprego em produtos novos.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Em transição, com substituição já prevista por POP3.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Recomendado, aguardando homologação formal da especificação.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Adotado, como protocolo de acesso remoto à caixa postal.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Não listado, por não fazer parte das especificações de interconexão.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "A tabela de interconexão da versão 2018 lista IMAP como adotado e POP3 como em transição para acesso remoto a caixas postais. O exemplo deve ser referido no contexto dessa versão.",
+                          "section":  "6. Segmentos e classificação",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Ao selecionar um padrão de interoperabilidade, qual política geral da ePING deve orientar a escolha quando possível?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Preferir especificações abertas, considerando segurança e integridade das informações.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Escolher formatos proprietários para impedir implementação por terceiros.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Adotar soluções sem suporte de mercado para reduzir dependência técnica.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Evitar software público ou livre em serviços de governo eletrônico.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Manter cada órgão com formato exclusivo para preservar autonomia.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "A ePING dá preferência a padrões abertos, sem deixar de considerar requisitos de segurança e integridade. Também prioriza software público ou livre e especificações com suporte de mercado.",
+                          "section":  "5. ePING",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Que situação permite considerar um padrão proprietário segundo a política geral da ePING?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Quando o fornecedor oferece preço menor, sem avaliar integração ou segurança.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Sempre que o órgão preferir restringir a troca com outros sistemas.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Como solução transitória em legado ou enquanto não há padrão aberto disponível.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Quando o sistema ainda não possui documentação dos dados compartilhados.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Para dispensar requisitos de integridade e confidencialidade do serviço.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "A referência admite padrão proprietário de forma transitória em soluções legadas e quando inexiste padrão aberto, até que um esteja disponível. Requisitos de segurança e integridade continuam relevantes.",
+                          "section":  "5. ePING",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Uma integração precisa comprovar eventos, correlacionar registros entre servidores e investigar falhas. Qual orientação de segurança da ePING é pertinente?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Armazenar logs locais sem sincronismo e sem controle de autenticidade.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Usar registros históricos, sincronismo centralizado e proteção de autenticidade.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Desativar registros durante o tráfego para reduzir volume de dados.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Guardar somente mensagens aprovadas, descartando falhas de processamento.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Substituir logs por documentação estática de topologia e endpoints.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "A referência prevê logs para auditoria e evidências, sincronismo centralizado de tempo e mecanismos de autenticidade dos registros. A documentação da arquitetura também é necessária, mas não substitui os logs operacionais.",
+                          "section":  "4. Segurança e integração",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Qual status indica uma especificação recomendada para novos projetos, embora não tenha o caráter obrigatório próprio do status adotado?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Em Estudo, pois já foi selecionada para uso em produção.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Em Transição, pois já concluiu sua homologação formal.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Adotado, pois apenas sugere uso sem homologação.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Recomendado, pois atende às políticas e é sugerido para adoção.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Legado, pois designa especificação sem condição técnica definida.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "O status Recomendado identifica item alinhado às políticas técnicas e sugerido em novos produtos e projetos, mas sem a homologação formal associada à categoria Adotado.",
+                          "section":  "6. Segmentos e classificação",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Ao integrar um sistema legado que receberá nova funcionalidade de serviço eletrônico, qual abordagem atende ao escopo da ePING?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Manter padrões proprietários sem revisão, pois legado está fora de qualquer atualização.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Aplicar os padrões da ePING na implementação e buscar substituir padrões proprietários.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Dispensar segurança e documentação por não se tratar de sistema novo.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Aguardar a troca completa do sistema antes de planejar interoperabilidade.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Restringir a integração ao formato atual sem mapear os dados afetados.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "A ePING alcança sistemas legados que recebem implementações envolvendo serviços eletrônicos ou interação entre sistemas. A referência orienta que manutenção e atualização busquem seguir padrões e substituir padrões proprietários pelos definidos quando aplicável.",
+                          "section":  "5. ePING",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Uma solicitação passa por mediação técnica correta, mas duas instituições discordam sobre quem deve respondê-la. Qual dimensão precisa ser tratada prioritariamente?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "A dimensão semântica, pela definição do vocabulário dos campos da mensagem.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "A dimensão técnica, pela negociação de protocolos entre os endpoints.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "A dimensão organizacional, pela definição de papéis e processos de atendimento.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "A dimensão de acesso, pela escolha do dispositivo do usuário final.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "A dimensão de transporte, pela seleção da fila de mensagens adequada.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "A divergência é sobre responsabilidade institucional e fluxo de trabalho, portanto organizacional. A infraestrutura já transportou a solicitação; o ponto pendente é quem a recebe e trata.",
+                          "section":  "3. Interoperabilidade",
+                          "errorConceptKey":  "e1",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Um catálogo do middleware aponta corretamente ao endpoint atual, mas após a atualização o destino interpreta uma unidade antiga como nova. Que providência de integração falta?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Aumentar o número de rotas para que o catálogo distribua as chamadas.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Trocar a fila por chamada síncrona para evitar mudança de significado.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Substituir o endpoint por um endereço de rede fixo documentado.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Remover o registro de versão para que o consumidor aceite qualquer dado.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Governar a versão do contrato e mapear a unidade com o consumidor.",
+                                              "correct":  true
+                                          }
+                                      ],
+                          "explanation":  "Descoberta correta do endpoint resolve localização, mas não compatibilidade do contrato nem significado dos dados. Versões documentadas e mapeamento explícito da unidade evitam interpretar incorretamente a mensagem.",
+                          "section":  "1. Integração e middleware",
+                          "errorConceptKey":  "e1",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Uma equipe quer integrar sistemas por uma camada que registre chamadas, aplique autenticação e encaminhe solicitações para versões de serviço distintas. Que componente é mais apropriado?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Um gateway de API configurado para mediar e aplicar políticas de chamada.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Um driver de dispositivo que converte comandos de hardware local.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Um arquivo de configuração que substitui controle de acesso em runtime.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Uma cópia de segurança que replica o conteúdo das requisições.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Um sistema operacional de estação, sem função de publicação de APIs.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Um gateway de API pode atuar na mediação de chamadas, autenticação, registro e roteamento conforme políticas configuradas. O contrato e a autorização de cada operação ainda precisam ser definidos.",
+                          "section":  "2. APS",
+                          "errorConceptKey":  "e2",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Durante a troca de dados sensíveis, que conjunto de práticas é mais coerente com as orientações de segurança da ePING?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Identificar riscos, proteger os dados e registrar eventos com controle de autenticidade.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Confiar na rede interna, dispensar criptografia e manter registros sem horário comum.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Adiar a análise de segurança até o serviço entrar em produção.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Manter topologias públicas e remover controles para facilitar integração.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Registrar apenas sucessos e ignorar níveis de serviço e classificação de dados.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "A ePING relaciona segurança à prevenção, classificação da informação, análise de riscos e ciclo de vida. Também exige logs úteis à auditoria, sincronismo e autenticidade, além da proteção adequada dos dados.",
+                          "section":  "4. Segurança e integração",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Qual exemplo da ePING 2018 tem status Adotado para transporte de mensagem eletrônica?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "POP3, empregado para transportar mensagens entre servidores SMTP.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "SMTP/MIME, usado por produtos de mensageria para transferência de mensagens.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "IMAP, especificado como transporte de mensagens eletrônicas.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "XMPP, indicado como substituto geral do transporte de correio.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "HTTP/2, definido como formato obrigatório de correio eletrônico.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "A tabela de aplicação da ePING 2018 indica SMTP/MIME para transporte de mensagem eletrônica com status Adotado. IMAP e POP3 tratam acesso à caixa postal, e XMPP é associado a mensageria em tempo real.",
+                          "section":  "6. Segmentos e classificação",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Um serviço crítico depende de várias integrações e precisa manter produção mínima após incidente. Qual medida a orientação da ePING associa a esse cenário?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Eliminar a análise de risco para não atrasar a recuperação operacional.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Concentrar a recuperação em um fornecedor sem documentar dependências.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Desativar os controles preventivos durante todo o ciclo do sistema.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Elaborar plano de continuidade para tratar riscos residuais e níveis mínimos.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Presumir que autenticação centralizada garante disponibilidade do serviço.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Para sistemas que apoiam processos críticos, a ePING prevê planos de continuidade para tratar riscos residuais e atender níveis mínimos de produção. Isso complementa prevenção e segurança do ciclo de vida.",
+                          "section":  "4. Segurança e integração",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Uma equipe avalia padrões para os dispositivos usados por cidadãos e servidores ao acessar serviços eletrônicos. Qual segmento da ePING orienta essa parte?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Segurança, voltada à proteção de sistemas e informações em trânsito.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Interconexão, que estabelece as condições de comunicação entre redes.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Áreas de Integração, que sustenta intercâmbio em domínios transversais.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Organização e Intercâmbio, que trata estrutura e transferência das informações.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Meios de Acesso, que aborda padrões dos dispositivos de acesso aos serviços.",
+                                              "correct":  true
+                                          }
+                                      ],
+                          "explanation":  "Meios de Acesso explicita questões relativas aos padrões dos dispositivos de acesso aos serviços de governo eletrônico. Os outros segmentos têm como foco principal segurança, comunicação de redes, organização de dados ou integração transversal.",
+                          "section":  "6. Segmentos e classificação",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      }
+                  ],
+    "sources":  [
+                    {
+                        "kind":  "OFICIAL",
+                        "title":  "Padrões de Interoperabilidade — Governo Digital",
+                        "publisher":  "Secretaria de Governo Digital, Ministério da Gestão e da Inovação em Serviços Públicos",
+                        "reference":  "Escopo, observância institucional e políticas gerais da ePING",
+                        "url":  "https://www.gov.br/governodigital/pt-br/infraestrutura-nacional-de-dados/interoperabilidade/padroes-de-interoperabilidade",
+                        "accessedAt":  "2026-11-04"
+                    },
+                    {
+                        "kind":  "OFICIAL",
+                        "title":  "Padrões de Interoperabilidade de Governo Eletrônico — ePING, versão 2018",
+                        "publisher":  "Governo Federal — Programa de Governo Eletrônico Brasileiro",
+                        "reference":  "Apresentação, escopo, dimensões, segmentos, classificação, segurança e especificações técnicas",
+                        "url":  "https://eping.governoeletronico.gov.br/",
+                        "accessedAt":  "2026-11-04"
+                    },
+                    {
+                        "kind":  "OFICIAL",
+                        "title":  "Documento de Referência ePING — versão 2018 (PDF)",
+                        "publisher":  "Ministério do Planejamento, Desenvolvimento e Gestão",
+                        "reference":  "Documento oficial da arquitetura e especificações técnicas consultadas",
+                        "url":  "https://www.gov.br/governodigital/pt-br/infraestrutura-nacional-de-dados/ePING_v2018_20171205.pdf",
+                        "accessedAt":  "2026-11-04"
+                    }
+                ]
+}

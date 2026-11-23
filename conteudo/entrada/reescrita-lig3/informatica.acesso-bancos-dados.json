@@ -1,0 +1,2197 @@
+{
+  "id": "informatica.acesso-bancos-dados",
+  "subject": "Informática",
+  "title": "Acesso a bancos de dados",
+  "version": 2,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Acesso a banco de dados",
+    "Acesso a bancos de dados",
+    "Conexão com banco de dados",
+    "Conexão a bancos relacionais",
+    "Conectividade com banco de dados",
+    "Conexões de aplicações a bancos de dados",
+    "Acesso a dados por JDBC",
+    "Acesso a dados por ODBC",
+    "Acesso a dados por drivers de banco",
+    "Consultas parametrizadas a bancos de dados",
+    "Transações em conexões com banco de dados",
+    "Pool de conexões com banco de dados"
+  ],
+  "scope": {
+    "covers": "Fundamentos de acesso de aplicações a bancos de dados relacionais: cliente, servidor, driver, interface e parâmetros de conexão; exemplos de JDBC, DataSource, ODBC e Python DB-API; abertura e encerramento de conexões, autenticação e privilégios mínimos; execução de comandos SQL, cursores, resultados e consultas parametrizadas; prevenção de injeção de SQL; transações, autocommit, commit, rollback, savepoints e isolamento; uso e limites de pools de conexão; tratamento de falhas de rede, autenticação, configuração e SQL; proteção de credenciais e conexões criptografadas.",
+    "excludes": "Administração e instalação de SGBD, desenho e normalização de esquemas, comandos SQL específicos de um produto, operação de ferramentas de migração, replicação, backup, recuperação e ajuste avançado de desempenho."
+  },
+  "theoryTitle": "Como uma aplicação acessa um banco de dados",
+  "chapters": [
+    {
+      "title": "1. Componentes e caminho da conexão",
+      "markdown": "### O problema que este assunto resolve\n\nPara ler ou gravar dados, um programa precisa saber aonde se conectar e como conversar com o servidor que mantém o banco. Essa ligação envolve mais de uma peça: uma interface usada pelo programa, um componente que entende o protocolo do produto, os parâmetros de destino e uma identidade autorizada. Entender o caminho ajuda a localizar se a falha está no endereço, na rede, no login ou na consulta.\n\n> **Siglas e termos explicados**\n> - **SGBD**: sistema gerenciador de banco de dados; recebe comandos, controla acesso e administra os dados.\n> - **API**: interface de programação de aplicações, isto é, um conjunto de operações que o código pode chamar.\n> - **Driver**: componente que implementa a comunicação entre a API e determinado produto de banco.\n> - **JDBC**: API de conectividade usada por programas Java.\n> - **ODBC**: interface de conectividade que permite a programas acessar diferentes fontes por meio de drivers.\n> - **DB-API**: especificação de operações comuns para módulos Python de acesso a bancos.\n> - **DSN**: nome de uma fonte de dados com parâmetros que permitem localizá-la.\n> - **Endpoint**: endereço de um serviço na rede, normalmente composto por nome do host e porta.\n\n### O caminho de uma conexão\n\nImagine que Bruno mantém um sistema de estoque. Primeiro, o programa carrega a biblioteca compatível com a linguagem. Depois, usa um driver apropriado ao SGBD e informa onde está o servidor, qual banco pretende acessar e qual conta de serviço utilizar. O driver tenta abrir o canal. O servidor verifica a identidade e, se o login for aceito, aplica os privilégios dessa conta. Só então o programa envia comandos e recebe linhas, contagens de alterações ou mensagens de erro.\n\n| Peça | Exemplo | Para que serve |\n| --- | --- | --- |\n| API | JDBC em Java | Oferece métodos para conexão e execução |\n| Driver | Driver JDBC do PostgreSQL | Traduz chamadas e comunica-se com o produto |\n| Parâmetros | Host, porta e nome do banco | Indicam o destino e o contexto |\n| Credencial | Usuário e senha ou outro segredo | Permite provar uma identidade |\n| SGBD | PostgreSQL, Oracle ou outro | Valida acesso e processa as instruções |\n\nBruno recebe um erro de conexão. Ele verifica o nome do host e a porta; em seguida confirma que a rede permite chegar ao servidor. Como o servidor responde, ele confere o usuário e o segredo. O login passa, mas a consulta falha por falta de privilégio: esse último problema é de autorização, não de conectividade. Separar as etapas evita tentar corrigir uma senha quando o problema real é uma permissão.\n\n### Formas de configurar o acesso\n\nEm Java, `DriverManager.getConnection` pode receber uma URL de conexão e propriedades. `DataSource` é uma abstração de fonte de dados que separa a configuração do código e pode integrar gerenciamento de conexões; ela não é o banco e não significa, por si só, que haja um pool. Em ODBC, o driver específico atende a uma interface comum, e a configuração pode ser indicada por um DSN. Módulos Python que seguem a DB-API expõem operações como `connect`, conexão e cursor, mas detalhes como a forma dos parâmetros continuam dependendo do módulo.\n\nNo PostgreSQL, por exemplo, a biblioteca cliente libpq aceita parâmetros como host, porta e nome do banco, em pares ou numa URI de conexão. Host identifica a máquina; porta aponta para o serviço de rede; nome seleciona o banco no servidor. Uma porta errada pode impedir a conexão mesmo que a senha esteja correta. Uma senha incorreta, por outro lado, é examinada depois de o cliente alcançar o servidor. A sintaxe de URL e os valores de configuração variam por produto e driver.\n\n### Pegadinha\n\nA banca pode trocar API por driver: a API define o conjunto de operações chamado pelo programa, e o driver realiza a comunicação específica. Também pode afirmar que uma URL concede acesso: ela apenas descreve como localizar e iniciar a conexão; a autenticação e os privilégios são verificados separadamente.\n\n### Resumo para a prova\n\nSiga o trajeto: programa e API, driver, parâmetros de destino, rede, autenticação, autorização e comando. DSN ou URL guarda informações de conexão, mas não substitui o driver. `DataSource` representa uma fonte configurável e pode apoiar o gerenciamento, sem ser necessariamente um pool. Host e porta localizam o serviço; a identidade e seus privilégios determinam o que poderá fazer."
+    },
+    {
+      "title": "2. Autenticação, autorização e proteção do acesso",
+      "markdown": "### O problema que este assunto resolve\n\nUm login bem-sucedido prova a identidade de quem se conectou; ele não deve liberar automaticamente todas as operações. O banco precisa decidir separadamente quais tabelas e ações aquela identidade pode usar. Essa distinção protege os dados e também torna mais fácil investigar por que uma operação foi recusada.\n\n> **Siglas e termos explicados**\n> - **Autenticação**: verificação da identidade apresentada pelo cliente.\n> - **Autorização**: decisão sobre quais objetos e operações uma identidade pode usar.\n> - **Privilégio**: permissão para realizar uma ação, como consultar ou inserir dados.\n> - **TLS**: protocolo de segurança que pode cifrar a comunicação e ajudar a validar a identidade do servidor conforme a configuração.\n> - **Segredo**: informação de acesso que deve permanecer restrita, como senha, token ou chave.\n> - **Princípio do menor privilégio**: conceder somente as permissões necessárias à tarefa.\n> - **DNS**: sistema que associa nomes de hosts a endereços de rede.\n\n### Identidade e permissão são verificações diferentes\n\nConsidere dois resultados. Se o servidor rejeita a senha de Bruno, houve uma falha de autenticação: a identidade não foi comprovada. Se Bruno entra, mas recebe uma recusa ao consultar uma tabela, o login funcionou e o privilégio de leitura está ausente. Conceder uma senha nova não resolve automaticamente a permissão da tabela; os dois controles têm funções distintas.\n\n| Sintoma | Camada provável | O que verificar |\n| --- | --- | --- |\n| O nome do servidor não é localizado | Resolução de nomes | Host, DNS e configuração de rede |\n| A conexão não obtém resposta | Transporte ou serviço | Rota, firewall, porta e disponibilidade |\n| O servidor recusa a credencial | Autenticação | Usuário, segredo, método e estado da conta |\n| A consulta é negada após o login | Autorização | Privilégios da identidade sobre o objeto |\n| A validação do certificado falha | Proteção do canal | Nome esperado, cadeia de confiança e configuração |\n\n### Aplicar o menor privilégio\n\nUma aplicação deve usar uma conta técnica própria, separada das contas pessoais e administrativas. Se um serviço só apresenta relatórios, conceda o que ele precisa para ler as fontes autorizadas. Se outro serviço cadastra pedidos, pode precisar inserir e consultar pedidos, sem receber poder para apagar todo o banco ou criar usuários. A concessão ampla por conveniência aumenta o dano possível se houver erro no programa ou exposição da conta.\n\nExemplo: Ana mantém uma rotina que mostra o saldo de pedidos. Primeiro, ela identifica quais tabelas e operações essa rotina realmente usa. Depois, pede uma identidade de serviço com leitura apenas dessas informações. Por fim, testa o fluxo como essa identidade. Se uma consulta for negada, investiga se aquela leitura específica é necessária antes de pedir nova permissão; não troca a conta por uma credencial administrativa para ocultar o erro.\n\nSenhas e demais segredos devem ser fornecidos por configuração protegida ou por um gerenciador apropriado, com acesso limitado. Colocá-los diretamente no código, em arquivos distribuídos sem proteção ou nos logs pode expô-los a pessoas e sistemas que não precisam deles. Se a senha mudar no servidor, a configuração da aplicação também precisa ser atualizada; caso contrário, o login continuará falhando.\n\n### Proteção do canal\n\nQuando a conexão atravessa uma rede não confiável, a criptografia em trânsito reduz a possibilidade de leitura do tráfego. A validação do certificado ajuda o cliente a confirmar que está falando com o servidor esperado. Cifrar sem validar a identidade do outro lado pode deixar o cliente vulnerável a um endpoint impostor. A configuração exata depende do driver e do produto. TLS protege o canal; não substitui senha protegida nem controle de privilégios.\n\n### Pegadinha\n\nA banca costuma tratar autenticação e autorização como sinônimos. Lembre-se: a primeira verifica quem é a identidade; a segunda verifica o que ela pode fazer. Também pode afirmar que conexão cifrada torna segura uma senha guardada no código: são problemas diferentes, e o canal protegido não corrige o armazenamento inadequado do segredo.\n\n### Resumo para a prova\n\nSepare localização e rede, autenticação, autorização e proteção do canal. Credencial válida não significa permissão total. A conta de serviço deve ter o mínimo de privilégios necessário. TLS pode proteger a comunicação e validar o servidor, mas não substitui gestão de segredos ou controle de acesso."
+    },
+    {
+      "title": "3. Execução de SQL e leitura dos resultados",
+      "markdown": "### O problema que este assunto resolve\n\nDepois que a conexão está aberta, o programa precisa enviar instruções ao banco e interpretar o que voltou. As bibliotecas organizam esse trabalho em objetos: a conexão representa a sessão; uma instrução envia SQL; e, quando há linhas, um resultado pode ser percorrido. Isso evita misturar o texto do comando com o tratamento de cada linha.\n\n> **Siglas e termos explicados**\n> - **SQL**: linguagem usada para consultar e manipular dados em bancos relacionais.\n> - **JDBC**: API Java de acesso a bancos.\n> - **Statement**: objeto JDBC usado para executar uma instrução SQL.\n> - **PreparedStatement**: instrução preparada que recebe valores em parâmetros separados do texto SQL.\n> - **Cursor**: objeto de certas APIs que executa comandos e percorre linhas retornadas.\n> - **ResultSet**: conjunto tabular produzido por uma consulta JDBC.\n> - **Placeholder**: marcador na instrução que indica onde um valor será associado.\n> - **Injeção de SQL**: falha em que uma entrada altera a estrutura de um comando SQL.\n\n### Ler resultados e executar alterações\n\nUma consulta de leitura pode devolver uma ou muitas linhas. Em JDBC, `executeQuery` é usado para uma consulta que produz um `ResultSet`; o código percorre as linhas e lê as colunas. `executeUpdate` é usado em operações de alteração ou definição e pode informar quantas linhas foram afetadas. Em módulos Python que seguem DB-API, o cursor executa a operação e métodos como `fetchone`, `fetchmany` e `fetchall` recuperam resultados. A quantidade de dados deve ser considerada: carregar tudo de uma vez pode ser inadequado para um resultado grande.\n\nExemplo: Ana precisa encontrar o nome da pessoa identificada por um valor que veio de um formulário. Ela prepara `SELECT nome FROM pessoa WHERE id = ?`, associa o identificador como valor, executa e verifica se voltou alguma linha. O marcador `?` é um placeholder no exemplo JDBC; outros drivers podem usar outra notação. A estrutura SQL e o dado seguem separados, reduzindo a chance de a entrada virar parte do comando.\n\n| Padrão | O que acontece | Avaliação |\n| --- | --- | --- |\n| Concatenar a entrada em `WHERE nome = '...'` | O texto recebido pode alterar a instrução | Pode permitir injeção de SQL |\n| Usar `WHERE nome = ?` e associar o valor | O dado ocupa o parâmetro | Forma apropriada para valores |\n| Usar `ORDER BY ?` esperando indicar uma coluna | O marcador é tratado como valor | Não substitui um identificador SQL |\n| Escolher a coluna em uma lista fixa autorizada | Só nomes previstos entram na estrutura | Opção controlada para SQL dinâmico |\n\n### Parâmetros não são partes arbitrárias do comando\n\nParâmetros vinculados representam valores, como nome, número ou data. Não servem para inserir nomes de tabelas, colunas ou palavras-chave, pois esses elementos compõem a estrutura gramatical do SQL. Se a interface permitir ordenar por nome ou data, o programa deve mapear a escolha recebida para uma lista interna de identificadores conhecidos e seguros. A validação deve rejeitar qualquer opção que não esteja nessa lista.\n\nA DB-API não determina uma única grafia de placeholder para todos os módulos. Um módulo pode declarar estilo posicional com ponto de interrogação ou estilo nomeado, entre outras convenções. Deve-se seguir o estilo indicado pelo driver e entregar os valores pelo mecanismo de parâmetros, em vez de construir uma string presumindo que qualquer sintaxe funcionará.\n\n### SQL Navigator\n\nO SQL Navigator for Oracle é uma ferramenta gráfica da Quest para desenvolvimento e manutenção de objetos em bancos Oracle. O profissional pode escrever e editar SQL e código PL/SQL, navegar por objetos, examinar dependências e apoiar tarefas de desenvolvimento. Algumas edições incluem recursos de análise e otimização de consultas; a disponibilidade varia por edição. A ferramenta é um cliente de trabalho: conecta-se ao banco com uma identidade e permissões, mas não é o próprio SGBD, não substitui o driver e não concede automaticamente privilégios.\n\nExemplo: Bruno abre o SQL Navigator, escolhe a conexão de desenvolvimento e executa uma consulta de leitura. Se o login falha, ele revisa os parâmetros e a credencial. Se o login funciona, mas a tabela não pode ser consultada, precisa de autorização adequada. Antes de executar uma alteração, confere o ambiente e o comando, pois a interface gráfica não torna uma operação destrutiva inofensiva.\n\n### Liberar os recursos\n\nConexões, instruções e resultados ocupam recursos e devem ser fechados ou devolvidos segundo o contrato da biblioteca. Em Java, `try-with-resources` permite fechar recursos mesmo se uma exceção ocorrer. Em Python, context managers e métodos de fechamento variam conforme o driver. Encerrar um resultado não confirma a transação; fechar um cursor não é o mesmo que fechar uma conexão. Cada ação tem um papel próprio.\n\n### Pegadinha\n\nA banca pode afirmar que placeholders protegem nomes de tabelas ou colunas: eles vinculam valores, não substituem elementos estruturais da consulta. Também pode confundir SQL Navigator com o servidor ou com a linguagem SQL. É uma ferramenta cliente para desenvolver e manter código e objetos Oracle, e seus recursos podem variar conforme a edição.\n\n### Resumo para a prova\n\nConexão, instrução e resultado são papéis distintos. Consultas produzem linhas; alterações podem produzir contagem de linhas afetadas. Associe dados externos por parâmetros, respeitando o formato do driver, e selecione identificadores dinâmicos de uma lista autorizada. SQL Navigator é uma ferramenta cliente gráfica voltada a Oracle, não o banco em si. Libere os recursos ao terminar."
+    },
+    {
+      "title": "4. Transações no acesso à base",
+      "markdown": "### O problema que este assunto resolve\n\nAlgumas tarefas só fazem sentido se todas as alterações relacionadas forem concluídas juntas. Imagine transferir dinheiro: retirar da conta de origem sem acrescentar à conta de destino deixa o sistema incoerente. Uma transação agrupa instruções para que o programa possa confirmar o conjunto ou desfazer o que ainda está pendente.\n\n> **Siglas e termos explicados**\n> - **Transação**: conjunto de operações tratado como uma unidade de trabalho.\n> - **Autocommit**: modo que confirma automaticamente cada instrução concluída.\n> - **Commit**: confirmação das alterações pendentes da transação.\n> - **Rollback**: cancelamento das alterações ainda não confirmadas.\n> - **Savepoint**: marcador intermediário ao qual se pode retornar dentro da transação.\n> - **ACID**: propriedades chamadas atomicidade, consistência, isolamento e durabilidade, associadas ao comportamento transacional.\n\n### Confirmar ou desfazer\n\nEm JDBC, uma conexão geralmente começa com autocommit ligado. Cada instrução concluída é tratada separadamente. Para fazer várias instruções participarem de uma só unidade, o programa desliga o autocommit, executa o conjunto e chama `commit` se tudo ocorrer como esperado. Se uma etapa falhar e for necessário abandonar as mudanças pendentes, chama `rollback`. O suporte e os detalhes podem variar por API e SGBD; deve-se seguir o contrato da conexão utilizada.\n\nExemplo passo a passo: Ana inicia uma transferência entre duas contas. Primeiro, começa uma transação controlada. Depois, debita a conta de origem. Em seguida, credita a conta de destino. Se as duas operações forem concluídas e as validações passarem, confirma com `commit`. Se o crédito falhar antes dessa confirmação, executa `rollback` para não deixar apenas o débito aplicado.\n\n| Ação | Efeito esperado |\n| --- | --- |\n| Ligar autocommit | Cada instrução concluída é confirmada conforme o comportamento da conexão |\n| Desligar autocommit | O programa passa a controlar a confirmação do conjunto |\n| `commit()` | Confirma as alterações ainda pendentes |\n| `rollback()` | Desfaz as alterações pendentes da transação |\n| Voltar a um savepoint | Desfaz o trecho posterior ao marcador, se houver suporte |\n\n### Savepoint e isolamento\n\nSavepoint marca uma etapa dentro da transação. Se uma etapa opcional falhar, o programa pode retornar ao marcador sem necessariamente desfazer todo o trabalho anterior. O savepoint não torna permanente o que veio antes: a transação ainda precisa ser confirmada ou desfeita.\n\nIsolamento descreve como operações concorrentes observam alterações umas das outras. O nível escolhido pode afetar leituras, conflitos e bloqueios; os níveis e comportamentos concretos dependem do SGBD. Transações longas podem manter recursos ocupados e prejudicar outras operações, por isso a unidade de trabalho deve durar apenas o necessário.\n\nACID resume quatro propriedades frequentemente estudadas: atomicidade trata o conjunto como tudo ou nada; consistência preserva regras válidas dos dados; isolamento limita interferências entre transações concorrentes; durabilidade trata da permanência de uma confirmação segundo as garantias do sistema. O modo como cada produto implementa e expõe esses aspectos tem particularidades.\n\n### Pegadinha\n\nAutocommit não agrupa automaticamente duas instruções em uma única operação de negócio. Savepoint também não equivale a commit: retornar ao marcador não confirma a transação. Se uma etapa falhar, o sistema precisa tratar explicitamente o estado pendente segundo a API usada.\n\n### Resumo para a prova\n\nUma transação agrupa operações relacionadas. Com controle manual, desative autocommit, execute o conjunto, confirme no sucesso e desfaça no caso de falha que exija cancelamento. Savepoint é um ponto de retorno interno; isolamento trata de concorrência. Não confunda esses mecanismos com autorização ou fechamento de conexão."
+    },
+    {
+      "title": "5. Ciclo de vida, pool e falhas comuns",
+      "markdown": "### O problema que este assunto resolve\n\nAbrir uma conexão exige tempo e recursos do servidor. Criar uma nova sessão para cada consulta pode aumentar a espera; deixar sessões esquecidas abertas também consome capacidade. A aplicação precisa reutilizar conexões com limites, devolvê-las depois do uso e distinguir falhas para decidir o que corrigir.\n\n> **Siglas e termos explicados**\n> - **Pool de conexões**: conjunto de conexões mantidas para empréstimo temporário e reutilização.\n> - **Timeout**: limite de tempo de espera antes de desistir de uma operação.\n> - **Latência**: tempo entre iniciar uma operação e receber resposta.\n> - **Vazamento de conexão**: recurso emprestado que não é devolvido nem encerrado.\n> - **JDBC**: API Java para conectividade com bancos.\n> - **SQLException**: tipo de exceção JDBC usado para comunicar falhas de acesso a dados.\n> - **SQLState**: código de estado associado a uma falha SQL em JDBC.\n> - **DB-API**: convenção de operações comuns para módulos Python de acesso a bancos.\n\n### Reutilizar sem esgotar o servidor\n\nUm pool mantém conexões abertas e empresta uma delas quando uma operação precisa acessar o banco. Ao fechar uma conexão obtida do pool, muitas implementações a devolvem ao conjunto para uso futuro; o comportamento depende do mecanismo empregado. Limites de conexões e de espera ajudam a impedir que um pico de requisições abra sessões sem controle. Aumentar o pool sem considerar a capacidade do banco pode piorar a saturação e não torna consultas lentas mais rápidas.\n\nExemplo: Bruno recebe uma conexão do pool para consultar um pedido. Ele executa a consulta e, mesmo se ocorrer erro, garante que o recurso seja devolvido. Se iniciou uma transação, resolve o estado pendente antes da devolução conforme as regras da biblioteca. Se não fechar ou devolver a conexão, o pool perde capacidade para outras requisições.\n\n### Diagnosticar a falha certa\n\nOs erros podem vir de etapas diferentes. Falha ao abrir conexão pode envolver endereço, rede, serviço indisponível, espera excedida ou credencial. Uma recusa de privilégio ocorre depois de a identidade ser reconhecida. Uma violação de integridade, como uma referência a registro inexistente, aponta para uma regra dos dados. SQL inválido, tabela inexistente ou quantidade de parâmetros incompatível tende a indicar problema na instrução ou no código.\n\n| Sintoma | Hipótese a investigar | Próximo passo |\n| --- | --- | --- |\n| Host não localizado ou conexão expirada | Configuração, rede ou serviço | Conferir destino, rota, porta e disponibilidade |\n| Login recusado | Autenticação | Conferir usuário, segredo e método |\n| Consulta proibida | Autorização | Verificar o privilégio necessário no objeto |\n| Comando inválido | SQL ou parâmetros | Revisar sintaxe, nomes e vínculo de valores |\n| Violação de regra de dados | Integridade | Conferir restrições e dados relacionados |\n| Pool sem conexões livres | Limites ou devolução | Verificar vazamentos, espera e dimensionamento |\n\nEm JDBC, `SQLException` pode oferecer mensagem, SQLState, código específico do fornecedor e causas encadeadas. Em implementações Python de DB-API há categorias de erro, como falhas operacionais, de integridade ou de programação. A nomenclatura e os detalhes dependem do driver. Registre informação técnica suficiente para investigar, mas retire senhas, tokens e dados pessoais desnecessários dos logs.\n\nRepetir automaticamente uma escrita depois de uma queda de conexão pode duplicar uma operação que o servidor já confirmou, embora a resposta não tenha chegado ao cliente. Antes de repetir, avalie se o resultado da primeira tentativa é conhecido e se a operação foi projetada para repetição segura.\n\n### Pegadinha\n\nPool não significa quantidade ilimitada de conexões e não corrige qualquer lentidão. Também não se deve tratar erro de senha, falta de privilégio, falha de rede e SQL inválido como se fossem o mesmo problema. O diagnóstico parte da etapa que falhou.\n\n### Resumo para a prova\n\nPools reutilizam conexões dentro de limites. Toda conexão emprestada deve ser devolvida em sucesso e erro, com a transação resolvida conforme o contrato. Classifique a falha antes de agir: rede, autenticação, autorização, instrução ou integridade. Evite registrar segredos e repetir gravações sem avaliar possível confirmação anterior."
+    },
+    {
+      "title": "6. Integração prática e checklist de acesso",
+      "markdown": "### O problema que este assunto resolve\n\nPara que o acesso ao banco funcione com segurança, as etapas precisam encaixar: escolher destino e driver, usar uma identidade adequada, enviar comandos bem formados, tratar transações e liberar recursos. Este capítulo junta esses pontos e acrescenta como o SGBD organiza os arquivos e localiza registros quando consulta os dados.\n\n> **Siglas e termos explicados**\n> - **JDBC**: API Java para acessar bancos por drivers compatíveis.\n> - **ODBC**: interface comum para acessar fontes de dados por drivers.\n> - **DB-API**: especificação de operações comuns para módulos Python de banco de dados.\n> - **DataSource**: abstração Java que representa uma fonte de dados e pode integrar configuração ou gerenciamento de conexões.\n> - **DriverManager**: classe JDBC que pode obter uma conexão a partir de uma URL e propriedades.\n> - **PL/SQL**: extensão procedural da Oracle para escrever lógica que interage com o banco.\n> - **Bloco de dados**: unidade lógica de armazenamento e leitura administrada pelo banco.\n> - **Extensão**: conjunto de blocos alocado como uma unidade de espaço.\n> - **Segmento**: conjunto de extensões associado a um objeto ou finalidade de armazenamento.\n> - **Tablespace**: unidade lógica que reúne espaço de armazenamento no Oracle.\n> - **Arquivo de dados**: arquivo físico em que o banco mantém dados.\n> - **Índice**: estrutura auxiliar que ajuda a localizar linhas por valores de determinadas colunas.\n> - **Varredura completa**: leitura do conjunto de blocos de uma tabela para localizar linhas.\n\n### Organização dos arquivos e do espaço\n\nO sistema operacional enxerga arquivos; o SGBD organiza o espaço desses arquivos em estruturas que conhece. No Oracle, por exemplo, os dados ficam em arquivos de dados e são administrados logicamente em blocos, extensões, segmentos e tablespaces. Um segmento guarda o espaço de um objeto, como tabela ou índice; ele é formado por extensões, que por sua vez contêm blocos. A organização lógica do SGBD não deve ser confundida com a forma como o sistema operacional vê os arquivos. Outros produtos podem apresentar estruturas e nomes diferentes.\n\nExemplo: Ana cria uma tabela de pedidos. O SGBD associa espaço à tabela; conforme necessário, aloca extensões compostas por blocos dentro da estrutura lógica de armazenamento. Um índice sobre o identificador dos pedidos ocupa espaço próprio e ajuda a localizar linhas. A tabela e o índice são estruturas distintas, ainda que sirvam à mesma consulta. Os arquivos físicos sustentam esse armazenamento, mas uma aplicação normalmente pede linhas por SQL em vez de ler diretamente o arquivo.\n\n| Nível | Papel na organização Oracle |\n| --- | --- |\n| Arquivo de dados | Persistência física dos dados |\n| Tablespace | Agrupamento lógico de espaço |\n| Segmento | Espaço de um objeto, como tabela ou índice |\n| Extensão | Conjunto de blocos alocado ao segmento |\n| Bloco | Unidade lógica de armazenamento e entrada/saída |\n\n### Métodos de acesso às linhas\n\nUm método de acesso descreve como o SGBD encontra os registros pedidos. Numa varredura completa, o banco examina blocos da tabela para procurar as linhas que satisfazem a condição. Pode ser apropriada quando a consulta precisa de muitas linhas ou quando a tabela é pequena. Num acesso por índice, o SGBD percorre a estrutura auxiliar para encontrar chaves e então pode buscar as linhas correspondentes na tabela. Índices são úteis para certos filtros e ordenações, mas ocupam espaço e precisam ser mantidos quando os dados mudam.\n\n| Método | Como localiza | Quando pode fazer sentido |\n| --- | --- | --- |\n| Varredura completa da tabela | Examina blocos da tabela | Tabela pequena ou consulta que retorna muitas linhas |\n| Acesso por índice | Busca valores na estrutura do índice e, quando preciso, alcança a linha | Filtro seletivo por coluna indexada |\n| Acesso sequencial em arquivo | Lê registros em sequência | Processamento que percorre grande parte do arquivo |\n| Acesso direto ou por chave | Usa endereço ou chave para chegar ao registro | Consulta pontual conforme organização e suporte do sistema |\n\nNenhum método é sempre melhor. Se Ana procura um único pedido por identificador indexado, o índice pode evitar examinar a tabela inteira. Se precisa exportar quase todos os pedidos, uma varredura pode ser mais eficiente do que localizar cada linha separadamente pelo índice. O otimizador do SGBD considera estatísticas, filtros, índices disponíveis e custo estimado; criar índices indiscriminadamente pode aumentar o custo das gravações e do armazenamento.\n\n### Sequência prática de acesso\n\n1. Confirme o SGBD e o driver compatível.\n2. Configure host, porta e banco corretos, distinguindo teste de produção.\n3. Obtenha credenciais de configuração protegida e use uma conta com privilégios mínimos.\n4. Abra a conexão pelo mecanismo documentado e estabeleça limites de espera e conexões.\n5. Prepare o SQL e associe valores externos como parâmetros.\n6. Execute a consulta, percorra o resultado e confirme ou desfaça alterações conforme a transação.\n7. Feche instruções, resultados e conexão ou devolva-a ao pool, inclusive se ocorrer erro.\n8. Para uma consulta lenta, examine filtros, índices e plano de acesso antes de presumir que aumentar o pool resolverá o problema.\n\nEm JDBC, o roteiro comum é obter `Connection`, criar `PreparedStatement`, associar valores, executar e percorrer `ResultSet` quando houver linhas. Na DB-API, o módulo abre conexão, cria cursor, executa usando o estilo de parâmetros documentado e lê o resultado. Um padrão comum reduz diferenças no código, mas não torna todos os drivers ou SGBDs idênticos.\n\n### Pegadinha\n\nNão confunda arquivos físicos com estruturas lógicas do banco: no exemplo Oracle, blocos, extensões, segmentos e tablespaces são estruturas administradas pelo SGBD sobre arquivos de dados. Também não conclua que índice sempre acelera qualquer consulta; seletividade, tamanho do resultado, custo de manutenção e plano escolhido influenciam. A ferramenta SQL Navigator auxilia o trabalho do desenvolvedor, mas não altera esses fundamentos nem substitui o SGBD.\n\n### Resumo para a prova\n\nO acesso combina configuração, driver, identidade, SQL, transação e liberação. No Oracle, dados persistem em arquivos de dados e são organizados logicamente em tablespaces, segmentos, extensões e blocos. O SGBD pode varrer uma tabela ou usar índice, conforme custo e consulta. Índices ajudam em determinados acessos, mas têm custo de espaço e manutenção."
+    }
+  ],
+  "summary": "O acesso de uma aplicação a um banco passa por uma API e um driver, usa parâmetros para localizar o SGBD e autentica uma identidade sujeita a privilégios próprios. JDBC, ODBC e Python DB-API oferecem interfaces distintas; conexão, instrução, cursor e resultado são recursos diferentes. Consultas devem vincular valores em parâmetros, e atualizações relacionadas devem usar transações com commit ou rollback. Pools reutilizam conexões dentro de limites, enquanto diagnóstico separa falhas de rede, autenticação, autorização, SQL e integridade. Credenciais devem ser protegidas, permissões minimizadas e recursos liberados em qualquer caminho de execução.",
+  "flashcards": [
+    {
+      "front": "O que faz um driver de banco de dados?",
+      "back": "Implementa a comunicação entre uma API de acesso e um SGBD específico, traduzindo operações e protocolo."
+    },
+    {
+      "front": "O que uma API de conectividade fornece?",
+      "back": "Operações de programação para abrir conexões, executar comandos, ler resultados e tratar erros."
+    },
+    {
+      "front": "Quais dados básicos identificam um endpoint PostgreSQL?",
+      "back": "Host, porta e nome do banco; usuário e credencial identificam a autenticação."
+    },
+    {
+      "front": "Qual é a diferença entre autenticação e autorização?",
+      "back": "Autenticação verifica a identidade; autorização determina quais objetos e operações ela pode usar."
+    },
+    {
+      "front": "O que é uma conta técnica de aplicação?",
+      "back": "Identidade usada pelo software para acessar o SGBD, distinta de uma conta pessoal ou administrativa."
+    },
+    {
+      "front": "O que significa menor privilégio?",
+      "back": "Conceder à conta apenas as operações necessárias à função exercida pela aplicação."
+    },
+    {
+      "front": "Para que serve JDBC?",
+      "back": "É a API Java para conectar aplicações a fontes de dados que tenham um driver JDBC apropriado."
+    },
+    {
+      "front": "Para que serve ODBC?",
+      "back": "É uma interface de conectividade que permite acessar fontes de dados por meio de drivers ODBC."
+    },
+    {
+      "front": "O que é um DSN?",
+      "back": "Um nome de fonte de dados que pode agrupar parâmetros usados por uma configuração de conectividade."
+    },
+    {
+      "front": "O que representa DataSource em Java?",
+      "back": "Uma abstração que representa uma fonte de dados e pode centralizar configuração e integração com pooling."
+    },
+    {
+      "front": "Como JDBC obtém uma conexão simples?",
+      "back": "DriverManager.getConnection recebe uma URL JDBC e, conforme o caso, propriedades de acesso."
+    },
+    {
+      "front": "O que é um cursor em uma API de banco?",
+      "back": "Objeto usado para executar operações e acessar linhas retornadas por uma consulta."
+    },
+    {
+      "front": "O que PreparedStatement acrescenta ao acesso SQL?",
+      "back": "Permite preparar SQL e vincular valores em posições de parâmetro separadas da estrutura do comando."
+    },
+    {
+      "front": "Por que não concatenar entrada de usuário ao SQL?",
+      "back": "A entrada pode alterar a gramática do comando e produzir injeção de SQL."
+    },
+    {
+      "front": "O placeholder de parâmetro pode representar uma tabela?",
+      "back": "Não em geral; placeholders representam valores, e nomes de tabela/coluna exigem seleção controlada."
+    },
+    {
+      "front": "O que é autocommit?",
+      "back": "Modo que confirma cada instrução concluída como uma transação individual."
+    },
+    {
+      "front": "Quando usar commit?",
+      "back": "Quando a unidade transacional terminou com sucesso e suas mudanças devem se tornar permanentes."
+    },
+    {
+      "front": "Quando usar rollback?",
+      "back": "Quando a transação precisa ser cancelada e suas alterações ainda pendentes devem ser desfeitas."
+    },
+    {
+      "front": "Um savepoint é equivalente a commit?",
+      "back": "Não. Marca um ponto interno para possível retorno parcial, mas não confirma permanentemente a transação."
+    },
+    {
+      "front": "O que faz um pool de conexões?",
+      "back": "Mantém um conjunto limitado de conexões reutilizáveis e as empresta temporariamente às operações."
+    },
+    {
+      "front": "O que SQLState ajuda a fazer em JDBC?",
+      "back": "Classificar uma condição de erro usando um código de estado associado à SQLException."
+    },
+    {
+      "front": "Cite uma categoria de erro DB-API para falha de integridade.",
+      "back": "IntegrityError, por exemplo diante de uma violação de chave estrangeira."
+    },
+    {
+      "front": "O que deve acontecer com a conexão após a operação?",
+      "back": "Ela deve ser fechada ou devolvida ao mecanismo que a emprestou, mesmo se houver exceção."
+    },
+    {
+      "front": "Qual risco há em registrar uma senha no log?",
+      "back": "O log pode expor a credencial a quem não deveria acessá-la e permitir uso indevido."
+    },
+    {
+      "front": "O que TLS protege no acesso remoto?",
+      "back": "A comunicação em trânsito; a validação de certificado ajuda a confirmar a identidade do servidor."
+    }
+  ],
+  "tips": [
+    "Separe os diagnósticos: rede alcança o servidor, autenticação valida o usuário, autorização libera a operação.",
+    "Memorize o fluxo: API → driver → conexão → instrução/cursor → resultado → liberação dos recursos.",
+    "Use PreparedStatement ou os parâmetros do driver para valores; lista permitida para partes SQL que não aceitam parâmetro.",
+    "Em uma transação manual: desligue autocommit, agrupe ações, confirme no sucesso e desfaça na falha.",
+    "Uma conta de consulta não precisa de permissão para apagar tabelas; conceda acesso por função.",
+    "Ao perder conexão durante uma gravação, não repita às cegas: a transação pode ter sido confirmada antes da resposta se perder."
+  ],
+  "traps": [
+    "Confundir driver com banco. O driver é componente cliente; o SGBD é o servidor que processa SQL e mantém dados.",
+    "Achar que senha correta concede acesso a toda tabela. Autenticação e autorização são decisões distintas.",
+    "Acreditar que prepared statement permite parametrizar qualquer identificador SQL. Parâmetros destinam-se a valores.",
+    "Tratar autocommit como transação que agrupa várias instruções. Cada instrução é confirmada individualmente nesse modo.",
+    "Supor que fechar a conexão sempre significa confirmar alterações. Fechamento e commit são operações distintas; mudanças pendentes podem ser revertidas.",
+    "Imaginar que pool elimina limite de conexões ou consulta lenta. O pool reutiliza conexões dentro de limites e não corrige SQL ineficiente."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o percurso entre a aplicação e uma linha retornada pelo banco.",
+      "answer": "A aplicação chama uma API de conectividade; o driver comunica-se com o SGBD usando endereço e credenciais; o servidor autentica e autoriza; o comando é executado; as linhas ou o erro retornam pelos objetos da API."
+    },
+    {
+      "question": "Diferencie autenticação de autorização com um exemplo.",
+      "answer": "O servidor autentica a conta técnica com a credencial; em seguida a autorização verifica se essa conta possui SELECT na tabela solicitada. A senha pode estar correta mesmo com a consulta negada por falta de privilégio."
+    },
+    {
+      "question": "Como evitar injeção ao procurar pessoa por nome informado pelo usuário?",
+      "answer": "Preparar uma consulta com placeholder para o valor e vinculá-lo pelo método do driver. Não concatenar o texto informado na instrução SQL."
+    },
+    {
+      "question": "Explique a diferença entre autocommit e transação controlada.",
+      "answer": "Com autocommit cada instrução é confirmada por conta própria. Com autocommit desativado, várias instruções participam da transação e o programa decide commit ou rollback."
+    },
+    {
+      "question": "Por que uma transferência bancária deve usar uma única transação?",
+      "answer": "Para que o débito e o crédito sejam confirmados juntos ou desfeitos juntos; separar commits pode deixar apenas uma das contas alterada."
+    },
+    {
+      "question": "Que função um pool exerce e o que ele não resolve sozinho?",
+      "answer": "Reutiliza conexões físicas sob um limite e reduz o custo de abri-las repetidamente. Não corrige falta de capacidade, SQL lento, credenciais erradas ou vazamentos de conexões emprestadas."
+    },
+    {
+      "question": "Como distinguir rapidamente host indisponível de privilégio ausente?",
+      "answer": "Falha para alcançar o host aponta para endereço, rota, firewall, porta ou serviço; permissão negada após conexão estabelecida aponta para autorização no objeto."
+    },
+    {
+      "question": "Que cuidados adotar com credenciais e logs de acesso?",
+      "answer": "Guardar segredos em configuração protegida, restringir leitura, usar conta de menor privilégio e registrar contexto técnico sem incluir senha, token ou dados sensíveis."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Peças da conectividade confundidas",
+      "summary": "A API define chamadas, o driver implementa a ligação ao SGBD, a conexão representa uma sessão e o SGBD autentica, autoriza e executa SQL."
+    },
+    {
+      "key": "e2",
+      "title": "Identidade e permissão confundidas",
+      "summary": "Autenticação valida identidade; autorização limita objetos e operações. Senha válida não concede por si só privilégios de tabela."
+    },
+    {
+      "key": "e3",
+      "title": "SQL construído com entrada externa",
+      "summary": "Concatenar valores em SQL pode permitir injeção; parâmetros vinculados mantêm dados separados da gramática. Identificadores exigem escolha controlada."
+    },
+    {
+      "key": "e4",
+      "title": "Limite da transação esquecido",
+      "summary": "Autocommit confirma cada instrução. Transação manual agrupa operações com commit, rollback e, se suportado, savepoints."
+    },
+    {
+      "key": "e5",
+      "title": "Recursos e falhas mal geridos",
+      "summary": "Devolver conexões ao pool, separar erros de rede, autenticação, autorização e SQL, limitar concorrência e proteger segredos em logs."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em uma aplicação Java, o driver JDBC é responsável por implementar a comunicação com um SGBD compatível, enquanto a API JDBC oferece classes e interfaces usadas pelo programa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A API descreve operações como obter conexão e executar instruções, enquanto um driver fornece a implementação que conversa com determinado SGBD. Sem driver compatível, as chamadas da API não estabelecem o acesso pretendido.",
+      "section": "1. Componentes e caminho da conexão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma URL JDBC identifica o banco e substitui a necessidade de incluir no programa o driver compatível com o SGBD de destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A URL informa dados de destino e opções da conexão, mas a aplicação ainda precisa do driver apropriado para implementar o protocolo do SGBD. Endereço e componente de comunicação cumprem papéis diferentes.",
+      "section": "1. Componentes e caminho da conexão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual elemento implementa a comunicação entre uma API de conectividade e um SGBD específico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A credencial que prova a identidade do usuário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O DSN que nomeia a fonte de dados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O cursor que percorre as linhas retornadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A porta que identifica o serviço de rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O driver adequado ao SGBD utilizado.",
+          "correct": true
+        }
+      ],
+      "explanation": "O driver implementa a comunicação entre a interface usada no programa e o SGBD escolhido. DSN e porta ajudam a configurar destino, cursor trata a execução e credencial participa da autenticação; nenhum deles substitui o driver.",
+      "section": "1. Componentes e caminho da conexão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma configuração PostgreSQL com `host=db.intra`, `port=5432` e `dbname=gestao`, o parâmetro `dbname` identifica o banco escolhido no servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `host` localiza a máquina, `port` seleciona o serviço de rede e `dbname` indica o banco de dados a abrir. A documentação libpq aceita esses parâmetros em formato keyword/value ou URI.",
+      "section": "1. Componentes e caminho da conexão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em JDBC, qual alternativa descreve corretamente a diferença entre `DriverManager` e `DataSource`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "DriverManager controla permissões, e DataSource executa somente consultas de leitura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "DataSource representa a fonte e separa sua configuração da aplicação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "DataSource é o driver instalado no servidor, e DriverManager é o banco de dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DriverManager serve para ODBC, e DataSource serve exclusivamente para arquivos locais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "DataSource criptografa senhas automaticamente, e DriverManager não aceita credenciais.",
+          "correct": false
+        }
+      ],
+      "explanation": "DriverManager obtém uma conexão usando URL e propriedades; DataSource abstrai a fonte de dados e pode integrar configuração e pooling. Nenhum dos dois substitui as permissões configuradas no SGBD nem é o banco propriamente dito.",
+      "section": "1. Componentes e caminho da conexão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No ODBC, o driver específico deixa de ser necessário quando a aplicação usa um DSN, porque o DSN implementa o protocolo de comunicação com o SGBD.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um DSN identifica ou reúne configuração da fonte de dados, enquanto o driver ODBC implementa a comunicação. O nome configurado não contém, por si só, a implementação do protocolo do SGBD.",
+      "section": "1. Componentes e caminho da conexão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A aplicação alcança o servidor, autentica a conta `relatorio`, mas recebe uma recusa ao executar `SELECT` sobre `pagamentos`. Qual causa corresponde ao estágio mais provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ausência do driver cliente no caminho de execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Falha de resolução do nome do servidor na rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Falta de privilégio de leitura da conta na tabela.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Inexistência de uma API de conectividade instalada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Erro de porta que impediu qualquer conexão inicial.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conexão já foi estabelecida e a conta foi autenticada; a recusa ao consultar um objeto aponta para autorização. Deve-se verificar se a identidade recebeu privilégio de leitura em `pagamentos`, sem ampliar permissões além do necessário.",
+      "section": "2. Autenticação, autorização e proteção do acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma senha correta garante que o usuário de banco possa consultar qualquer tabela existente naquele SGBD.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A senha pode autenticar a identidade, mas a autorização depende dos privilégios concedidos a essa identidade e dos controles do SGBD. Acesso a cada objeto deve ser autorizado separadamente conforme a política configurada.",
+      "section": "2. Autenticação, autorização e proteção do acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual configuração aplica melhor o princípio do menor privilégio a uma rotina que apenas lista faturas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar uma conta administrativa compartilhada com a equipe inteira.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conceder controle total do banco para evitar erros de permissão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar a conta pessoal do administrador durante cada execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar uma conta técnica com leitura apenas nos objetos necessários.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Guardar a senha de administrador dentro do código compilado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conta técnica deve ter somente a leitura necessária nos objetos usados pela rotina. Privilégios totais aumentam o impacto de falhas ou vazamento, e contas pessoais ou senhas embutidas dificultam a proteção e a auditoria do acesso.",
+      "section": "2. Autenticação, autorização e proteção do acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Armazenar a senha em um gerenciador de segredos e usar TLS na conexão são controles que protegem aspectos diferentes do acesso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O gerenciador protege a credencial armazenada e seu acesso, enquanto TLS protege o canal de comunicação em trânsito. Um controle não substitui o outro, e a validação do certificado do servidor também importa.",
+      "section": "2. Autenticação, autorização e proteção do acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa insere aspas e operadores SQL em um campo de pesquisa, e a aplicação concatena esse texto diretamente à consulta. Qual medida evita que a entrada altere a estrutura SQL?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Habilitar autocommit antes de concatenar o texto informado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o tamanho máximo do campo recebido pela aplicação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mover a senha do banco para a própria instrução SQL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o nome da tabela após cada conexão estabelecida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Vincular a entrada como parâmetro de consulta preparada.",
+          "correct": true
+        }
+      ],
+      "explanation": "A instrução preparada mantém a estrutura SQL separada do valor vinculado, impedindo que o conteúdo enviado seja interpretado como operadores do comando. Aumentar tamanho, mudar senha ou autocommit não elimina a concatenação vulnerável.",
+      "section": "3. Execução de SQL e leitura dos resultados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta JDBC feita com `PreparedStatement` pode vincular uma entrada como valor sem concatená-la ao texto SQL, ajudando a prevenir injeção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. PreparedStatement permite associar os valores aos marcadores de parâmetro, mantendo-os como dados e não como trecho de código SQL. A API também facilita reutilizar a instrução com valores distintos.",
+      "section": "3. Execução de SQL e leitura dos resultados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa quer escolher entre as colunas `nome` e `data_criacao` em `ORDER BY`. Como o valor da ordenação não pode ser substituído por um parâmetro de valor comum, qual solução é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concatenar literalmente qualquer texto recebido no campo de ordenação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Selecionar o identificador a partir de uma lista fixa permitida.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar um parâmetro para representar o nome da coluna em qualquer driver.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformar a escolha da coluna em uma senha de conexão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar o SELECT com autocommit desativado, sem validar a entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Marcadores de parâmetro substituem valores, não identificadores SQL como nomes de coluna. Uma lista fixa traduz a escolha do usuário para uma das opções autorizadas, evitando incorporar texto arbitrário ao comando.",
+      "section": "3. Execução de SQL e leitura dos resultados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na DB-API Python, o estilo de marcador de parâmetro é sempre `?`, independentemente do módulo de banco usado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A DB-API especifica diferentes estilos, como `qmark`, `numeric`, `named`, `format` e `pyformat`. O módulo declara o estilo esperado, então o programa deve seguir o contrato do driver instalado.",
+      "section": "3. Execução de SQL e leitura dos resultados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em JDBC, qual método é associado à execução de consulta que produz linhas para leitura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`setAutoCommit`, que busca o conteúdo da tabela no servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`commit`, que carrega as linhas em um cursor JDBC.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`rollback`, que devolve a contagem de registros selecionados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`close`, que executa o SELECT e ordena seus resultados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`executeQuery`, que fornece um ResultSet a percorrer.",
+          "correct": true
+        }
+      ],
+      "explanation": "executeQuery é usado para consultas cujo resultado é um conjunto de linhas, representado por ResultSet. commit, rollback e setAutoCommit controlam transações; close libera recursos e não executa consulta.",
+      "section": "3. Execução de SQL e leitura dos resultados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em JDBC, `executeUpdate` é apropriado para operações de alteração e pode retornar a contagem de linhas afetadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O método é usado para instruções que não retornam um conjunto de linhas de consulta convencional, como operações de inserção, atualização ou remoção, e informa a contagem de linhas afetadas quando aplicável.",
+      "section": "3. Execução de SQL e leitura dos resultados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta pode retornar milhões de linhas. Qual prática limita o consumo de memória no cliente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Carregar tudo em uma lista global e manter a conexão aberta por tempo indeterminado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `commit` em cada linha para transformar a leitura em uma escrita.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Percorrer ou buscar resultados em blocos conforme o suporte do driver.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar o driver para que o SGBD envie os dados sem protocolo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar uma conexão nova para cada linha retornada pela consulta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Buscar e processar linhas em blocos evita manter todo o conjunto na memória ao mesmo tempo, quando o driver oferece esse comportamento. A configuração deve ser conferida no driver, pois buffering e fetch size variam entre implementações.",
+      "section": "3. Execução de SQL e leitura dos resultados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O fechamento de ResultSet e Statement libera recursos; ele não confirma por si só uma transação que esteja sob controle manual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Fechamento libera recursos associados à execução e leitura. A confirmação de alterações pendentes é feita por commit, e uma transação com falha pode exigir rollback conforme a política da aplicação.",
+      "section": "3. Execução de SQL e leitura dos resultados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em modo autocommit, duas atualizações consecutivas na mesma conexão passam automaticamente a compor uma única transação atômica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Em autocommit cada instrução concluída é tratada como transação individual. Para confirmar duas atualizações juntas, a aplicação deve controlar uma transação com autocommit desativado e commit após ambas.",
+      "section": "4. Transações no acesso à base",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transferência debita a conta de origem e credita a conta de destino. Como garantir que o débito não permaneça se o crédito falhar antes da conclusão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar cada instrução com autocommit ligado e repetir o débito em seguida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Agrupar ambas e desfazer a transação se o crédito falhar.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Fechar a conexão imediatamente depois do débito e antes do crédito.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar dois usuários de banco com senhas diferentes para cada conta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar um cursor independente para cada alteração, sem controle transacional.",
+          "correct": false
+        }
+      ],
+      "explanation": "As duas atualizações representam uma unidade de negócio. A transação permite confirmar ambas juntas ou executar rollback se uma falhar, impedindo que apenas o débito fique efetivado.",
+      "section": "4. Transações no acesso à base",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em JDBC, desativado o autocommit, as instruções pendentes são confirmadas quando a aplicação chama `commit`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Com autocommit desligado, a aplicação controla a conclusão da transação; commit torna permanentes as mudanças acumuladas desde a confirmação anterior. Em erro, rollback pode cancelar o conjunto pendente.",
+      "section": "4. Transações no acesso à base",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência representa uma transação controlada em JDBC, considerando que todas as alterações foram bem-sucedidas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar autocommit, executar instruções relacionadas e chamar commit.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Fechar a conexão, executar instruções e esperar confirmação automática posterior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ativar autocommit, executar todas as instruções e chamar rollback para confirmá-las.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar um ResultSet, chamar close e considerar a atualização permanente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar somente a última instrução e chamar savepoint para confirmar o conjunto.",
+          "correct": false
+        }
+      ],
+      "explanation": "A aplicação desativa autocommit, executa o conjunto relacionado e confirma com commit. Rollback cancela mudanças pendentes, savepoint apenas marca posição interna e fechar recursos não é confirmação transacional.",
+      "section": "4. Transações no acesso à base",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um savepoint confirma as alterações anteriores como permanentes e impede que um rollback posterior as desfaça.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Savepoint é um marcador dentro da transação que pode permitir retorno parcial. Ele não encerra a transação nem torna permanente o trabalho anterior; a confirmação depende de commit.",
+      "section": "4. Transações no acesso à base",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após desativar autocommit, uma aplicação conclui a primeira alteração, falha na segunda e não quer manter a primeira. Qual ação transacional é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Chamar commit antes de tratar o erro para garantir a atomicidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Fechar apenas o cursor e presumir que a falha cancelou as alterações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar rollback da transação pendente e tratar a falha.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ativar autocommit depois do erro para desfazer instruções anteriores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar outro pool de conexões para confirmar a operação original.",
+          "correct": false
+        }
+      ],
+      "explanation": "Rollback desfaz alterações que continuam pendentes na transação manual. Commit as confirmaria, autocommit não desfaz operações já confirmadas e fechar apenas um cursor não substitui o controle transacional.",
+      "section": "4. Transações no acesso à base",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Manter uma transação aberta por muito tempo pode prolongar a retenção de bloqueios e aumentar conflitos com outras operações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O SGBD pode manter bloqueios até commit ou rollback; uma transação longa aumenta a janela em que outras operações podem ficar bloqueadas ou competir pelos mesmos dados. O trecho transacional deve durar apenas o necessário.",
+      "section": "4. Transações no acesso à base",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação usa um pool com limite máximo de 20 conexões. Qual afirmação sobre esse recurso está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O pool garante que toda consulta termine rapidamente, mesmo com SQL ineficiente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O pool reutiliza conexões dentro de um limite simultâneo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O pool dispensa credenciais e privilégios configurados no servidor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O pool cria uma conexão ilimitada sempre que todas as atuais estão ocupadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O pool confirma automaticamente qualquer transação com erro.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um pool reutiliza conexões e seu limite controla o conjunto de sessões disponíveis. Ele não elimina autenticação, autorização ou limites do servidor, nem transforma consultas lentas em rápidas; pedidos podem aguardar uma conexão livre.",
+      "section": "5. Ciclo de vida, pool e falhas comuns",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao obter uma conexão emprestada de um pool, a aplicação pode abandoná-la após uma exceção, pois o pool sempre a recupera imediatamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A aplicação deve seguir o contrato do pool e devolver ou fechar os recursos em caminhos de sucesso e erro. Conexões abandonadas podem esgotar o conjunto e bloquear novas operações.",
+      "section": "5. Ciclo de vida, pool e falhas comuns",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pedido de conexão aguarda até exceder o timeout e não há mensagem de autenticação rejeitada. Qual investigação inicial é mais coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar host, porta, rota, firewall e disponibilidade do serviço.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conceder imediatamente DELETE em todas as tabelas à conta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar o formato dos dados de retorno do cursor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar o nível de isolamento de cada transação da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover os parâmetros preparados de todas as consultas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Timeout sem resposta sugere primeiro problema para alcançar o servidor ou disponibilidade, como host incorreto, porta bloqueada, rota ou serviço fora do ar. Privilégios de tabela e estilo de cursor só seriam relevantes depois de estabelecida a sessão.",
+      "section": "5. Ciclo de vida, pool e falhas comuns",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No JDBC, uma SQLException pode conter mensagem, SQLState, código específico do fornecedor e causa encadeada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação JDBC descreve esses dados para ajudar a determinar a causa de uma falha, incluindo exceções subsequentes. O código do fornecedor é específico da implementação e deve ser interpretado conforme o produto.",
+      "section": "5. Ciclo de vida, pool e falhas comuns",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina Python DB-API recebeu erro de chave estrangeira ao inserir uma linha que referencia registro inexistente. Qual categoria descreve melhor essa falha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "OperationalError, porque toda restrição é falha de rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ProgrammingError, porque a senha foi autenticada incorretamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "IntegrityError, por violação da integridade relacional.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "InterfaceError, porque o cursor percorreu linhas demais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "NotSupportedError, porque todo INSERT exige dois fatores.",
+          "correct": false
+        }
+      ],
+      "explanation": "A DB-API associa IntegrityError a situações em que a integridade relacional é afetada, incluindo violação de chave estrangeira. As categorias de erro ajudam a distinguir esse problema de rede, interface ou operação não suportada.",
+      "section": "5. Ciclo de vida, pool e falhas comuns",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina registra no log a URL de conexão completa, incluindo senha, para facilitar o diagnóstico de falhas futuras.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Logs podem ser lidos por pessoas e sistemas além do processo que usa a credencial. Registre host, banco, categoria do erro e contexto não sensível, ocultando senha, token e outros segredos.",
+      "section": "5. Ciclo de vida, pool e falhas comuns",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma operação de escrita perde a conexão antes de receber a resposta do servidor. Por que repetir automaticamente pode ser perigoso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque a conexão pode ter sido confirmada, e a repetição pode duplicar o efeito.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Porque qualquer repetição transforma SQL parametrizado em consulta de leitura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque a aplicação perde automaticamente todos os privilégios de banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque um pool nunca permite nova tentativa após erro de rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque commit é executado em todo SELECT em qualquer SGBD.",
+          "correct": false
+        }
+      ],
+      "explanation": "A perda de resposta não prova que o servidor deixou de executar ou confirmar a operação. Repetir uma escrita sem estratégia de idempotência ou verificação pode gerar duplicidade, por isso a recuperação deve considerar o resultado incerto.",
+      "section": "5. Ciclo de vida, pool e falhas comuns",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A documentação JDBC recomenda DataSource como forma preferida de obter conexão em relação ao uso direto de DriverManager.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O tutorial JDBC apresenta DataSource como alternativa preferível porque detalhes da fonte podem ficar transparentes à aplicação e a abstração integra recursos de configuração. DriverManager continua útil para exemplos simples e conexões diretas.",
+      "section": "6. Integração prática e checklist de acesso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto reúne boas práticas complementares para uma aplicação que consulta dados pessoais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conta administrativa, SQL concatenado e senha completa em logs de auditoria.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conta de menor privilégio, parâmetros vinculados, segredo protegido e canal seguro quando necessário.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Autocommit obrigatório, sem timeout e reutilização de conexão abandonada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma URL pública com senha, desde que o nome do banco seja obscuro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma conexão por linha retornada e autorização feita apenas no cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Esses controles atuam em camadas distintas: menor privilégio reduz alcance da conta; parâmetros evitam que valores alterem SQL; segredo protegido reduz exposição de credencial; canal seguro protege a comunicação. O controle de acesso no SGBD não deve ser substituído por validação apenas no cliente.",
+      "section": "6. Integração prática e checklist de acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Usar JDBC ou DB-API torna o código completamente independente do SGBD, inclusive quanto a URLs, tipos de dados, SQL e níveis de isolamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. APIs comuns aumentam consistência e portabilidade de certas operações, mas drivers, URLs, tipos, recursos, marcadores e comportamentos de produto podem variar. A aplicação ainda precisa respeitar diferenças documentadas pelo SGBD e pelo driver.",
+      "section": "6. Integração prática e checklist de acesso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um módulo que segue DB-API, qual objeto normalmente é criado a partir da conexão para executar comandos e buscar linhas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um cursor associado à conexão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um DSN que executa cada instrução por conta própria.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um certificado TLS que contém as linhas da tabela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma porta que substitui o usuário de banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um savepoint que inicia uma consulta sem transação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na DB-API, uma conexão fornece o método cursor para obter um objeto que executa operações e disponibiliza resultados. DSN e porta são elementos de configuração; certificado protege aspectos do canal e savepoint é um marcador transacional.",
+      "section": "6. Integração prática e checklist de acesso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A DB-API define que encerrar uma conexão com alterações pendentes pode causar rollback implícito, em vez de confirmar automaticamente as alterações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A especificação descreve rollback implícito ao fechar conexão sem confirmar alterações antes. Código portável deve chamar commit ou rollback explicitamente conforme o resultado, e fechar recursos de forma controlada.",
+      "section": "6. Integração prática e checklist de acesso",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema precisa consultar o SGBD em rede não confiável. Qual configuração de transporte oferece proteção apropriada, supondo validação correta do servidor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Enviar a senha em texto claro e trocar a porta padrão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar TLS e validar o certificado e a identidade do servidor.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Concatenar o certificado ao SQL e dispensar autenticação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ativar autocommit para criptografar cada instrução transmitida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Guardar credencial em log porque TLS impede leitura posterior.",
+          "correct": false
+        }
+      ],
+      "explanation": "TLS protege os dados em trânsito, e a validação do certificado permite verificar se o cliente fala com o servidor esperado. Mudar a porta ou habilitar autocommit não criptografa o tráfego nem protege segredos armazenados em logs.",
+      "section": "6. Integração prática e checklist de acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de `try-with-resources` em Java pode fechar automaticamente objetos JDBC que implementam AutoCloseable ao término do bloco, inclusive quando ocorre exceção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O mecanismo de recursos do Java encerra os objetos declarados no bloco após sua execução ou exceção, ajudando a evitar vazamentos de ResultSet, Statement e Connection. A transação ainda deve ter commit ou rollback tratado explicitamente.",
+      "section": "6. Integração prática e checklist de acesso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após uma falha em uma instrução SQL, basta capturar a exceção e continuar usando qualquer conexão, sem considerar a transação ou a origem do erro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A aplicação precisa avaliar se há transação pendente, efetuar rollback quando apropriado, classificar a causa e garantir a devolução ou substituição segura da conexão. Continuar sem tratar o estado pode reaproveitar sessão inválida ou dados inconsistentes.",
+      "section": "5. Ciclo de vida, pool e falhas comuns",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço de relatórios abre uma conexão para cada requisição, mas não fecha as conexões depois de enviar os resultados. Qual consequência é mais provável sob carga?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A aplicação pode esgotar conexões e impedir novos pedidos de acesso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O SGBD converterá todas as conexões abandonadas em consultas preparadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A autorização se amplia automaticamente após cada requisição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O banco muda o host para evitar a criação de novas sessões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O SQLState deixa de ser fornecido pelo driver por excesso de linhas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Conexões abertas consomem recursos do cliente e do servidor; sem fechamento ou devolução ao pool, pedidos posteriores podem ficar sem sessão disponível. O ciclo de vida deve ser garantido mesmo em caso de falha.",
+      "section": "5. Ciclo de vida, pool e falhas comuns",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A interface DB-API busca tornar os módulos Python de acesso a bancos mais semelhantes, mas não fixa todos os parâmetros e detalhes de cada conexão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A especificação promove consistência e portabilidade entre módulos, mas os parâmetros de conexão são dependentes do banco e do módulo, e estilos de marcador são declarados pela implementação. O programa deve consultar a documentação concreta do driver.",
+      "section": "6. Integração prática e checklist de acesso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual atitude melhor combina recuperação segura com incerteza sobre o resultado de uma escrita após queda de rede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir indefinidamente o comando até a rede responder.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Verificar o resultado ou usar mecanismo idempotente antes de repetir o efeito.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Conceder privilégios administrativos ao processo de retry.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar TLS para que a resposta volte mais rapidamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Apagar o pool e assumir que o servidor não recebeu o comando.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma resposta perdida não permite concluir que o servidor deixou de processar a escrita. Verificação do estado ou operação idempotente reduz duplicação; retry cego pode aplicar o mesmo efeito mais de uma vez.",
+      "section": "5. Ciclo de vida, pool e falhas comuns",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma transação manual, chamar rollback desfaz as alterações pendentes desde o começo da transação ou até o ponto aplicável, e não confirma essas alterações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Rollback cancela mudanças pendentes e libera os efeitos transacionais conforme o SGBD; commit é a operação de confirmação. Um rollback direcionado a savepoint pode desfazer apenas a parte posterior ao marcador.",
+      "section": "4. Transações no acesso à base",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conexão foi estabelecida e uma instrução válida falha porque a conta não possui permissão para inserir na tabela. Qual controle deve ser revisado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A rota de rede entre o cliente e o servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O nome do driver carregado pelo processo cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A autorização da conta para a operação sobre o objeto.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O método de busca das linhas de um ResultSet.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A política do pool para reciclar uma conexão ociosa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com a sessão estabelecida e o comando válido, falta autorização de escrita na tabela. A concessão deve ser específica à conta técnica e à operação necessária, em vez de ampliar todo o acesso do usuário.",
+      "section": "2. Autenticação, autorização e proteção do acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No PostgreSQL libpq, uma URI pode incluir host, porta, usuário, banco e parâmetros de conexão, desde que os valores sejam codificados quando necessário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação libpq descreve URI com componentes opcionais para usuário, host, porta, banco e parâmetros. Caracteres com significado especial precisam de percent-encoding para não serem interpretados como delimitadores da própria URI.",
+      "section": "1. Componentes e caminho da conexão",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação deve permitir que a entrada do usuário defina diretamente o nome de uma tabela em uma consulta parametrizada. O placeholder garante a segurança desse identificador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Placeholders são usados para valores, não para substituir identificadores como nomes de tabela na gramática SQL. Se o identificador precisar variar, selecione-o entre nomes fixos autorizados no código.",
+      "section": "3. Execução de SQL e leitura dos resultados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual análise melhor distingue uma senha incorreta de uma consulta sem privilégio de leitura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Senha incorreta é falha de autorização; SELECT negado é falha de rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ambas são sempre falhas de sintaxe SQL e pedem novo cursor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Senha incorreta falha na autenticação; SELECT negado aponta para autorização.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Senha incorreta é erro de integridade; SELECT negado é erro de TLS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ambas se resolvem ativando autocommit na conexão existente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A senha é usada para verificar a identidade, enquanto o privilégio de SELECT controla se uma identidade já autenticada pode ler certo objeto. Distinguir os estágios evita conceder permissões ou alterar a rede para corrigir o problema errado.",
+      "section": "2. Autenticação, autorização e proteção do acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para reduzir a exposição de credenciais, uma senha de banco pode ser armazenada no código-fonte desde que o arquivo fique em um repositório privado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Código privado ainda pode ser copiado, acessado por pessoas sem necessidade operacional ou exposto em logs e artefatos. Credenciais devem vir de configuração protegida, com acesso restrito e processo de rotação adequado.",
+      "section": "2. Autenticação, autorização e proteção do acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A sequência de acesso de uma aplicação Java inclui obter conexão, criar instrução, associar parâmetros, executar SQL, tratar resultados e fechar recursos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esse ciclo corresponde ao uso comum de JDBC: conexão fornece contexto, statement envia comando, parâmetros fornecem valores e resultados são percorridos conforme o tipo de execução. Recursos precisam ser liberados depois do uso.",
+      "section": "6. Integração prática e checklist de acesso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pool está configurado com muitas conexões ociosas e o SGBD começa a rejeitar sessões. Qual ajuste lida diretamente com a pressão de conexões?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o máximo do pool para que toda requisição mantenha sessão exclusiva.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Rever limites e tamanho do pool conforme a capacidade do servidor e a carga real.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desativar os privilégios de leitura para reduzir a autenticação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformar cada conexão aberta em um cursor de consulta persistente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar o tratamento de timeout e repetir as conexões sem limite.",
+          "correct": false
+        }
+      ],
+      "explanation": "A quantidade de conexões simultâneas do pool deve caber na capacidade do servidor e no orçamento de conexões compartilhado com outros clientes. Aumentar o limite sem análise pode agravar a saturação; timeout e política de espera também precisam ser controlados.",
+      "section": "5. Ciclo de vida, pool e falhas comuns",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A validação correta do certificado TLS do servidor pode ajudar o cliente a detectar que se conectou a um endpoint que não corresponde à identidade esperada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. TLS cifra o canal e a validação da cadeia e do nome do certificado ajuda a verificar a identidade do servidor. Apenas cifrar sem verificar o par não assegura que o cliente chegou ao endpoint legítimo.",
+      "section": "2. Autenticação, autorização e proteção do acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve melhor o uso de uma conexão depois que ela foi devolvida ao pool?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela deve ser considerada emprestada pelo chamador para sempre.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela pode ser emprestada a outra operação segundo o contrato do pool.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ela se torna uma conta administrativa do SGBD.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela confirma qualquer transação que esteja pendente sem depender da configuração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela deixa de exigir driver e parâmetros de conexão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conexão retornada fica disponível para reutilização conforme as regras da implementação. O código que a devolveu não deve continuar usando-a, e deve resolver o estado transacional antes da devolução conforme o contrato do pool.",
+      "section": "5. Ciclo de vida, pool e falhas comuns",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em JDBC, chamar `commit` enquanto a conexão está em autocommit pode gerar uma exceção, pois esse método é previsto para transações com autocommit desativado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação da interface Connection indica que commit deve ser usado quando autocommit foi desativado e lista o modo automático como condição que pode gerar SQLException. O modo precisa ser compreendido antes de controlar explicitamente a transação.",
+      "section": "4. Transações no acesso à base",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta falha com erro de sintaxe, embora host, porta e login estejam corretos. Qual grupo de investigação é mais diretamente relevante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Texto SQL, nomes de objetos e quantidade/formato dos parâmetros.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente certificado do servidor e nome DNS do host.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas o tamanho máximo configurado para o pool de conexões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A senha de banco e os privilégios de operador de rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O mecanismo de rotação de segredo, sem conferir a consulta executada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com conectividade e autenticação já estabelecidas, erro de sintaxe é investigado no comando enviado, em nomes e no vínculo dos parâmetros. Falha DNS ou certificado afetaria a abertura do canal, não a gramática SQL aceita pelo servidor.",
+      "section": "5. Ciclo de vida, pool e falhas comuns",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em consultas com parâmetros, é recomendável usar o estilo declarado pelo módulo DB-API em vez de presumir uma sintaxe universal de placeholder.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A DB-API permite estilos de parâmetros distintos e cada implementação informa qual espera. Usar a notação documentada evita erro de execução e mantém a associação dos valores sob controle do driver.",
+      "section": "3. Execução de SQL e leitura dos resultados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário de banco tem somente SELECT em uma view de relatórios e não possui acesso direto às tabelas-base. A consulta permitida pode funcionar se as regras do SGBD e da view autorizarem esse caminho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Autorização pode ser concedida por objeto e operação, e uma view pode servir como interface limitada para consultas. O resultado concreto depende das regras de segurança e semântica de view do SGBD configurado.",
+      "section": "2. Autenticação, autorização e proteção do acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ação reduz a chance de uma conexão emprestada deixar transação aberta ao retornar a um pool?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Encerrar a transação com commit ou rollback conforme o resultado antes de devolver o recurso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter um cursor aberto para sinalizar ao pool que a consulta ainda continua.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover o timeout da conexão para impedir seu retorno ao conjunto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o nível de privilégio da conta usada no pool.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registrar o SQL completo com senha para que o pool reconheça a sessão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A conexão deve voltar ao pool sem estado transacional inesperado. Confirmar o sucesso ou desfazer a falha antes da devolução evita que a próxima operação receba uma sessão com alterações ou bloqueios pendentes.",
+      "section": "5. Ciclo de vida, pool e falhas comuns",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O menor privilégio pode ser aplicado separando uma conta que só consulta relatórios de outra que executa operações de escrita necessárias ao sistema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Separar identidades conforme a função permite conceder leitura a uma rotina e permissões de escrita apenas onde são necessárias. Isso limita o impacto de falha ou comprometimento de uma parte do sistema.",
+      "section": "2. Autenticação, autorização e proteção do acesso",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência melhor descreve o tratamento de uma atualização bem-sucedida dentro de uma transação manual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar autocommit, executar a atualização, verificar o sucesso e confirmar com commit.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Fechar o driver antes do SQL e usar rollback para tornar a alteração permanente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ativar autocommit e esperar que commit agrupe todas as futuras conexões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar um DSN depois da atualização e chamar savepoint para encerrar a sessão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Buscar um ResultSet, ignorar o resultado e abandonar a conexão aberta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com controle manual, autocommit é desativado, a operação é executada e, confirmada a condição de sucesso, commit efetiva a mudança. Rollback cancela, savepoint não encerra e a conexão deve ser liberada ao final.",
+      "section": "4. Transações no acesso à base",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Oracle Java Tutorials — JDBC Basics",
+      "publisher": "Oracle",
+      "reference": "Visão geral de JDBC, processamento de SQL, conexão, DataSource, prepared statements e transações",
+      "url": "https://docs.oracle.com/javase/tutorial/jdbc/basics/index.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Establishing a Connection",
+      "publisher": "Oracle",
+      "reference": "DriverManager, DataSource, URL JDBC e propriedades de conexão",
+      "url": "https://docs.oracle.com/javase/tutorial/jdbc/basics/connecting.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Using Prepared Statements",
+      "publisher": "Oracle",
+      "reference": "Parâmetros vinculados e proteção contra injeção de SQL",
+      "url": "https://docs.oracle.com/javase/tutorial/jdbc/basics/prepared.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Using Transactions",
+      "publisher": "Oracle",
+      "reference": "Autocommit, confirmação, rollback e preservação da integridade dos dados",
+      "url": "https://docs.oracle.com/javase/tutorial/jdbc/basics/transactions.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Handling SQLExceptions",
+      "publisher": "Oracle",
+      "reference": "Mensagem, SQLState, código do fornecedor e causas encadeadas",
+      "url": "https://docs.oracle.com/javase/tutorial/jdbc/basics/sqlexception.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PostgreSQL Documentation — Database Connection Control Functions",
+      "publisher": "PostgreSQL Global Development Group",
+      "reference": "Parâmetros keyword/value, URIs de conexão, host, porta, nome do banco e tentativas a hosts",
+      "url": "https://www.postgresql.org/docs/18/libpq-connect.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PEP 249 — Python Database API Specification v2.0",
+      "publisher": "Python Software Foundation",
+      "reference": "Conexões, cursores, parâmetros, estilos de marcador, transações e categorias de erros",
+      "url": "https://peps.python.org/pep-0249/",
+      "accessedAt": "2026-10-31"
+    }
+  ]
+}

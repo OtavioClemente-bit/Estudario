@@ -1,0 +1,2430 @@
+{
+  "id": "informatica.admin-servidores-sistemas-acessos",
+  "subject": "Informática",
+  "title": "Administração de servidores, sistemas e acessos",
+  "version": 3,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Administração de servidores e sistemas",
+    "Configuração de hardware e software",
+    "Gerenciamento de usuários e controles de acesso",
+    "Instalação e monitoramento de servidores",
+    "Servidores de rede, web e correio eletrônico",
+    "Administração de sistemas operacionais clientes",
+    "Shell Script e automação administrativa",
+    "PowerShell para administração de sistemas",
+    "Crontab e agendamento de tarefas",
+    "Infraestrutura de TI e capacidade",
+    "Segurança de serviços web e de e-mail",
+    "Documentação de topologia e inventário de ativos",
+    "Gestão de mudanças em infraestrutura de TI",
+    "Migração de arquivos e dados de e-mail",
+    "Administração de acessos e permissões",
+    "Hardening de servidores e serviços de rede"
+  ],
+  "scope": {
+    "covers": "Fundamentos práticos de administração de hardware, software, sistemas operacionais e identidades; contas, grupos, privilégios, permissões e controles de acesso; instalação, configuração e monitoramento de serviços de impressão, arquivos, banco de dados, rede, comunicação, DHCP, DNS, Web, e-mail, proxy, certificados digitais e firewall; administração cliente Windows e Linux; scripts Bash, PowerShell e noções de Python, crontab, Agendador de Tarefas, logs, monitoramento, backups e automação; infraestrutura e capacity planning; hardening de serviços web e de correio eletrônico, phishing, spam, malware, spoofing, SPF, DKIM e DMARC; documentação de topologia, inventário e configuração; gestão de mudanças com risco, plano, homologação, implantação e retorno; migração de e-mail e arquivos entre contas e plataformas.",
+    "excludes": "Comandos detalhados exclusivos de uma versão de produto, sintaxe completa de protocolos ou linguagens, administração avançada de SGBD, projeto de circuitos, cálculos extensos de dimensionamento, resposta forense a incidentes e procedimentos específicos de provedores não descritos nas fontes oficiais."
+  },
+  "theoryTitle": "Operar serviços de TI com controle, segurança e continuidade",
+  "chapters": [
+    {
+      "title": "1. Sistemas, identidades e infraestrutura",
+      "markdown": "### O problema que este assunto resolve\n\nQuando duas pessoas compram o último item ao mesmo tempo, o sistema precisa impedir que ambas recebam confirmação. Código transacional organiza alterações que, juntas, representam uma única ação do negócio: por exemplo, aceitar um pedido, reservar unidades e registrar o pagamento. **OLTP** (*online transaction processing*, processamento de transações em linha) descreve sistemas voltados às operações diárias, com muitas consultas e gravações curtas feitas por usuários ou serviços.\n\nUma **transação** é um grupo lógico de operações que deve preservar as regras do negócio mesmo se houver erro. **Integridade** é a coerência dos dados em relação a essas regras e às restrições do banco. **Concorrência** é o trabalho simultâneo sobre os mesmos dados. **Atomicidade** significa que o grupo é confirmado por inteiro ou desfeito por inteiro; não significa que qualquer sequência de serviços externos possa ser revertida automaticamente.\n\n### Do pedido à confirmação\n\nUma operação costuma seguir etapas: receber e validar a entrada; identificar o usuário e sua permissão; conferir as regras do domínio; ler os dados relevantes; gravar as mudanças; e só então informar sucesso. A validação de formato, como verificar se a quantidade é positiva, não substitui a regra de negócio, como verificar se ainda há estoque. A interface pode ajudar o usuário, mas o servidor deve repetir as verificações porque pode ser chamado por outros clientes.\n\nNo banco, uma transação pode inserir o pedido e reservar o estoque de maneira conjunta. Restrições, como uma chave única para o identificador externo do pedido, evitam estados inválidos mesmo se uma camada da aplicação falhar. Se uma etapa não puder ser concluída, a aplicação desfaz as alterações ainda não confirmadas. Isso não desfaz automaticamente um e-mail, uma chamada a um serviço de entrega ou uma notificação já enviada: tais efeitos precisam de coordenação, compensação ou processamento assíncrono.\n\n| Mecanismo | O que protege | Exemplo |\n| --- | --- | --- |\n| Transação do banco | Grupo de gravações no mesmo limite transacional | Pedido e reserva do estoque |\n| Restrição de integridade | Regra que o banco deve sempre preservar | Identificador do pedido não pode duplicar |\n| Validação da aplicação | Regra contextual antes da gravação | Recusar compra acima do limite do cliente |\n| Compensação de negócio | Ação corretiva para efeito já confirmado | Cancelar reserva se a etapa seguinte falhar |\n\n### Concorrência e repetição\n\nImagine que o estoque de um livro seja uma unidade. Ana e Bruno leem simultaneamente esse valor e ambos veem uma unidade disponível. Se cada um simplesmente gravar “estoque igual a zero”, o banco pode aceitar dois pedidos para um único exemplar. A leitura e a atualização precisam formar uma operação protegida. Pode-se bloquear a linha enquanto a transação decide, ou fazer uma atualização condicional que só tenha êxito se a quantidade ainda for suficiente. A escolha depende do banco e do volume de concorrência.\n\nO controle **pessimista** impede ou espera alterações concorrentes por meio de bloqueio. O controle **otimista** deixa os leitores trabalhar e detecta, na gravação, que outra operação mudou a versão do dado; a operação pode então ser repetida com os dados atuais. Bloqueios longos reduzem a concorrência e podem causar espera circular, chamada deadlock. Controle otimista pode produzir conflitos que a aplicação precisa tratar. Nenhuma estratégia elimina a necessidade de uma resposta clara quando a operação não pode ser concluída.\n\nUma falha de rede depois da gravação deixa o cliente sem saber se o servidor recebeu o pedido. Repetir a chamada sem proteção pode criar duplicata. **Idempotência** é a propriedade pela qual repetir uma solicitação com a mesma intenção preserva o mesmo efeito final. Uma **chave de idempotência** identifica aquela intenção: o servidor registra a chave e o resultado associado e, quando reconhece uma repetição, devolve o resultado anterior em vez de executar uma nova cobrança. Chaves diferentes representam intenções diferentes. A chave precisa ser associada ao usuário e à operação apropriados; não substitui autenticação nem autorização.\n\n### Operação transacional e operação analítica\n\nUma carga de trabalho operacional atende ações atuais e tende a priorizar resposta rápida para registros individuais. Um relatório histórico pode ler milhões de linhas, agrupar resultados e calcular tendências. Fazer toda análise pesada diretamente nas tabelas operacionais pode consumir recursos necessários ao atendimento. Isso não torna proibido consultar o banco de operação: a decisão depende de volume, índices, isolamento e impacto medido.\n\n### Exemplo passo a passo\n\nAna compra duas cadeiras numa loja virtual. Primeiro, o servidor valida que a quantidade é positiva e confirma que Ana pode comprar nessa conta. Em seguida, abre uma transação, tenta reservar duas unidades disponíveis e cria o pedido associado à reserva. Se outra compra tiver consumido o estoque, a condição de reserva falha e o pedido não é confirmado. Se as gravações funcionarem, o servidor confirma a transação e registra a intenção de avisar o depósito. Se a resposta HTTP se perder, Ana pode repetir com a mesma chave de idempotência e receber o mesmo número de pedido; ela não cria uma segunda compra. O envio do aviso pode ocorrer depois, com tentativa repetida e controle para não duplicar a ação externa.\n\n### Pegadinha\n\nUma transação não garante que e-mail, pagamento externo e banco sejam desfeitos juntos. E uma resposta perdida não prova que a operação falhou: repetir uma chamada de criação sem idempotência pode duplicar o pedido. Também não confunda transação com a simples validação da tela; só a operação protegida no servidor evita a corrida entre compradores.\n\n### Resumo para a prova\n\n- OLTP atende operações cotidianas e alterações pequenas e concorrentes.\n- Transação agrupa gravações dentro de um limite; atomicidade não reverte efeitos externos automaticamente.\n- Proteja leitura e atualização concorrentes com estratégia adequada e trate conflitos.\n- Idempotência torna repetição segura para uma mesma intenção; autenticação e autorização continuam necessárias.\n- Relatório pesado pode competir com a operação, mas a separação deve considerar a carga real.\n"
+    },
+    {
+      "title": "2. Serviços de rede, plataforma e dados",
+      "markdown": "### O problema que este assunto resolve\n\nUma empresa precisa responder perguntas que não são uma simples consulta de cadastro: qual região cresceu, quais produtos vendem em determinadas épocas e como o resultado mudou ao longo dos anos? **OLAP** (*online analytical processing*, processamento analítico em linha) é uma forma de organizar processamento para consultas amplas, agregações e comparação histórica. O código analítico converte dados produzidos em operações diárias em informação útil para decisão.\n\nUma **agregação** resume vários registros, como somar vendas por mês. Um **data warehouse** (armazém de dados) é um repositório preparado para análise integrada e histórica. Ele não é apenas uma cópia automática do banco operacional: precisa de definições coerentes, qualidade e atualização compatível com o uso previsto.\n\n### Da origem ao relatório\n\nO trabalho pode ser organizado como um pipeline, isto é, uma sequência de etapas de processamento. **ETL** significa extrair dados das origens, transformá-los e carregá-los no destino. **ELT** carrega os dados antes de executar transformações no ambiente analítico. Em ambos, o essencial é declarar de onde vêm os dados, como são tratados e quando ficam disponíveis.\n\nNa extração, o processo busca dados de sistemas diferentes, arquivos ou eventos. Na transformação, padroniza datas e unidades, valida campos obrigatórios, resolve códigos com significados distintos e identifica duplicatas. Na carga, grava o resultado analítico. Uma carga completa relê o conjunto todo; uma carga incremental processa apenas dados novos ou alterados, desde que a origem permita identificar mudanças com segurança. Uma marca de tempo isolada pode falhar se chegarem dados atrasados ou se relógios divergirem, então o projeto precisa definir como reprocessar intervalos e corrigir registros.\n\nO resultado deve conservar linhagem, ou seja, informação sobre a origem e as transformações aplicadas. Isso ajuda a explicar por que o total de um relatório difere de uma tela operacional. Dados ausentes, duplicados e fora do padrão devem ser rejeitados, corrigidos com regra explícita ou enviados a uma área de revisão; descartá-los sem registro esconde defeitos. Uma atualização analítica pode ter atraso em relação à origem. Esse atraso é chamado latência e precisa ser compatível com a decisão: um painel mensal pode aceitar atraso maior que um alerta operacional.\n\n| Aspecto | OLTP: operação | OLAP: análise |\n| --- | --- | --- |\n| Pergunta típica | “Este pedido foi gravado?” | “Como as vendas evoluíram por região?” |\n| Trabalho comum | Ler ou alterar poucos registros | Ler muitos registros, agrupar e comparar |\n| Prioridade | Resposta rápida e integridade da operação | Exploração, histórico e cálculo agregado |\n| Atualização | Geralmente perto do instante da ação | Pode ser periódica ou contínua, com alguma latência |\n| Risco de projeto | Conflito e lentidão em gravações concorrentes | Resultado inconsistente por fontes ou definições diferentes |\n\n### Modelagem e processamento\n\nUm **modelo dimensional** organiza fatos e dimensões para facilitar perguntas analíticas. Fato é uma ocorrência mensurável, como uma venda; dimensões são perspectivas pelas quais a ocorrência pode ser examinada, como produto, loja e data. Uma tabela de fatos pode guardar quantidade e valor, e tabelas dimensionais podem dar nomes e categorias aos códigos. Isso torna consultas usuais mais simples, mas não é requisito para todo sistema de análise.\n\nO **modelo semântico** define o sentido dos campos e métricas. Se uma equipe chama de “venda” o pedido confirmado e outra soma também pedidos cancelados, os gráficos divergem mesmo que os cálculos estejam tecnicamente corretos. Por isso, conceitos como receita, cliente ativo e data de referência precisam de definição única e conhecida. Um cubo multidimensional é uma organização analítica tradicional que permite examinar medidas por várias dimensões; sistemas modernos também podem usar tabelas e processamento paralelo sem apresentar um cubo ao usuário.\n\nProcessamento em lote acumula um conjunto e o trata em intervalos; processamento de fluxo trata eventos conforme chegam. O primeiro é adequado a fechamento periódico, enquanto o segundo permite reagir com menor atraso, ao custo de mais atenção a duplicatas, reordenação e eventos tardios. Arquiteturas híbridas **HTAP** (*hybrid transactional and analytical processing*, processamento híbrido transacional e analítico) tentam atender ambos os padrões; não eliminam a necessidade de avaliar isolamento, consumo de recursos e impacto na operação.\n\nRelatórios também exigem controle de acesso: um conjunto analítico pode combinar dados pessoais de diferentes sistemas e facilitar inferências que cada origem isolada não revelava. Acesso, retenção, mascaramento e propósito de uso devem ser planejados. O fato de os dados estarem num warehouse não os torna públicos nem os torna automaticamente corretos.\n\n### Bibliotecas e produção de documentos\n\n**iText** é uma biblioteca de software para criar e manipular arquivos PDF a partir de uma aplicação. **PDF** significa formato de documento portátil. A biblioteca pode participar de um fluxo que monta um relatório, uma fatura ou um comprovante com dados já calculados. Ela cuida da construção do documento; não decide se o total da venda está correto, não substitui a consulta analítica e não garante por si só a autorização de acesso ao arquivo. O formato de saída, fontes, imagens, paginação, acessibilidade e tratamento de dados precisam ser tratados pela aplicação.\n\n### Exemplo passo a passo\n\nRafael, analista de uma rede de livrarias, quer comparar a receita por cidade. Primeiro, ele identifica como cada loja registra pedidos e cancelamentos. O pipeline extrai os registros confirmados, padroniza o código de cidade e converte valores para uma unidade monetária definida. Uma regra separa cancelamentos de vendas válidas; registros sem cidade vão para revisão e permanecem contabilizados como pendência, sem sumir silenciosamente. A carga grava os fatos de venda e as dimensões de loja e data. O relatório agrupa a receita por cidade e mês, informa até quando os dados foram atualizados e permite rastrear a origem de um total. Se Rafael exportar o resultado em PDF, a aplicação usa iText para montar o arquivo, mas ainda precisa conferir permissões e valores antes de disponibilizá-lo.\n\n### Pegadinha\n\nO uso de dados do sistema operacional não torna toda consulta OLTP. Classifique pelo padrão e pela finalidade da carga. ETL e ELT diferem na ordem de transformação e carga, não na obrigação de tratar qualidade. Um warehouse também não garante atualização instantânea nem elimina divergência semântica.\n\n### Resumo para a prova\n\n- OLAP responde perguntas agregadas e históricas; OLTP registra operações atuais.\n- Pipeline analítico extrai, trata e carrega dados, cuidando de duplicidade, atraso e mudança de estrutura.\n- Métricas precisam de significado comum; latência e linhagem devem ser consideradas.\n- Lote e fluxo são estratégias distintas; HTAP combina cargas, mas não apaga seus conflitos.\n- iText gera e manipula PDF na aplicação; não valida a regra de negócio nem a segurança dos dados.\n"
+    },
+    {
+      "title": "3. Automação, agendamento, logs e proteção operacional",
+      "markdown": "### O problema que este assunto resolve\n\nUma rotina repetida manualmente pode ser esquecida ou executada de forma diferente por cada operador. Scripts e agendadores automatizam tarefas previsíveis, como verificar um serviço ou arquivar um relatório, mas também podem propagar um erro em segundos. Automação segura descreve o que fará, valida entradas, usa a identidade de menor privilégio, trata falhas, protege segredos e deixa registro. Primeiro teste em modo de leitura ou ambiente controlado; só depois autorize alterações reais.\n\n### Conceitos de script e execução segura\n\nUm script é um arquivo de comandos interpretado por um shell ou ambiente de automação. Parâmetros recebem dados de quem chama o script; variáveis guardam valores durante a execução; condições escolhem ações; laços repetem uma ação para cada item. Valide nomes, caminhos e formatos, inclusive entradas vazias ou repetidas. Evite construir comandos concatenando dados não confiáveis, pois caracteres especiais podem mudar o significado do comando. Segredos, como senha e token, não devem estar escritos no arquivo ou em logs: use um cofre de credenciais aprovado.\n\nNo Bash, shell comum em Linux, uma variável é atribuída sem espaços ao redor de `=` e lida com `$`. Este exemplo mostra variáveis, condição, laço, parâmetro posicional e código de saída:\n\n```bash\n#!/usr/bin/env bash\ndestino=\"/var/log/relatorio\"\nusuario=\"${1:-operador}\"       # primeiro parâmetro; valor padrão se ausente\nfor servico in ssh cron; do\n  if systemctl is-active --quiet \"$servico\"; then\n    printf '%s ativo para %s\\n' \"$servico\" \"$usuario\"\n  else\n    printf '%s inativo\\n' \"$servico\" >&2\n    exit 1\n  fi\ndone\nprintf 'verificação concluída\\n' > \"$destino\"\n```\n\nO texto `#!/usr/bin/env bash` pede que o sistema localize Bash. `destino=...` cria uma variável; `${1:-operador}` usa o primeiro argumento ou o valor padrão; aspas preservam espaços e evitam expansão indevida. `for` percorre dois serviços e `if` escolhe o ramo conforme o retorno de `systemctl`. `>&2` manda a mensagem para a saída de erro. `exit 1` encerra com falha; `exit 0` indica sucesso. Logo após um comando, `$?` contém seu código de saída: zero geralmente significa sucesso e valor diferente de zero indica falha. Como outro comando sobrescreve `$?`, guarde-o imediatamente se precisar examiná-lo. Redirecionamento `>` substitui o arquivo, `>>` acrescenta e `2>` direciona erros; valide o caminho antes de sobrescrever dados.\n\nPowerShell é o shell e linguagem de automação da Microsoft. Variáveis começam com `$`, e os cmdlets (comandos nativos compostos por verbo e substantivo) trabalham com objetos. O pipeline, escrito `|`, passa objetos estruturados de um comando ao seguinte, em vez de somente texto formatado.\n\n```powershell\nparam([string]$NomeServico = 'Spooler')\n$servico = Get-Service -Name $NomeServico -ErrorAction Stop\nif ($servico.Status -eq 'Running') {\n    $servico | Select-Object Name, Status\n} else {\n    Write-Error \"O serviço $NomeServico não está em execução.\"\n    exit 1\n}\n```\n\n`param` declara um parâmetro nomeado com valor padrão. `Get-Service` consulta um serviço e devolve um objeto; `-ErrorAction Stop` transforma erro de consulta em erro tratável. `$servico.Status` acessa uma propriedade do objeto. `Select-Object` escolhe propriedades e o pipeline envia o objeto adiante. `Write-Error` sinaliza erro, e `exit 1` fornece código de falha ao processo chamador.\n\nOutro exemplo de pipeline filtra serviços e seleciona só os que estão em execução:\n\n```powershell\nGet-Service | Where-Object { $_.Status -eq 'Running' } |\n    Select-Object Name, Status\n```\n\n`$_` representa o objeto atual no bloco de filtro. A formatação de saída para a tela não deve ser confundida com os dados que o pipeline transmite. Para programas externos chamados pelo PowerShell, `$LASTEXITCODE` guarda o último código de saída nativo. Cmdlets podem sinalizar falha de modo diferente; use opções de erro, `try/catch` e verificação do estado esperado.\n\nScripts idempotentes podem ser executados novamente sem criar duplicatas nem desfazer um estado correto. Para provisionar usuário, consulte se a conta já existe e só então crie ou atualize os atributos autorizados. Um backup precisa confirmar retorno, presença e integridade do arquivo produzido e, periodicamente, demonstrar restauração. Teste também permissões, entradas inesperadas e falhas parciais. Comentários e mensagens devem identificar alvo e resultado, sem revelar credenciais.\n\n### Cron e Agendador de Tarefas\n\nO cron agenda comandos em sistemas Unix-like. Uma linha comum de crontab tem cinco campos: minuto, hora, dia do mês, mês e dia da semana, seguidos do comando. Em `15 2 * * 1`, os valores significam minuto 15, hora 2, qualquer dia do mês, qualquer mês e segunda-feira: execução às 02h15 nas segundas, conforme o horário local e a implementação. Em algumas configurações de sistema há também um campo de usuário; não o confunda com o formato de crontab pessoal.\n\nAs tarefas rodam com a identidade dona da crontab e ambiente reduzido. Defina caminhos absolutos, variáveis necessárias e destino de logs; não presuma o mesmo `PATH` do terminal interativo. Considere duração e sobreposição: se a execução anterior ainda não terminou, uma nova pode iniciar e duplicar trabalho. Use trava ou estratégia idempotente quando apropriado. Mudanças de relógio local podem criar horário inexistente ou repetido, então tarefas críticas precisam tolerar ausência ou repetição.\n\nNo Windows, o Agendador de Tarefas associa gatilho, ação, identidade de execução e condições, como disponibilidade de energia ou rede. Uma tarefa que funciona na sessão de um administrador pode falhar agendada porque executa como outra conta, não tem os mesmos privilégios ou não encontra caminhos e variáveis. Defina parâmetros, política de repetição, timeout, resultado esperado e registro de execução. Faça uma execução manual e uma agendada de teste.\n\n### Logs, monitoramento e proteção operacional\n\nLog é uma sequência de eventos registrada; métrica agrega uma medida ao longo do tempo; alerta solicita atenção diante de uma condição. Investigue com pergunta e janela temporal: o que falhou, quando começou, quem foi afetado e de que dependências depende? Correlacione horário sincronizado, serviço, origem, identidade, código de erro e identificador de requisição. Uma ocorrência isolada pode ser normal; frequência, duração e impacto ajudam a priorizar. Não apague logs para liberar espaço sem preservar evidência e corrigir retenção, volume ou rotação.\n\nUm alerta útil descreve condição, impacto provável, pessoa responsável e primeiro passo de diagnóstico. Disponibilidade sintética, latência, erros e saturação completam a observação do serviço. Logs administrativos devem permitir detectar alterações relevantes, mas não devem guardar senhas ou tokens em texto legível. Controle acesso, integridade e retenção segundo necessidade e política aplicável.\n\nHardening é reduzir a superfície de ataque: desativar componentes dispensáveis, fechar portas não usadas, limitar interfaces administrativas, atualizar, remover credenciais padrão e separar contas de serviço. Em Web, restrinja escrita, upload e métodos ao necessário; em correio, desative relay aberto. Segurança de e-mail combina SPF, DKIM e DMARC com filtro de conteúdo e análise de anexos e links. Um domínio parecido ainda pode enganar apesar de ter autenticação válida. Em incidente, preserve cabeçalhos e registros, contenha indicadores confirmados e revise controles sem apagar evidência.\n\n### Exemplo passo a passo\n\nRafael agenda a verificação diária de um serviço. Primeiro executa o script manualmente com uma conta sem privilégios administrativos e confirma a resposta para o serviço ativo e o inativo. Depois informa explicitamente o caminho do executável, o parâmetro do serviço e o arquivo de log. Configura o agendamento para a conta técnica que tem apenas permissão de consulta. Na primeira execução agendada, verifica o histórico e o código de saída. Ao encontrar uma falha, o alerta aponta serviço, horário e código, sem registrar senha. Assim ele distingue erro do script, falta de permissão e indisponibilidade do serviço.\n\n### Como cai na prova\n\n- Bash: variáveis usam `$`, parâmetro posicional como `$1`, condição `if`, laço `for`; `$?` é o código do último comando.\n- Em Bash, `>` sobrescreve, `>>` acrescenta e `2>` redireciona erros.\n- PowerShell usa variáveis `$`, cmdlets, objetos e pipeline; `$LASTEXITCODE` trata retorno de programa nativo.\n- Tarefa agendada tem identidade e ambiente próprios.\n- Cron pessoal tem cinco campos antes do comando; alguns formatos de sistema acrescentam usuário.\n- Idempotência evita efeitos duplicados, mas não substitui autorização, validação ou registro.\n\n**Pegadinha:** a banca supõe que script executado no terminal terá o mesmo `PATH`, credenciais e resultado no agendador. Também confunde pipeline de objetos do PowerShell com encadeamento de texto e toma qualquer código diferente de zero por sucesso.\n\n**Resumo para a prova**\n\n- Validar entradas, usar privilégio mínimo, proteger segredos e registrar resultado são partes do script seguro.\n- Bash: `if`, `for`, `$1`, `${variável}`, `$?`, `>`, `>>` e `2>`.\n- PowerShell: cmdlets devolvem objetos; `|` envia objetos; variáveis começam com `$`.\n- Cron agenda por minuto, hora, dia do mês, mês e dia da semana; ambiente é reduzido.\n- Agendador do Windows depende da identidade, das permissões, dos gatilhos e das condições.\n- Logs apoiam diagnóstico; não devem expor senhas ou tokens.\n"
+    },
+    {
+      "title": "4. Documentação, mudanças e migração de dados",
+      "markdown": "### O problema que este assunto resolve\n\nSem documentação confiável, a equipe pode não saber quais equipamentos existem, como o tráfego circula, o que depende de um servidor ou como voltar atrás após uma mudança. Alterar um serviço sem avaliar dependências pode interromper sistemas relacionados ou deixar dados inconsistentes. Inventário, diagramas e processo de mudança tornam o trabalho reproduzível, verificável e recuperável.\n\n### Topologia, inventário e configuração-base\n\nUm diagrama de topologia representa redes e relações relevantes: segmentos, sub-redes, roteadores, switches, firewalls, servidores, conexões, pontos de entrada e limites de confiança. Mostre direção de tráfego quando necessária, enlaces redundantes e dependências. Inclua escopo, ambiente, legenda, data, versão e responsável. Um mapa antigo ou sem distinguir produção de teste pode orientar uma ação no lugar errado; detalhes sensíveis devem ter acesso restrito.\n\nO inventário registra ativos e seus responsáveis: tipo, identificador, fabricante ou modelo quando útil, localização, versão de sistema, endereço, criticidade, ciclo de vida, garantia e dependências. Não inclua senha. Uma base de dados de configuração (CMDB) acompanha itens de configuração (CI), como servidores, serviços, certificados e relações entre eles. A linha de base (baseline) descreve o estado aprovado: versões, serviços habilitados, parâmetros, controles e método para verificar conformidade. Desvio em relação à baseline pode indicar mudança não aprovada ou erro de operação.\n\n### Gestão de mudanças\n\nUma solicitação de mudança descreve motivo, escopo, itens afetados, dependências, riscos, impacto, responsáveis, comunicação, aprovação exigida, sequência, critérios de sucesso, testes e plano de retorno (rollback). Janela de mudança é o período aprovado para implantar e verificar. Um grupo consultivo de mudanças (CAB), quando usado pela organização, avalia propostas; sua existência não elimina a responsabilidade de registrar e testar.\n\nHomologação é testar antes da produção, em ambiente representativo. A instalação terminar sem mensagem de erro não prova que a aplicação atende aos usuários. Defina previamente testes e resultados esperados. Implantação em ondas, canário (grupo pequeno primeiro) ou blue/green (ambientes paralelo antigo e novo com troca controlada) reduz o impacto inicial e permite observar comportamento.\n\nDurante a execução, registre horário, pessoa, comando ou ação, resultado e desvio. Depois confirme operação de ponta a ponta com métricas e usuário ou sistema consumidor. Se os critérios falharem, acione o retorno planejado; considere alterações de dados e compatibilidade antes de improvisar reversão. Mudança emergencial pode seguir rito acelerado, mas deve ser registrada e revista depois.\n\n| Etapa | Pergunta | Evidência |\n| --- | --- | --- |\n| Solicitação | O que muda e por quê? | Escopo, ativos e justificativa |\n| Avaliação | O que depende disso e quem pode ser afetado? | Risco, impacto e dependências |\n| Preparação | Como testar e recuperar? | Homologação, cópia e rollback |\n| Implantação | O que foi aplicado e por quem? | Registro e horário |\n| Verificação | O serviço atende ao esperado? | Testes, métricas e aceite |\n| Encerramento | A documentação continua correta? | Diagrama, baseline e lições |\n\n### Migração de e-mail e arquivos\n\nMigração move contas ou dados entre plataformas. Antes, inventarie origem e destino: usuários, volume, estrutura de pastas, permissões, retenção, formatos e dependências. Mapeie identidades e grupos; confirme espaço e compatibilidade; escolha como preservar metadados e validar conteúdo. Faça piloto, comunique usuários, registre exceções e planeje sincronização incremental enquanto a origem ainda recebe mudanças. Defina o cutover, momento em que usuários ou tráfego passam ao destino, e o período de coexistência.\n\nIMAP pode copiar mensagens e pastas compatíveis, mas não necessariamente contatos, calendário, tarefas ou configurações. Caixas de destino podem precisar ser criadas antes. Verifique mensagens duplicadas, limites e permissões. Alteração do registro MX, usado para localizar servidores de recebimento de e-mail, deve ocorrer no momento planejado, considerando TTL e propagação. Mensagens recebidas na origem após uma cópia concluída precisam ser capturadas pela sincronização final ou por outro procedimento.\n\nEm arquivos, compare contagens e tamanhos, valide ACLs, proprietários, caminhos, nomes, links e datas relevantes. Método de cópia e sistema de destino podem mudar permissões. Confirme acesso usando contas representativas. Mantenha origem protegida durante validação e diga quem pode gravar em cada lado depois do cutover; duas fontes de escrita sem coordenação criam versões divergentes. Backup independente e restauração testada oferecem recuperação. Replicação e sincronização não são automaticamente cópia histórica.\n\n### Exemplo passo a passo\n\nLívia coordena a migração de um compartilhamento. Ela lista pastas, donos, grupos, volumes e aplicações dependentes; escolhe um departamento piloto; copia os dados e verifica contagem, amostras e permissões com usuários de teste. A equipe registra exceções e corrige nomes incompatíveis. Antes do corte, faz uma cópia incremental para incluir alterações recentes, define o destino como único local de gravação e mantém a origem somente para consulta. Se os testes falharem, existe uma decisão documentada para retornar ao serviço anterior sem duas cópias concorrentes aceitando gravações.\n\n### Como cai na prova\n\n- Topologia explica conexões; inventário identifica ativos; baseline registra estado aprovado.\n- Mudança inclui risco, dependências, homologação, implantação observada e retorno planejado.\n- Migração exige validar conteúdo e permissões, além de planejar o cutover.\n- IMAP não garante transferir calendário e contatos.\n- A cópia terminada não encerra migração até os acessos e a operação estarem validados.\n\n**Pegadinha:** a banca chama instalação sem erro de homologação ou presume que copiar arquivos preserva ACLs e que IMAP leva todos os dados pessoais. Teste representativo e conferência de permissões são necessários.\n\n**Resumo para a prova**\n\n- Documentação deve ser atual, identificada e protegida conforme sensibilidade.\n- Mudança tem justificativa, escopo, risco, teste, janela, verificação e retorno.\n- Emergência acelera o processo, mas não apaga registro nem revisão.\n- Migração combina mapeamento, piloto, sincronização final, validação e cutover.\n- Definir autoridade de escrita evita divergência entre origem e destino.\n"
+    },
+    {
+      "title": "5. Samba, NFS, LDAP e firewall no servidor Linux",
+      "markdown": "### O problema que este assunto resolve\n\nServidores Linux podem precisar compartilhar arquivos com outras máquinas, consultar contas centralizadas e aceitar apenas conexões autorizadas. NFS e Samba transportam arquivos por modelos diferentes; LDAP mantém informações de diretório; firewall filtra tráfego. Saber a finalidade de cada um evita tentar corrigir um erro de identidade com regra de rede ou publicar uma pasta usando um serviço de diretório.\n\n### NFS: compartilhamento entre sistemas Unix-like\n\nO Sistema de Arquivos de Rede (NFS) permite que um cliente acesse diretórios exportados por um servidor. No servidor, `/etc/exports` declara caminho, clientes autorizados e opções. Por exemplo, `/dados 192.168.1.0/24(rw,sync,root_squash)` exporta `/dados` para a rede indicada, com leitura e escrita (`rw`), gravação síncrona antes da confirmação (`sync`) e mapeamento do administrador remoto (`root_squash`) para identidade sem privilégio administrativo local.\n\n`ro` limita a leitura. Evitar `no_root_squash` reduz o risco de um administrador do cliente obter poder equivalente no servidor. Após editar as exportações, `exportfs -ra` reaplica a configuração; `showmount -e servidor` pode listar exportações visíveis. Um cliente pode montar `servidor:/dados` em um ponto local, como `/mnt/dados`. Em versões e configurações comuns de NFS, UID e GID numéricos precisam corresponder para que proprietário e grupo sejam interpretados como esperado. A porta típica do NFSv4 é 2049/TCP; versões anteriores podem envolver outros serviços e portas.\n\n### Samba: compartilhamento SMB para clientes Windows\n\nO protocolo de compartilhamento de arquivos e impressoras do Windows é SMB; CIFS designa um dialeto legado. Samba implementa SMB em Linux e pode servir arquivos a clientes Windows. A configuração comum fica em `/etc/samba/smb.conf`, com parâmetros gerais e seções por compartilhamento. Uma seção define caminho, usuários válidos e se o acesso permite escrita. Antes de aplicar, `testparm` verifica a sintaxe; ele não concede permissões nem abre portas.\n\nEm uma configuração simples, a conta precisa existir no Linux e também estar cadastrada no Samba, por exemplo por `smbpasswd -a ana`. A política efetiva depende das permissões do sistema de arquivos e das opções do compartilhamento. Conceder acesso numa camada não deve superar a restrição da outra. SMB moderno costuma usar 445/TCP; modos legados podem envolver serviços NetBIOS em outras portas. O firewall deve liberar somente o necessário para as redes autorizadas.\n\n### LDAP: diretório de identidades e objetos\n\nO Protocolo Leve de Acesso a Diretórios (LDAP) consulta e altera entradas organizadas em uma árvore. Cada entrada possui um nome distinto (DN), que identifica seu caminho completo. Em `uid=ana,ou=pessoas,dc=orgao,dc=gov,dc=br`, `uid` representa o login, `ou` uma unidade organizacional e `dc` componentes do domínio. A classe de objeto (`objectClass`) define o tipo da entrada e atributos permitidos ou requeridos.\n\nOperações comuns incluem bind, que inicia uma sessão autenticada; busca; inclusão; alteração; e remoção. LDIF é formato textual para representar entradas e alterações para importação ou exportação. LDAP pode centralizar informações de identidade consultadas por outros serviços, mas não compartilha arquivos como NFS ou Samba. A porta 389 é usada por LDAP e pode ser protegida por StartTLS; 636 é convencional para LDAPS, que estabelece TLS desde o início. Configuração segura exige proteger credenciais e transporte.\n\n### Firewall no servidor Linux\n\nFirewall de host aplica política de tráfego no próprio servidor. O princípio de negar por padrão bloqueia conexões não autorizadas e libera regras estreitas para origem, destino e serviço necessários. No ecossistema Red Hat e derivados, `firewalld` é uma ferramenta comum; por exemplo, `firewall-cmd --permanent --add-service=samba` grava uma regra persistente e `firewall-cmd --reload` a carrega na configuração ativa. `--permanent` sem recarga pode deixar a regra ainda fora do estado em execução. Uma regra temporária sem essa opção pode desaparecer após recarga ou reinicialização.\n\nEm Debian e Ubuntu, `ufw` é uma interface comum para regras; netfilter é a infraestrutura de filtragem do Linux, com ferramentas como nftables. Abrir o firewall não inicia o serviço e iniciar o serviço não garante conectividade: verifique estado, configuração, rota, resolução e regra correspondente. Registre finalidade, responsável e revisão de exceções.\n\n| Serviço | Finalidade | Arquivo ou comando associado | Porta comum |\n| --- | --- | --- | --- |\n| NFS | Compartilhar arquivos entre sistemas compatíveis | `/etc/exports`, `exportfs` | NFSv4: 2049/TCP |\n| Samba | Arquivos e impressoras para clientes SMB | `smb.conf`, `testparm` | 445/TCP |\n| LDAP | Consultar diretório de identidades e objetos | entradas LDIF; serviço de diretório | 389 ou 636 |\n| firewalld | Filtrar tráfego no host | `firewall-cmd` | Não é serviço de aplicação |\n\n### Exemplo passo a passo\n\nDiego precisa oferecer a pasta `/dados` de um servidor Linux a colegas em estações Windows. Primeiro identifica Samba como serviço adequado, porque os clientes usam SMB. Cria o diretório, verifica dono e permissões locais, prepara contas individuais e declara um compartilhamento restrito no `smb.conf`. Executa `testparm` para encontrar erro de sintaxe. Depois permite o serviço Samba no firewall apenas para a rede de trabalho, carrega a regra persistente e confirma que o serviço está ativo. Por fim testa leitura e escrita com uma conta comum. Se o teste falhar, verifica separadamente autenticação, permissão local, compartilhamento e conectividade; LDAP não substituiria nenhuma dessas etapas de publicação de arquivos.\n\n### Como cai na prova\n\n- NFS compartilha diretórios por exportação; Samba atende clientes SMB, em especial estações Windows.\n- `root_squash` reduz privilégios do root remoto no servidor; `rw` permite escrita, mas não supera permissões locais.\n- LDAP armazena e consulta entradas de diretório; DN é o nome completo e LDIF é formato textual de intercâmbio.\n- `testparm` valida sintaxe de Samba, não aplica firewall.\n- Regra persistente do `firewalld` precisa ser carregada; serviço ativo e regra de firewall são requisitos distintos.\n\n**Pegadinha:** a banca troca diretório LDAP por compartilhamento de arquivos, atribui ao firewall a criação do serviço ou afirma que liberar a regra garante acesso. São funções separadas: identidade, publicação, permissão local, serviço e tráfego.\n\n**Resumo para a prova**\n\n- NFS: `/etc/exports`, `exportfs -ra`, identidade numérica e proteção `root_squash`.\n- Samba: SMB no Linux; `smb.conf`, `testparm` e conta cadastrada para o serviço.\n- LDAP: árvore de entradas com DN; LDIF transporta representações textuais.\n- Firewall nega por padrão e libera tráfego necessário; não configura o compartilhamento.\n- Confirme permissão efetiva e faça teste com conta representativa.\n"
+    }
+  ],
+  "summary": "Administrar servidores e sistemas exige conhecer dependências entre hardware, sistema operacional, rede e aplicação. Use contas individuais, grupos, menor privilégio, autenticação forte e logs auditáveis. DHCP entrega configuração dinâmica por escopos; DNS resolve nomes e publica registros. Serviços de arquivos, impressão, banco, Web, proxy e correio precisam de configuração mínima, atualização, regras específicas de firewall, monitoramento funcional e backup testado. Bash, PowerShell e Python automatizam rotinas quando scripts validam entradas, limitam privilégios, registram erros e são idempotentes. Cron e Agendador de Tarefas executam com identidades e ambientes próprios. Capacity planning compara tendências de uso e crescimento com capacidade e contingência. Segurança de e-mail combina SPF, DKIM, DMARC, filtragem, TLS e resposta a phishing. Diagramas, inventário e baselines apoiam operação. Mudanças devem avaliar risco, homologar, implantar com critérios de sucesso e prever retorno. Migrações de arquivos e e-mail requerem mapeamento, cópia incremental, validação de conteúdo e permissões e cutover coordenado.",
+  "flashcards": [
+    {
+      "front": "Qual a diferença entre autenticação e autorização?",
+      "back": "Autenticação confirma a identidade; autorização determina quais recursos e ações essa identidade pode usar."
+    },
+    {
+      "front": "O que significa menor privilégio?",
+      "back": "Conceder somente permissões necessárias à tarefa e pelo tempo necessário, evitando privilégios administrativos permanentes."
+    },
+    {
+      "front": "O que uma reserva DHCP faz?",
+      "back": "Associa um cliente identificado a um endereço previsível dentro da gestão DHCP; não substitui o planejamento de endereços."
+    },
+    {
+      "front": "Como DHCP atende clientes em outra sub-rede?",
+      "back": "Com servidor naquela sub-rede ou relay/encaminhamento DHCP configurado no roteador, pois broadcasts normalmente não atravessam roteadores."
+    },
+    {
+      "front": "Qual é o papel do registro MX?",
+      "back": "Indica servidores responsáveis por receber correio eletrônico de um domínio."
+    },
+    {
+      "front": "Como diferem SPF, DKIM e DMARC?",
+      "back": "SPF autoriza remetentes; DKIM verifica assinatura de domínio; DMARC define política e relatórios com alinhamento das autenticações."
+    },
+    {
+      "front": "Por que um serviço ativo pode estar indisponível?",
+      "back": "O processo pode estar rodando sem atender consultas, sem dependência necessária ou com latência/erros; faça testes sintéticos de ponta a ponta."
+    },
+    {
+      "front": "Por que grupos são úteis no controle de acesso?",
+      "back": "Permissões concedidas a grupos facilitam incluir, mover ou remover pessoas de funções, com auditoria por conta individual."
+    },
+    {
+      "front": "O que monitora capacity planning?",
+      "back": "Tendências de CPU, memória, disco, rede, conexões, latência, erros e crescimento para localizar gargalos e planejar margem."
+    },
+    {
+      "front": "Qual a diferença entre proxy de saída e reverso?",
+      "back": "O de saída intermedeia acesso de clientes a destinos; o reverso recebe tráfego destinado a serviços publicados e encaminha internamente."
+    },
+    {
+      "front": "O que deve ser acompanhado em certificado TLS?",
+      "back": "Nome coberto, cadeia de confiança, chave privada, permissões, validade, renovação e eventual revogação."
+    },
+    {
+      "front": "Qual a diferença entre backup e sincronização?",
+      "back": "Backup preserva ponto recuperável; sincronização replica estado e pode propagar exclusão ou corrupção."
+    },
+    {
+      "front": "O que torna uma automação idempotente?",
+      "back": "Executá-la repetidamente mantém o estado final desejado sem duplicar efeitos, como criar a mesma conta várias vezes."
+    },
+    {
+      "front": "O que significam `>` e `>>` no Bash?",
+      "back": "`>` direciona a saída substituindo o arquivo; `>>` acrescenta ao final."
+    },
+    {
+      "front": "Quais campos básicos formam uma linha de cron?",
+      "back": "Minuto, hora, dia do mês, mês, dia da semana e depois o comando; arquivos de sistema podem incluir usuário."
+    },
+    {
+      "front": "Por que validar tarefa agendada separadamente?",
+      "back": "Ela executa com conta, permissões, variáveis e diretório de trabalho que podem diferir da sessão interativa."
+    },
+    {
+      "front": "O que documenta um diagrama de topologia?",
+      "back": "Segmentos, equipamentos, enlaces, fluxos e limites de confiança relevantes, com escopo, legenda e data."
+    },
+    {
+      "front": "O que é uma baseline de configuração?",
+      "back": "Estado aprovado e documentado que serve de referência para builds, alterações e detecção de desvios."
+    },
+    {
+      "front": "Quais elementos mínimos planejar numa mudança?",
+      "back": "Escopo, risco e dependências, aprovação, homologação, janela, implantação, critérios de sucesso, comunicação e retorno."
+    },
+    {
+      "front": "O que IMAP não migra necessariamente?",
+      "back": "Contatos, calendário e tarefas; o método copia mensagens/pastas compatíveis, e a caixa de destino pode precisar existir antes."
+    },
+    {
+      "front": "Por que preservar logs antes de liberar espaço?",
+      "back": "Logs podem conter evidência da falha; primeiro determine retenção e preserve o necessário, depois corrija volume ou rotação."
+    },
+    {
+      "front": "Como reduzir o risco de relay aberto em SMTP?",
+      "back": "Permitir retransmissão apenas a identidades autenticadas e redes autorizadas, e testar que terceiros não consigam usar o servidor."
+    },
+    {
+      "front": "Quais sinais indicam gargalo de armazenamento?",
+      "back": "Latência e fila de disco crescentes, espaço baixo, throughput saturado e impacto correlacionado nos serviços."
+    },
+    {
+      "front": "Por que uma migração de arquivos deve validar ACLs?",
+      "back": "A cópia do conteúdo pode terminar enquanto permissões e propriedade ficam incorretas, expondo dados ou impedindo o acesso legítimo."
+    }
+  ],
+  "tips": [
+    "Quando o enunciado disser que clientes recebem gateway e DNS automaticamente, pense nas opções DHCP do escopo.",
+    "Diferencie serviço ativo de serviço funcional: procure uma verificação sintética e métricas de erro e latência.",
+    "Em logs, correlacione horário, hostname, serviço e identificador antes de concluir que um evento isolado explica a falha.",
+    "Ao ler uma questão de e-mail, separe autenticação do domínio (SPF/DKIM/DMARC), transporte (SMTP) e acesso a caixa (IMAP/POP3).",
+    "Em uma mudança, procure plano de retorno, critério de sucesso e evidência de homologação, além da aprovação.",
+    "Migração de arquivo não é só copiar bytes: confira identidade, ACL, estrutura, metadados importantes e validação pós-corte."
+  ],
+  "traps": [
+    "Confundir endereço DHCP reservado com endereço estático configurado manualmente e esquecer de excluir endereços do pool.",
+    "Acreditar que DNS substitui DHCP: um distribui parâmetros ao cliente; o outro resolve nomes e publica dados de domínio.",
+    "Afirmar que SPF sozinho impede todo spoofing ou phishing; SPF não autentica a intenção e precisa de controles complementares.",
+    "Tratar sincronização como backup, embora uma exclusão ou corrupção possa ser replicada para o destino.",
+    "Executar script agendado com a própria conta interativa em mente sem conferir a identidade e o ambiente reais da tarefa.",
+    "Considerar homologação concluída porque a instalação terminou, sem testar o serviço e suas dependências de ponta a ponta."
+  ],
+  "activeRecall": [
+    "Explique por que conta individual, grupo de função, menor privilégio e auditoria são controles complementares.",
+    "Descreva como DHCP fornece parâmetros a duas sub-redes separadas por roteador e como evitar conflito com IPs estáticos.",
+    "Compare A, AAAA, CNAME, MX, NS e PTR e diga qual problema cada tipo ajuda a diagnosticar.",
+    "Monte um roteiro para investigar aplicação lenta distinguindo CPU, memória, disco, rede, DNS e banco de dados.",
+    "Liste controles de configuração de servidor Web e SMTP que reduzam serviços expostos e abuso de credenciais.",
+    "Descreva a sequência de análise de uma mudança, da solicitação à validação e atualização da baseline.",
+    "Explique como uma rotina de backup confirma sucesso e como se prova que é possível recuperar os dados.",
+    "Compare uma cópia IMAP, uma migração de caixas entre plataformas e uma migração de arquivos em termos de conteúdo e validações."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Identidade e privilégio",
+      "summary": "Mistura autenticação e autorização ou mantém permissões amplas sem necessidade e trilha individual."
+    },
+    {
+      "key": "e2",
+      "title": "Serviços de rede",
+      "summary": "Confunde DHCP, DNS, proxy, firewall e NAT ou ignora limites de sub-rede e dependências."
+    },
+    {
+      "key": "e3",
+      "title": "Automação e observabilidade",
+      "summary": "Supõe que processo ativo ou execução interativa garante rotina correta e não verifica saída, log ou ambiente."
+    },
+    {
+      "key": "e4",
+      "title": "Segurança de serviços",
+      "summary": "Atribui proteção absoluta a um mecanismo isolado e deixa de combinar hardening, atualização, filtragem e monitoramento."
+    },
+    {
+      "key": "e5",
+      "title": "Mudança e migração",
+      "summary": "Executa cópia ou implantação sem homologação, validação de acesso, janela de corte ou plano de recuperação."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em uma rede corporativa, qual combinação descreve corretamente a função de DHCP e DNS?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "DHCP distribui parâmetros IP; DNS resolve nomes e publica registros de domínio.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "DHCP resolve nomes públicos; DNS concede endereços e gateway aos clientes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "DHCP cifra sessões Web; DNS autentica usuários antes do login corporativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "DHCP filtra portas de entrada; DNS substitui roteadores entre sub-redes distintas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "DHCP armazena arquivos compartilhados; DNS controla permissões em pastas departamentais.",
+          "correct": false
+        }
+      ],
+      "explanation": "DHCP fornece configuração de rede, como endereço, gateway e resolvedor; DNS associa nomes a registros. Os demais pares trocam essas funções por criptografia, firewall, roteamento ou compartilhamento de arquivos.",
+      "section": "2. Serviços de rede, plataforma e dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática aplica melhor o princípio do menor privilégio ao conceder acesso a uma pasta de departamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conceder controle total a todos e confiar que cada pessoa editará com cuidado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar conta administrativa compartilhada e distribuir sua senha aos integrantes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conceder a permissão necessária por grupo funcional e usar contas individuais.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Liberar a pasta inteira para visitantes e restringir somente arquivos já publicados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dar acesso permanente de administrador para reduzir chamados de suporte ao setor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um grupo funcional simplifica a concessão e revogação, enquanto contas individuais preservam atribuição de ações. Controle total, senhas compartilhadas e privilégio administrativo permanente excedem o necessário.",
+      "section": "1. Sistemas, identidades e infraestrutura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que deve ser feito para um servidor DHCP atender clientes de uma sub-rede remota separada por roteador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publicar um registro MX para que consultas DHCP sigam pelo servidor de correio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Criar um alias CNAME apontando o broadcast para o endereço do servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o TTL dos registros DNS até o roteador propagar os broadcasts.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar relay no roteador e escopo com opções de rede para a sub-rede remota.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Abrir todas as portas do firewall e remover as máscaras dos clientes remotos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mensagens DHCP de descoberta são broadcasts e normalmente não atravessam roteadores. Um relay encaminha as solicitações entre sub-redes; a alternativa é disponibilizar um servidor DHCP na própria sub-rede.",
+      "section": "2. Serviços de rede, plataforma e dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao configurar um escopo DHCP, como se evita que endereços de servidores configurados manualmente sejam distribuídos a clientes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criando registros MX para cada servidor e apagando as opções de gateway.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Definir exclusões no escopo para os endereços estáticos planejados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aumentando a duração da concessão até nunca mais haver renovação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ativando relay em todas as estações para detectar duplicidade de endereço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitando DNS no escopo e deixando que cada cliente escolha um IP.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma exclusão retira endereços da faixa que o DHCP pode oferecer, reduzindo o risco de conflito com equipamentos configurados manualmente. A concessão, DNS e relay têm outras funções.",
+      "section": "2. Serviços de rede, plataforma e dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer observar se uma aplicação responde corretamente, além de confirmar que o processo do servidor está ativo. Qual controle atende melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar somente o espaço total do volume onde o executável foi instalado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Contar usuários cadastrados e assumir que isso indica disponibilidade do serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Confirmar o estado do processo e ignorar erros de conexão dos consumidores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar a fila de logs sem medir latência nem taxa de falha das consultas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar teste sintético de ponta a ponta e acompanhar latência e erros.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um processo pode estar ativo e ainda não atender por falha de dependência, autenticação ou aplicação. Testes sintéticos junto de latência e erros verificam o serviço do ponto de vista do consumidor.",
+      "section": "2. Serviços de rede, plataforma e dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma linha de crontab com cinco campos de horário, qual é a interpretação de `15 2 * * 1 /usr/local/bin/backup`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executa o programa às 02h15 toda segunda-feira, no ambiente de cron configurado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executa o programa a cada quinze segundos, sempre que o servidor reiniciar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executa o programa no primeiro dia de cada mês, às 02h15, sem exceções.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executa o programa quinze minutos depois da meia-noite em todos os dias úteis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executa o programa às 15h02 no primeiro domingo de cada mês civil.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os campos são minuto, hora, dia do mês, mês e dia da semana. O valor 1 no último campo indica segunda-feira nas implementações usuais; os asteriscos deixam dia do mês e mês sem restrição.",
+      "section": "3. Automação, agendamento, logs e proteção operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina Bash precisa registrar a saída normal no mesmo arquivo sem apagar o resultado da execução anterior. Qual redirecionamento é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `>` para anexar o novo conteúdo depois de cada execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `2>` para enviar a saída padrão ao fluxo normal do terminal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `>>` para acrescentar a saída padrão ao final do arquivo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar `<` para substituir o arquivo com tudo que o programa imprimiu.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `&&` para copiar automaticamente os erros para o arquivo de saída.",
+          "correct": false
+        }
+      ],
+      "explanation": "O operador `>>` acrescenta a saída ao fim do arquivo. `>` o sobrescreve; `2>` direciona stderr; `<` fornece entrada ao comando e `&&` encadeia comandos condicionados ao sucesso.",
+      "section": "3. Automação, agendamento, logs e proteção operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que SPF, DKIM e DMARC oferecem em conjunto para um domínio de correio eletrônico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criptografam automaticamente o conteúdo de toda mensagem entre os usuários.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Autorizam remetentes, validam assinatura e definem política de domínio.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituem antivírus, filtros de spam e controles de acesso às caixas postais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Garantem que o texto da mensagem seja verdadeiro e não contenha tentativa de fraude.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transferem caixas entre sistemas e convertem anexos em arquivos sem malware.",
+          "correct": false
+        }
+      ],
+      "explanation": "SPF indica remetentes autorizados, DKIM valida assinatura de domínio e DMARC define tratamento e relatórios, com alinhamento. Esses mecanismos não criptografam o conteúdo nem garantem que a mensagem seja benigna.",
+      "section": "2. Serviços de rede, plataforma e dados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual informação é essencial em um inventário de ativos para apoiar a administração corporativa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o nome informal do equipamento, sem responsável nem localização conhecida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Senhas administrativas permanentes para facilitar futuras intervenções de suporte.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Histórico completo de navegação privada de cada usuário do equipamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Identificador, responsável, localização, sistema e estado de suporte do ativo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Apenas o endereço MAC, pois ele também identifica o software e o proprietário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um inventário operacional precisa permitir identificar, localizar e atribuir responsabilidade pelo ativo e conhecer seu estado técnico e de ciclo de vida. Segredos não devem ser armazenados no inventário.",
+      "section": "4. Documentação, mudanças e migração de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a melhor prática para alterar uma regra de firewall que libera um serviço corporativo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Abrir todas as portas de entrada durante o expediente para reduzir erros de acesso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover regras existentes e permitir qualquer origem até o sistema estabilizar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Documentar escopo, origem, destino, teste e plano de retorno da regra.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desativar o firewall de rede e manter somente tradução de endereços ativa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir tráfego em ambas as direções sem registrar quem solicitou a mudança.",
+          "correct": false
+        }
+      ],
+      "explanation": "Regra específica e documentada reduz a superfície exposta e permite avaliar impacto. A mudança deve ser testada e ter plano de retorno; abrir amplamente ou remover controles aumenta risco e dificulta auditoria.",
+      "section": "2. Serviços de rede, plataforma e dados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao migrar mensagens por IMAP para uma plataforma nova, qual afirmação deve orientar o planejamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "IMAP copia mensagens compatíveis, mas não migra necessariamente calendário e contatos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "IMAP cria caixas de destino e preserva automaticamente todas as credenciais antigas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "IMAP transfere somente contatos, enquanto mensagens são encaminhadas por registros MX.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "IMAP desativa a origem assim que a primeira mensagem é copiada para o destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "IMAP garante cópia de tarefas, calendários, regras, permissões e arquivos anexos em qualquer serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "Migrações IMAP normalmente abrangem mensagens e pastas, não itens como contatos, calendário e tarefas; além disso, a caixa de destino pode precisar ser provisionada separadamente. Planeje validação e cutover.",
+      "section": "4. Documentação, mudanças e migração de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo é copiado ao novo servidor, mas os usuários do grupo correto recebem acesso negado. Qual validação foi negligenciada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A validação do nome do registro MX usado pelo servidor de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A comparação da quantidade de núcleos do processador dos dois servidores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A medição da latência de consulta DNS externa durante a cópia.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Revisar ACLs e mapear grupos e proprietários antes de liberar o destino.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A conferência de que o sistema de impressão processa a fila do departamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "A transferência dos bytes não assegura a preservação das ACLs nem a correspondência entre identidades de origem e destino. É necessário verificar permissões efetivas e propriedade antes do corte.",
+      "section": "4. Documentação, mudanças e migração de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa do Agendador de Tarefas falha, embora o script funcione quando executado manualmente pelo administrador. Qual hipótese deve ser verificada primeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A tarefa pode executar com conta, diretório, variáveis ou privilégios diferentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O script manual desativa automaticamente todas as políticas de execução futuras.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O Agendador sempre converte comandos PowerShell em comandos Bash.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Toda tarefa agendada recebe os mesmos privilégios da conta SYSTEM sem configuração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O serviço de DNS precisa ser reiniciado antes de qualquer tarefa do Windows.",
+          "correct": false
+        }
+      ],
+      "explanation": "Execução agendada usa a identidade e o contexto configurados para a tarefa. Caminhos relativos, variáveis ausentes, credenciais e permissões podem diferir da sessão interativa.",
+      "section": "3. Automação, agendamento, logs e proteção operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma mudança de atualização em servidor crítico, qual sequência oferece melhor controle operacional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atualizar diretamente, avisar depois e investigar somente se usuários abrirem chamado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Avaliar riscos, homologar a atualização, implantar e prever o retorno.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desativar monitoramento durante toda a mudança para evitar alertas incômodos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Copiar a atualização para produção e retirar os registros de alteração anteriores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aguardar que o fornecedor implante a atualização sem revisar impacto nem escopo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Avaliar impacto e dependências, testar em homologação, implantar sob controle, observar critérios de sucesso e ter retorno preparado reduz indisponibilidade. Registro e monitoramento permanecem importantes durante a execução.",
+      "section": "4. Documentação, mudanças e migração de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação apresenta latência elevada à tarde, apesar de a média diária de CPU parecer baixa. Qual abordagem de capacity planning é mais informativa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar a CPU imediatamente, pois latência sempre indica falta de processador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Descartar a medição diária e comprar servidores idênticos sem examinar dependências.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Correlacionar picos de latência e erros com disco, memória e dependências.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Medir apenas o espaço livre de disco no momento de menor utilização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar alertas para que os valores de CPU retornem à linha de base.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma média pode ocultar saturação em horários de pico e CPU baixa não elimina gargalo em disco, rede, memória, banco ou dependência externa. Séries temporais correlacionadas ajudam a localizar a causa antes de dimensionar.",
+      "section": "1. Sistemas, identidades e infraestrutura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual controle reduz o risco de que um servidor SMTP seja explorado para enviar mensagens a destinatários externos sem autorização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir relay anônimo e limitar apenas o tamanho da caixa do administrador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar DNS e manter o servidor disponível sem autenticação de remetentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Publicar SPF e deixar qualquer cliente retransmitir mensagens sem autenticar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exigir autenticação e limitar retransmissão a origens autorizadas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Encaminhar toda mensagem enviada para uma pasta de arquivos sem aplicar política.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um relay aberto permite que terceiros usem o servidor para retransmitir spam. A submissão deve exigir autenticação e retransmissão deve ser limitada a origens autorizadas; SPF trata publicação de remetentes, não autorização de relay.",
+      "section": "2. Serviços de rede, plataforma e dados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que manter um firewall com política de negação por padrão e liberações específicas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para deixar passar somente tráfego explicitamente necessário e documentado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Para converter automaticamente endereços privados em certificados confiáveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para substituir autenticação de usuários em aplicações Web internas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para garantir que nenhum computador tenha malware ou vulnerabilidade instalada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para autorizar qualquer pacote se ele vier de uma rede corporativa conhecida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma política restritiva reduz serviços expostos a tráfego não requerido. Firewall não substitui autenticação, atualização ou proteção contra malware, e a origem corporativa não torna automaticamente toda conexão confiável.",
+      "section": "2. Serviços de rede, plataforma e dados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual estratégia é mais adequada ao migrar arquivos que continuam sendo alterados pelos usuários durante a cópia inicial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Copiar uma vez, apagar imediatamente a origem e presumir que não houve alteração posterior.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Copiar inicialmente, sincronizar alterações, validar dados e então cortar.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Mudar DNS antes de inventariar pastas e ignorar dados alterados durante a transferência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar ACLs nos dois lados e confiar que os usuários reconstruirão permissões manualmente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sincronizar indefinidamente nos dois sentidos sem definir quem é a cópia oficial.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma cópia inicial seguida de sincronização final captura alterações concorrentes; validação de conteúdo e permissões precede o corte. A origem deve permanecer protegida até o aceite e o destino precisa ser claramente definido como oficial.",
+      "section": "4. Documentação, mudanças e migração de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual registro DNS associa normalmente o nome de um host a um endereço IPv6?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um registro MX, que define preferência do servidor de correio do domínio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um registro PTR, que indica uma zona autoritativa de nomes públicos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um registro NS, que aponta diretamente para endereço de interface IPv6.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um registro CNAME, que armazena o endereço IPv6 como destino final.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um registro AAAA, que publica o endereço IPv6 correspondente ao nome.",
+          "correct": true
+        }
+      ],
+      "explanation": "AAAA associa nome a endereço IPv6. A associa IPv4; MX identifica servidores de correio; PTR participa de resolução reversa; NS identifica servidores autoritativos; CNAME cria alias para outro nome.",
+      "section": "2. Serviços de rede, plataforma e dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política de grupo concede leitura a uma pessoa que não deveria acessar uma pasta. Qual é o próximo passo administrativo mais consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conceder controle total também aos demais funcionários para uniformizar o acesso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desabilitar auditoria de arquivos até que o usuário deixe de aparecer nos registros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Localizar grupo ou ACL, corrigir a permissão indevida e testar o acesso.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Renomear a pasta para ocultá-la, sem alterar grupos nem permissões aplicadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar o endereço IP da estação para invalidar a autorização associada à conta.",
+          "correct": false
+        }
+      ],
+      "explanation": "A autorização pode vir de associação a grupo ou ACL herdada. Localize a origem, ajuste a permissão aprovada e confirme as permissões efetivas, incluindo sessões ou tokens que ainda carreguem autorização anterior.",
+      "section": "1. Sistemas, identidades e infraestrutura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um proxy reverso é instalado à frente de aplicações Web internas. Qual é seu papel típico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Receber tráfego dos serviços publicados e encaminhá-lo aos servidores de origem.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Distribuir automaticamente endereços IP aos computadores de cada sub-rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir o banco de dados e armazenar permanentemente todas as transações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Assinar o domínio do correio e declarar quais servidores enviam mensagens.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar backups completos sem acessar os sistemas de arquivos de origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "O proxy reverso recebe tráfego para aplicações publicadas e o encaminha aos servidores de origem; pode também encerrar TLS ou aplicar balanceamento. Não substitui DHCP, SGBD ou backup.",
+      "section": "2. Serviços de rede, plataforma e dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante a migração de e-mail, por que é importante definir o momento de alteração do registro MX e conferir mensagens novas na origem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque MX determina qual cliente poderá autenticar-se por IMAP na caixa antiga.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque registros MX controlam a validade de certificados TLS de servidores SMTP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque a alteração apaga mensagens já copiadas, independentemente do método usado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "MX direciona a entrega futura; a cópia pode não incluir mensagens pós-carga.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Porque MX é o mecanismo que transfere automaticamente contatos e calendários entre contas.",
+          "correct": false
+        }
+      ],
+      "explanation": "MX direciona a entrega de mensagens ao servidor de destino conforme preferência e propagação DNS. Uma migração já concluída não necessariamente inclui novas mensagens recebidas na origem depois da última sincronização; o plano precisa prever delta, corte e verificação.",
+      "section": "4. Documentação, mudanças e migração de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma migração de banco precisa preservar a capacidade de recuperar até um ponto conhecido após falha. Qual prática complementa a implantação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confiar que a replicação elimina qualquer exclusão acidental sem guardar versões anteriores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Gerar backup consistente, registrar o ponto e testar a restauração planejada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Manter somente uma captura de tela do console antes de aplicar as alterações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o espaço de log e desativar a retenção para evitar cópias redundantes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Copiar arquivos de dados ativos sem método consistente e presumir que são restauráveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "O procedimento precisa gerar cópia consistente e demonstrar que ela pode ser restaurada ao ponto necessário. Replicação pode propagar corrupção e uma cópia de arquivos ativos sem método do SGBD pode ser inconsistente.",
+      "section": "2. Serviços de rede, plataforma e dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao analisar um alerta de aumento de falhas de autenticação, qual conjunto de informações ajuda a correlacionar o evento sem expor segredos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Senha em texto claro, token de sessão e conteúdo integral de mensagens pessoais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente o nome do operador que leu o painel, sem horário ou serviço envolvido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Correlacionar janela, host, serviço, origem e resultado sem registrar segredos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Somente a média mensal de CPU do servidor que executa o serviço de autenticação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma cópia sem acesso restrito de todos os logs, para qualquer usuário pesquisar livremente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Hora, host, serviço, origem, resultado e identificador ajudam a correlacionar eventos entre componentes. Senhas e tokens não devem ser registrados; logs contêm dados sensíveis e precisam de controle de acesso e retenção apropriada.",
+      "section": "3. Automação, agendamento, logs e proteção operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma política de atualização de estações deve usar teste e implantação em ondas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para impedir que o fabricante publique qualquer correção de segurança aos usuários.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Para instalar sempre em toda a organização antes de identificar compatibilidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Para remover backups e acelerar a atualização, mesmo que o sistema fique sem retorno.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para desativar proteção de endpoint durante todo o ciclo de atualização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para identificar incompatibilidade cedo e limitar o impacto antes de ampliar a distribuição.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um grupo piloto revela problemas de compatibilidade e operação antes da expansão. Implantação em ondas limita o número de equipamentos afetados e preserva possibilidade de pausar ou reverter conforme evidências.",
+      "section": "1. Sistemas, identidades e infraestrutura",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização administra aplicações por meio de contas de serviço. Qual configuração reduz melhor o impacto da captura de uma dessas credenciais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Separar contas, limitar privilégios e restringir uso das credenciais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar uma única conta administradora compartilhada por todas as aplicações e servidores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Guardar senha em arquivo de configuração legível por todos os usuários do sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conceder acesso interativo permanente à conta para facilitar investigação de rotina.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar logs de uso de credenciais para evitar volume elevado de eventos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Identidades separadas e limitadas restringem movimento lateral e permitem revogação mais precisa. Segredos devem ser protegidos e seu uso auditado; contas administrativas compartilhadas ampliam impacto e reduzem atribuição.",
+      "section": "1. Sistemas, identidades e infraestrutura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um certificado de servidor apresenta aviso de nome incompatível, embora ainda esteja dentro da validade. O que deve ser verificado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se o registro DHCP do cliente usa a mesma duração da concessão do certificado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conferir se o hostname está coberto e se a cadeia é confiável.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Se o certificado foi armazenado em pasta de compartilhamento com permissão de escrita ampla.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se o servidor SMTP publicou um registro MX com prioridade menor que a do navegador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se o firewall permite todas as conexões de entrada sem distinguir nome do serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "Validade temporal não corrige divergência entre o hostname acessado e os nomes cobertos pelo certificado. Também devem ser verificadas cadeia de confiança e apresentação de certificados intermediários.",
+      "section": "2. Serviços de rede, plataforma e dados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao definir o plano de retorno de uma mudança que alterou esquema e dados, qual risco precisa ser considerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Que reverter binários sempre restaura automaticamente os dados modificados no banco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Que a reversão elimina a necessidade de qualquer teste de restauração anterior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Dados já alterados podem exigir cópia ou operação compensatória.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Que a documentação da mudança pode ser apagada após o primeiro teste bem-sucedido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Que um retorno bem-sucedido depende somente de desligar o monitoramento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Reverter aplicação não desfaz necessariamente alterações de dados. O plano deve tratar compatibilidade, backup, operação compensatória ou estratégia de avanço corretivo e ser validado antes da mudança.",
+      "section": "4. Documentação, mudanças e migração de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na concessão de acesso a uma pasta de rede, a conta individual de cada usuário permite atribuir ações registradas a uma identidade específica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Contas individuais dão atribuição e permitem revogar acessos de uma pessoa sem trocar a credencial de todo um grupo. Grupos ainda podem ser usados para administrar permissões coletivas.",
+      "section": "1. Sistemas, identidades e infraestrutura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta DNS resolve o nome de um host para seu endereço IP; o servidor DNS também distribui automaticamente endereço, gateway e máscara aos clientes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. DNS publica e resolve registros de nomes. A distribuição dinâmica de parâmetros IP, gateway e máscara é função do DHCP.",
+      "section": "2. Serviços de rede, plataforma e dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O registro MX de um domínio indica os servidores designados para receber mensagens dirigidas a endereços desse domínio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. MX publica o destino de recebimento de correio e pode indicar preferências entre servidores. Ele não identifica quais hosts podem enviar mensagens em nome do domínio.",
+      "section": "2. Serviços de rede, plataforma e dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um servidor Linux, cada entrada de crontab de usuário é executada com a identidade do proprietário daquela crontab.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O cron executa o comando sob a identidade do dono da crontab. Em arquivos de sistema pode existir um campo adicional para especificar o usuário da execução.",
+      "section": "3. Automação, agendamento, logs e proteção operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Bash, o redirecionamento `>` acrescenta dados ao final do arquivo, preservando as linhas produzidas por execuções anteriores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `>` direciona a saída substituindo o conteúdo do arquivo; `>>` é o operador usado para acrescentar ao final e preservar o conteúdo anterior.",
+      "section": "3. Automação, agendamento, logs e proteção operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma média diária de CPU baixa prova que uma aplicação não tem gargalo de capacidade em horários de maior demanda.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Médias podem ocultar picos e não medem diretamente disco, memória, rede ou dependências. Séries temporais de latência, erros e recursos devem ser correlacionadas com os horários de carga.",
+      "section": "1. Sistemas, identidades e infraestrutura",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cópia sincronizada de arquivos sempre oferece histórico independente suficiente para recuperar uma exclusão propagada para o destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Sincronização pode propagar exclusões e corrupção. Um backup com retenção de versões e restauração testada oferece recuperação independente conforme a política adotada.",
+      "section": "2. Serviços de rede, plataforma e dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um certificado dentro do prazo de validade ainda pode falhar na conexão TLS se o nome acessado não estiver coberto pelo certificado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Validade temporal não substitui a verificação de hostname e cadeia de confiança. A conexão pode gerar alerta por nome divergente mesmo antes da expiração.",
+      "section": "2. Serviços de rede, plataforma e dados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra de firewall que permite qualquer origem e qualquer porta reduz a superfície de ataque porque evita bloqueios de tráfego legítimo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Permissão ampla aumenta a superfície exposta. Regras específicas por origem, destino, protocolo, porta e direção facilitam restringir o tráfego necessário e revisar exceções.",
+      "section": "2. Serviços de rede, plataforma e dados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mudança emergencial pode usar fluxo acelerado de aprovação, mas ainda deve ser registrada e revisada após a implantação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Urgência pode exigir rito proporcional e rápido, mas registro, avaliação de risco, comunicação e revisão posterior mantêm rastreabilidade e permitem corrigir falhas do processo.",
+      "section": "4. Documentação, mudanças e migração de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao usar IMAP para migrar caixas, a equipe pode presumir que contatos, tarefas e calendários serão copiados junto com as mensagens.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A migração IMAP é orientada a mensagens e pastas compatíveis; contatos, calendários e tarefas precisam de método separado ou procedimento manual conforme a plataforma.",
+      "section": "4. Documentação, mudanças e migração de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A retirada de um usuário de grupo pode não encerrar imediatamente uma sessão ou token que já tenha sido emitido com permissões anteriores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A autorização já pode ter sido avaliada e mantida em sessão ou token. Revogação deve considerar a invalidação de sessões, renovação de tokens e mecanismos próprios do sistema de identidade.",
+      "section": "1. Sistemas, identidades e infraestrutura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A resposta DHCP pode incluir gateway padrão e endereço de servidores DNS, além do endereço IP concedido ao cliente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Opções DHCP distribuem parâmetros adicionais como roteador padrão e resolvedores DNS, evitando configuração manual em cada estação.",
+      "section": "2. Serviços de rede, plataforma e dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de SPF, DKIM e DMARC assegura que toda mensagem autenticada seja legítima e não possa conter phishing.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os mecanismos ajudam a verificar remetente e domínio, mas não atestam a intenção ou segurança do conteúdo. Um remetente autorizado também pode enviar mensagem maliciosa se comprometido.",
+      "section": "3. Automação, agendamento, logs e proteção operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Executar um script de automação com privilégios administrativos permanentes facilita a recuperação e não amplia o impacto de uma falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Privilégios permanentes ampliam o impacto de erro ou comprometimento. A rotina deve usar identidade dedicada e permissões mínimas, com elevação controlada apenas quando necessária.",
+      "section": "3. Automação, agendamento, logs e proteção operacional",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma baseline de configuração é uma referência aprovada e documentada para comparar alterações e desvios futuros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A baseline registra especificações aprovadas de um sistema ou item de configuração e serve de base para builds, releases e mudanças submetidas a controle.",
+      "section": "4. Documentação, mudanças e migração de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um backup que nunca teve restauração testada demonstra, por si só, que os dados e as permissões poderão ser recuperados no prazo necessário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A existência de um arquivo de backup não prova consistência, acesso, completude nem duração de restauração. Testes de recuperação verificam conteúdo e procedimentos diante de RPO/RTO definidos.",
+      "section": "2. Serviços de rede, plataforma e dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Cron e Agendador de Tarefas podem executar comandos com variáveis de ambiente e contexto de usuário diferentes da sessão interativa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O contexto de execução depende do usuário configurado, do ambiente reduzido, do diretório e dos privilégios. Caminhos absolutos e logs de resultado facilitam diagnóstico.",
+      "section": "3. Automação, agendamento, logs e proteção operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um diagrama de rede sem data, escopo nem identificação de ambiente pode induzir a erro quando infraestrutura muda.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Data, versão, escopo e ambiente permitem julgar se o desenho ainda representa a topologia em questão. Diagramas desatualizados podem orientar intervenções no equipamento ou segmento errado.",
+      "section": "4. Documentação, mudanças e migração de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um proxy substitui necessariamente o firewall, pois todo tráfego encaminhado por ele já está autorizado e inspecionado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Proxy intermedeia tipos específicos de comunicação e pode aplicar políticas de aplicação; firewall filtra tráfego conforme regras de rede ou host. Um controle não elimina a necessidade do outro.",
+      "section": "2. Serviços de rede, plataforma e dados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Windows PowerShell, cmdlets normalmente retornam objetos que podem ser filtrados e encadeados pelo pipeline.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Diferente de tratar toda saída como texto, o pipeline do PowerShell passa objetos com propriedades, permitindo selecionar, filtrar e formatar resultados administrativos.",
+      "section": "3. Automação, agendamento, logs e proteção operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma linha do cron que usa `*/35` no campo minuto executa exatamente a cada trinta e cinco minutos, sem relação com o início da hora.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Passos são avaliados dentro do campo. `*/35` em minutos corresponde aos minutos 0 e 35 de cada hora, não a um intervalo contínuo de 35 minutos entre execuções.",
+      "section": "3. Automação, agendamento, logs e proteção operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se os campos de dia do mês e dia da semana do cron estiverem ambos restritos, a execução ocorrerá somente quando os dois coincidirem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Na semântica descrita pelo crontab comum, quando ambos os campos de dia estão restritos, a execução ocorre quando qualquer um deles corresponde, não necessariamente quando ambos coincidem.",
+      "section": "3. Automação, agendamento, logs e proteção operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política DMARC pode especificar tratamento e relatórios para mensagens que falhem verificações de autenticação e alinhamento do domínio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. DMARC permite ao domínio publicar política de tratamento e receber relatórios, considerando o alinhamento entre domínio visível e autenticações como SPF e DKIM. Não é um filtro de conteúdo universal.",
+      "section": "3. Automação, agendamento, logs e proteção operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A autenticação SPF verifica uma assinatura criptográfica inserida no corpo da mensagem pelo servidor de envio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. SPF consulta a política DNS para verificar se o remetente de envelope está autorizado para o domínio. Assinatura criptográfica de mensagem é função do DKIM.",
+      "section": "3. Automação, agendamento, logs e proteção operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A homologação de uma mudança pode verificar dependências e comportamento em ambiente representativo antes de alterar o serviço de produção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Homologar permite testar configuração e integração em contexto controlado. Os critérios devem representar riscos relevantes; concluir instalação sem testar dependências não comprova prontidão.",
+      "section": "4. Documentação, mudanças e migração de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se a cópia de arquivos preserva nomes e conteúdo, a validação de ACLs pode ser dispensada porque as permissões sempre acompanham os dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O método de cópia, o sistema de destino e o mapeamento de identidades podem alterar propriedade e ACLs. É necessário verificar permissões efetivas com contas representativas antes do cutover.",
+      "section": "4. Documentação, mudanças e migração de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O registro de auditoria deve guardar senhas em texto claro para que a equipe consiga reproduzir exatamente uma autenticação malsucedida.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Senhas e tokens não devem ser registrados em texto claro. Para análise, registre identidade, horário, origem, serviço, resultado e código de falha, protegendo acesso e retenção dos logs.",
+      "section": "3. Automação, agendamento, logs e proteção operacional",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma exceção temporária de firewall deve ter justificativa, escopo, responsável e prazo de revisão para que possa ser removida quando deixar de ser necessária.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Registrar escopo e responsável permite revisão posterior e reduz exceções esquecidas. Uma regra ampla sem prazo pode permanecer exposta além da necessidade original.",
+      "section": "2. Serviços de rede, plataforma e dados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um programa cron encontra um horário inexistente na mudança de horário local, ele necessariamente é executado no minuto seguinte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Horários locais que não existem durante a mudança de relógio podem não corresponder a nenhum instante e, portanto, não executar. Horários repetidos podem disparar mais de uma vez; tarefas críticas precisam considerar isso.",
+      "section": "3. Automação, agendamento, logs e proteção operacional",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo de inventário que inclua senhas administrativas em texto claro melhora a continuidade sem exigir controle de acesso ao documento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Inventário deve descrever ativos e configuração sem armazenar segredos. Credenciais ficam em cofre autorizado, com acesso controlado, rotação e auditoria compatíveis com a política.",
+      "section": "4. Documentação, mudanças e migração de dados",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um procedimento de migração deve manter a origem acessível durante a validação, mas definir quem pode gravar em cada lado após o cutover.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A origem pode ser mantida para conferência e recuperação, mas a autoridade de escrita precisa ser clara para evitar divergência ou perda de alterações entre as plataformas.",
+      "section": "4. Documentação, mudanças e migração de dados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Contas de serviço devem ser tratadas como identidades técnicas: cada uma precisa ter finalidade conhecida, permissões controladas e credenciais protegidas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Contas técnicas também podem autenticar e acessar recursos; inventário, menor privilégio, proteção de segredo, monitoramento e processo de revogação são necessários para reduzir abuso e falhas.",
+      "section": "1. Sistemas, identidades e infraestrutura",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor de impressão organiza trabalhos em filas; ao investigar uma fila presa, convém verificar spooler, driver, conectividade e estado do equipamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A fila de impressão liga trabalhos recebidos ao dispositivo. Uma falha pode ocorrer no serviço de spool, no driver, na comunicação ou na própria impressora, portanto reiniciar sem diagnóstico pode apagar evidência útil.",
+      "section": "2. Serviços de rede, plataforma e dados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador precisa disponibilizar uma pasta de um servidor Linux para estações Windows da rede, com controle por usuário. A solução e o arquivo de configuração adequados são",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "NFS, configurado em /etc/exports",
+          "correct": false,
+          "comentario": "Incorreta. NFS é o compartilhamento nativo entre sistemas UNIX/Linux, não o usual para clientes Windows."
+        },
+        {
+          "key": "B",
+          "text": "Samba, com o compartilhamento declarado em smb.conf",
+          "correct": true,
+          "comentario": "Correta. O Samba implementa SMB no Linux, protocolo nativo de compartilhamento do Windows."
+        },
+        {
+          "key": "C",
+          "text": "OpenLDAP, configurando a pasta como entrada do diretório em LDIF",
+          "correct": false,
+          "comentario": "Incorreta. LDAP guarda dados de identidade e objetos, não compartilha arquivos."
+        },
+        {
+          "key": "D",
+          "text": "firewalld, liberando a pasta com firewall-cmd --add-service",
+          "correct": false,
+          "comentario": "Incorreta. O firewall só filtra tráfego; ele não publica compartilhamento algum."
+        },
+        {
+          "key": "E",
+          "text": "CUPS, publicando a pasta como fila de impressão da rede",
+          "correct": false,
+          "comentario": "Incorreta. CUPS é o sistema de impressão do Linux, não serve para compartilhar pastas."
+        }
+      ],
+      "explanation": "Para clientes Windows, o Linux usa o Samba, que fala o protocolo SMB. Os compartilhamentos são declarados no smb.conf, com path e valid users, e o usuário recebe senha Samba pelo smbpasswd. O NFS, em /etc/exports, é a escolha entre máquinas Linux/UNIX.",
+      "section": "5. Samba, NFS, LDAP e firewall no servidor Linux",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No servidor NFS, a linha /dados 10.0.0.0/24(rw,sync,root_squash) foi incluída em /etc/exports. Sobre essa configuração, é correto afirmar que",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "qualquer host da Internet pode montar /dados com permissão de escrita",
+          "correct": false,
+          "comentario": "Incorreta. A exportação está restrita aos clientes da rede 10.0.0.0/24."
+        },
+        {
+          "key": "B",
+          "text": "o root de um cliente terá privilégios de root sobre os arquivos do servidor",
+          "correct": false,
+          "comentario": "Incorreta. É justamente o que root_squash impede; o efeito descrito seria o de no_root_squash."
+        },
+        {
+          "key": "C",
+          "text": "a exportação passa a valer sozinha, sem nenhum comando, assim que o arquivo é salvo",
+          "correct": false,
+          "comentario": "Incorreta. É preciso reaplicar as exportações, por exemplo com exportfs -ra."
+        },
+        {
+          "key": "D",
+          "text": "o root do cliente é mapeado para usuário sem privilégio no servidor",
+          "correct": true,
+          "comentario": "Correta. root_squash converte o root remoto em usuário anônimo, limitando o dano de um cliente comprometido."
+        },
+        {
+          "key": "E",
+          "text": "sync faz o servidor confirmar a gravação antes de gravar os dados em disco, para ganhar desempenho",
+          "correct": false,
+          "comentario": "Incorreta. Isso descreve async; sync grava antes de confirmar ao cliente."
+        }
+      ],
+      "explanation": "Na linha do /etc/exports, rw permite escrita, sync grava os dados antes de responder ao cliente e root_squash mapeia o root remoto para um usuário sem privilégio. A exportação vale para a rede indicada e é reaplicada com exportfs -ra.",
+      "section": "5. Samba, NFS, LDAP e firewall no servidor Linux",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um diretório LDAP, a entrada uid=ana,ou=pessoas,dc=orgao,dc=gov,dc=br é identificada por esse nome completo. Esse identificador é chamado de",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "objectClass, que define os atributos permitidos",
+          "correct": false,
+          "comentario": "Incorreta. objectClass define o tipo da entrada e seus atributos, não o nome dela na árvore."
+        },
+        {
+          "key": "B",
+          "text": "LDIF, formato do diretório",
+          "correct": false,
+          "comentario": "Incorreta. LDIF é o formato de arquivo texto para importar e exportar entradas."
+        },
+        {
+          "key": "C",
+          "text": "DN (Distinguished Name), nome único da entrada",
+          "correct": true,
+          "comentario": "Correta. O DN é o nome único da entrada, formado pelo caminho completo até a raiz da árvore."
+        },
+        {
+          "key": "D",
+          "text": "bind, operação que identifica cada entrada no diretório",
+          "correct": false,
+          "comentario": "Incorreta. Bind é a operação de autenticar-se no diretório, não o nome da entrada."
+        },
+        {
+          "key": "E",
+          "text": "UID numérico do sistema de arquivos NFS",
+          "correct": false,
+          "comentario": "Incorreta. O UID numérico identifica usuário no Linux; o atributo uid do LDAP é o login."
+        }
+      ],
+      "explanation": "Cada entrada do diretório LDAP tem um Distinguished Name, que descreve seu caminho completo na árvore: uid do usuário, unidade organizacional (ou) e componentes de domínio (dc). Bind é a autenticação, LDIF o formato de troca e objectClass o tipo da entrada.",
+      "section": "5. Samba, NFS, LDAP e firewall no servidor Linux",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um servidor Oracle Linux com firewalld, o administrador executou firewall-cmd --permanent --add-service=samba, mas os clientes ainda não alcançam o compartilhamento, que está ativo. O passo que falta, no firewall, é",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "executar firewall-cmd --reload para carregar a regra permanente",
+          "correct": true,
+          "comentario": "Correta. A opção --permanent grava a regra, mas ela só passa a valer na configuração em execução após o reload."
+        },
+        {
+          "key": "B",
+          "text": "executar testparm para aplicar a regra no firewall",
+          "correct": false,
+          "comentario": "Incorreta. testparm só valida a sintaxe do smb.conf; não mexe no firewall."
+        },
+        {
+          "key": "C",
+          "text": "editar /etc/exports e executar exportfs -ra para publicar a porta",
+          "correct": false,
+          "comentario": "Incorreta. Esses são procedimentos do NFS, sem relação com o firewall do Samba."
+        },
+        {
+          "key": "D",
+          "text": "repetir o comando sem --permanent e desligar o firewall para garantir o acesso",
+          "correct": false,
+          "comentario": "Incorreta. Desligar o firewall contraria a negação por padrão e expõe todos os serviços."
+        },
+        {
+          "key": "E",
+          "text": "liberar a porta 389 para que os clientes Windows consigam montar o compartilhamento",
+          "correct": false,
+          "comentario": "Incorreta. A porta 389 é do LDAP; o SMB usa principalmente a 445."
+        }
+      ],
+      "explanation": "No firewalld, regras com --permanent são gravadas na configuração persistente, mas não entram em vigor na hora. É preciso recarregar com firewall-cmd --reload. Sem --permanent, ao contrário, a regra vale já, porém se perde no próximo reload ou reinício.",
+      "section": "5. Samba, NFS, LDAP e firewall no servidor Linux",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Deploy DHCP Using Windows PowerShell",
+      "publisher": "Microsoft Learn",
+      "reference": "Função do DHCP, escopos, opções, exclusões e encaminhamento entre sub-redes",
+      "url": "https://learn.microsoft.com/en-us/windows-server/networking/technologies/dhcp/dhcp-deploy-wps",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "External Domain Name System records for Microsoft 365",
+      "publisher": "Microsoft Learn",
+      "reference": "Registros MX e SPF e relação de SPF com DKIM e DMARC",
+      "url": "https://learn.microsoft.com/en-us/microsoft-365/enterprise/external-domain-name-system-records?view=o365-worldwide",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Ways to migrate multiple email accounts to Microsoft 365 or Office 365",
+      "publisher": "Microsoft Learn",
+      "reference": "Escopo e limitações de migração de caixas por IMAP",
+      "url": "https://learn.microsoft.com/en-us/exchange/mailbox-migration/mailbox-migration",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "crontab(5) — Linux manual page",
+      "publisher": "Linux man-pages project",
+      "reference": "Formato, campos, identidade de execução, ambiente e comportamento de agendamento cron",
+      "url": "https://man7.org/linux/man-pages/man5/crontab.5.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Baseline configuration — Glossary",
+      "publisher": "NIST Computer Security Resource Center",
+      "reference": "Definição de baseline de configuração e controle de mudanças",
+      "url": "https://csrc.nist.gov/glossary/term/baseline_configuration",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SP 800-34 Rev. 1: Contingency Planning Guide for Federal Information Systems",
+      "publisher": "NIST",
+      "reference": "Planejamento de contingência, recuperação e prioridades de sistemas",
+      "url": "https://csrc.nist.gov/pubs/sp/800/34/r1/upd1/final",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 7208: Sender Policy Framework (SPF)",
+      "publisher": "IETF RFC Editor",
+      "reference": "Verificação de remetentes autorizados pelo domínio",
+      "url": "https://www.rfc-editor.org/rfc/rfc7208",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 6376: DomainKeys Identified Mail (DKIM) Signatures",
+      "publisher": "IETF RFC Editor",
+      "reference": "Assinaturas criptográficas associadas ao domínio de correio",
+      "url": "https://www.rfc-editor.org/rfc/rfc6376",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 7489: Domain-based Message Authentication, Reporting, and Conformance (DMARC)",
+      "publisher": "IETF RFC Editor",
+      "reference": "Política de autenticação de domínio, alinhamento e relatórios",
+      "url": "https://www.rfc-editor.org/rfc/rfc7489",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

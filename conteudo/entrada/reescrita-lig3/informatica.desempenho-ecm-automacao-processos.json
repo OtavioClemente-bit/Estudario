@@ -1,0 +1,2231 @@
+{
+  "id": "informatica.desempenho-ecm-automacao-processos",
+  "subject": "Informática",
+  "title": "Ajuste de desempenho, Enterprise Content Management e automação de processos de negócio",
+  "version": 3,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Ajuste de desempenho de sistemas",
+    "Otimização de desempenho de aplicações",
+    "Enterprise Content Management e ECM",
+    "Gestão de conteúdo corporativo e documentos",
+    "Automação de processos de negócio",
+    "BPM e automação de processos empresariais",
+    "Desempenho, ECM e processos de negócio"
+  ],
+  "scope": {
+    "covers": "Ajuste de desempenho de sistemas e aplicações com linha de base, metas, métricas, gargalos, perfilamento, monitoramento, testes de carga, estresse, pico e endurance, otimização e validação de regressões; Enterprise Content Management (ECM), ciclo de vida documental, captura, classificação, metadados, indexação, busca, versões, permissões, auditoria, retenção e integração; automação de processos de negócio com BPM, BPMN, tarefas humanas e de serviço, eventos, gateways, regras de decisão, filas, indicadores, exceções e melhoria contínua.",
+    "excludes": "Configuração específica de produto comercial, sintaxe completa de BPMN executável, normas arquivísticas e prazos legais de retenção, tuning aprofundado de um SGBD ou sistema operacional, desenvolvimento de código em linguagem específica e administração de infraestrutura em nuvem de fornecedor específico."
+  },
+  "theoryTitle": "Desempenho, conteúdo empresarial e automação de processos",
+  "chapters": [
+    {
+      "title": "1. Diagnosticar e ajustar o desempenho",
+      "markdown": "### O problema que este assunto resolve\n\nUm aplicativo pode executar corretamente e, mesmo assim, deixar usuários esperando quando chegam mais pedidos do que consegue tratar. Estudar desempenho serve para descobrir onde o tempo e os recursos estão sendo consumidos e decidir, com evidência, se uma mudança melhorou o serviço. Sem esse diagnóstico, aumentar servidores ou alterar configurações pode encarecer a operação, deslocar a fila para outro componente ou piorar a estabilidade.\n\n**Termos e siglas na primeira ocorrência:** desempenho é a capacidade de atender uma carga com tempo, volume e consumo aceitáveis; **latência** é o intervalo entre uma solicitação e sua resposta; **vazão** (throughput) é a quantidade de trabalho concluída por unidade de tempo; **gargalo** é a etapa que limita o fluxo; **linha de base** (baseline) é a medição de referência; **SLO** (objetivo de nível de serviço) é uma meta mensurável de qualidade, como um limite de latência para uma parcela das solicitações; **perfilamento** (profiling) mede onde um programa gasta tempo ou recursos; **CPU** é a unidade que executa instruções; **I/O** (entrada e saída) é a leitura ou gravação em disco, rede ou outro dispositivo.\n\n### Definir o que significa melhorar\n\nAntes de medir, escolha a operação que importa e descreva o cenário. Uma busca de documento, a abertura de um processo e a importação de um lote podem ter comportamentos diferentes. Registre volume de dados, número de usuários simultâneos, mistura de operações, tamanho dos arquivos, dependências externas e condições da rede. Compare a mesma carga antes e depois da mudança; se o cenário variar, a diferença observada pode vir da carga, não da otimização.\n\nUse metas claras para latência, vazão, erros e consumo. A média resume os valores, mas pode esconder pedidos muito lentos. Um **percentil** ordena as medições: p95 é o valor igualado ou superado pelos 5% mais lentos. Assim, se o p95 de uma busca é 2 segundos, 95% das buscas observadas levaram até esse valor e a cauda restante foi mais lenta. Percentis não contam toda a história; tamanho da amostra, janela de medição e distribuição da carga também importam.\n\n| Sinal observado | Possível explicação | O que conferir antes de mudar |\n| --- | --- | --- |\n| CPU alta de forma sustentada | Cálculo caro, concorrência ou trabalho desnecessário | Perfilamento, fila e evolução da CPU |\n| Espera elevada em disco ou banco | Leitura, gravação, consulta ou bloqueio lento | Tempo de I/O, plano da consulta e contenção |\n| Memória cresce ao longo do tempo | Retenção indevida, cache sem limite ou vazamento | Tendência, objetos mantidos e coleta de memória |\n| Latência alta com recursos ociosos | Rede, serviço externo ou espera em fila | Rastros por etapa e tempo da dependência |\n| Erros aparecem durante picos | Saturação, limite ou falha em dependência | Erros, concorrência, fila e capacidade disponível |\n\n### Localizar a causa, não apenas o sintoma\n\nDecomponha o tempo de uma solicitação: quanto foi gasto no cliente, na aplicação, no banco, na rede e em cada serviço externo? Métricas mostram tendências; **logs** são registros de eventos; **rastreamento distribuído** acompanha a mesma solicitação por componentes diferentes. Juntos, ajudam a distinguir uma operação lenta por cálculo de outra parada aguardando resposta remota.\n\nEm uma consulta demorada, por exemplo, confira o plano de execução, os filtros usados, a quantidade de linhas examinadas e os índices disponíveis. Um índice pode acelerar uma busca, mas também aumenta o custo de gravação e ocupa espaço. Uma **cache** guarda resultados para reutilização e pode reduzir acessos repetidos; precisa de limite, validade e estratégia de atualização. Sem isso, a aplicação pode devolver informação antiga ou consumir memória sem controle.\n\nUma medida isolada não prova causalidade. Se a CPU cai depois de uma mudança, ainda é necessário confirmar que o tráfego, os dados e os erros ficaram comparáveis. Observe também recursos vizinhos: reduzir tempo de consulta pode aumentar memória; ampliar concorrência pode sobrecarregar o serviço chamado. Descreva a hipótese antes do experimento, por exemplo: “a espera pela consulta de histórico explica a maior parte do p95 desta operação”.\n\n### Testes de desempenho têm objetivos distintos\n\nUm teste precisa responder uma pergunta definida. No **teste de carga**, aplica-se a demanda prevista, inclusive o pico normal, para verificar se metas são atendidas. No **teste de estresse**, a pressão ultrapassa a faixa prevista para revelar limites, modos de falha e recuperação. O **teste de pico** introduz uma elevação brusca e observa a reação do sistema. O **teste de endurance** (ou soak, teste prolongado) mantém uma carga por tempo extenso para revelar degradação acumulada, vazamentos ou esgotamento de conexões.\n\n| Tipo de teste | Pergunta principal | O que observar |\n| --- | --- | --- |\n| Carga | O sistema atende o volume esperado? | Metas, erros e recursos sob demanda representativa |\n| Estresse | Como se comporta além da capacidade prevista? | Ponto de saturação, falhas e recuperação |\n| Pico | Como reage a uma chegada repentina de trabalho? | Filas, elasticidade e estabilização após o salto |\n| Endurance | O desempenho se mantém durante uso prolongado? | Crescimento de memória, conexões e latência ao longo do tempo |\n\nUm teste funcional verifica se o resultado está correto; não demonstra que o sistema sustenta milhares de operações. Sempre valide a correção junto com o desempenho. Prefira ambiente e dados representativos. Se for necessário testar em produção, aumente a carga de modo controlado e monitore impactos, pois o experimento também consome capacidade usada por pessoas reais.\n\n### Exemplo passo a passo\n\nAna administra um repositório de contratos e percebe que as buscas ficam lentas no início do expediente. Primeiro, ela escolhe uma busca comum e registra volume de documentos, termos consultados e concorrência. Depois, mede a latência por percentis, a vazão, os erros e o tempo da aplicação, do índice de busca e do armazenamento. O p95 piora enquanto o armazenamento responde rapidamente; o rastreamento mostra que a aplicação espera por uma consulta que carrega histórico em excesso.\n\nAna formula a hipótese de que a consulta é o gargalo, confere seu plano e testa uma alteração em ambiente representativo. Repete a mesma carga e compara a linha de base com a nova medição. A latência e a vazão melhoram sem elevar erros nem pressionar memória. Ela registra a mudança e mantém monitoramento para perceber regressões. Se a hipótese não se confirmasse, deveria reverter ou investigar outra etapa, em vez de aumentar CPU por tentativa.\n\n### Como cai na prova\n\nAs questões costumam tratar latência e vazão como sinônimos, usar a média para afirmar que todos os usuários melhoraram ou chamar de teste de estresse uma carga normal. Também podem sugerir que mais hardware sempre resolve o problema. A resposta correta depende da meta, da carga e do gargalo medido. Uma melhoria deve ser comparada em condições equivalentes e examinada junto com erros, recursos e estabilidade.\n\n**Pegadinha:** latência é tempo por solicitação; vazão é trabalho concluído por tempo. p95 descreve a cauda das medições, não a média. Estresse ultrapassa a faixa esperada, enquanto carga verifica a faixa prevista. Não se escolhe uma otimização antes de localizar a causa.\n\n**Resumo para a prova**\n\n- Defina operação, cenário e metas; registre uma linha de base repetível.\n- Meça latência, percentis, vazão, erros e recursos em conjunto.\n- Separe sintoma de causa com métricas, logs, rastreamento e perfilamento.\n- Carga verifica a demanda prevista; estresse explora limites; pico testa salto; endurance revela degradação prolongada.\n- Formule hipótese, mude com controle, repita a medição e confirme correção e estabilidade."
+    },
+    {
+      "title": "2. Enterprise Content Management: ciclo de vida e controle",
+      "markdown": "### O problema que este assunto resolve\n\nUma organização não lida apenas com arquivos: precisa saber de onde vieram, qual versão é válida, quem pode consultá-los e o que fazer com eles ao longo do tempo. **ECM** significa *Enterprise Content Management* (gestão de conteúdo empresarial): uma abordagem e um conjunto de capacidades para capturar, organizar, proteger, localizar, compartilhar e governar conteúdos. Ela atende documentos e outros registros digitais integrados ao trabalho da organização. Um ECM, portanto, não se resume a um disco compartilhado ou a um programa de digitalização.\n\n**Termos e siglas na primeira ocorrência:** **metadado** é um atributo que descreve um conteúdo, como autor, data, assunto ou estado; **taxonomia** é uma estrutura de categorias e termos controlados para classificar itens; **OCR** é reconhecimento óptico de caracteres, técnica que extrai texto de imagens; **registro** (record) é conteúdo tratado como evidência de uma atividade ou decisão; **repositório** é o componente que guarda e administra os itens; **trilha de auditoria** é o histórico de ações associado a usuário, instante e objeto.\n\n### Capturar, classificar e recuperar\n\nO conteúdo pode entrar por digitalização, formulário, e-mail, aplicação de negócio ou importação em lote. Na captura, o sistema pode conferir formato, extrair propriedades, aplicar OCR e propor uma classificação. A classificação associa o item a uma classe documental e a campos relevantes. Por exemplo, um contrato pode exigir fornecedor, unidade, data de assinatura e situação; esses metadados permitem encontrar o arquivo sem depender apenas de lembrar o nome usado por quem o enviou.\n\nOCR torna pesquisável parte do texto de uma imagem, mas não garante leitura perfeita nem compreensão do documento. Uma página inclinada, carimbo, manuscrito ou baixa resolução pode causar erro. Quando a extração alimenta uma decisão, campos incertos devem ser validados por regra ou por uma pessoa. A taxonomia também precisa ser consistente: categorias duplicadas ou ambíguas tornam a busca mais difícil.\n\n| Capacidade | Exemplo | Controle ou cuidado |\n| --- | --- | --- |\n| Captura e classificação | Receber uma nota e reconhecer o fornecedor | Validar campos e revisar baixa confiança |\n| Repositório e indexação | Guardar um contrato e pesquisar seu texto | Preservar integridade, metadados e permissões |\n| Busca | Localizar por assunto, data e conteúdo | Combinar texto integral e campos estruturados |\n| Versionamento | Comparar minuta e versão aprovada | Identificar claramente a versão vigente |\n| Fluxo de trabalho | Encaminhar um documento para aprovação | Manter responsável e estado da tarefa |\n| Gestão de registros | Declarar evidência de uma decisão | Aplicar retenção e destinação autorizada |\n| Auditoria | Ver quem consultou ou alterou um item | Proteger o histórico e revisar acessos |\n\n### Acesso, versões e proteção\n\nAutenticação confirma a identidade apresentada; autorização decide quais ações aquela identidade pode executar. Um usuário pode ter permissão de leitura sem poder alterar, excluir ou administrar o documento. A regra de menor privilégio concede apenas o acesso necessário para a função. Em conteúdo sensível, o sistema deve verificar as permissões no repositório e nos serviços de integração; esconder um botão ou link na tela não impede uma chamada direta ao arquivo.\n\nO versionamento registra estados sucessivos e ajuda a identificar o que mudou e qual cópia está vigente. Check-in e check-out, ou mecanismo equivalente, coordenam edições concorrentes. Guardar versões não significa que todas tenham sido formalmente declaradas registros nem que possam ser conservadas para sempre. São decisões diferentes: uma versão trata da evolução do conteúdo; a política de retenção define por quanto tempo uma classe documental deve ser mantida e qual destinação pode ocorrer depois.\n\nA trilha de auditoria registra eventos e permite reconstruir ações. Ela não bloqueia, por si só, uma alteração indevida: esse bloqueio depende de autorização preventiva. Da mesma forma, uma cópia de segurança ajuda na recuperação após perda ou falha, mas não substitui classificação, controle de acesso ou gestão do ciclo de vida.\n\n### Ciclo de vida e integração\n\nDepois da captura, o item pode ser classificado, revisado, usado em um processo, declarado registro, mantido pelo período aplicável e destinado ao final conforme a regra correspondente. O prazo não é universal: depende da classe, das necessidades da organização e dos requisitos que se aplicam ao conteúdo. Uma suspensão de descarte (legal hold) impede a destinação dos itens abrangidos enquanto persistir a obrigação que motivou a preservação.\n\nECM pode integrar-se a sistemas de processo por interface de programação de aplicações (**API**), conectores ou serviços. Muitas vezes o repositório guarda o documento e o processo mantém uma referência persistente e os metadados necessários. Isso reduz cópias divergentes, mas exige lidar com identidade, disponibilidade, falhas e consistência. A aplicação precisa verificar acesso no momento em que o usuário abre o conteúdo; uma referência válida não deve funcionar como autorização irrestrita.\n\n### Exemplo passo a passo\n\nBruno recebe uma solicitação com três anexos. O sistema captura os arquivos e tenta reconhecer o texto por OCR. Em seguida, propõe a classe “solicitação de compra” e extrai fornecedor e data. Como um campo veio com baixa confiança, a equipe revisa o dado antes de encaminhar o pedido. O ECM associa metadados e guarda os documentos; o fluxo de trabalho envia a tarefa à unidade responsável.\n\nUma revisora pode consultar os anexos e registrar sua decisão, enquanto outra pessoa, sem atribuição no caso, não tem acesso. O histórico registra as ações. Após a conclusão, o conteúdo segue a política de retenção de sua classe; se houver suspensão de descarte, o sistema preserva os itens abrangidos. Em nenhum ponto o simples fato de ter OCR, versões ou auditoria substitui a validação e os controles de acesso.\n\n### Como cai na prova\n\nA banca pode reduzir ECM a digitalização ou armazenamento, afirmar que OCR assegura a correção dos campos ou que indexar significa autorizar acesso. Também mistura autenticação com autorização, auditoria com prevenção, versão com registro e retenção. A análise correta pergunta qual capacidade está em jogo e qual controle a complementa.\n\n**Pegadinha:** OCR reconhece caracteres, mas pode errar; autenticação identifica e autorização concede ações; auditoria registra, mas não impede; versionamento preserva estados, mas não determina retenção. Não há prazo único de guarda aplicável a todo documento.\n\n**Resumo para a prova**\n\n- ECM integra captura, classificação, armazenamento, busca, segurança, fluxo e governança.\n- Metadados e taxonomia tornam a recuperação mais precisa; OCR não substitui conferência.\n- Menor privilégio e autorização no repositório protegem o conteúdo.\n- Auditoria registra eventos; versionamento identifica mudanças; são funções distintas.\n- Retenção e destinação dependem da classe e dos requisitos aplicáveis; suspensão de descarte preserva os itens abrangidos."
+    },
+    {
+      "title": "3. Automação de processos de negócio e BPMN",
+      "markdown": "### O problema que este assunto resolve\n\nUm processo de negócio organiza atividades que transformam uma entrada em um resultado, como analisar um pedido, contratar um serviço ou responder a uma solicitação. **BPM** significa *Business Process Management* (gestão de processos de negócio): o trabalho de descobrir, modelar, executar, medir e melhorar esses processos. A automação usa tecnologia para encaminhar tarefas, aplicar regras, validar dados e chamar sistemas. Automatizar um fluxo sem entender suas decisões e exceções pode apenas acelerar erros e retrabalho.\n\n**Termos e siglas na primeira ocorrência:** **BPMN** significa *Business Process Model and Notation* (notação para modelar processos e colaborações); **atividade** é trabalho executado por uma pessoa ou sistema; **evento** é algo que inicia, altera, interrompe ou encerra um fluxo; **gateway** é um elemento que divide ou sincroniza caminhos; **pool** representa um participante; **lane** subdivide esse participante para indicar responsabilidades; **DMN** significa *Decision Model and Notation* (notação para explicitar decisões e regras).\n\n### Elementos da notação BPMN\n\nBPMN fornece símbolos com significados definidos para comunicar um processo a pessoas de negócio e equipes técnicas. Os eventos aparecem como círculos, as atividades como retângulos de cantos arredondados e os gateways como losangos. Linhas com setas indicam relações diferentes; por isso, a aparência não deve ser interpretada de modo informal.\n\n| Elemento | Função | Exemplo de uso |\n| --- | --- | --- |\n| Evento de início | Inicia uma instância do processo | Chegada de um pedido pelo portal |\n| Tarefa de usuário | Atribui trabalho a uma pessoa | Conferir se os documentos estão completos |\n| Tarefa de serviço | Executa uma chamada automatizada | Consultar um cadastro em outro sistema |\n| Gateway exclusivo | Escolhe uma saída conforme condição | Completo? seguir para análise; caso contrário, pedir complemento |\n| Gateway paralelo | Abre caminhos concorrentes ou aguarda sua conclusão | Validar cadastro e anexos em paralelo |\n| Gateway inclusivo | Segue uma ou mais saídas cujas condições se aplicam | Encaminhar para uma ou várias revisões necessárias |\n| Evento intermediário | Representa uma ocorrência durante o processo | Aguardar mensagem ou temporizador configurado |\n| Evento de fim | Encerra um caminho | Registrar a decisão e concluir o caso |\n\nO **fluxo de sequência** organiza a ordem das atividades dentro de um processo. O **fluxo de mensagem** representa comunicação entre participantes diferentes. Em um diagrama com duas pools, por exemplo, uma pool pode ser o órgão e outra o fornecedor; a solicitação enviada entre eles é mensagem, não sequência interna. Uma lane não cria um participante novo: apenas separa responsabilidades dentro da pool.\n\nO gateway exclusivo avalia condições e direciona o fluxo para uma alternativa apropriada. O paralelo não escolhe por regra de negócio: ele abre caminhos que podem ocorrer ao mesmo tempo ou sincroniza caminhos antes de continuar. O inclusivo pode ativar uma ou mais saídas, conforme as condições. Os eventos de temporizador representam espera ou vencimento configurado; não definem, por conta própria, um prazo legal.\n\n### Modelar não é executar automaticamente\n\nUm diagrama pode servir para explicar um processo e ainda não conter detalhes suficientes para um motor executar cada etapa. Um **motor de processo** é o sistema que cria e conduz instâncias conforme o modelo. Para automatizar, é preciso definir dados e variáveis, condições, atribuição de tarefas, formulários, serviços chamados, tratamento de erros e limites do motor utilizado.\n\nUma tarefa humana precisa de responsáveis ou grupos, informações necessárias, resultado esperado e forma de encaminhamento. Uma tarefa automatizada precisa de serviço disponível, credenciais protegidas e comportamento definido quando a chamada falha. Timeout é uma ausência de resposta dentro do limite configurado; não prova, sozinho, que o serviço externo deixou de concluir a operação. Retentar sem verificar o estado pode duplicar uma solicitação.\n\nQuando regras de decisão ficam separadas do fluxo, a manutenção pode ser mais clara. BPMN mostra quando uma atividade acontece; DMN pode representar a regra que decide o resultado. Imagine uma matriz que relaciona categoria do gasto e unidade responsável à alçada de aprovação. Para funcionar, a decisão precisa definir entradas, saídas, resultados para casos sem correspondência e testes de exemplos-limite.\n\n### Medir o processo e melhorar\n\nApós a implantação, observe o processo real. **Tempo de ciclo** é o tempo decorrido do início ao fim de uma instância e inclui espera entre tarefas. Tempo de execução ativa mede apenas o trabalho efetivo. Volume concluído, tamanho e idade das filas, retrabalho, abandono, taxa de exceção e cumprimento de metas ajudam a localizar etapas problemáticas. Uma espera longa numa fila pode dominar o ciclo mesmo quando cada tarefa demora pouco.\n\nCompare as variantes do fluxo: quantos casos retornam para correção, quantos exigem intervenção e em que ponto se acumulam. Consulte quem executa as tarefas e valide controles antes de remover etapas. Uma redução de exceções pode indicar regra melhor, mas também pode indicar que o sistema parou de identificar casos que deveriam ser excepcionais. Métricas precisam de definições estáveis para que uma comparação seja confiável.\n\n### Exemplo passo a passo\n\nCarla desenha o processo de reembolso. Um evento de início representa o recebimento do pedido. Uma tarefa de serviço verifica campos obrigatórios; um gateway exclusivo pergunta se os comprovantes estão completos. Se não estiverem, uma tarefa de usuário solicita correção. Se estiverem, uma consulta automatizada verifica dados do pedido e encaminha uma decisão de alçada.\n\nSe duas validações independentes puderem ocorrer ao mesmo tempo, Carla usa um gateway paralelo para iniciá-las e outro para aguardar ambas antes da aprovação. Uma chamada ao sistema financeiro é uma tarefa de serviço. Se falhar, o processo encaminha o caso para tratamento definido, em vez de ocultar o erro. Após a implantação, Carla mede espera na fila, ciclo total, retrabalho e erros para decidir se a mudança realmente melhorou o atendimento.\n\n### Como cai na prova\n\nAs questões podem trocar fluxo de sequência por fluxo de mensagem, gateway exclusivo por paralelo ou tarefa de usuário por tarefa de serviço. Também afirmam que um diagrama BPMN é executável em qualquer plataforma ou que o BPM termina com a implantação. A notação padroniza a representação, mas a execução depende de dados e detalhes compatíveis com o motor; a gestão inclui monitoramento e melhoria contínua.\n\n**Pegadinha:** sequência ordena atividades no processo; mensagem comunica participantes. O exclusivo escolhe uma saída; o paralelo divide ou sincroniza; o inclusivo pode seguir uma ou mais. BPMN organiza o fluxo, mas não define sozinho a regra de negócio, a implementação, os dados ou a operação.\n\n**Resumo para a prova**\n\n- BPM cobre descoberta, modelagem, execução, medição e melhoria contínua.\n- BPMN usa eventos, atividades, gateways, pools, lanes e fluxos com significados próprios.\n- Tarefa de usuário requer pessoa; tarefa de serviço chama sistema.\n- Sequência ocorre dentro do processo; mensagem liga participantes.\n- DMN pode explicitar decisões; execução exige dados, regras, integrações e tratamento de falhas.\n- Tempo de ciclo inclui espera; medir só trabalho ativo pode esconder filas."
+    },
+    {
+      "title": "4. Integrar ECM, processos e desempenho",
+      "markdown": "### O problema que este assunto resolve\n\nUm fluxo digital pode depender ao mesmo tempo de tarefas humanas, documentos, serviços externos e componentes de processamento. Quando eles não compartilham identificadores e controles, fica difícil saber qual documento pertence a qual solicitação, explicar uma demora ou impedir que alguém consulte conteúdo sem permissão. Integrar ECM, processos e desempenho significa ligar essas partes de forma rastreável, segura e observável, inclusive quando alguma delas falha.\n\n**Termos e siglas na primeira ocorrência:** **instância** é uma execução concreta de um processo para um caso; **fila de trabalho** é o conjunto de tarefas pendentes para uma equipe ou serviço; **SLA** é um acordo ou meta operacional de atendimento; **API** é uma interface definida para aplicações trocarem informações; **idempotência** é a propriedade de uma operação repetida não produzir efeitos duplicados; **observabilidade** é a capacidade de entender o estado do sistema a partir de métricas, logs e rastreamentos; **backlog** é o volume de trabalho ainda pendente.\n\n### Ligar processo e conteúdo sem perder controle\n\nCada caso deve ter um identificador que relacione a instância do processo, seus documentos e os eventos relevantes. Esse identificador de correlação permite investigar o percurso sem copiar o conteúdo inteiro para mensagens técnicas. O motor do processo pode guardar uma referência persistente ao documento no repositório e os metadados estritamente necessários à tarefa. A referência não substitui a autorização: o ECM ainda deve verificar se a pessoa pode abrir aquele item.\n\nEvite replicar anexos sem necessidade. Cópias múltiplas podem divergir e dificultar descobrir qual versão é válida. Quando a arquitetura exige cópia ou transformação, registre origem, relação e estado de processamento. Proteja dados em trânsito e em armazenamento conforme os controles da organização, limite informações pessoais em logs e restrinja quem pode pesquisar ou baixar conteúdo.\n\n### Tratar falhas, repetição e filas\n\nIntegrações podem falhar antes ou depois de uma operação ter sido concluída. Um timeout informa que a resposta não chegou a tempo; não permite concluir que o serviço remoto não executou o pedido. Se o processo repetir uma operação financeira ou criar novamente um documento, pode haver duplicidade. Uma chave de idempotência, uma consulta de estado ou uma rotina de deduplicação permite reconhecer uma repetição segura.\n\nConfigure retentativas com limite e intervalo adequado. Repetições sem controle podem criar uma tempestade de chamadas quando um serviço está indisponível. Para falhas que não se resolvem, preveja fila de exceção e intervenção humana. Quando uma parte conclui e outra não, use confirmação, compensação (ação que desfaz ou neutraliza um efeito já realizado) ou reconciliação (comparação dos estados para corrigir divergências), conforme o caso.\n\nUma fila desacopla quem produz trabalho de quem o processa e absorve variações temporárias de chegada. Não aumenta automaticamente a capacidade final. Se o trabalho chega mais rápido do que os consumidores conseguem concluí-lo, o backlog cresce. Aumentar consumidores pode ajudar quando há capacidade disponível no serviço de destino; pode também saturar banco, repositório ou API. Observe volume, idade dos itens, taxa de entrada e saída, erros e limite das dependências.\n\n### Métricas para entender o fluxo integrado\n\nMétricas de processo explicam o impacto no atendimento; métricas técnicas ajudam a localizar a causa. Use identificadores comuns para ligar os sinais sem registrar dados desnecessários. Defina cada indicador com cuidado: “tempo de ciclo” pode significar do envio até a conclusão, enquanto “tempo de execução” conta apenas o trabalho ativo. Um SLA deve explicitar o serviço e a janela avaliados; não é uma propriedade automática do motor de processo.\n\n| Indicador | O que ajuda a identificar | Cuidado ao interpretar |\n| --- | --- | --- |\n| Tempo de ciclo por etapa | Etapa que acumula espera ou execução | Separe tempo ativo de tempo em fila |\n| Tamanho e idade da fila | Backlog e tarefas esquecidas | Poucos itens podem incluir um caso muito antigo |\n| Taxa de exceção | Casos que exigem regra alternativa ou pessoa | Queda pode ser erro de classificação |\n| Latência e p95 da API | Resposta e cauda lenta de uma integração | Observe volume e taxa de erro junto |\n| Taxa de retrabalho | Correções ou reaberturas repetidas | Defina o que conta como retrabalho |\n| Falhas de integração | Dependência instável ou contrato incompatível | Diferencie erro transitório de dado inválido |\n\nMétricas, logs e rastros se complementam. Métricas mostram tendência agregada; logs descrevem eventos; rastros mostram a duração de etapas encadeadas. Se o painel indicar aumento de ciclo, o rastreamento pode revelar que a demora está na captura, na classificação, na fila humana, no ECM ou em serviço externo. A métrica não explica sozinha a causa nem deve ser escolhida apenas por ser fácil de coletar.\n\n### Exemplo integrado passo a passo\n\nDiego administra um fluxo de reembolso. O portal recebe o pedido e atribui um identificador de caso. O motor cria a instância e encaminha os comprovantes ao ECM, que guarda os arquivos, classifica o conteúdo e devolve referências. Um serviço consulta as regras e aprova automaticamente os pedidos simples; os incompletos entram numa fila humana. Cada chamada leva o identificador de correlação.\n\nUm comprovante ilegível segue para revisão, em vez de ser tratado como ausência de documento. Se o serviço de pagamento não responder, o motor consulta o estado ou repete com uma chave de idempotência, evitando um pagamento duplicado. A equipe acompanha idade da fila, p95 da API, taxa de erro, retrabalho e ciclo por etapa. A revisora acessa os documentos pelo repositório, cuja autorização é conferida no momento da consulta. Se o ECM tiver uma falha parcial após a criação da tarefa, a integração mantém o caso identificável e executa reconciliação antes de concluí-lo.\n\n### Como cai na prova\n\nA banca pode afirmar que esconder o link protege o documento, que repetir uma chamada após timeout é sempre seguro, ou que mais consumidores sempre resolvem uma fila. Essas conclusões ignoram autorização no repositório, idempotência e capacidade das dependências. Também pode opor indicadores de processo e telemetria técnica; na prática, eles respondem perguntas diferentes e devem ser correlacionados.\n\n**Pegadinha:** fila absorve variação, mas não cria capacidade; timeout não prova que a operação remota falhou; retentativa pode duplicar efeitos. Ocultar um link não substitui autorização no ECM. Queda de exceções não prova melhoria se a classificação estiver deixando casos passar.\n\n**Resumo para a prova**\n\n- Identificador de correlação liga instância, documentos e eventos sem duplicar conteúdo sensível.\n- Autorização precisa ser verificada no repositório, mesmo quando o processo controla a interface.\n- Retentativas pedem limite e idempotência, consulta de estado ou deduplicação.\n- Filas amortecem variações; acompanhe idade, entrada, saída, erros e capacidade de destino.\n- Métricas, logs e rastros se complementam para localizar causas e impacto.\n- Falha parcial requer confirmação, compensação ou reconciliação; reduza dados em logs."
+    }
+  ],
+  "summary": "Ajuste de desempenho é um ciclo de metas, medição, diagnóstico de gargalos, mudança orientada por hipótese e comparação com uma linha de base. Latência, percentis, vazão, erros e uso de recursos devem ser lidos em conjunto. Testes de carga, estresse, pico e endurance respondem a perguntas distintas. ECM reúne captura, classificação, repositório, metadados, indexação, busca, controle de acesso, versão, auditoria, retenção e integração ao longo do ciclo de vida do conteúdo. BPM descobre, modela, executa, mede e melhora processos; BPMN padroniza sua representação com eventos, tarefas, gateways, pools, lanes e fluxos. A automação pode combinar tarefas humanas, serviços e regras, mas exige dados, permissões, exceções, idempotência e monitoramento. No fluxo integrado, métricas de processo e telemetria técnica ajudam a localizar atrasos e melhorar o serviço sem perder controle documental.",
+  "flashcards": [
+    {
+      "front": "O que é uma linha de base de desempenho?",
+      "back": "Medições repetíveis que representam o comportamento de referência da carga e do ambiente definidos."
+    },
+    {
+      "front": "Qual é a diferença entre latência e vazão?",
+      "back": "Latência é o tempo de resposta de uma operação; vazão é o volume concluído por unidade de tempo."
+    },
+    {
+      "front": "O que informa o percentil p95 de latência?",
+      "back": "O valor abaixo do qual se encontram 95% das observações; ajuda a enxergar a cauda lenta além da média."
+    },
+    {
+      "front": "Para que serve teste de carga?",
+      "back": "Verificar se o sistema atende o volume esperado e o pico normal dentro das metas definidas."
+    },
+    {
+      "front": "O que distingue teste de estresse de teste de pico?",
+      "back": "Estresse excede gradualmente ou de forma sustentada a faixa prevista para revelar limites; pico introduz um salto abrupto de tráfego."
+    },
+    {
+      "front": "Que problema o teste endurance procura revelar?",
+      "back": "Degradação que aparece com carga prolongada, como vazamentos, exaustão de recursos ou problemas no pool de conexões."
+    },
+    {
+      "front": "Por que identificar gargalo antes de otimizar?",
+      "back": "Porque o gargalo limita o fluxo; mudar outro componente pode não melhorar o resultado e até deslocar o problema."
+    },
+    {
+      "front": "O que é perfilamento de aplicação?",
+      "back": "Medição detalhada do consumo de tempo e recursos por partes do código ou execução."
+    },
+    {
+      "front": "Quais dimensões ajudam a medir desempenho?",
+      "back": "Latência, vazão, taxa de erro, utilização e estabilidade, observadas sob uma carga representativa."
+    },
+    {
+      "front": "O que é ECM?",
+      "back": "Abordagem de gestão empresarial do conteúdo que cobre captura, organização, proteção, busca, uso e governança durante o ciclo de vida."
+    },
+    {
+      "front": "Que função têm os metadados num repositório ECM?",
+      "back": "Descrevem conteúdo com propriedades que apoiam classificação, recuperação, fluxo e controles."
+    },
+    {
+      "front": "O que OCR faz e o que não garante?",
+      "back": "Extrai texto de imagens; não garante sozinho classificação correta, validação dos dados ou autorização de acesso."
+    },
+    {
+      "front": "Como busca textual e busca por metadados se complementam?",
+      "back": "Uma recupera termos no conteúdo; a outra filtra atributos estruturados como tipo, data, processo ou unidade."
+    },
+    {
+      "front": "O que é trilha de auditoria?",
+      "back": "Registro de ações relevantes com ator, instante e objeto, útil para reconstruir eventos e revisar acessos."
+    },
+    {
+      "front": "Autenticação e autorização são a mesma coisa?",
+      "back": "Não: autenticação confirma a identidade; autorização determina as ações permitidas a essa identidade."
+    },
+    {
+      "front": "O que é BPM?",
+      "back": "Disciplina de descobrir, modelar, executar, medir e melhorar continuamente processos de negócio."
+    },
+    {
+      "front": "Qual é o propósito principal de BPMN?",
+      "back": "Oferecer notação gráfica padronizada para comunicar processos a participantes de negócio e implementadores."
+    },
+    {
+      "front": "O que representa um gateway exclusivo?",
+      "back": "Ramificação condicional em que se escolhe o caminho cujas condições se aplicam."
+    },
+    {
+      "front": "Como gateway paralelo difere do exclusivo?",
+      "back": "O paralelo abre ou sincroniza caminhos concorrentes; não escolhe uma rota por condição de negócio."
+    },
+    {
+      "front": "O que representam pools e lanes em BPMN?",
+      "back": "Pools representam participantes; lanes organizam papéis ou responsabilidades dentro de um participante."
+    },
+    {
+      "front": "Toda representação BPMN é executável?",
+      "back": "Não. Um modelo pode servir para comunicação; execução requer dados, regras, serviços e semântica suportada pelo motor."
+    },
+    {
+      "front": "Quando DMN pode complementar BPMN?",
+      "back": "Quando decisões e regras, como uma tabela de alçadas, são modeladas separadamente do fluxo de atividades."
+    },
+    {
+      "front": "Por que tarefas humanas precisam de fila de trabalho?",
+      "back": "Para apresentar pendências a usuário ou equipe com responsável, contexto, formulário e resultado controlado."
+    },
+    {
+      "front": "O que é idempotência numa integração?",
+      "back": "Repetir a mesma operação de forma segura sem criar efeitos duplicados."
+    },
+    {
+      "front": "Por que medir idade da fila além do tamanho?",
+      "back": "Uma fila pequena ainda pode conter um caso antigo que está parado há tempo excessivo."
+    }
+  ],
+  "tips": [
+    "Comece o diagnóstico definindo fluxo crítico, carga e meta, depois compare medições com uma linha de base.",
+    "Não confunda p95 com média: o percentil revela a experiência da parcela de respostas mais lentas.",
+    "Carga mede demanda prevista; estresse procura limite; pico testa salto repentino; endurance observa degradação acumulada.",
+    "Em ECM, associe o documento a metadados, classificação, controle de acesso, versões e ciclo de vida.",
+    "Em BPMN, lembre que evento é ocorrência, tarefa é trabalho e gateway controla caminhos.",
+    "Ao integrar processo e repositório, acompanhe latência, fila, exceções e permissões de ponta a ponta."
+  ],
+  "traps": [
+    "Tratar throughput como tempo de resposta: vazão mede trabalho concluído por unidade de tempo; latência mede duração da resposta.",
+    "Afirmar que teste funcional comprova desempenho: correção funcional não mede capacidade sob carga.",
+    "Supor que OCR classifica e valida automaticamente todo documento: extração pode exigir revisão e regras adicionais.",
+    "Afirmar que toda versão de documento é registro imutável: versionamento e declaração como registro são controles diferentes.",
+    "Interpretar fluxo de mensagem como sequência interna: em BPMN ele comunica participantes distintos.",
+    "Concluir que um diagrama BPMN pode ser executado diretamente em qualquer motor: execução depende de detalhamento e suporte técnico."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva um ciclo baseado em evidências para ajustar o desempenho.",
+      "answer": "Definir fluxo, carga e meta; coletar linha de base e telemetria; localizar gargalo; formular hipótese; aplicar mudança controlada; repetir medição e comparar latência, vazão, erros e recursos."
+    },
+    {
+      "question": "Diferencie carga, estresse, pico e endurance.",
+      "answer": "Carga verifica volume esperado; estresse procura limite e modo de falha; pico introduz aumento brusco; endurance sustenta carga para detectar degradação ao longo do tempo."
+    },
+    {
+      "question": "Quais capacidades concretas compõem um ECM?",
+      "answer": "Captura, classificação, repositório, metadados, OCR quando necessário, indexação e busca, versionamento, permissões, auditoria, workflow, retenção e integração."
+    },
+    {
+      "question": "Diferencie autenticação, autorização e auditoria.",
+      "answer": "Autenticação verifica identidade; autorização concede ou nega ações; auditoria registra ações relevantes para revisão e reconstrução."
+    },
+    {
+      "question": "Explique como gateway exclusivo e paralelo controlam o fluxo BPMN.",
+      "answer": "O exclusivo seleciona caminho segundo condições; o paralelo abre caminhos concorrentes ou sincroniza sua conclusão sem decidir por condição de negócio."
+    },
+    {
+      "question": "Por que um modelo BPMN pode não ser executável?",
+      "answer": "A notação comunica estrutura, mas execução também requer variáveis, regras, atribuição, integrações, tratamento de falhas e recursos que o motor suporte."
+    },
+    {
+      "question": "Como desenhar uma tarefa de serviço resiliente?",
+      "answer": "Definir contrato de entrada e saída, credenciais, limites e retentativas; tornar repetição segura ou idempotente; monitorar e modelar falha, compensação ou intervenção."
+    },
+    {
+      "question": "Como as métricas de processo e a telemetria técnica se complementam?",
+      "answer": "Indicadores de processo localizam impacto em ciclo, fila e retrabalho; métricas, logs e rastros técnicos ajudam a identificar a camada que causou o atraso."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Métricas e testes de desempenho confundidos",
+      "summary": "Latência, vazão, erro e utilização medem dimensões distintas; carga, estresse, pico e endurance respondem a condições diferentes."
+    },
+    {
+      "key": "e2",
+      "title": "Otimização sem diagnóstico",
+      "summary": "Sem linha de base, carga representativa e localização do gargalo, mudanças podem não melhorar o fluxo ou deslocar a limitação."
+    },
+    {
+      "key": "e3",
+      "title": "ECM reduzido a armazenamento",
+      "summary": "ECM também envolve captura, classificação, metadados, busca, versão, permissões, auditoria, workflow, retenção e integração."
+    },
+    {
+      "key": "e4",
+      "title": "Controles documentais tratados como equivalentes",
+      "summary": "Autenticação, autorização, auditoria, versionamento, declaração como registro e retenção têm funções diferentes e complementares."
+    },
+    {
+      "key": "e5",
+      "title": "Elementos BPMN e execução confundidos",
+      "summary": "Eventos, tarefas, gateways, pools, lanes e fluxos têm semânticas distintas; diagrama conceitual não garante execução automática."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe quer saber se uma mudança reduziu o tempo de resposta da operação de pesquisa sob carga de usuários simultâneos. Qual procedimento produz uma comparação útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Comparar uma execução sem usuários com outra no pico, usando a média de CPU como resultado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Repetir o mesmo cenário e volume antes e depois, comparando latência, erros e vazão.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Medir somente o tamanho do executável, pois ele representa diretamente o tempo de resposta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar memória e concluir que houve ganho se o processo continuar ativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar consultas diferentes em cada versão e comparar apenas o horário final.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma comparação válida mantém cenário e carga equivalentes e registra métricas de resultado. Latência, vazão e erros mostram o efeito percebido; CPU pode ajudar a explicar a causa, mas não substitui essas medidas.",
+      "section": "1. Diagnosticar e ajustar o desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe estabelece que 95% das solicitações devem responder em até 300 ms. Qual estatística compara diretamente o resultado com essa meta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A média de memória consumida por todos os servidores durante a semana.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O volume total de linhas armazenadas ao fim do teste de carga.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O p95 da latência das solicitações do cenário medido.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A quantidade de implantações realizadas desde o último trimestre.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O número máximo de processos em execução sem considerar as respostas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A meta descreve um percentil de latência, portanto deve ser comparada ao p95 das respostas. Métricas de memória, volume e implantações não representam o tempo de atendimento solicitado.",
+      "section": "1. Diagnosticar e ajustar o desempenho",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O teste mantém o volume previsto de usuários e verifica se a aplicação cumpre metas de resposta durante o pico normal de utilização. Que tipo de teste descreve melhor esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Teste de carga, que avalia o comportamento na demanda esperada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Teste de estresse, que procura necessariamente simular falha de segurança.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Teste endurance, que elimina o uso de dados representativos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Teste unitário, que substitui medição de concorrência do sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Teste de recuperação, que mede apenas o tempo para restaurar backup.",
+          "correct": false
+        }
+      ],
+      "explanation": "Teste de carga verifica se o sistema atende à demanda esperada. Estresse procura limites além dessa faixa; endurance observa efeitos de duração prolongada.",
+      "section": "1. Diagnosticar e ajustar o desempenho",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após horas de tráfego estável, a aplicação passa a responder mais lentamente e apresenta aumento contínuo de memória. Qual tipo de ensaio é mais indicado para revelar esse padrão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Teste de interface, executado uma vez em cada navegador suportado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Teste de pico, com uma única rajada curta no início da execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Teste endurance, mantendo carga por período prolongado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Teste funcional, verificando somente um resultado de negócio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Teste de estresse, encerrado logo após ultrapassar a carga prevista.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um teste endurance ou soak mantém a carga por tempo suficiente para expor vazamentos e exaustão acumulada. Uma rajada curta ou uma verificação funcional não revela necessariamente degradação ao longo do tempo.",
+      "section": "1. Diagnosticar e ajustar o desempenho",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A medição mostra que requisições lentas passam a maior parte do tempo aguardando uma resposta de serviço externo, enquanto CPU e disco locais ficam ociosos. Qual investigação é mais pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar a frequência do processador antes de medir qualquer outra etapa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remover índices locais mesmo sem evidência de espera no banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Separar o tempo por dependência e verificar latência, timeout e falhas externas.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ampliar o tamanho dos arquivos de log para acelerar a resposta remota.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar métricas distribuídas para reduzir a precisão do diagnóstico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com recursos locais ociosos e tempo concentrado na dependência, rastreamento por etapa e métricas externas ajudam a confirmar a origem. Aumentar CPU ou alterar índices locais não aborda a espera observada.",
+      "section": "1. Diagnosticar e ajustar o desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma alteração reduziu a média de latência, mas aumentou bastante a taxa de erro no pico. Qual conclusão é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A otimização foi bem-sucedida, pois a média é suficiente para aprovar qualquer mudança.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A alteração precisa ser avaliada também por erros, percentis e vazão sob a mesma carga.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A taxa de erro não afeta desempenho, pois não altera diretamente o processador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O cenário deve ser descartado e substituído por teste sem concorrência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A média menor prova que a meta operacional foi atendida em todos os casos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Desempenho não se resume à média: erro, vazão e cauda de latência também importam. Uma queda na média acompanhada de falhas pode significar que alguns pedidos deixaram de ser atendidos corretamente.",
+      "section": "1. Diagnosticar e ajustar o desempenho",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe adicionou cache a uma consulta repetida. Qual cuidado deve fazer parte da avaliação da mudança?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir expiração e invalidação para evitar servir dados desatualizados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desativar toda observabilidade porque cache sempre elimina gargalos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenar indefinidamente qualquer resposta sem considerar mudanças.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Contar cada acerto de cache como uma transação concluída pelo banco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Replicar a cache em todos os usuários sem política de consistência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cache pode reduzir trabalho repetido, mas precisa de política para expiração e invalidação. Sem ela, o ganho de velocidade pode vir acompanhado de respostas obsoletas.",
+      "section": "1. Diagnosticar e ajustar o desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao comparar duas versões, o time alterou simultaneamente código, número de usuários e tamanho do conjunto de dados. Qual problema isso cria?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A comparação fica mais confiável, pois mais variáveis tornam qualquer causa evidente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Não será possível atribuir com segurança a diferença observada a uma mudança específica.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O teste passa a ser funcional e deixa de medir qualquer indicador técnico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A linha de base se converte automaticamente em meta de disponibilidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A vazão deixa de ser calculável quando há mais de uma variável alterada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Alterar várias condições ao mesmo tempo confunde o efeito de cada fator. Um experimento controlado mantém as demais condições estáveis ou registra as diferenças para interpretar o resultado.",
+      "section": "1. Diagnosticar e ajustar o desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na etapa de preparação, uma equipe usa um ambiente de teste muito diferente de produção e dados pouco representativos. Que risco isso introduz?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O teste pode ocultar gargalos ligados ao volume, à topologia ou ao uso real.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O teste necessariamente mede mais usuários simultâneos do que o cenário executado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A medição de latência passa a representar exclusivamente a taxa de erro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A aplicação deixa de precisar de metas mensuráveis para ser comparada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A diferença de ambiente garante que qualquer otimização seja conservadora.",
+          "correct": false
+        }
+      ],
+      "explanation": "Topologia, volume de dados, rede e dependências influenciam resultados; ambiente representativo torna o ensaio mais útil. Uma diferença relevante pode ocultar limitações que só aparecem na implantação real.",
+      "section": "1. Diagnosticar e ajustar o desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um analista compara a vazão do sistema em duas execuções com cargas e taxas de erro equivalentes. O número de operações concluídas por segundo aumentou. Qual interpretação descreve esse indicador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A duração entre o início e o fim de uma única solicitação diminuiu.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A quantidade de trabalho concluída por unidade de tempo aumentou.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A proporção de solicitações defeituosas cresceu no mesmo intervalo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O conjunto de dados foi reduzido independentemente do comportamento medido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O percentil p95 foi substituído pela utilização média de memória.",
+          "correct": false
+        }
+      ],
+      "explanation": "Vazão é a quantidade de trabalho concluído por unidade de tempo. Latência, taxa de erro e utilização são indicadores diferentes e devem ser observados junto com a vazão.",
+      "section": "1. Diagnosticar e ajustar o desempenho",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma hipótese de desempenho afirma que determinada consulta domina a latência p95. Qual experiência permite avaliar essa afirmação com evidência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Alterar vários índices de produção e comparar a média mensal de CPU.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Comparar base e variante sob carga igual, medindo resposta e banco.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituir a consulta por um resultado fixo e considerar a aplicação otimizada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Medir somente o tamanho do arquivo SQL e inferir o custo de execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reiniciar o serviço até a média ficar abaixo do limite definido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma hipótese deve ser testada comparando a condição atual e a variante com o mesmo perfil de carga e métricas pertinentes. Isso ajuda a verificar tanto a latência quanto o possível custo transferido ao banco.",
+      "section": "1. Diagnosticar e ajustar o desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em ambiente produtivo, uma equipe pretende aumentar gradualmente a parcela de tráfego usada num ensaio de desempenho, observando latência, erros e recursos a cada etapa. Qual característica torna essa abordagem mais controlável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A carga cresce por etapas e pode ser interrompida diante de degradação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A carga real não precisa ser monitorada porque usuários são parte do ensaio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O teste garante que nenhum componente externo responderá lentamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O aumento progressivo elimina a necessidade de uma linha de base.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O tráfego de teste não consome capacidade nem pode afetar clientes.",
+          "correct": false
+        }
+      ],
+      "explanation": "A progressão gradual permite observar sinais e interromper o aumento caso haja degradação. Testes em produção ainda afetam capacidade e precisam de salvaguardas, monitoramento e plano de reversão.",
+      "section": "1. Diagnosticar e ajustar o desempenho",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O perfilamento local identifica uma função que consome muito tempo, embora a latência total do serviço permaneça baixa no fluxo medido. Qual conclusão é mais cuidadosa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A função deve ser reescrita imediatamente sem verificar impacto no fluxo prioritário.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Relacione custo, frequência e meta antes de priorizar a função.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O perfilamento prova que o sistema não tem gargalos em outras camadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Toda função com custo elevado causa necessariamente erro para o usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A latência total não pode ser medida depois de executar um perfilador.",
+          "correct": false
+        }
+      ],
+      "explanation": "O perfilamento localiza custo, mas prioridade depende do impacto no fluxo, frequência e metas. Otimizar um trecho caro porém raro pode não trazer ganho perceptível para a operação crítica.",
+      "section": "1. Diagnosticar e ajustar o desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo recebe um documento digitalizado, extrai seu texto e permite que o usuário procure palavras dentro do conteúdo. Qual tecnologia participa diretamente da extração de texto da imagem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "OCR, que reconhece caracteres em imagens digitalizadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Gateway paralelo, que sincroniza tarefas de negócio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cache distribuído, que define a categoria arquivística.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trilha de auditoria, que converte imagens em texto pesquisável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Lane BPMN, que extrai metadados do sistema de arquivos.",
+          "correct": false
+        }
+      ],
+      "explanation": "OCR reconhece caracteres em imagem e torna possível obter texto para indexação, embora a qualidade exija validação em muitos casos. Os demais elementos têm funções distintas de fluxo, desempenho ou controle.",
+      "section": "2. Enterprise Content Management: ciclo de vida e controle",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um repositório permite encontrar contratos tanto pelo texto interno quanto pelo número do processo e pela data. Que recursos de ECM estão sendo combinados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fluxo de mensagem e gateway de eventos temporizados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Busca de texto integral e filtros por metadados estruturados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Versionamento de código e balanceamento de carga.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Autenticação e perfilamento de CPU do navegador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Teste de pico e registro de throughput de arquivos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A recuperação pode combinar termos encontrados no texto integral e atributos indexados como número e data. Essa combinação depende de conteúdo e metadados coerentes e pesquisáveis.",
+      "section": "2. Enterprise Content Management: ciclo de vida e controle",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política permite que analistas consultem um documento, mas somente revisores autorizados alterem seu conteúdo. Qual distinção de controle está em uso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A diferença entre latência e vazão por tipo de documento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A autorização diferencia ações permitidas, como leitura e alteração.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A autenticação define a política de retenção do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O OCR concede permissão de alteração após extrair o texto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A trilha de auditoria bloqueia toda tentativa de leitura.",
+          "correct": false
+        }
+      ],
+      "explanation": "Autorização define quais ações uma identidade pode executar. A política pode permitir leitura e restringir alteração a outro perfil; autenticação apenas verifica identidade.",
+      "section": "2. Enterprise Content Management: ciclo de vida e controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um auditor precisa reconstruir quem alterou um registro e quando isso ocorreu. Qual capacidade do ECM atende diretamente a essa necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma linha de base de latência para consultas ao repositório.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A trilha de auditoria com ator, instante e objeto afetado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um gateway exclusivo que ramifica o processo por condição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma cópia de cache que preserva apenas a versão mais recente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um evento de pico que conta solicitações concorrentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Trilha de auditoria registra ações relevantes e permite reconstituir eventos. Ela complementa permissões preventivas, mas não equivale a bloquear uma operação.",
+      "section": "2. Enterprise Content Management: ciclo de vida e controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois revisores precisam evitar sobrescrever silenciosamente as alterações um do outro no mesmo documento. Que recurso é pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Versionamento e controle de edição concorrente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Gateway paralelo para criar cópias independentes sem histórico.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "OCR que bloqueia a gravação quando encontra palavras repetidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Teste endurance executado durante cada edição de texto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumento da taxa de atualização da tela sem controle do repositório.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mecanismos de versão e edição concorrente preservam histórico e coordenam alterações. OCR e testes de desempenho não resolvem conflito de edição documental.",
+      "section": "2. Enterprise Content Management: ciclo de vida e controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política estabelece que certo conteúdo não pode ser descartado enquanto estiver abrangido por uma suspensão de descarte. Que efeito essa suspensão produz?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Impede a destinação do conteúdo abrangido enquanto a obrigação persistir.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Converte automaticamente o documento em versão editável por qualquer usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remove os metadados para que o item não apareça nas buscas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Garante prazo universal de retenção igual para todas as classes documentais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substitui a trilha de auditoria por cópias não controladas do conteúdo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma suspensão de descarte, ou legal hold, interrompe a destinação do conteúdo abrangido enquanto a obrigação estiver ativa. Ela não cria prazo universal nem elimina metadados e controles.",
+      "section": "2. Enterprise Content Management: ciclo de vida e controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma área quer localizar documentos digitalizados sem depender do nome do arquivo, usando assunto, data, processo e unidade. Qual prática ajuda diretamente a recuperação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar metadados coerentes e indexar seus campos para pesquisa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desativar a classificação para que qualquer busca percorra todos os binários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenar os documentos sem relação com seus processos de origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conceder permissão administrativa a cada pessoa que pesquisa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter todas as datas em imagens sem texto nem atributo associado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Metadados consistentes descrevem atributos de negócio e, quando indexados, permitem filtrar documentos sem depender do nome físico do arquivo. Permissão administrativa não é requisito de busca e amplia risco.",
+      "section": "2. Enterprise Content Management: ciclo de vida e controle",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa recebe autorização para iniciar um processo, mas o documento armazenado no ECM continua protegido por uma regra mais restritiva. Qual princípio deve orientar a integração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A autorização no fluxo deve substituir automaticamente todas as regras do repositório.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O acesso ao conteúdo deve ser verificado também no repositório, conforme identidade e privilégio.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ocultar o link do documento basta para impedir acesso direto por outros meios.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A instância do processo deve receber uma cópia irrestrita de cada documento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A trilha de auditoria permite dispensar qualquer verificação preventiva.",
+          "correct": false
+        }
+      ],
+      "explanation": "A interface do processo não substitui o controle de acesso efetivo no repositório. A autorização deve acompanhar o conteúdo, aplicando identidade e menor privilégio em cada camada relevante.",
+      "section": "4. Integrar ECM, processos e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em BPM, qual sequência representa melhor o ciclo de gestão de um processo de negócio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descobrir, modelar, executar, medir e melhorar o processo continuamente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Armazenar, comprimir, replicar, excluir e ignorar os resultados do processo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Programar, compilar, publicar, licenciar e substituir toda decisão humana.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Autenticar, criptografar, indexar, restaurar e eliminar os participantes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Testar, reiniciar, escalar, arquivar e finalizar sem acompanhar indicadores.",
+          "correct": false
+        }
+      ],
+      "explanation": "BPM cobre descoberta, modelagem, execução, medição e melhoria contínua. Não se limita à automação técnica nem termina quando o fluxo é implantado.",
+      "section": "3. Automação de processos de negócio e BPMN",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em BPMN, qual elemento costuma representar uma atividade realizada por uma pessoa com apoio do sistema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma tarefa de usuário atribuída a pessoa ou grupo responsável.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um evento de início que armazena todas as credenciais do serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um gateway paralelo que executa sozinho uma aprovação documental.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um fluxo de mensagem usado para representar qualquer edição interna.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma lane que substitui formulário, fila e resultado da atividade.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tarefa de usuário representa trabalho humano apoiado pelo sistema, normalmente com atribuição e dados de entrada e saída. Evento e gateway controlam o fluxo, mas não substituem a atividade.",
+      "section": "3. Automação de processos de negócio e BPMN",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo deve seguir somente a rota cuja condição de negócio seja verdadeira, como encaminhar um pedido completo ou solicitar complementação. Qual gateway é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gateway exclusivo, que escolhe uma saída conforme condição.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Gateway paralelo, que sempre avalia todas as alternativas como exclusivas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Evento final, que abre todas as rotas em concorrência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pool, que valida os campos do formulário antes do envio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Lane, que calcula o percentil de latência da decisão.",
+          "correct": false
+        }
+      ],
+      "explanation": "O gateway exclusivo direciona o fluxo pela condição aplicável. Um gateway paralelo não seleciona uma alternativa de negócio; ele abre ou sincroniza caminhos concorrentes.",
+      "section": "3. Automação de processos de negócio e BPMN",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas verificações independentes devem ocorrer ao mesmo tempo e ambas precisam terminar antes de continuar. Qual elemento de BPMN modela melhor a divisão e a sincronização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gateway exclusivo, que elimina uma das verificações concorrentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Gateway paralelo, que abre e pode sincronizar caminhos concorrentes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Fluxo de mensagem, que substitui as duas tarefas internas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Evento de fim, que aguarda a aprovação dos participantes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Metadado de documento, que controla a sequência de atividades.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gateway paralelo abre múltiplos caminhos e pode sincronizá-los antes da continuação. O exclusivo seleciona uma rota, por isso não expressa as duas verificações simultâneas.",
+      "section": "3. Automação de processos de negócio e BPMN",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização desenha um diagrama BPMN para comunicar um procedimento a analistas e desenvolvedores. O que a notação oferece principalmente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma linguagem gráfica padronizada para representar processos e colaborações.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma garantia de que qualquer motor executará o diagrama sem configuração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um esquema universal de banco de dados para armazenar todos os documentos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um mecanismo que aplica automaticamente regras legais de retenção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um substituto obrigatório para toda linguagem de programação de serviços.",
+          "correct": false
+        }
+      ],
+      "explanation": "BPMN padroniza a representação gráfica de processos e colaborações para públicos de negócio e implementação. Um modelo não se torna executável sem detalhes e suporte do motor escolhido.",
+      "section": "3. Automação de processos de negócio e BPMN",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma decisão de alçada depende de categoria do pedido e faixa de valor, enquanto o fluxo controla quando essa decisão é solicitada. Qual divisão de modelagem é apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar BPMN para o fluxo e DMN para expressar a regra de decisão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar OCR para decidir alçadas e BPMN apenas para guardar a imagem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar gateway paralelo para codificar toda tabela de decisão sem entradas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar trilha de auditoria como substituta das regras de entrada e saída.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar uma lane para executar consultas sem definir dados da regra.",
+          "correct": false
+        }
+      ],
+      "explanation": "BPMN organiza o fluxo e pode invocar uma decisão modelada separadamente; DMN fornece recursos para expressar lógica decisória, inclusive tabelas de decisão. Entradas e saídas da regra ainda precisam ser definidas.",
+      "section": "3. Automação de processos de negócio e BPMN",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um diagrama BPMN contém eventos, tarefas e gateways, mas não especifica dados, atribuições, integrações nem tratamento de falha. Qual conclusão é defensável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O diagrama pode comunicar o processo, mas ainda faltar detalhe para execução automática.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A presença de gateways obriga todo motor a executar o fluxo integralmente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A notação preenche automaticamente dados e credenciais ausentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ausência de tratamento de falha é irrelevante em qualquer integração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O processo deixa de ser BPMN se incluir trabalho humano.",
+          "correct": false
+        }
+      ],
+      "explanation": "BPMN pode representar um processo em nível de comunicação sem que o modelo esteja pronto para execução. Para automatizar é preciso definir dados, responsáveis, integrações, falhas e comportamento suportado pelo motor.",
+      "section": "3. Automação de processos de negócio e BPMN",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma área mede somente a duração das tarefas executadas por pessoas, mas os casos passam dias aguardando numa fila antes de cada tarefa. Qual medida complementa melhor a análise?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tempo de espera e idade das tarefas na fila, além do tempo de execução.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Tamanho do arquivo BPMN, usado como substituto do tempo do processo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Número de lanes, pois ele determina o tempo de ciclo total.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quantidade de eventos finais, que equivale à vazão de cada equipe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Média de CPU do navegador, sem relacioná-la à fila de trabalho.",
+          "correct": false
+        }
+      ],
+      "explanation": "O tempo total inclui espera e execução. Medir somente duração ativa oculta atrasos de fila; idade dos itens também pode destacar casos antigos mesmo quando a fila não é grande.",
+      "section": "3. Automação de processos de negócio e BPMN",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um processo recebe requisição, cria tarefa automatizada e chama um serviço financeiro. Qual prática reduz risco de repetir o efeito financeiro se houver retentativa após timeout?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar idempotência ou chave de deduplicação ao repetir a operação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Repetir indefinidamente cada chamada sem registrar a resposta anterior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eliminar o identificador do caso para que o serviço gere outro a cada tentativa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desligar a auditoria para impedir que apareçam eventos duplicados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o número de consumidores sem avaliar a capacidade do destino.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma resposta perdida não prova que o serviço não concluiu a operação. Idempotência ou chave de deduplicação permite repetir com segurança; estado e auditoria ajudam a resolver resultados incertos.",
+      "section": "4. Integrar ECM, processos e desempenho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila de trabalho cresce continuamente, embora tenham sido adicionados mais consumidores. Qual investigação é necessária antes de aumentar ainda mais a concorrência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar taxa de chegada, capacidade do serviço de destino, erros e idade dos itens.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover todas as métricas, pois o tamanho da fila já explica cada causa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Assumir que qualquer consumidor adicional sempre reduz o tempo de ciclo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter as tarefas pendentes em documentos sem identificador de caso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar a taxa de repetição até o serviço externo aceitar todas as chamadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Fila crescente indica que entradas superam o processamento ou que erros estão impedindo conclusão. Mais concorrência pode saturar o destino; é preciso observar taxas, capacidade, falhas e idade das tarefas.",
+      "section": "4. Integrar ECM, processos e desempenho",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância do processo aparece como concluída, mas o documento não foi confirmado no ECM após uma falha parcial. Qual requisito de desenho é importante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir confirmação, compensação ou reconciliação para tratar estados parciais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Presumir que qualquer falha de rede reverte automaticamente os dois sistemas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Remover identificadores de correlação para evitar divergência entre sistemas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Copiar sempre documentos para logs e anexos sem política de acesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Marcar todos os fluxos como concluídos assim que uma tarefa iniciar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Falhas parciais podem deixar sistemas em estados diferentes. Confirmação explícita, compensação ou reconciliação permite identificar e resolver a divergência sem supor rollback distribuído automático.",
+      "section": "4. Integrar ECM, processos e desempenho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um painel mostra poucas tarefas pendentes, mas uma solicitação está parada há muito mais tempo que as demais. Qual indicador ajuda a não ocultar esse caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Idade da fila ou da tarefa mais antiga, junto ao tamanho total.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Tamanho médio dos documentos anexados à solicitação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Número de usuários autenticados sem relacionar atividade ou espera.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Taxa de compressão do repositório sem dados de processo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Quantidade de versões do diagrama em controle de código.",
+          "correct": false
+        }
+      ],
+      "explanation": "O tamanho da fila não informa quanto tempo o item mais antigo aguarda. Idade da tarefa complementa volume e permite identificar casos esquecidos ou bloqueados.",
+      "section": "4. Integrar ECM, processos e desempenho",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num fluxo de análise documental, a equipe mede tempo de ciclo, retrabalho e taxa de exceção; a telemetria mede latência do repositório e falhas de API. Como esses indicadores se relacionam?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "As métricas de processo mostram impacto; a telemetria ajuda a localizar causas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A latência da API substitui todos os indicadores de resultado do processo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O tempo de ciclo identifica sozinho qual servidor ou dependência falhou.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A taxa de exceção é incompatível com qualquer medida técnica de desempenho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os indicadores devem ser mantidos separados para nunca serem correlacionados.",
+          "correct": false
+        }
+      ],
+      "explanation": "As métricas de processo descrevem o impacto operacional, enquanto telemetria técnica ajuda a localizar a camada responsável. Correlacionar ambas com identificadores de caso facilita diagnóstico sem confundir seus papéis.",
+      "section": "4. Integrar ECM, processos e desempenho",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em BPMN, uma tarefa interna envia uma mensagem a outro participante do processo. Qual representação distingue essa comunicação da ordem de atividades dentro do próprio participante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fluxo de mensagem entre participantes, distinto do fluxo de sequência interno.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Fluxo de sequência usado como sinônimo obrigatório de toda comunicação externa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Lane de auditoria que conecta diretamente bancos e repositórios.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gateway paralelo que envia texto livre sem elemento de evento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Metadado que substitui qualquer relação entre os participantes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Fluxo de mensagem representa comunicação entre participantes; fluxo de sequência ordena atividades dentro do processo. A distinção evita interpretar uma troca externa como simples próxima etapa interna.",
+      "section": "3. Automação de processos de negócio e BPMN",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe automatiza imediatamente o procedimento atual, que contém reenvios desnecessários e aprovações redundantes. Qual risco de gestão de processo é mais provável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A automação pode acelerar desperdícios sem corrigir a causa do fluxo ineficiente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A notação BPMN impede a execução de qualquer atividade redundante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O repositório ECM removerá automaticamente as etapas que não agregam valor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O uso de tarefas de serviço transforma aprovações redundantes em decisões válidas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A existência de medição garante melhoria antes de coletar resultados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Automatizar sem analisar o processo pode apenas reproduzir e acelerar etapas desnecessárias. A gestão BPM inclui descobrir e melhorar o fluxo, além de automatizar e medir seus resultados.",
+      "section": "3. Automação de processos de negócio e BPMN",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância de processo precisa ligar documentos, chamadas de serviços e eventos para que uma falha possa ser investigada. Qual dado facilita essa correlação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um identificador de correlação propagado entre eventos do caso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O nome genérico do servidor, repetido para todos os casos sem distinção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma cópia integral do documento inserida em cada registro de log.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número de versão do navegador utilizado por qualquer participante.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma métrica agregada de CPU sem chave para relacionar eventos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Identificador de correlação permite associar etapas técnicas e de negócio a uma instância. Logs devem usar os identificadores necessários e evitar duplicar conteúdo sensível sem necessidade.",
+      "section": "4. Integrar ECM, processos e desempenho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma atualização melhora a latência média, mas piora o p95 e aumenta o consumo de memória até próximo do limite. Qual avaliação é mais consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A média menor prova que a mudança é melhor para todos os usuários e recursos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É preciso considerar cauda de latência, estabilidade e capacidade antes de aprovar.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O p95 não é válido quando a média melhora em uma mesma execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Consumo de memória não pode afetar estabilidade nem escalabilidade futura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A linha de base deve ser descartada sempre que qualquer métrica divergir.",
+          "correct": false
+        }
+      ],
+      "explanation": "A média pode esconder respostas muito lentas e a memória elevada pode antecipar exaustão. A decisão deve comparar múltiplas métricas e metas sob carga equivalente, não selecionar apenas o indicador favorável.",
+      "section": "1. Diagnosticar e ajustar o desempenho",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma regra de retenção depende da classe documental e de requisitos aplicáveis, que não estão detalhados no sistema de workflow. Qual decisão de projeto é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Evitar um prazo universal inventado e ligar a destinação à política aplicável à classe.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apagar todo conteúdo após a conclusão do processo, independentemente da classe.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter todos os documentos para sempre, pois ECM não admite destinação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar a data de criação do processo como prazo legal universal para qualquer registro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir que qualquer usuário escolha livremente a retenção de um documento.",
+          "correct": false
+        }
+      ],
+      "explanation": "A retenção e a destinação dependem de classe documental e requisitos aplicáveis; não há um prazo universal válido para todo conteúdo. O sistema deve aplicar política governada e respeitar suspensões de descarte.",
+      "section": "2. Enterprise Content Management: ciclo de vida e controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "ECM limita-se a armazenar arquivos e não inclui recursos de controle de acesso ou fluxo de trabalho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. ECM abrange mais que armazenamento: inclui capacidades de segurança e acesso, workflow, captura, classificação, busca, versões e auditoria ao longo do ciclo de vida do conteúdo.",
+      "section": "2. Enterprise Content Management: ciclo de vida e controle",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O OCR garante que todos os campos extraídos de uma imagem estejam corretos e dispensa validação de dados do documento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. OCR reconhece caracteres, mas a qualidade da imagem, o layout e a ambiguidade podem produzir erros. Validação de campos e revisão de casos incertos continuam necessárias.",
+      "section": "2. Enterprise Content Management: ciclo de vida e controle",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A trilha de auditoria, por si só, impede que uma identidade sem autorização altere um documento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Auditoria registra ações para revisão e reconstrução, mas quem define ações permitidas é a autorização preventiva aplicada pelo sistema.",
+      "section": "2. Enterprise Content Management: ciclo de vida e controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O fluxo de sequência em BPMN representa comunicação entre pools diferentes, enquanto fluxo de mensagem ordena tarefas internas de um único processo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Fluxo de sequência ordena atividades dentro do processo; fluxo de mensagem representa comunicação entre participantes distintos.",
+      "section": "3. Automação de processos de negócio e BPMN",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um gateway paralelo serve para dividir ou sincronizar caminhos concorrentes e não escolhe uma única saída por condição de negócio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O gateway paralelo abre caminhos em concorrência ou aguarda sua sincronização; a seleção por condição caracteriza o uso do gateway exclusivo.",
+      "section": "3. Automação de processos de negócio e BPMN",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um diagrama BPMN bem formado já define todos os dados, responsáveis e integrações necessários à execução automática.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A notação representa o fluxo, mas execução automática requer detalhar dados, atribuições, regras, integrações e tratamento de falhas compatíveis com o motor.",
+      "section": "3. Automação de processos de negócio e BPMN",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O tempo de ciclo total pode incluir períodos de espera em filas, mesmo quando a duração de execução das tarefas é pequena.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Tempo de ciclo acompanha o fluxo do início ao fim e inclui espera; medir somente execução ativa pode esconder a principal fonte de demora.",
+      "section": "3. Automação de processos de negócio e BPMN",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Teste de estresse verifica apenas se o volume normal esperado atende às metas, sem procurar limites ou modos de falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Teste de carga verifica demanda esperada; estresse aumenta a pressão além da faixa prevista para investigar limites, falhas e recuperação.",
+      "section": "1. Diagnosticar e ajustar o desempenho",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A redução da média de latência demonstra que p95, vazão e taxa de erro também melhoraram.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A média não determina o comportamento do p95, da vazão ou da taxa de erro. Essas medidas descrevem aspectos distintos e devem ser acompanhadas em conjunto.",
+      "section": "1. Diagnosticar e ajustar o desempenho",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma linha de base é uma medição de referência que permite comparar execuções posteriores sob condições descritas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A linha de base registra comportamento esperado num cenário definido e ajuda a identificar regressões, melhorias ou deriva ao longo do tempo.",
+      "section": "1. Diagnosticar e ajustar o desempenho",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A média de latência sempre descreve a experiência das solicitações mais lentas, tornando desnecessário acompanhar percentis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A média pode ocultar a cauda lenta. Percentis como p95 ajudam a avaliar as respostas mais lentas de uma parcela relevante das solicitações.",
+      "section": "1. Diagnosticar e ajustar o desempenho",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao integrar ECM a um processo, esconder o link do documento na interface é controle suficiente para impedir que usuários sem permissão o obtenham.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O repositório precisa verificar autorização ao acessar o conteúdo; ocultar um link na interface não protege chamadas diretas ou outros caminhos de acesso.",
+      "section": "4. Integrar ECM, processos e desempenho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila crescente pode indicar que a taxa de chegada excede a capacidade de processamento ou que falhas impedem concluir tarefas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Backlog deve ser analisado com taxa de entrada, capacidade, erros e idade dos itens; aumentar consumidores sem verificar o destino pode agravar saturação.",
+      "section": "4. Integrar ECM, processos e desempenho",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "BPM se encerra quando o processo é implantado, pois medir resultados e melhorar o fluxo ficam fora da gestão de processos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. BPM inclui execução, monitoramento e melhoria contínua. Implantar automação sem medir o resultado deixa incompleto o ciclo de gestão.",
+      "section": "3. Automação de processos de negócio e BPMN",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma retentativa de chamada externa pode duplicar efeitos se a primeira resposta se perdeu após a operação ter sido concluída.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Timeout não informa necessariamente se o serviço concluiu a operação. Idempotência, deduplicação e consulta de estado reduzem o risco de duplicar efeitos numa retentativa.",
+      "section": "4. Integrar ECM, processos e desempenho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma suspensão de descarte pode impedir a destinação de conteúdo abrangido enquanto persistir a obrigação que motivou a retenção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A suspensão de descarte preserva o conteúdo abrangido enquanto a obrigação estiver ativa; regras de retenção ordinárias não devem descartá-lo nesse período.",
+      "section": "2. Enterprise Content Management: ciclo de vida e controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Architecture strategies for performance testing",
+      "publisher": "Microsoft Learn",
+      "reference": "Metas, linha de base, testes de carga, estresse, pico e endurance; comparação orientada por hipóteses.",
+      "url": "https://learn.microsoft.com/en-us/azure/well-architected/performance-efficiency/performance-test",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Architecture strategies for monitoring workload performance",
+      "publisher": "Microsoft Learn",
+      "reference": "Coleta de métricas, linha de base, utilização, latência e detecção de deriva.",
+      "url": "https://learn.microsoft.com/en-us/azure/well-architected/performance-efficiency/collect-performance-data",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Enterprise Content Management capabilities",
+      "publisher": "IBM Documentation",
+      "reference": "Capacidades de captura, classificação, busca, controle de acesso, versões, auditoria, integração e disponibilidade em ECM.",
+      "url": "https://www.ibm.com/docs/en/powerha-aix/7.2.x?topic=concepts-enterprise-content-management-capabilities",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Business Process Model & Notation (BPMN)",
+      "publisher": "Object Management Group",
+      "reference": "Objetivos, abrangência e uso da notação BPMN para comunicação de modelos de processo.",
+      "url": "https://www.omg.org/bpmn/",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Business Process Model and Notation, Version 2.0",
+      "publisher": "Object Management Group",
+      "reference": "Especificação formal BPMN 2.0 e tipos de conformidade de modelagem e execução.",
+      "url": "https://www.omg.org/spec/BPMN/2.0/PDF/",
+      "accessedAt": "2026-11-14"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Integrating with Enterprise Content Management systems",
+      "publisher": "IBM Documentation",
+      "reference": "Integração de documentos ECM com atividades e serviços de processos de negócio.",
+      "url": "https://www.ibm.com/docs/en/cloud-paks/cp-biz-automation/26.0.0?topic=support-integrating-ecm-systems",
+      "accessedAt": "2026-11-14"
+    }
+  ]
+}

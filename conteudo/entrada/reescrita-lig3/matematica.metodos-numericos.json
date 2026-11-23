@@ -1,0 +1,1795 @@
+{
+  "id": "matematica.metodos-numericos",
+  "subject": "Matemática",
+  "title": "Métodos numéricos",
+  "version": 2,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Métodos numéricos",
+    "Análise numérica aplicada",
+    "Cálculo numérico computacional",
+    "Aproximação numérica de soluções",
+    "Erros em cálculos numéricos",
+    "Zeros de funções por métodos numéricos",
+    "Sistemas lineares numéricos",
+    "Interpolação e ajuste numérico",
+    "Integração numérica de funções",
+    "Equações diferenciais numéricas"
+  ],
+  "scope": {
+    "covers": "Fundamentos de métodos numéricos; representação e erros; zeros de funções e critérios de parada; solução de sistemas lineares por métodos diretos e iterativos; interpolação, ajuste e mínimos quadrados; diferenciação e integração numéricas; solução numérica de equações diferenciais ordinárias por métodos de passo; estabilidade, convergência e avaliação do erro.",
+    "excludes": "Demonstrações avançadas de análise funcional, implementação específica em uma linguagem, métodos especializados para equações diferenciais parciais e cálculo simbólico exato."
+  },
+  "theoryTitle": "Aproximar, calcular e controlar o erro",
+  "chapters": [
+    {
+      "title": "1. Aproximação, representação e erros",
+      "markdown": "### O problema que este assunto resolve\n\nMuitos problemas matemáticos não têm fórmula exata simples, ou a fórmula existe, mas é cara ou impraticável de avaliar. Métodos numéricos substituem a solução ideal por uma sequência finita de cálculos. Isso permite obter respostas para problemas de engenharia, estatística e ciências, desde que se avalie a qualidade da aproximação. A quantidade exibida pela calculadora não se torna exata só por ter muitas casas: os dados podem ser incertos, a representação finita introduz arredondamento e o método pode substituir uma operação exata por outra aproximada.\n\n> **Siglas e termos deste capítulo**\n> - **Erro absoluto**: distância entre o valor aproximado e o valor verdadeiro, em unidades do próprio problema.\n> - **Erro relativo**: erro absoluto comparado ao módulo do valor verdadeiro; ajuda a interpretar a discrepância em relação à escala.\n> - **Erro de truncamento**: diferença causada por substituir uma operação ou processo exato por uma aproximação finita.\n> - **Erro de arredondamento**: diferença causada por guardar ou operar com um número limitado de algarismos.\n> - **Resíduo**: medida de quanto uma aproximação deixa de satisfazer a equação que deveria resolver.\n> - **Condicionamento**: sensibilidade da resposta matemática a pequenas alterações nos dados de entrada.\n> - **Estabilidade**: capacidade do algoritmo de não ampliar indevidamente perturbações e erros durante o cálculo.\n\n### Erros, precisão e algarismos significativos\n\nSe x é o valor verdadeiro e x aproximado é a resposta calculada, o erro absoluto é o módulo da diferença entre eles. O erro relativo divide esse erro pelo módulo de x. Assim, um erro absoluto de 0,1 pode ser pequeno ao medir uma distância de mil quilômetros e grande ao medir uma peça de um milímetro. Para x igual a zero, o erro relativo nessa forma não existe; pode-se avaliar o erro absoluto ou escolher uma escala de referência adequada.\n\nArredondar e truncar são operações diferentes. Ao arredondar para certa quantidade de casas, considera-se o algarismo seguinte e ajusta-se o último mantido segundo a regra adotada. Ao truncar, descartam-se as casas excedentes. Por exemplo, guardar 2,718 com duas casas produz 2,72 por arredondamento e 2,71 por truncamento. A diferença pode se acumular quando o resultado alimenta muitos passos.\n\nAlgarismos significativos são os dígitos que carregam informação sobre a medida ou o cálculo, e não apenas casas decimais. A notação científica deixa mais clara a escala e a precisão pretendida. O número de casas impressas não prova que a resposta tenha essa precisão: se os dados foram medidos com baixa exatidão, exibir mais casas pode sugerir uma confiança que não existe.\n\nHá fontes de erro distintas. O erro dos dados vem da medição ou da modelagem; o de truncamento vem da aproximação matemática; o de arredondamento vem da representação finita. Melhorar a medição não elimina o erro do método, e aumentar a precisão computacional não corrige uma hipótese inadequada. Em cálculos longos, arredondamentos podem se propagar. Subtrair números quase iguais também pode cancelar dígitos comuns e deixar poucos algarismos confiáveis.\n\n| Fonte | Exemplo | Consequência e cuidado |\n| --- | --- | --- |\n| Dados | comprimento medido com incerteza | registrar e propagar a margem da medição |\n| Truncamento | derivada substituída por diferença finita | controlar a aproximação e o tamanho do passo |\n| Arredondamento | valores guardados com casas limitadas | escolher precisão e evitar operações sensíveis |\n| Modelo | ignorar uma força relevante no movimento | um cálculo preciso pode descrever mal o fenômeno |\n\n### Exemplo passo a passo: comparar erros\n\nAna mede uma peça e registra 10,0 cm. Para ilustrar as medidas de erro, suponha que o valor verdadeiro conhecido seja 10,0 cm, enquanto um cálculo fornece 10,1 cm. Primeiro ela subtrai os valores e toma o módulo: a discrepância é 0,1 cm, o erro absoluto. Depois divide 0,1 por 10,0: obtém 0,01, ou 1%, como erro relativo. Por fim, interpreta as medidas: 0,1 cm comunica a diferença em unidade física; 1% permite comparar a discrepância com problemas de escala distinta. Se o valor verdadeiro fosse zero, a divisão não seria definida e Ana usaria o erro absoluto ou uma referência apropriada à aplicação.\n\n### Truncamento, arredondamento e escolha do passo\n\nUma derivada pode ser aproximada observando a variação da função em um intervalo pequeno. A substituição gera erro de truncamento, que tende a diminuir quando o intervalo diminui, sob hipóteses adequadas. Mas intervalos extremamente pequenos fazem os valores calculados ficarem quase iguais. A subtração pode perder informação e o arredondamento passar a dominar. O erro total pode diminuir no início e crescer depois; o menor passo possível não é automaticamente o melhor.\n\nA mesma cautela vale para somas, integrais e iterações: subdividir mais pode reduzir uma parcela do erro, mas aumenta o custo e pode expor outras fontes de imprecisão. Uma estimativa deve corresponder ao método e às condições do problema. Comparar resultados em malhas sucessivamente refinadas é útil, embora concordância entre aproximações não prove exatidão por si só.\n\n### Resíduo, erro e condicionamento\n\nPara um sistema linear Ax = b, substitui-se a aproximação x aproximado na equação e calcula-se o resíduo: b menos A vezes x aproximado. Resíduo pequeno indica que a aproximação quase satisfaz o sistema escrito. Ainda assim, não garante que x aproximado esteja perto da solução verdadeira. Uma matriz mal condicionada pode transformar uma alteração minúscula no lado direito em uma mudança grande na solução.\n\nCondicionamento descreve a sensibilidade inerente ao problema. Estabilidade descreve o comportamento do algoritmo: um procedimento estável evita amplificar desnecessariamente perturbações pequenas. Convergência pergunta se as aproximações se aproximam da solução desejada quando se repete o método ou se refina a discretização. Um problema pode ser mal condicionado mesmo com algoritmo estável; e um problema bem condicionado pode ser resolvido por algoritmo inadequado.\n\n**Pegadinha:**\n\nA banca pode afirmar que resíduo pequeno prova erro pequeno na solução, ou que mais algarismos armazenados garantem precisão. As duas conclusões são fortes demais. O resíduo mede a satisfação da equação calculada; o erro na solução também depende do condicionamento. Mais precisão reduz certas perdas de arredondamento, mas não corrige dados ruins, modelagem incompleta ou algoritmo instável.\n\n**Resumo para a prova**\n\n- Erro absoluto mede distância em unidades do problema; erro relativo compara essa distância à escala do valor verdadeiro e não se define pela fórmula usual quando ele é zero.\n- Dados, truncamento, arredondamento e modelagem são fontes distintas e exigem cuidados diferentes.\n- Truncar corta algarismos; arredondar considera o algarismo seguinte. Mais casas impressas não significam mais informação.\n- Resíduo pequeno não basta para concluir erro pequeno: condicionamento liga a equação à sensibilidade da solução.\n- Condicionamento é do problema, estabilidade é do algoritmo e convergência descreve o comportamento das aproximações."
+    },
+    {
+      "title": "2. Zeros de funções e sistemas lineares",
+      "markdown": "### O problema que este assunto resolve\n\nUma equação pode descrever o equilíbrio de um processo sem ter solução algébrica simples. Procurar um zero significa encontrar um valor que torne a função nula, ou produza resíduo pequeno o bastante para a aplicação. Em outro tipo de problema, várias incógnitas estão ligadas por equações lineares; busca-se um vetor x que satisfaça Ax = b. O método escolhido afeta custo, memória e confiabilidade.\n\nMétodos de raiz geram uma sequência de palpites por uma regra. Métodos para sistemas lineares eliminam incógnitas de forma direta ou atualizam uma solução aproximada repetidamente. Nos dois casos, é preciso distinguir o procedimento, suas hipóteses de sucesso e o teste que decide se já se pode parar.\n\n> **Siglas e termos deste capítulo**\n> - **Raiz**: valor da variável que faz a função ser igual a zero.\n> - **Intervalo de isolamento**: intervalo usado para localizar uma raiz, em geral preservando uma mudança de sinal.\n> - **Iteração**: repetição de uma regra que calcula uma nova aproximação a partir da atual.\n> - **Resíduo**: diferença entre o lado direito e o resultado de substituir a aproximação no sistema.\n> - **Pivô**: elemento usado para eliminar uma incógnita em uma etapa de eliminação.\n> - **Pivotamento**: troca de linhas para selecionar um pivô numericamente mais adequado.\n> - **Matriz esparsa**: matriz em que a maioria das entradas é zero.\n> - **Pré-condicionador**: transformação do sistema que pode facilitar a convergência de um método iterativo.\n\n### Localização de zeros: bisseção\n\nSe a função é contínua em [a,b] e seus valores nas extremidades têm sinais opostos, existe pelo menos uma raiz nesse intervalo. A bisseção calcula o ponto médio. Se ele já satisfaz a tolerância, o processo termina; caso contrário, conserva-se a metade cujas extremidades ainda têm sinais opostos. Sob as hipóteses iniciais, o intervalo continua contendo uma raiz e sua largura cai pela metade a cada etapa.\n\nA vantagem é a previsibilidade: a regra não exige derivada e conserva um intervalo de localização. A limitação é a velocidade: o erro diminui de forma linear, sem normalmente ganhar muitas casas corretas de uma só vez. A mudança de sinal garante pelo menos uma raiz, não necessariamente uma única. Uma raiz de multiplicidade par pode não produzir mudança de sinal, então esse critério pode não detectar todos os zeros.\n\n### Newton e iteração de ponto fixo\n\nNewton parte de um palpite e usa a reta tangente para propor o ponto seguinte: valor atual menos a razão entre o valor da função e sua derivada. Perto de uma raiz simples, se a função é suficientemente suave e a derivada não se anula, o método pode ter convergência quadrática: em uma região apropriada, o erro cai rapidamente. Essa rapidez local não garante sucesso a partir de qualquer palpite. Uma derivada pequena pode gerar um passo enorme, e o processo pode sair da região em que a aproximação é boa.\n\nA iteração de ponto fixo reescreve a equação como x = g(x) e repete x seguinte = g(x atual). A mesma equação pode admitir rearranjos convergentes e divergentes. Uma condição local útil é que o módulo da derivada de g seja menor que um perto da solução; isso indica que diferenças entre palpites tendem a diminuir. A condição vale na região considerada, não fora dela por presunção.\n\n### Exemplo passo a passo: estimar uma raiz\n\nAna quer resolver x² - 2 = 0 sem fórmula pronta. Ela verifica que o valor da função em 1 é negativo e em 2 é positivo. Como a função é contínua entre esses pontos, conserva [1,2] como intervalo que contém uma raiz. Calcula o ponto médio, 1,5; ali o valor é positivo, então troca o extremo superior por 1,5. O intervalo passa a ser [1,1,5]. No passo seguinte, o ponto médio é 1,25 e o valor da função é negativo; ela troca o extremo inferior por 1,25. Ana repete até a largura ser menor que a tolerância definida. O resultado vem acompanhado de um intervalo, não apenas de um decimal sem contexto.\n\nSe Ana usasse Newton, precisaria derivar a função, escolher um ponto inicial e calcular a atualização com a função e sua derivada. Poderia chegar perto da raiz em menos passos, mas verificaria se as iterações permanecem em uma região segura. A comparação mostra o compromisso: bisseção é previsível com um intervalo adequado; Newton pode ser rápido, mas depende mais do ponto inicial.\n\n### Critérios de parada e diagnóstico\n\nParar exige uma tolerância explícita, compatível com o uso final. Pode-se controlar o módulo do resíduo, a diferença entre aproximações consecutivas, a largura do intervalo ou uma combinação desses critérios. Para bisseção, a largura do intervalo dá um limite direto sobre a localização. Para Newton, uma mudança pequena entre passos pode ser enganosa se o método estagnou ou se a função é muito plana. Convém também impor limite de iterações e verificar o resíduo final.\n\n### Sistemas lineares: métodos diretos\n\nA eliminação de Gauss combina linhas para zerar coeficientes abaixo de um pivô. Quando a matriz fica triangular, resolve-se de baixo para cima por substituição retroativa. Se um pivô é zero, a etapa não pode prosseguir sem troca adequada; se é muito pequeno, divisões podem ampliar erros. O pivotamento parcial seleciona, na coluna atual, uma entrada de maior módulo entre as disponíveis e a troca para a posição de pivô. Isso costuma melhorar o comportamento numérico, mas não torna qualquer sistema bem condicionado.\n\nA fatoração LU representa a matriz como produto de fatores triangulares. Depois da fatoração, resolver para novos lados direitos exige apenas substituições triangulares, útil quando a mesma matriz aparece em muitos cálculos. A fatoração ainda tem custo e a estrutura da matriz importa; para matrizes esparsas, preservar os zeros pode economizar memória e operações.\n\n### Sistemas lineares: métodos iterativos\n\nJacobi e Gauss-Seidel começam com um vetor inicial e calculam aproximações sucessivas. Em Jacobi, cada componente nova usa os valores da iteração anterior. Em Gauss-Seidel, componentes já atualizadas na etapa corrente podem ser usadas para calcular as seguintes. Esse reaproveitamento pode acelerar o processo em certas matrizes, mas não garante convergência por si só. O comportamento depende das propriedades da matriz e da regra de iteração.\n\nPara sistemas grandes e esparsos, métodos iterativos podem evitar armazenar uma fatoração cheia. \n\n| Aspecto | Método direto | Método iterativo |\n| --- | --- | --- |\n| Ideia | elimina incógnitas ou fatora a matriz | refina uma estimativa em etapas |\n| Uso frequente | sistemas moderados ou vários lados direitos | sistemas grandes e esparsos |\n| Cuidado | pivôs e condicionamento afetam a precisão | convergência e parada precisam ser verificadas |\n\n**Pegadinha:**\n\nA banca pode apresentar bisseção como quadrática por reduzir o intervalo, ou afirmar que Newton converge para qualquer palpite. Bisseção reduz a largura pela metade por passo, o que caracteriza convergência linear; Newton só tem rapidez quadrática sob condições locais adequadas. Outra armadilha é igualar as atualizações de Jacobi e Gauss-Seidel: o segundo pode usar componentes recém-calculadas, enquanto o primeiro usa o vetor anterior inteiro.\n\n**Resumo para a prova**\n\n- Continuidade e mudança de sinal garantem ao menos uma raiz no intervalo, não necessariamente todas.\n- Bisseção conserva o intervalo; Newton pode ser rápido perto da raiz, mas depende do ponto inicial e da derivada.\n- Ponto fixo depende do rearranjo escolhido e de condições locais de contração.\n- A parada deve considerar tolerância, resíduo e possível estagnação.\n- Eliminação com pivotamento é direta; Jacobi e Gauss-Seidel são iterativos e sua convergência depende do sistema."
+    },
+    {
+      "title": "3. Interpolação, ajuste e diferenciação",
+      "markdown": "### O problema que este assunto resolve\n\nEm muitos levantamentos só se conhece a função por alguns pares de dados: uma tabela de medições, por exemplo, não revela diretamente o valor entre as observações. Interpolação constrói uma função que coincide com os dados nos pontos conhecidos. Ajuste procura uma tendência que represente os dados, admitindo discrepâncias. Diferenciação numérica estima uma taxa de variação quando os valores são conhecidos em pontos separados ou a expressão simbólica não está disponível.\n\nEsses objetivos não são intercambiáveis. Uma curva que passa exatamente por cada medição pode acompanhar também o ruído; uma curva de ajuste pode representar melhor a tendência sem reproduzir cada observação. Em seguida, diferenças entre valores próximos podem estimar derivadas, mas o passo escolhido afeta tanto o erro de aproximação quanto o arredondamento.\n\n> **Siglas e termos deste capítulo**\n> - **Nó**: ponto em que o valor da função ou uma observação é conhecido.\n> - **Interpolação**: construção que reproduz os dados nos nós.\n> - **Diferença dividida**: coeficiente recursivo que forma o polinômio de Newton.\n> - **Spline**: função polinomial por trechos, ligada por condições de continuidade.\n> - **Resíduo**: diferença entre um dado observado e o valor fornecido pelo modelo.\n> - **Mínimos quadrados**: critério que minimiza a soma dos quadrados dos resíduos.\n> - **Diferença finita**: combinação de avaliações próximas usada para aproximar uma derivada.\n\n### Interpolação polinomial\n\nCom n+1 nós distintos, existe um único polinômio de grau no máximo n que passa pelos n+1 valores correspondentes. A forma de Lagrange escreve esse polinômio como soma de bases: cada base vale um em um nó e zero nos demais, garantindo a coincidência dos dados. A forma de Newton usa diferenças divididas. Sua estrutura permite acrescentar um novo nó incorporando um termo adicional, sem reconstruir toda a expressão desde o início.\n\nA existência e unicidade não significam que o polinômio seja uma boa aproximação em todos os pontos. Um polinômio global de grau alto pode oscilar entre os nós, sobretudo com nós igualmente espaçados; essa dificuldade é conhecida como fenômeno de Runge. O posicionamento dos nós, a regularidade da função e o intervalo observado afetam o resultado. Avaliar o erro entre os nós exige informação adicional sobre a função ou uma estimativa adequada.\n\nSplines tratam o intervalo por partes. Em cada subintervalo usa-se um polinômio de grau baixo, e nas junções impõem-se condições de continuidade, por vezes também de continuidade das derivadas. Uma spline cúbica usa trechos cúbicos. Como cada trecho depende mais localmente dos dados, uma alteração em um nó não precisa deformar toda a curva na mesma medida que um polinômio global. Isso não elimina a necessidade de escolher condições de contorno e examinar a qualidade dos dados.\n\n### Interpolação, ajuste e extrapolação\n\nInterpolar é reproduzir os valores nos nós. Ajustar por mínimos quadrados é escolher os parâmetros de um modelo para minimizar a soma dos quadrados dos resíduos, isto é, das diferenças entre observações e previsões. O ajuste não precisa atravessar cada ponto. Em regressão linear, as equações normais expressam a condição de mínimos quadrados; em problemas numéricos, fatorações QR costumam ser preferidas porque tendem a preservar melhor a estabilidade em comparação com formar diretamente essas equações.\n\nA escolha do modelo deve acompanhar o fenômeno. Um polinômio de grau muito alto pode se adaptar demais a ruído; um modelo simples demais pode perder a tendência. Também se deve distinguir interpolação, feita dentro da faixa dos nós, de extrapolação, que prevê fora dela. Fora da faixa, pequenas mudanças no modelo ou nos dados podem produzir grande alteração na previsão.\n\n### Exemplo passo a passo: medir uma tendência\n\nAna acompanha a altura de uma planta em três datas e obtém medições com pequenas variações de leitura. Se precisa reconstruir uma curva que passe exatamente pelas três observações, pode interpolar: cada dado será reproduzido no respectivo nó. Se deseja descrever o crescimento médio e reduzir a influência de pequenas flutuações, escolhe uma forma de regressão e determina seus parâmetros por mínimos quadrados. Primeiro calcula as previsões do modelo para cada data; depois subtrai cada previsão da medição, formando os resíduos; por fim, escolhe os parâmetros que minimizam a soma dos quadrados desses resíduos. A curva resultante pode não passar por nenhum dos três pontos, mas representa a tendência segundo o critério adotado. Se Ana usar essa curva para prever uma data muito posterior à última medição, estará extrapolando e deve tratar a previsão com cautela.\n\n### Diferenciação numérica\n\nA diferença progressiva estima a derivada em x usando os valores em x e x+h: a variação da função dividida por h. Para função suficientemente suave, o erro de truncamento é de ordem h. A diferença regressiva usa x e x-h e tem ordem semelhante. A diferença central usa pontos simétricos em torno de x, calcula a diferença entre os valores e divide por 2h; sob maior suavidade, seu erro de truncamento é de ordem h². A simetria cancela um termo que permanece nas fórmulas unilaterais, por isso a central costuma ser mais precisa para o mesmo passo em condições comparáveis.\n\nA palavra “ordem” descreve como o erro se comporta quando h fica pequeno, dentro do regime em que as hipóteses valem. Não significa que a fórmula central seja sempre mais confiável em qualquer conjunto de dados. Perto da borda do domínio, talvez falte um dos pontos simétricos; com medições ruidosas, a subtração pode amplificar ruído; em aritmética finita, reduzir h demais pode ampliar arredondamento. Diferenças progressivas ou regressivas podem ser necessárias nas bordas.\n\n### Erro e escolha do passo\n\nDiminuir h reduz o erro de truncamento no início, mas também torna f(x+h) e f(x) muito próximos. Sua subtração pode eliminar algarismos significativos e o quociente fica sensível ao arredondamento. O erro total combina efeitos que podem competir; por isso, escolher o menor passo disponível não é regra universal. Em dados observados, deve-se ainda considerar a resolução do instrumento e o ruído: uma fórmula de derivada não transforma medições imprecisas em informação exata.\n\n**Pegadinha:**\n\nA banca pode dizer que interpolação e mínimos quadrados são sinônimos porque ambos produzem uma curva, ou que polinômio interpolador de grau alto necessariamente aproxima melhor. Interpolação coincide com os dados nos nós; mínimos quadrados minimiza um critério agregado e pode não passar por eles. Um polinômio global alto pode oscilar, e extrapolar fora dos nós pode ser muito menos confiável do que interpolar dentro da faixa observada.\n\n**Resumo para a prova**\n\n- Interpolação reproduz os valores nos nós; mínimos quadrados minimiza a soma dos quadrados dos resíduos.\n- Lagrange e Newton são formas de representar o polinômio interpolador; nós e grau influenciam a qualidade.\n- Splines usam polinômios por trechos com continuidade apropriada, oferecendo controle mais local.\n- Diferença progressiva tem erro de truncamento de ordem h; a central, sob maior suavidade, tem ordem h².\n- Reduzir indefinidamente o passo pode fazer o arredondamento ou o ruído dominar.\n- Extrapolação usa o modelo fora da faixa observada e deve ser tratada com cautela."
+    },
+    {
+      "title": "4. Integração e equações diferenciais ordinárias",
+      "markdown": "### O problema que este assunto resolve\n\nIntegrais definidas medem acumulações, como área, distância total ou quantidade consumida ao longo do tempo. Equações diferenciais descrevem como uma grandeza muda, por exemplo a posição de um objeto ou a concentração de uma substância. Quando uma expressão exata não é disponível ou prática, regras numéricas substituem a integral por somas e métodos de passo constroem uma trajetória aproximada.\n\nEm ambos os casos, uma malha divide o intervalo em partes menores. Passos menores podem melhorar a aproximação, mas aumentam o número de cálculos e não garantem estabilidade. A escolha deve considerar suavidade da função, custo, erro local e global e o comportamento do problema.\n\n> **Siglas e termos deste capítulo**\n> - **Quadratura**: aproximação de uma integral definida por uma soma ponderada de valores da função.\n> - **Passo h**: distância entre pontos consecutivos da malha ou entre instantes calculados.\n> - **Regra composta**: aplicação repetida de uma regra simples em vários subintervalos.\n> - **Problema de valor inicial**: equação diferencial acompanhada do valor inicial da solução.\n> - **Erro local**: erro introduzido em uma etapa, supondo que o início dessa etapa fosse exato.\n> - **Erro global**: diferença acumulada entre a aproximação calculada e a solução ao longo do intervalo.\n> - **Rigidez**: característica de certos problemas diferenciais que impõe restrições severas ao passo explícito por estabilidade.\n> - **Estabilidade**: controle da propagação de perturbações e erros durante o cálculo.\n\n### Integração numérica: trapézio e Simpson\n\nA regra do trapézio aproxima a curva por segmentos de reta e soma as áreas trapezoidais. Na versão composta, divide-se o intervalo em subintervalos e aplica-se a regra em cada um. Para função com regularidade suficiente, o erro global é de ordem h²: ao reduzir o passo pela metade, o erro tende a cair aproximadamente por um fator quatro quando já se está no regime assintótico. Essa expectativa depende das hipóteses e não é uma promessa universal para toda função.\n\nSimpson aproxima a função por parábolas em pares de subintervalos. Na forma composta usual, exige número par de subintervalos igualmente espaçados. Sob suavidade suficiente, o erro global é de ordem h⁴; reduzir h pela metade tende, no regime assintótico, a reduzir o erro em torno de dezesseis vezes. As ordens comparam o comportamento em malhas refinadas, mas não dizem qual será o erro absoluto sem informação adicional.\n\nQuadratura de Gauss escolhe pontos internos e pesos para integrar exatamente polinômios de grau alto em relação ao número de avaliações. É vantajosa quando a função pode ser avaliada nesses pontos e tem comportamento adequado. Não integra exatamente toda função. Romberg combina aproximações do trapézio com extrapolação para cancelar parcelas do erro, sendo útil para funções suaves. A escolha entre regras depende da regularidade, do custo das avaliações e da forma do intervalo.\n\n### Exemplo passo a passo: área sob uma curva\n\nAna precisa estimar a área sob uma curva entre dois instantes, mas só consegue calcular a altura da curva em pontos escolhidos. Ela divide o intervalo em partes de mesma largura h. Para usar trapézios, em cada parte liga as duas alturas por um segmento e calcula a área do trapézio correspondente; soma todas as áreas. Em seguida, repete o cálculo com passos menores. Se os resultados se aproximam, isso sugere que a discretização está melhorando; a diferença entre malhas ajuda a avaliar a estabilidade do valor estimado, embora não substitua uma estimativa formal de erro.\n\nSe Ana usar Simpson composto, organiza os pontos em pares de subintervalos iguais e ajusta uma parábola em cada par. Antes de calcular, confere que a quantidade de subintervalos é par. Se não for, precisa ajustar a divisão ou usar uma regra apropriada para a parte restante, sem fingir que a regra padrão se aplica tal como está.\n\n### Equações diferenciais ordinárias\n\nUma equação diferencial ordinária, abreviada EDO, envolve uma função desconhecida de uma variável independente e suas derivadas. Para um problema de valor inicial, conhece-se a condição no instante inicial e quer-se avançar a solução. Em y' = f(t,y), Euler explícito calcula o valor seguinte somando ao valor atual o passo vezes a inclinação no começo do passo. A fórmula é simples e tem erro global de ordem um em condições regulares, mas pode ficar instável quando o passo é grande para o problema.\n\nMétodos de Runge-Kutta calculam inclinações em pontos intermediários e combinam essas estimativas. O método clássico de quarta ordem usa quatro avaliações da inclinação por passo e, em condições adequadas, tem erro global de ordem quatro. Métodos adaptativos comparam estimativas de ordens diferentes ou de passos distintos para ajustar h: aumentam o passo quando a estimativa de erro permite e diminuem quando a estimativa é excessiva. O controle de erro melhora eficiência, mas depende de tolerâncias bem escolhidas.\n\nMétodos implícitos usam informação do fim do passo e, em geral, exigem resolver uma equação a cada atualização. Esse custo adicional pode ser vantajoso em problemas rígidos, nos quais métodos explícitos precisariam de passos muito pequenos para permanecer estáveis, mesmo quando a solução varia lentamente no intervalo de interesse. Implícito não significa automaticamente estável para qualquer problema e passo; as propriedades dependem do método usado.\n\n### Erro local, erro global e estabilidade\n\nO erro local mede o que uma única etapa acrescenta sob a hipótese de que o ponto inicial era exato. O erro global inclui o acúmulo dos erros ao longo de todos os passos. A ordem local e a ordem global não são a mesma afirmação: provas e comparações de método especificam qual delas está sendo considerada. No uso prático, tolerâncias e estimativas precisam estar ligadas à grandeza que se quer controlar.\n\nConsistência descreve se a fórmula discreta representa corretamente a equação diferencial quando o passo tende a zero. Estabilidade trata de como erros e perturbações se propagam. Convergência significa que a solução numérica se aproxima da solução exata ao refinar a malha. Para certas classes de métodos lineares de passo aplicados a problemas bem postos, consistência e estabilidade em conjunto levam à convergência; essa conclusão depende das hipóteses e não se transfere automaticamente a qualquer método.\n\n**Pegadinha:**\n\nA banca pode tratar ordens como garantias incondicionais, dizer que Simpson padrão aceita qualquer número de subintervalos ou que reduzir o passo torna qualquer EDO estável. As ordens dependem de suavidade e regime assintótico; Simpson composto usual requer quantidade par de subintervalos iguais; e passo menor ajuda o erro de discretização, mas estabilidade depende do problema e do método. Também é incorreto concluir que método implícito dispensa resolver equações em cada etapa.\n\n**Resumo para a prova**\n\n- Trapézio composto tem ordem global h²; Simpson composto usual tem ordem global h⁴ sob as hipóteses pertinentes.\n- Simpson padrão usa número par de subintervalos igualmente espaçados.\n- Gauss escolhe nós e pesos para alto grau de exatidão polinomial, não para integrar qualquer função exatamente.\n- Euler explícito usa a inclinação no início do passo e tem ordem global um sob regularidade.\n- Métodos implícitos podem ajudar em problemas rígidos, com custo de resolver equações por passo.\n- Consistência, estabilidade, convergência e ordem descrevem aspectos diferentes do método."
+    }
+  ],
+  "summary": "Métodos numéricos calculam aproximações finitas para problemas matemáticos e exigem controle das fontes de erro. Erro absoluto mede distância; erro relativo considera escala; resíduo mede quanto a solução aproximada deixa de satisfazer a equação, sem garantir sozinho erro pequeno em problemas mal condicionados. Para raízes, bisseção é robusta quando há continuidade e mudança de sinal, enquanto Newton pode convergir rapidamente perto da raiz, mas depende de derivada e chute inicial. Sistemas lineares podem ser resolvidos por eliminação de Gauss com pivotamento ou por iterações como Jacobi e Gauss-Seidel, cuja convergência depende das propriedades da matriz; pré-condicionadores podem ajudar. Interpolação passa pelos nós, ao passo que mínimos quadrados minimiza a soma dos resíduos quadráticos; diferenças centrais têm ordem de truncamento superior à progressiva para a primeira derivada. Trapézio composto tem ordem global dois e Simpson composto usual, ordem quatro sob hipóteses de suavidade e número par de subintervalos. Euler explícito é simples e de ordem um; Runge-Kutta usa declives intermediários. Convergência, estabilidade, condicionamento e precisão são conceitos distintos.",
+  "flashcards": [
+    {
+      "front": "Como se define o erro absoluto de uma aproximação?",
+      "back": "É o módulo da diferença entre valor verdadeiro e valor aproximado: |x − x̃|."
+    },
+    {
+      "front": "Quando o erro relativo usual deixa de estar definido?",
+      "back": "Quando o valor verdadeiro de referência é zero, pois haveria divisão por zero."
+    },
+    {
+      "front": "O que mede o resíduo de uma solução aproximada Ax = b?",
+      "back": "A falha em satisfazer o sistema, normalmente r = b − A x̃."
+    },
+    {
+      "front": "O que significa mau condicionamento?",
+      "back": "Pequenas perturbações nos dados podem provocar grandes mudanças na solução."
+    },
+    {
+      "front": "Qual hipótese permite garantir raiz pela mudança de sinal?",
+      "back": "Continuidade da função no intervalo e sinais opostos nos extremos."
+    },
+    {
+      "front": "Como a bisseção escolhe o próximo intervalo?",
+      "back": "Calcula o ponto médio e conserva a metade que mantém a mudança de sinal."
+    },
+    {
+      "front": "Qual é a iteração de Newton para f(x)=0?",
+      "back": "x seguinte = x atual − f(x atual)/f′(x atual), se a derivada for utilizável."
+    },
+    {
+      "front": "Por que Newton pode falhar longe da raiz?",
+      "back": "A iteração pode sair da região de convergência ou encontrar derivada nula ou pequena."
+    },
+    {
+      "front": "Qual condição local ajuda a garantir iteração de ponto fixo?",
+      "back": "Em uma vizinhança, |g′(x)| < 1 é uma condição comum suficiente."
+    },
+    {
+      "front": "Para que serve pivotamento parcial na eliminação?",
+      "back": "Trocar linhas para selecionar um pivô maior e reduzir problemas numéricos."
+    },
+    {
+      "front": "Quando fatoração LU pode ser especialmente útil?",
+      "back": "Quando a mesma matriz precisa ser resolvida com diferentes vetores independentes b."
+    },
+    {
+      "front": "O que faz um pré-condicionador?",
+      "back": "Transforma o sistema para favorecer a convergência ou reduzir o custo iterativo."
+    },
+    {
+      "front": "O que caracteriza interpolação?",
+      "back": "A função aproximante assume exatamente os valores fornecidos nos nós."
+    },
+    {
+      "front": "O que os mínimos quadrados minimizam?",
+      "back": "A soma dos quadrados dos resíduos entre dados e valores ajustados."
+    },
+    {
+      "front": "Qual vantagem têm diferenças divididas de Newton?",
+      "back": "Permitem incorporar novo nó acrescentando termo ao polinômio já construído."
+    },
+    {
+      "front": "Qual é a ordem de truncamento da diferença progressiva?",
+      "back": "Ordem h para a primeira derivada em condições usuais de suavidade."
+    },
+    {
+      "front": "Qual é a ordem de truncamento da diferença central?",
+      "back": "Ordem h² para a primeira derivada quando a função tem suavidade suficiente."
+    },
+    {
+      "front": "Qual ordem global tem a regra composta do trapézio?",
+      "back": "Ordem h² para integrando com regularidade adequada."
+    },
+    {
+      "front": "Que restrição usual vale para Simpson composto?",
+      "back": "Usa malha igualmente espaçada e número par de subintervalos."
+    },
+    {
+      "front": "Qual ordem global tem Euler explícito?",
+      "back": "Ordem um, com erro global proporcional a h em regime assintótico."
+    },
+    {
+      "front": "Como Runge-Kutta constrói a atualização?",
+      "back": "Combina inclinações avaliadas em pontos intermediários do passo."
+    },
+    {
+      "front": "Consistência e estabilidade são sinônimos?",
+      "back": "Não. Consistência trata do erro local ao refinar; estabilidade trata da propagação de perturbações."
+    }
+  ],
+  "tips": [
+    "Identifique primeiro se o problema pede raiz, sistema, aproximação de dados, derivada, integral ou evolução diferencial.",
+    "Ao usar bisseção, verifique continuidade e sinais opostos antes de iniciar a sequência.",
+    "Em Newton, examine f′ e o chute inicial; inclua um limite de iterações e um critério de resíduo.",
+    "Diferencie resíduo, erro da solução e erro relativo; um pode ser pequeno enquanto outro é grande.",
+    "Ao comparar regras, diga a ordem junto com as hipóteses sobre suavidade e malha.",
+    "Em iterações lineares, verifique a estrutura da matriz e a convergência observada, em vez de presumir que toda iteração converge."
+  ],
+  "traps": [
+    "Confundir erro absoluto com relativo: o segundo normaliza pela escala do valor de referência.",
+    "Concluir que resíduo pequeno sempre prova erro pequeno na solução, ignorando condicionamento.",
+    "Tratar Newton como método globalmente convergente para qualquer função e qualquer ponto inicial.",
+    "Afirmar que interpolação e ajuste por mínimos quadrados passam exatamente por todos os dados.",
+    "Reduzir o passo sem limite como se arredondamento e cancelamento não existissem.",
+    "Aplicar a ordem de Simpson sem verificar suavidade, malha e paridade do número de subintervalos."
+  ],
+  "activeRecall": [
+    {
+      "question": "Quais são três fontes distintas de erro em um cálculo numérico?",
+      "answer": "Incerteza dos dados, truncamento do método e arredondamento da representação e das operações."
+    },
+    {
+      "question": "Como se constrói uma sequência de bisseção?",
+      "answer": "Calcula-se o ponto médio e conserva-se o subintervalo contínuo cujos extremos mantêm sinais opostos."
+    },
+    {
+      "question": "Em que sentido Newton é localmente rápido, mas não garantido?",
+      "answer": "Perto de raiz simples sob hipóteses adequadas pode convergir quadraticamente; fora dessa região pode divergir ou falhar."
+    },
+    {
+      "question": "O que o resíduo b − A x̃ permite avaliar e o que não assegura sozinho?",
+      "answer": "Avalia a satisfação do sistema calculado, mas não assegura erro pequeno na solução se o sistema for mal condicionado."
+    },
+    {
+      "question": "Compare Jacobi e Gauss-Seidel na atualização de componentes.",
+      "answer": "Jacobi usa somente os valores da iteração anterior; Gauss-Seidel pode reutilizar componentes já atualizadas na iteração atual."
+    },
+    {
+      "question": "Compare interpolação com mínimos quadrados.",
+      "answer": "Interpolação coincide nos nós; mínimos quadrados busca minimizar a soma dos resíduos quadráticos, sem exigir coincidência em cada ponto."
+    },
+    {
+      "question": "Por que diferença central pode ser mais precisa que progressiva?",
+      "answer": "Sua expansão de erro cancela termo de primeira ordem e deixa truncamento de ordem h² sob suavidade."
+    },
+    {
+      "question": "Quais cuidados principais verificar em quadratura de Simpson composta?",
+      "answer": "Suavidade suficiente, espaçamento uniforme, número par de subintervalos e interpretação assintótica da ordem quatro."
+    },
+    {
+      "question": "Qual o risco de usar Euler explícito com passo grande?",
+      "answer": "O método pode acumular grande erro ou tornar-se instável, mesmo que a fórmula de atualização esteja correta."
+    },
+    {
+      "question": "Explique consistência, estabilidade e convergência em uma linha cada.",
+      "answer": "Consistência: erro local desaparece ao refinar; estabilidade: perturbações não crescem indevidamente; convergência: aproximação tende à solução exata."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Erro, resíduo e condicionamento confundidos",
+      "summary": "Erro compara aproximação com valor verdadeiro; resíduo mede falha da equação; condicionamento descreve sensibilidade do problema. Resíduo pequeno não implica sempre erro pequeno."
+    },
+    {
+      "key": "e2",
+      "title": "Raízes: garantia e rapidez misturadas",
+      "summary": "Bisseção usa continuidade e mudança de sinal e reduz o intervalo de forma segura; Newton pode ser rápido perto da raiz, mas depende do ponto inicial e da derivada."
+    },
+    {
+      "key": "e3",
+      "title": "Iterações lineares tidas como universais",
+      "summary": "Jacobi, Gauss-Seidel e outros métodos não convergem para qualquer matriz. A estrutura, espectro, condicionamento e pré-condicionamento importam."
+    },
+    {
+      "key": "e4",
+      "title": "Interpolação, ajuste e diferenças confundidos",
+      "summary": "Interpolar passa pelos nós; mínimos quadrados minimiza resíduos; diferenças finitas aproximam derivadas e equilibram truncamento com arredondamento."
+    },
+    {
+      "key": "e5",
+      "title": "Ordens e estabilidade usadas sem hipótese",
+      "summary": "Ordens de quadratura, diferenciação e EDO descrevem regime assintótico sob regularidade e condições de malha; não dispensam análise de estabilidade e erro."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Ao comparar uma aproximação com um valor verdadeiro diferente de zero, o erro relativo usual divide o erro absoluto pelo módulo do valor de referência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A normalização pelo módulo do valor de referência expressa o erro em relação à escala da grandeza. Se a referência for zero, essa definição não se aplica por envolver divisão por zero.",
+      "section": "1. Aproximação, representação e erros",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um resíduo pequeno garante erro pequeno na solução de qualquer sistema linear, mesmo quando a matriz é mal condicionada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Em um sistema mal condicionado, uma pequena perturbação ou resíduo pode corresponder a uma diferença grande na solução. O resíduo mede a satisfação da equação, enquanto condicionamento relaciona perturbações dos dados à resposta.",
+      "section": "1. Aproximação, representação e erros",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O erro de truncamento pode surgir quando uma derivada é substituída por uma fórmula de diferenças finitas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A fórmula finita aproxima a operação exata e deixa termos de erro que dependem do passo e da suavidade da função. Esse erro é de truncamento, distinto do arredondamento das operações.",
+      "section": "1. Aproximação, representação e erros",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar a quantidade de casas decimais elimina o mau condicionamento inerente ao problema matemático.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Mais precisão pode reduzir parte do arredondamento, mas condicionamento é sensibilidade da solução aos dados. Um problema mal condicionado permanece sensível mesmo se os cálculos forem feitos com mais algarismos.",
+      "section": "1. Aproximação, representação e erros",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A condição de mudança de sinal nos extremos, junto com continuidade no intervalo, permite aplicar o teorema do valor intermediário para garantir uma raiz.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma função contínua que assume valores de sinais opostos nos extremos assume o valor zero em algum ponto intermediário. Essa existência fundamenta a bisseção, embora não assegure que a raiz seja única.",
+      "section": "2. Zeros de funções e sistemas lineares",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A bisseção usa a derivada da função para escolher qual extremo do intervalo será descartado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A bisseção avalia o sinal no ponto médio e conserva a metade que continua apresentando mudança de sinal. Não precisa calcular derivadas para decidir o próximo intervalo.",
+      "section": "2. Zeros de funções e sistemas lineares",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma iteração de Newton pode falhar se a derivada no ponto atual for nula ou se as aproximações saírem da região de convergência.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A fórmula divide por f′(x), de modo que derivada nula impede a atualização e derivada muito pequena pode gerar passo enorme. Mesmo com derivada definida, um chute inicial ruim pode afastar a sequência da raiz.",
+      "section": "2. Zeros de funções e sistemas lineares",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na iteração de ponto fixo, uma derivada da função de iteração com módulo superior a um perto do ponto fixo é uma condição suficiente usual para convergência local.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma condição suficiente usual de contração local é derivada com módulo menor que um em uma vizinhança. Módulo superior a um não fornece essa garantia e pode afastar as aproximações do ponto fixo.",
+      "section": "2. Zeros de funções e sistemas lineares",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O pivotamento parcial troca linhas para selecionar um elemento de pivô mais apropriado durante a eliminação de Gauss.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A troca de linhas escolhe, na coluna ativa, um pivô de maior módulo. Isso ajuda a evitar divisão por pivôs muito pequenos e costuma melhorar o comportamento numérico da eliminação.",
+      "section": "2. Zeros de funções e sistemas lineares",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A convergência de Jacobi e Gauss-Seidel independe das propriedades da matriz do sistema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A convergência depende da matriz e da iteração, incluindo propriedades como dominância diagonal ou comportamento espectral em condições apropriadas. Não existe garantia automática para toda matriz.",
+      "section": "2. Zeros de funções e sistemas lineares",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Fatorar uma matriz em L e U pode evitar repetir toda a eliminação quando vários vetores b usam a mesma matriz A.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Depois de obter a fatoração, cada novo sistema com o mesmo A requer resolver dois sistemas triangulares. A etapa de fatoração, geralmente mais custosa, não precisa ser refeita para cada vetor b.",
+      "section": "2. Zeros de funções e sistemas lineares",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Jacobi atualiza todas as componentes usando valores recém-atualizados da mesma iteração, como faz Gauss-Seidel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Jacobi calcula a nova iteração com os valores anteriores em todas as componentes. Gauss-Seidel, ao percorrer as componentes, pode reutilizar valores já atualizados na iteração corrente.",
+      "section": "2. Zeros de funções e sistemas lineares",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um polinômio interpolador construído para nós distintos coincide com os valores fornecidos nesses nós.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A propriedade definidora da interpolação é reproduzir os dados nos pontos conhecidos. Entre os nós, o comportamento depende do interpolante escolhido e dos dados.",
+      "section": "3. Interpolação, ajuste e diferenciação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma reta de mínimos quadrados precisa passar exatamente por todos os pontos observados para minimizar a soma dos quadrados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O ajuste minimiza a soma dos quadrados dos resíduos, que em geral não são todos zero. Passar exatamente por cada dado é propriedade da interpolação, não requisito dos mínimos quadrados.",
+      "section": "3. Interpolação, ajuste e diferenciação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A forma de Newton com diferenças divididas pode ser atualizada acrescentando termo associado a um novo nó.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os coeficientes da forma de Newton são diferenças divididas. Ao acrescentar um ponto, calcula-se o novo coeficiente e junta-se um termo, sem reconstruir toda a expressão anterior do zero.",
+      "section": "3. Interpolação, ajuste e diferenciação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A diferença central para a primeira derivada tem erro de truncamento de ordem h, igual à progressiva usual, sob suavidade suficiente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Sob regularidade suficiente, a simetria da diferença central cancela o termo de primeira ordem da expansão e dá erro de ordem h²; a progressiva usual tem ordem h.",
+      "section": "3. Interpolação, ajuste e diferenciação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Escolher um passo cada vez menor para diferenças finitas sempre reduz o erro total, pois o arredondamento também diminui.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Passo menor reduz o erro de truncamento em uma faixa, mas pode ampliar arredondamento e cancelamento na subtração de valores próximos. O erro total resulta do equilíbrio das duas fontes.",
+      "section": "3. Interpolação, ajuste e diferenciação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na quadratura composta, a regra simples é aplicada em subintervalos e as contribuições são somadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Dividir o intervalo e somar as aproximações locais forma a regra composta. O passo e a suavidade da função influem na ordem e na magnitude do erro.",
+      "section": "4. Integração e equações diferenciais ordinárias",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A regra composta usual de Simpson requer número par de subintervalos igualmente espaçados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A composição padrão agrupa subintervalos em pares para ajustar parábolas. Existem variantes para lidar com quantidade ímpar, mas a regra usual tem a exigência indicada.",
+      "section": "4. Integração e equações diferenciais ordinárias",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Euler explícito usa a inclinação avaliada no início do passo para avançar a solução aproximada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Para y′=f(t,y), a atualização usa y atual mais h vezes f avaliada em t e y atuais. É uma aproximação simples de ordem global um.",
+      "section": "4. Integração e equações diferenciais ordinárias",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ordem formal elevada de um método de EDO elimina a necessidade de verificar estabilidade para o passo escolhido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Ordem descreve a taxa de erro em regime apropriado quando o passo é refinado. Um passo inadequado ainda pode produzir instabilidade ou erro grande, e problemas rígidos podem exigir método apropriado.",
+      "section": "4. Integração e equações diferenciais ordinárias",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe encontra erro relativo de 0,02 para uma grandeza de referência não nula. Qual interpretação corresponde a essa medida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O erro absoluto é duas unidades, qualquer que seja a escala da grandeza.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O erro foi comparado ao módulo do valor de referência usado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A solução exata foi encontrada com dois algarismos significativos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O resíduo do sistema é necessariamente igual a dois centésimos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O condicionamento do problema é necessariamente igual a cinquenta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Erro relativo é o erro absoluto dividido pelo módulo do valor de referência. O número informado não determina sozinho o erro absoluto sem conhecer a escala, nem fornece por si só resíduo ou condicionamento.",
+      "section": "1. Aproximação, representação e erros",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aproximação de x resolve Ax=b, mas a matriz é mal condicionada. Qual avaliação é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Resíduo pequeno confirma que a solução tem erro igualmente pequeno.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Mais casas decimais tornam a matriz bem condicionada automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Erro relativo e absoluto passam a ter o mesmo significado numérico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Perturbações pequenas podem causar erro grande na solução aproximada.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O método direto remove a sensibilidade intrínseca dos dados do problema.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mau condicionamento significa alta sensibilidade da solução às perturbações. Um resíduo pequeno não afasta essa possibilidade; aumentar precisão pode ajudar no arredondamento, mas não altera a sensibilidade do problema original.",
+      "section": "1. Aproximação, representação e erros",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um modelo substitui uma série infinita por seus primeiros termos. Que tipo de erro surge diretamente dessa aproximação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Erro de truncamento por interromper uma representação ou processo infinito.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Erro de arredondamento por armazenar número decimal finito.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Erro de medição por incerteza nos dados observados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Erro de condicionamento por sensibilidade da solução calculada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Erro de resíduo por não satisfazer a equação aproximada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Interromper a série substitui um processo infinito por uma soma finita, gerando erro de truncamento. Arredondamento decorre da representação e das operações; medição decorre da entrada de dados.",
+      "section": "1. Aproximação, representação e erros",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao resolver numericamente Ax=b, qual vetor mede a falha da aproximação x̃ em satisfazer as equações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A soma dos módulos das componentes de x̃, chamada erro relativo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A diferença entre A e sua fatoração, chamada número de condição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O vetor b−A x̃, chamado resíduo do sistema aproximado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O vetor A x̃−x̃, chamado erro de arredondamento acumulado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O quociente entre b e A, chamado erro absoluto da solução.",
+          "correct": false
+        }
+      ],
+      "explanation": "O resíduo é b−A x̃, pois compara o lado direito dado com o lado esquerdo produzido pela aproximação. Erro da solução exigiria comparar x̃ com a solução verdadeira, que em geral é desconhecida.",
+      "section": "1. Aproximação, representação e erros",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função contínua tem valores de sinais opostos nos extremos de um intervalo. Qual método aproveita diretamente essa informação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Eliminação de Gauss com pivoteamento das colunas do sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Interpolação de Lagrange sem avaliar novos pontos da função.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Regra de Simpson com nós distribuídos pelo intervalo inteiro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Iteração de Jacobi iniciada por uma estimativa da raiz.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Bisseção, que conserva a metade com mudança de sinal.",
+          "correct": true
+        }
+      ],
+      "explanation": "A bisseção usa continuidade e mudança de sinal para manter um intervalo que contém ao menos uma raiz. Os outros métodos listados resolvem tipos distintos de problemas ou não fazem essa redução intervalar.",
+      "section": "2. Zeros de funções e sistemas lineares",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma raiz simples, a equipe dispõe de derivada e escolhe um ponto inicial próximo. Qual método pode convergir quadraticamente sob hipóteses adequadas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Regra composta do trapézio para integrar a função original.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Método de Newton usando a função e sua derivada local.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Bisseção com intervalo fixo que nunca reduz seus extremos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ajuste por mínimos quadrados de uma reta aos dados tabelados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eliminação de Gauss para resolver um sistema independente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Newton tem convergência local quadrática para raiz simples quando as hipóteses são satisfeitas e o ponto inicial está suficientemente perto. A rapidez não constitui garantia global para qualquer ponto de partida.",
+      "section": "2. Zeros de funções e sistemas lineares",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma iteração de Newton produz passo muito grande porque a derivada local é quase zero. Qual conduta numérica é mais prudente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aceitar o passo sem inspeção, pois Newton converge para todo chute inicial.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Trocar a derivada por zero para simplificar a próxima atualização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Declarar raiz exata porque o denominador ficou numericamente pequeno.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reavaliar o chute e controlar a iteração com salvaguarda ou outro método.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Aumentar o passo ainda mais para ultrapassar a região problemática.",
+          "correct": false
+        }
+      ],
+      "explanation": "Derivada muito pequena pode produzir atualização enorme e levar a sequência para longe da raiz. Um método robusto monitora convergência e pode combinar Newton com bisseção ou outra salvaguarda quando existe intervalo válido.",
+      "section": "2. Zeros de funções e sistemas lineares",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao aplicar bisseção a um intervalo válido, como o comprimento do intervalo evolui após cada ponto médio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dobra a cada passo, pois ambos os extremos são recalculados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Permanece igual até que a raiz seja avaliada exatamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fica reduzido à metade da extensão anterior em cada iteração.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Alterna entre zero e a extensão original, conforme o sinal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cresce sem limite se a raiz não for um número racional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em cada iteração escolhe-se uma das duas metades do intervalo anterior. Assim, a extensão cai pela metade, permitindo estimar previamente quantas iterações são necessárias para alcançar determinada largura.",
+      "section": "2. Zeros de funções e sistemas lineares",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um algoritmo de parada verifica apenas que duas aproximações sucessivas quase coincidem. Qual risco esse teste isolado traz?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pode indicar sucesso quando há estagnação longe da solução procurada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Prova que o erro absoluto é menor que qualquer tolerância escolhida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garante que o método possui ordem quadrática de convergência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mostra que a função original possui derivada contínua no domínio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Determina o condicionamento da matriz sem calcular seus dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Passos pequenos podem ocorrer por estagnação ou limitações numéricas sem que a solução esteja próxima. Convém combinar mudança entre iterações com resíduo, largura do intervalo e limite máximo de iterações.",
+      "section": "2. Zeros de funções e sistemas lineares",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema grande e esparso é resolvido iterativamente, mas converge devagar. Que recurso pode melhorar o espectro efetivo do sistema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar a quantidade de incógnitas sem mudar o modelo original.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Descartar o vetor residual a cada etapa da sequência calculada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir todos os coeficientes por valores iguais ao diagonal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar somente arredondamento decimal com menos algarismos internos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar pré-condicionamento compatível com a estrutura do sistema.",
+          "correct": true
+        }
+      ],
+      "explanation": "Um pré-condicionador transforma o sistema para favorecer a convergência de métodos iterativos. Sua construção e aplicação têm custo, então deve melhorar o desempenho total sem alterar indevidamente o problema resolvido.",
+      "section": "2. Zeros de funções e sistemas lineares",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na eliminação de Gauss, qual etapa completa a resolução depois de obter um sistema triangular superior?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ajustar uma parábola para minimizar resíduos sobre os dados originais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar substituição retroativa começando pela última equação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Aplicar Newton a cada coluna até anular todas as incógnitas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Integrar as linhas da matriz com a regra do ponto médio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir cada pivô por uma diferença dividida dos coeficientes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Depois da eliminação, o sistema triangular é resolvido da última variável para a primeira, usando substituição retroativa. Isso aproveita os valores já determinados nas equações anteriores.",
+      "section": "2. Zeros de funções e sistemas lineares",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um único sistema com muitas incógnitas possui matriz esparsa e memória limitada. Qual estratégia pode ser mais conveniente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter a matriz esparsa em matriz densa antes de qualquer cálculo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar interpolação polinomial para substituir as equações lineares.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escolher método iterativo e armazenamento que preservem a esparsidade.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Aplicar mínimos quadrados sem verificar se o sistema tem solução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Repetir a fatoração completa em cada componente da solução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Métodos iterativos e armazenamento esparso podem reduzir memória e custo em sistemas grandes. A escolha exige conhecer estrutura e convergência, já que iteração não é automaticamente superior nem garantida.",
+      "section": "2. Zeros de funções e sistemas lineares",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método iterativo linear tem raio espectral da matriz de iteração menor que um. O que se conclui para a iteração estacionária correspondente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A sequência converge para qualquer aproximação inicial em aritmética exata.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A sequência diverge necessariamente para todo vetor inicial não nulo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O sistema original torna-se singular depois da primeira atualização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O resíduo fica exatamente zero depois de uma única iteração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O método passa a ser uma eliminação direta sem aproximações sucessivas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para uma iteração estacionária linear, raio espectral menor que um caracteriza convergência da sequência a partir de qualquer aproximação inicial, considerando a aritmética exata. A taxa ainda depende do raio e do erro inicial.",
+      "section": "2. Zeros de funções e sistemas lineares",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma base de dados apresenta pontos medidos com ruído. Deseja-se uma reta que represente a tendência geral sem exigir passagem por cada observação. Qual técnica atende ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Bisseção em cada valor medido para manter mudança de sinal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Interpolação exata para forçar a reta por toda observação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eliminação de Gauss aplicada aos dados sem definir um modelo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ajuste por mínimos quadrados para reduzir resíduos quadráticos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Quadratura de Simpson para construir coeficientes de uma linha.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mínimos quadrados escolhe parâmetros que minimizam a soma dos quadrados das diferenças entre observações e valores ajustados. Isso representa tendência geral sem impor coincidência exata em todos os pontos.",
+      "section": "3. Interpolação, ajuste e diferenciação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Conhecidos valores em nós distintos, qual propriedade define o polinômio interpolador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Minimiza sempre o maior resíduo entre os dados observados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Coincide com cada valor fornecido no respectivo nó.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Tem grau necessariamente igual ao número total de observações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Possui derivada nula em todos os pontos amostrados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Evita qualquer oscilação entre os extremos dos dados tabulados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Interpolar significa reproduzir os valores nos nós. Um conjunto de n+1 nós distintos admite um polinômio interpolador de grau no máximo n, mas isso não impede oscilações entre os dados.",
+      "section": "3. Interpolação, ajuste e diferenciação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Polinômios globais de grau alto em nós igualmente espaçados apresentam oscilações indesejadas. Qual alternativa pode oferecer controle local?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma spline por trechos com continuidade apropriada nos pontos de junção.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma regressão constante que ignora a ordenação de todos os nós.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma eliminação sem pivotamento aplicada à tabela de amostras.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma quadratura aberta que remove os extremos do intervalo observado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma diferença progressiva com passo maior que todo o domínio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Splines definem polinômios em trechos e impõem condições de continuidade, limitando o caráter global que pode levar ao fenômeno de Runge. A escolha das condições e dos nós continua importante.",
+      "section": "3. Interpolação, ajuste e diferenciação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma técnica de diferenciação avalia a função em x+h e x−h. Que fórmula representa a diferença central para a primeira derivada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A diferença entre f(x+h) e f(x), dividida por h.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A média entre f(x+h) e f(x−h), dividida por h².",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A soma de f(x+h) e f(x−h), dividida por dois h.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A diferença entre f(x) e f(x−h), dividida por dois h.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A diferença f(x+h)−f(x−h), dividida por 2h.",
+          "correct": true
+        }
+      ],
+      "explanation": "A fórmula central usa avaliações simétricas em torno de x: [f(x+h)−f(x−h)]/(2h). A simetria cancela o termo de primeira ordem da expansão do erro.",
+      "section": "3. Interpolação, ajuste e diferenciação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe tem muitos pontos amostrados em região irregular e prefere aproximação local com transições suaves. Qual construção é mais compatível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Polinômio interpolador global de grau crescente sem examinar os nós.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Spline cúbica definida por trechos e condições de continuidade.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Sistema linear homogêneo que descarta os valores das observações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Regra do trapézio que fornece uma curva pelos dados amostrados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Método de Newton para encontrar raiz em cada intervalo observado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Splines cúbicas usam polinômios por trechos e condições de continuidade nas junções. Essa abordagem permite controle mais local do que um polinômio único de grau alto.",
+      "section": "3. Interpolação, ajuste e diferenciação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aproximação numérica será usada fora da faixa de nós conhecida. Qual cautela é pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Extrapolação sempre reduz erro por incluir menos observações usadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O interpolante torna qualquer valor externo exato por construção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fora dos nós, a previsão pode ser mais sensível e menos confiável.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Valores externos dispensam conhecer o comportamento da função original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A continuidade dos dados garante erro nulo fora do intervalo observado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Extrapolar usa o aproximante além do domínio dos dados e pode amplificar erros ou depender fortemente do modelo. A coincidência do interpolante nos nós não garante precisão fora deles.",
+      "section": "3. Interpolação, ajuste e diferenciação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para integrar numericamente uma função suave em malha uniforme, qual afirmação compara as regras compostas usuais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trapézio tem ordem global dois; Simpson tem ordem global quatro.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Trapézio tem ordem global quatro; Simpson tem ordem global um.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ambas têm ordem global um, qualquer que seja a função.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Simpson tem ordem global dois; trapézio tem ordem global três.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Nenhuma regra apresenta erro que dependa do tamanho do passo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sob hipóteses usuais de suavidade, trapézio composto tem erro global de ordem h² e Simpson composto, ordem h⁴. Essas ordens são assintóticas e não substituem verificar as condições de aplicação.",
+      "section": "4. Integração e equações diferenciais ordinárias",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao aplicar Simpson composto em subintervalos de igual largura, qual quantidade é exigida pela regra padrão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um número ímpar de subintervalos para formar pares de parábolas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um passo variável em cada intervalo para manter os nós assimétricos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma função descontínua em cada nó para cancelar os resíduos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um número par de subintervalos igualmente espaçados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Uma derivada conhecida em cada extremo do domínio integrado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A regra composta usual agrupa os subintervalos em pares e pressupõe espaçamento uniforme. Existem adaptações para malhas ou quantidades diferentes, mas não são a regra padrão descrita.",
+      "section": "4. Integração e equações diferenciais ordinárias",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma quadratura de Gauss escolhe nós e pesos para que a regra integre exatamente polinômios de grau elevado. Qual vantagem decorre disso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usa apenas os extremos do intervalo para toda função integrável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Evita avaliar a função em qualquer ponto durante o cálculo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garante integral exata de toda função, inclusive descontínua.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substitui a integral por diferenças finitas de uma derivada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pode alcançar alto grau de exatidão polinomial com poucas avaliações.",
+          "correct": true
+        }
+      ],
+      "explanation": "Regras de Gauss selecionam nós e pesos para maximizar o grau de exatidão polinomial em relação ao número de avaliações. Isso não torna exata a integração de qualquer função nem dispensa hipóteses de regularidade.",
+      "section": "4. Integração e equações diferenciais ordinárias",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para y′=f(t,y), qual atualização corresponde ao método de Euler explícito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "y seguinte é y atual mais h vezes f no início do passo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "y seguinte é sempre a raiz exata da função em t+h.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "y seguinte é a integral exata de f sem aproximação numérica.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "y seguinte é y atual menos h vezes f no fim do passo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "y seguinte é a média dos valores dos extremos sem usar f.",
+          "correct": false
+        }
+      ],
+      "explanation": "Euler explícito usa a inclinação no estado atual: y_{n+1}=y_n+h f(t_n,y_n). A fórmula é simples e tem ordem global um em condições regulares.",
+      "section": "4. Integração e equações diferenciais ordinárias",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe reduz o passo de Euler explícito e observa erro menor em uma equação não rígida. Qual explicação é compatível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reduzir h sempre torna toda equação diferencial estável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O refinamento reduz erro global de ordem um no regime assintótico.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Euler muda para método implícito quando h fica menor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O erro de truncamento é independente do número de passos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A derivada passa a ser conhecida exatamente após o refinamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Euler explícito tem erro global de ordem um, de modo que reduzir h costuma reduzir o erro nessa proporção assintótica para um problema adequado. Refinar não muda o método para implícito nem assegura estabilidade em qualquer situação.",
+      "section": "4. Integração e equações diferenciais ordinárias",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um problema de valor inicial é rígido e o passo explícito exigido para estabilidade fica impraticavelmente pequeno. Que tipo de método pode ser considerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Interpolação polinomial global para substituir toda derivada temporal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Quadratura de Gauss sem discretizar a variável independente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Método implícito, que pode oferecer estabilidade favorável em rigidez.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Bisseção aplicada ao valor da solução em todos os instantes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Diferença progressiva com passo ainda maior para acelerar a execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Métodos implícitos podem ter propriedades de estabilidade vantajosas em problemas rígidos, embora cada passo exija resolver uma equação. A escolha depende do problema e não significa estabilidade irrestrita para todos os métodos e passos.",
+      "section": "4. Integração e equações diferenciais ordinárias",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "NIST Digital Library of Mathematical Functions — Numerical Methods",
+      "publisher": "National Institute of Standards and Technology",
+      "reference": "Capítulo de aritmética e medidas de erro, álgebra linear, interpolação, diferenciação, quadratura, EDO e equações não lineares.",
+      "url": "https://dlmf.nist.gov/3",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NIST DLMF — Nonlinear Equations",
+      "publisher": "National Institute of Standards and Technology",
+      "reference": "Raízes e pontos fixos, métodos iterativos e ordem de convergência.",
+      "url": "https://dlmf.nist.gov/3.8",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NIST DLMF — Interpolation",
+      "publisher": "National Institute of Standards and Technology",
+      "reference": "Interpolação de Lagrange, diferenças divididas, fórmula de Newton e interpolação inversa.",
+      "url": "https://dlmf.nist.gov/3.3",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NIST DLMF — Quadrature",
+      "publisher": "National Institute of Standards and Technology",
+      "reference": "Regras interpolatórias de quadratura, fórmulas de Newton-Cotes e quadratura de Gauss.",
+      "url": "https://dlmf.nist.gov/3.5",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "18.330 Introduction to Numerical Analysis",
+      "publisher": "Massachusetts Institute of Technology",
+      "reference": "Programa e notas sobre interpolação, splines, cálculo numérico, EDO e métodos de raízes.",
+      "url": "https://math.mit.edu/icg/resources/teaching/18.330/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Templates for the Solution of Linear Systems",
+      "publisher": "Netlib",
+      "reference": "Métodos iterativos estacionários e não estacionários, convergência dependente da matriz e pré-condicionadores.",
+      "url": "https://netlib.org/templates/templates.pdf",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

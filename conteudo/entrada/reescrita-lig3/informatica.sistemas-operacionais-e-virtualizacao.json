@@ -1,0 +1,1700 @@
+{
+  "id": "informatica.sistemas-operacionais-e-virtualizacao",
+  "subject": "Informática",
+  "title": "Sistemas operacionais e virtualização: administração e automação",
+  "version": 2,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Administração de Windows e Linux",
+    "Serviços e permissões em sistemas operacionais",
+    "Gerenciamento de pacotes no Windows e Linux",
+    "Automação com shell scripts e PowerShell",
+    "Shell scripts para administração de sistemas",
+    "PowerShell para tarefas administrativas",
+    "Administração de serviços Windows e Linux",
+    "Virtualização com Hyper-V, VMware e Proxmox",
+    "Ambientes de virtualização e máquinas virtuais"
+  ],
+  "scope": {
+    "covers": "Administração cotidiana de sistemas operacionais Windows e Linux: serviços, processos, permissões, usuários e grupos; gerenciamento de pacotes e repositórios; automação de tarefas com shell scripts (Bash) e PowerShell; diagnóstico básico por logs e estados; conceitos operacionais de virtualização com Hyper-V, VMware vSphere/ESXi e Proxmox VE, incluindo host e convidado, recursos, redes virtuais, discos, snapshots/checkpoints, templates e permissões de administração.",
+    "excludes": "Programação avançada de kernel, administração aprofundada de Active Directory, redes e armazenamento de datacenter, alta disponibilidade e desenho avançado de clusters, sintaxe completa de distribuições não identificadas e recursos proprietários dependentes de licenças ou versões específicas."
+  },
+  "theoryTitle": "Operar sistemas, automatizar rotinas e administrar máquinas virtuais",
+  "chapters": [
+    {
+      "title": "1. Serviços, processos, identidades e permissões",
+      "markdown": "O sistema operacional precisa iniciar tarefas de fundo, controlar quem pode executá-las e permitir que o administrador descubra por que falharam. O tema organiza três perguntas práticas: qual programa está ativo, sob qual identidade ele atua e quais permissões essa identidade tem sobre os recursos.\n\n### Serviço, processo e identidade\n\nUm **serviço** é um programa configurado para operar em segundo plano e atender uma função, como imprimir documentos ou disponibilizar uma aplicação. Um **processo** é uma instância em execução de um programa; pode haver mais de um processo relacionado a um serviço. No Linux, **PID** significa identificador do processo. O serviço é a unidade administrativa; o processo é a execução concreta que consome memória e processador.\n\nCada processo atua com uma identidade. No Linux, **UID** é o identificador numérico de usuário e **GID** o identificador de grupo. No Windows, a conta de execução pode ser interna, local ou de domínio. A identidade define os acessos disponíveis: se o serviço precisa ler um arquivo, a conta dele deve ter essa permissão. Dar direitos ao usuário administrador que instalou o serviço não resolve necessariamente a falta de acesso da conta que o executa.\n\nNo Windows, `services.msc` abre o console Serviços. No PowerShell, `Get-Service` consulta, e `Start-Service`, `Stop-Service` e `Restart-Service` solicitam mudanças. `sc.exe query` também consulta o estado. É importante separar estado atual de inicialização configurada: um serviço pode estar parado agora e ainda estar configurado para iniciar automaticamente no próximo boot. A conta de execução aparece nas propriedades do serviço. Contas como `LocalSystem` têm alcance amplo no computador; para uma aplicação comum, prefira uma conta com somente os direitos necessários.\n\n### Permissões e controle de acesso\n\n**Autenticação** responde “quem é a conta?”; **autorização** responde “o que essa conta pode fazer?”. Uma **ACL**, lista de controle de acesso, associa usuários ou grupos a operações permitidas ou negadas em um objeto. No Windows, ACLs são usadas em arquivos, pastas, serviços e outras entidades. Ao acessar um arquivo por compartilhamento de rede, permissões do compartilhamento e permissões do sistema de arquivos **NTFS** (sistema de arquivos comum do Windows) participam da decisão. O mecanismo **UAC** (Controle de Conta de Usuário) ajuda a administrar elevação: ser membro de administradores não significa que todo programa esteja sempre executando com privilégios elevados.\n\nNo Linux, cada arquivo tem proprietário, grupo e permissões para três classes: proprietário, grupo e demais usuários. `r` permite leitura, `w` permite alteração e `x` permite execução; em diretórios, `x` significa poder atravessar ou pesquisar nomes no diretório. `chmod 640 relatorio.txt` define leitura e escrita ao proprietário, leitura ao grupo e nenhum acesso aos demais. `chown ana:auditoria relatorio.txt` troca proprietário e grupo. A **umask** é a máscara que remove permissões dos modos padrão quando novos arquivos são criados. ACLs podem conceder direitos mais específicos além das três classes tradicionais.\n\n### Serviços no Linux com systemd\n\n**systemd** é um gerenciador de inicialização e serviços usado por muitas distribuições Linux; uma unidade é um recurso administrado por ele. `systemctl status nome.service` consulta estado e informações recentes. `systemctl start`, `stop` e `restart` iniciam, param ou reiniciam agora. `systemctl enable` configura a unidade para inicializações futuras, sem iniciá-la por si só nesta sessão. `systemctl enable --now` combina habilitação futura e início imediato. `systemctl disable` remove a habilitação para o boot, mas não equivale a parar o processo que já está ativo. `journalctl -u nome.service` consulta registros associados à unidade.\n\nA definição da unidade pode estabelecer `User=` e `Group=` para que o serviço rode com uma identidade dedicada. `sudo comando` solicita a execução de um comando com privilégios autorizados. O uso de privilégio deve ser restrito à ação necessária e pode ser auditado.\n\n| Necessidade | Windows | Linux com systemd |\n| --- | --- | --- |\n| Consultar estado | `Get-Service` ou `services.msc` | `systemctl status` |\n| Iniciar agora | `Start-Service` | `systemctl start` |\n| Habilitar no boot | tipo de inicialização nas propriedades | `systemctl enable` |\n| Consultar registros | Visualizador de Eventos | `journalctl -u` |\n\n### Exemplo passo a passo\n\nAna administra um servidor Linux em que o serviço de impressão não inicia depois de uma atualização. Primeiro, ela consulta `systemctl status impressao.service` e percebe uma mensagem de acesso negado a `/var/lib/impressao/fila`. Em seguida, consulta `journalctl -u impressao.service` para confirmar o horário e a identidade indicada no erro. Ela verifica a unidade e encontra que o serviço roda como usuário `printsvc`, não como `ana`. Então verifica proprietário e permissões do diretório, corrige o acesso estritamente necessário para `printsvc`, inicia o serviço com `systemctl start impressao.service` e confirma o novo estado. Se também precisa que ele volte após reinicialização, habilita-o com `systemctl enable impressao.service`. Cada passo testa uma hipótese; reiniciar repetidamente não substituiria a correção da permissão.\n\n### Diagnóstico e comparação de conceitos\n\n| Conceito | O que responde | Exemplo |\n| --- | --- | --- |\n| Identidade | Qual conta executa? | usuário `printsvc` |\n| Permissão | O que a conta pode fazer? | ler a fila de impressão |\n| Estado | O que ocorre agora? | serviço ativo ou parado |\n| Inicialização | O que deve ocorrer no boot? | serviço habilitado ou desabilitado |\n\nNo Windows, confira conta, tipo de inicialização, dependências e eventos. No Linux, confira estado, unidade, identidade, permissões e diário de registros. Depois de corrigir a causa observada, reinicie se necessário e teste a função real do serviço, não apenas a indicação de que o processo está ativo.\n\n**Pegadinha:** `enable` não significa “iniciar agora”, e `disable` não significa “parar agora”. A banca também troca a identidade que instalou ou administra o serviço pela identidade sob a qual o processo realmente roda.\n\n**Resumo para a prova**\n\n- Serviço é a tarefa administrada; processo é a instância em execução.\n- A conta do processo determina seus acessos; conceda apenas os direitos necessários.\n- `systemctl start` inicia agora; `enable` configura inicialização futura; `enable --now` faz ambos.\n- Em Linux, `rwx` tem significado diferente para arquivo e diretório; `chmod 640` não concede execução.\n- Diagnostique com estado, conta, permissões e logs antes de alterar configurações."
+    },
+    {
+      "title": "2. Pacotes, repositórios e atualização controlada",
+      "markdown": "Quando um computador precisa instalar ou atualizar programas, alguém deve localizar arquivos, conferir versões, obter dependências e evitar misturar componentes incompatíveis. Gerenciadores de pacotes automatizam essas tarefas. Entender a diferença entre catálogo, pacote local e programa instalado ajuda a atualizar com controle e a investigar falhas.\n\n### Conceitos básicos: pacote, dependência e repositório\n\nUm **pacote** é uma unidade de distribuição que reúne arquivos e metadados de um programa. **Metadados** são informações como nome, versão, arquitetura, origem e requisitos. Uma **dependência** é outro pacote ou componente necessário para instalar ou executar o primeiro. Um **repositório** é uma fonte organizada que publica pacotes e índices pesquisáveis. O gerenciador consulta o repositório, calcula dependências e aplica as operações ao sistema.\n\nA sequência mental é: atualizar ou consultar os índices, escolher o pacote, revisar as alterações propostas e instalar; depois, confirmar que a aplicação funciona. Um índice atualizado informa o que há disponível, mas não altera sozinho os programas instalados. Por outro lado, instalar um arquivo local pode não contar com o catálogo e a resolução completa de dependências.\n\n### Debian e Ubuntu: APT e DPKG\n\n**APT** é a família de ferramentas de alto nível usada em Debian e Ubuntu para consultar repositórios e resolver dependências. `apt update` baixa metadados e atualiza os índices locais. Não é o comando que atualiza todos os programas. `apt install nome` instala o pacote solicitado e as dependências necessárias. `apt remove nome` remove o programa, normalmente preservando configurações administradas pelo pacote; `apt purge nome` também solicita a remoção dessas configurações. `apt upgrade` instala versões mais novas disponíveis sem remover pacotes instalados para resolver mudanças; `apt full-upgrade` pode instalar ou remover pacotes para concluir a atualização. Em automação não interativa, `apt-get` costuma ser a interface mais apropriada que `apt`.\n\n**DPKG** é a ferramenta de baixo nível que trabalha diretamente com pacotes `.deb`. `dpkg -l` consulta pacotes registrados no banco local; `dpkg -L nome` lista arquivos associados ao pacote instalado; `dpkg -S caminho` procura qual pacote registrou aquele caminho. `dpkg -i arquivo.deb` instala um arquivo local, mas não faz o mesmo trabalho de buscar e resolver dependências nos repositórios que o APT executa. Por isso, após uma instalação local com dependências ausentes, usa-se o gerenciador de alto nível para corrigir a situação.\n\n### Red Hat e Windows\n\nEm distribuições da família Red Hat, **RPM** é o formato e a base de consultas de pacotes, enquanto **DNF** é o gerenciador de alto nível que acessa repositórios e resolve dependências. `dnf install`, `dnf remove` e `dnf upgrade` instalam, removem e atualizam. `rpm -q nome` consulta o banco local; o comando `rpm` isolado não substitui a resolução de dependências do DNF. Os nomes e detalhes variam conforme distribuição e versão, então identifique primeiro o sistema.\n\nNo Windows, aplicações podem vir por Windows Update, Microsoft Store, instaladores dos fabricantes ou gerenciadores de pacotes. **MSI** e **MSIX** são formatos de instalação; não são, por si sós, repositórios. O **Windows Package Manager**, executado pelo comando `winget` em ambientes compatíveis, pode pesquisar, mostrar detalhes e instalar aplicações. Por exemplo, `winget search editor` procura entradas de catálogo; conferir o identificador e a origem antes de `winget install identificador` reduz o risco de instalar o produto errado. Windows Update também distribui correções e atualizações do próprio sistema, finalidade distinta de instalar qualquer aplicativo de terceiros.\n\n| Necessidade | Debian/Ubuntu | Red Hat | Windows |\n| --- | --- | --- | --- |\n| Gerenciador de alto nível | APT | DNF | `winget` quando disponível, Store ou Update conforme o item |\n| Ferramenta de baixo nível | DPKG | RPM | varia conforme o formato |\n| Exemplo de consulta local | `dpkg -l` | `rpm -q pacote` | inventário do sistema ou do gerenciador usado |\n| Instalar pacote de repositório | `apt install pacote` | `dnf install pacote` | `winget install id` para catálogo compatível |\n\n### Exemplo passo a passo de atualização\n\nBruno administra um servidor Ubuntu que executa uma aplicação interna. Ele começa com `apt update` para renovar os índices, sem confundir essa etapa com a atualização dos programas. Em seguida, verifica as versões e mudanças propostas para a aplicação e dependências. Confirma espaço em disco, janela de manutenção e possibilidade de retorno. Aplica a atualização com o comando adequado, registra os pacotes alterados e testa o acesso à aplicação. Se o pacote não aparece, Bruno verifica se o índice foi atualizado, se o repositório correto está habilitado e se a distribuição é compatível, em vez de adicionar imediatamente um repositório desconhecido.\n\n### Atualização controlada e procedência\n\nPacotes executam código com os privilégios do sistema ou do usuário que os inicia. A origem importa: prefira repositórios confiáveis e verifique assinaturas e avisos do gerenciador. Uma fonte externa pode publicar versões úteis, mas também pode introduzir incompatibilidade ou código malicioso. Em servidor, avalie dependências, espaço, impacto no serviço, janela de mudança e método de recuperação; depois valide o funcionamento. Atualizar cegamente e ignorar correções de segurança são riscos opostos que se evitam com processo controlado.\n\n### Remoção, atualização e consulta: não confundir\n\n| Operação | O que muda | Exemplo APT |\n| --- | --- | --- |\n| Atualizar índice | catálogo local de versões disponíveis | `apt update` |\n| Atualizar programa | arquivos dos pacotes instalados | `apt upgrade` |\n| Remover programa | pacote, normalmente mantendo configurações | `apt remove nome` |\n| Remover também configurações | pacote e configurações administradas por ele | `apt purge nome` |\n| Consultar pacote instalado | banco local de pacotes | `dpkg -l` |\n\n**Pegadinha:** a banca troca `apt update` por “atualizar os programas”. Esse comando atualiza índices. Também confunde APT com DPKG e DNF com RPM: as ferramentas de alto nível acessam repositórios e resolvem dependências; as ferramentas de baixo nível consultam ou manipulam pacotes locais.\n\n**Resumo para a prova**\n\n- Repositório é a fonte; índice é o catálogo local; pacote contém arquivos e metadados; dependência é requisito de outro pacote.\n- `apt update` atualiza índices, enquanto `apt upgrade` atualiza pacotes instalados.\n- `remove` normalmente mantém configurações administradas pelo pacote; `purge` também as remove.\n- DPKG e RPM tratam pacotes locais; APT e DNF acrescentam repositórios e resolução de dependências.\n- MSI/MSIX são formatos; `winget` é um gerenciador de pacotes do Windows em versões compatíveis.\n- Confira origem, compatibilidade, impacto e recuperação antes de atualizar servidores."
+    },
+    {
+      "title": "3. Automação com Bash e PowerShell",
+      "markdown": "Automatizar tarefas evita repetir operações manualmente, mas um erro em um script também pode se repetir muitas vezes. Shells interpretam comandos; scripts registram sequências; o administrador precisa validar dados, observar falhas e só então prosseguir.\n\n### Shell, script, pipeline e retorno\n\nUma **shell** é um interpretador que recebe comandos e permite combiná-los. Um **script** é um arquivo de comandos executado por uma shell. Um **pipeline** encaminha a saída de um comando para outro. Em Bash, o fluxo costuma ser texto e bytes; em PowerShell, costuma ser composto por objetos com propriedades. Um **código de saída** é o valor devolvido quando um processo termina; em convenções Unix, zero normalmente indica sucesso e valor diferente de zero indica alguma falha.\n\n### Bash: condições, variáveis e código de saída\n\n**Bash** é uma shell usada em muitos sistemas Linux e Unix. Um script pode começar com \\`#!/usr/bin/env bash\\`, receber argumentos em \\`$1\\`, \\`$2\\` e seguintes, armazenar valores em variáveis e usar \\`if\\`, \\`case\\`, \\`for\\` e \\`while\\`. O parâmetro especial \\`$?\\` contém o código numérico de saída do comando ou pipeline mais recente. Consulte-o imediatamente: executar outro comando antes pode substituir o valor.\n\nPor exemplo, \\`if systemctl is-active --quiet nginx; then echo ativo; else echo inativo; fi\\` escolhe um ramo conforme o serviço está ativo. \\`$(comando)\\` captura a saída textual de um comando. Aspas em \\`\"$arquivo\"\\` mantêm um caminho com espaços como um só argumento, evitando que a shell o divida em várias palavras ou expanda curingas.\n\n\\`chmod u+x rotina.sh\\` concede execução ao proprietário e \\`./rotina.sh\\` solicita a execução no diretório atual. \\`bash rotina.sh\\` chama o interpretador explicitamente. \\`set -e\\` tenta encerrar o script diante de falhas em determinadas situações, mas tem exceções e não substitui verificações explícitas. \\`cron\\` agenda tarefas periódicas em muitos Unix; tarefas agendadas podem ter ambiente mais limitado que o terminal interativo, então caminhos e variáveis necessários devem ser definidos.\n\n### PowerShell: cmdlets e objetos\n\n**PowerShell** é uma shell e linguagem de automação disponível no Windows e em outras plataformas. Um **cmdlet** é um comando PowerShell, em geral no padrão \\`Verbo-Substantivo\\`, como \\`Get-Service\\`, \\`Restart-Service\\` e \\`Get-Process\\`. \\`Get-Help\\` consulta ajuda e \\`Get-Command\\` localiza comandos. O pipeline costuma transmitir objetos com propriedades, que podem ser filtrados sem convertê-los primeiro em texto. Por exemplo, \\`Get-Service | Where-Object { $_.Status -eq 'Running' } | Select-Object Name, Status\\` seleciona serviços em execução e propriedades específicas. \\`Format-Table\\` prepara apresentação e deve ficar no fim, não antes de outras operações que precisam dos objetos.\n\nEm PowerShell, \\`$?\\` é um indicador lógico (\\`$true\\` ou \\`$false\\`) do sucesso do comando anterior. Para um executável nativo, \\`$LASTEXITCODE\\` contém o código numérico devolvido por esse programa. Não são intercambiáveis. \\`Get-Content\\` lê arquivos e \\`Export-Csv\\` serializa objetos em CSV. Cmdlets de alteração podem exigir permissões administrativas; quando aplicável, \\`-WhatIf\\` permite visualizar a ação planejada sem executá-la.\n\nA política de execução controla condições para carregar scripts, mas não é uma fronteira de segurança completa. \\`Get-ExecutionPolicy -List\\` consulta os escopos; políticas de grupo podem prevalecer. Para administração remota, **WinRM** (Windows Remote Management) oferece gerenciamento remoto; **WS-Management** é o protocolo empregado nesse cenário. Sessões remotas dependem de rede, autenticação, configuração e permissões adequadas; \\`Invoke-Command\\` executa comandos em máquinas autorizadas.\n\n| Característica | Bash | PowerShell |\n| --- | --- | --- |\n| Saída comum no pipeline | texto e bytes | objetos com propriedades |\n| \\`$?\\` | código numérico do último comando/pipeline | indicador lógico de sucesso |\n| Código de executável externo | \\`$?\\` | \\`$LASTEXITCODE\\` |\n| Consulta de serviço | \\`systemctl status\\` | \\`Get-Service\\` |\n| Agendamento comum | \\`cron\\` ou timer systemd | Agendador de Tarefas |\n\n### Exemplo passo a passo de checagem\n\nCarla precisa gerar um relatório diário somente quando o serviço de cópia estiver ativo. No Bash, ela usa \\`systemctl is-active --quiet copia.service\\` como condição de um \\`if\\`. Se o comando retornar sucesso, o script gera o relatório; caso contrário, registra que o serviço está inativo e encerra. Ela confere o retorno antes de executar outros comandos, pois qualquer comando novo pode alterar \\`$?\\`. No PowerShell, uma rotina equivalente consulta \\`Get-Service -Name Spooler\\` e avalia a propriedade \\`Status\\`. Se chamar um executável externo, Carla verifica \\`$LASTEXITCODE\\`, em vez de interpretar \\`$?\\` como número.\n\n### Execução repetível e segura\n\nUma operação **idempotente** pode ser repetida sem criar duplicações indesejadas: antes de criar um diretório, o script verifica se ele já existe. Valide parâmetros, trate erros, use caminhos absolutos em tarefas agendadas e separe consulta de alteração. Registre resultados sem incluir senhas. Conceda ao script apenas os privilégios necessários. Blocos \\`try\\`/\\`catch\\` no PowerShell e verificações condicionais no Bash ajudam a reagir a falhas, mas cada operação crítica precisa de tratamento adequado.\n\n**Pegadinha:** a banca pode dizer que Bash e PowerShell usam \\`$?\\` com o mesmo significado. No Bash, ele é um código numérico; no PowerShell, é um indicador lógico. Para código de saída de programa nativo no PowerShell, use \\`$LASTEXITCODE\\`. Outra confusão comum é tratar a saída do pipeline PowerShell como simples texto ou usar \\`Format-Table\\` antes de terminar o processamento.\n\n**Resumo para a prova**\n\n- Shell interpreta comandos; script registra operações; pipeline encaminha dados.\n- Bash costuma manipular texto; PowerShell costuma encaminhar objetos.\n- Bash \\`$?\\` é numérico; PowerShell \\`$?\\` é lógico e \\`$LASTEXITCODE\\` guarda o código de executável nativo.\n- \\`Format-Table\\` serve à apresentação final.\n- Valide entrada, trate falhas, limite privilégios e prepare rotinas para repetição segura."
+    },
+    {
+      "title": "4. Virtualização: host, convidados e plataformas",
+      "markdown": "A virtualização permite que um servidor execute vários computadores lógicos ao mesmo tempo. Ela resolve a necessidade de consolidar cargas e separar sistemas, mas exige entender onde fica o hipervisor, como o convidado conversa com ele e como os recursos são protegidos.\n\n### Máquina virtual, host e hipervisor\n\nUma **máquina virtual (VM)** é um computador definido por software, com processador, memória, discos e interfaces de rede virtuais. O **host** é o equipamento físico que fornece recursos. O **convidado** (guest) é o sistema operacional instalado dentro da VM. O **hipervisor**, também chamado monitor de máquinas virtuais, cria e controla VMs, distribui processador e memória e mantém o isolamento entre convidados.\n\nUma **vCPU** é um processador virtual apresentado ao convidado, não um núcleo físico adicional. VMs compartilham a capacidade do processador real. Memória fixa reserva uma quantidade definida; memória dinâmica pode variar conforme política da plataforma. Discos virtuais podem ser arquivos ou volumes e consomem o armazenamento que os hospeda. Métricas de processador, pressão de memória, espaço e latência ajudam a encontrar contenção antes que ela derrube aplicações.\n\n### Hipervisores tipo 1 e tipo 2\n\nA classificação depende de onde está a camada que controla as VMs. Um hipervisor **tipo 1**, ou bare-metal (direto sobre o equipamento), inicia sobre o hardware físico e não depende de um sistema operacional de uso geral abaixo dele para executar as VMs. Pode haver um domínio de gerenciamento que contém Linux e ferramentas de controle; isso não transforma, por si só, a arquitetura em tipo 2. Exemplos de tipo 1 são Xen, VMware ESXi e Hyper-V.\n\nUm hipervisor **tipo 2** é instalado como aplicação sobre um sistema operacional hospedeiro já ativo. O sistema hospedeiro controla o hardware e oferece drivers e serviços ao hipervisor. VirtualBox e VMware Workstation são exemplos comuns. Tipo 2 é frequente em laboratórios e computadores pessoais; tipo 1 é comum em servidores dedicados. A categoria não substitui a avaliação de configuração, segurança e desempenho da instalação concreta.\n\n| Aspecto | Tipo 1 | Tipo 2 |\n| --- | --- | --- |\n| Camada abaixo do hipervisor | hardware físico | sistema operacional hospedeiro |\n| Acesso a dispositivos | direto ou por domínio de gerenciamento | mediado pelo sistema hospedeiro |\n| Uso comum | servidor dedicado | laboratório ou desktop |\n| Exemplos | Xen, ESXi, Hyper-V | VirtualBox, VMware Workstation |\n\n### Modos Xen: PV, HVM, PVHVM e PVH\n\n**Xen** é um hipervisor tipo 1 do projeto Xen. Seu domínio privilegiado de controle, chamado **dom0** (domínio zero), executa ferramentas de gerenciamento e pode fornecer serviços e drivers aos demais convidados; um convidado comum pode ser chamado domU. Os modos abaixo descrevem a interface e a inicialização do convidado, não a classificação tipo 1/tipo 2. Suporte depende da versão do Xen, da plataforma de gerenciamento, do hardware e do sistema convidado.\n\n**PV** significa paravirtualização. O convidado sabe que roda sobre Xen e usa interfaces próprias, como chamadas ao hipervisor e drivers paravirtualizados, em vez de depender de um conjunto completo de dispositivos convencionais emulados. O sistema operacional precisa ter suporte Xen adequado. Essa abordagem evita parte da emulação, mas não pode ser usada por todo sistema sem suporte.\n\n**HVM** significa máquina virtual com virtualização de hardware. O convidado pode iniciar como se estivesse em um computador convencional e não precisa conhecer as interfaces PV para funcionar. Extensões do processador fazem a virtualização de hardware; um modelo de dispositivos emulados oferece componentes tradicionais, como firmware, disco e rede. Emulação pode ter custo, mas oferece compatibilidade com sistemas não modificados compatíveis.\n\n**PVHVM** combina a inicialização HVM com drivers paravirtualizados (PV) para operações de entrada e saída, especialmente disco e rede. O convidado conserva o modelo HVM, mas usa interfaces mais eficientes onde há drivers PV. Por isso, PVHVM não é apenas sinônimo de PVH.\n\n**PVH** é um modo híbrido próprio. Combina características paravirtualizadas com suporte das extensões de virtualização de hardware e dispensa o conjunto de dispositivos legados emulados usado pelo HVM. O convidado precisa de kernel compatível com PVH e o equipamento precisa oferecer as extensões pertinentes. Uma boa regra conceitual é: sistema sem suporte PV pode precisar de HVM; HVM com drivers PV é PVHVM; kernel preparado para o modo híbrido enxuto pode usar PVH.\n\n| Modo | Como funciona | Ponto que distingue |\n| --- | --- | --- |\n| PV | Convidado conhece Xen e usa interfaces paravirtualizadas | requer sistema convidado compatível |\n| HVM | computador virtualizado com dispositivos convencionais emulados | aceita convidado não modificado compatível |\n| PVHVM | inicializa como HVM e usa drivers PV para entrada e saída | HVM com drivers paravirtualizados |\n| PVH | modo híbrido enxuto com suporte de hardware e sem dispositivos legados emulados | kernel convidado deve suportar PVH |\n\n### XenServer e Proxmox VE\n\n**XenServer** é uma plataforma de virtualização de servidores construída sobre o hipervisor Xen. Xen inicia diretamente sobre o servidor físico. Depois, o **dom0**, um domínio Linux privilegiado, executa o conjunto de gerenciamento denominado **XAPI** (interface de programação e serviços de administração Xen). **XenCenter** é uma interface gráfica para administrar hosts, VMs, pools e armazenamento. Um pool agrupa hosts para gerenciamento coordenado; um repositório de armazenamento mantém discos virtuais. Assim, Xen é o hipervisor subjacente, e XenServer é a plataforma que o empacota com gerenciamento e recursos operacionais.\n\n**Proxmox VE** (Proxmox Virtual Environment) administra VMs e contêineres. Para VMs, usa **KVM** (máquina virtual baseada no kernel Linux), que virtualiza hardware e permite ao convidado executar seu próprio kernel. Para contêineres, usa **LXC** (contêineres Linux), que isola processos, mas compartilha o kernel Linux do host. A interface web, a API e a linha de comando administram nós, rede, armazenamento, usuários e convidados. Um cluster agrupa nós; pools podem organizar recursos e delegar permissões.\n\n| Plataforma | Base tecnológica | Administração |\n| --- | --- | --- |\n| XenServer | Xen tipo 1 e dom0 para controle | XAPI e XenCenter |\n| Proxmox VE | KVM para VMs e LXC para contêineres | interface web, API e linha de comando |\n| Hyper-V | hipervisor Microsoft | Hyper-V Manager e cmdlets PowerShell |\n| VMware vSphere/ESXi | ESXi e ferramentas de gestão vSphere | host e, em ambientes centralizados, vCenter |\n\n### Redes, discos e recursos virtuais\n\nUm switch virtual conecta adaptadores de rede de VMs a outras VMs, ao host ou à rede física. No Hyper-V, switch externo liga-se a um adaptador físico, o interno conecta o host às VMs e o privado conecta VMs entre si. Uma **VLAN** (rede local virtual) separa logicamente tráfego de rede. Bridge (ponte) une interfaces de rede, e uplink conecta a rede virtual à rede externa. Essas opções controlam conectividade lógica; firewall e regras de acesso continuam necessários.\n\nHyper-V usa com frequência discos VHDX; ambientes VMware usam VMDK. Um disco diferencial registra alterações em relação a um disco pai e depende da cadeia para compor o estado completo. Remover ou mover o pai sem procedimento pode inutilizar a VM. Um **template** é uma imagem-base preparada para criar instâncias consistentes; atualize-a, retire segredos e personalize identificadores quando necessário.\n\n### Snapshot, checkpoint e backup\n\nUm snapshot ou checkpoint registra um ponto de estado e, em geral, as alterações posteriores em relação a discos-base. Ele pode ajudar a voltar atrás após teste, mas a cadeia pode continuar dependente do armazenamento original e crescer com o tempo. Não é automaticamente uma cópia independente. Um backup deve poder ser restaurado mesmo se host ou armazenamento original falhar; mantenha-o em domínio de falha adequado e teste a restauração. Antes de reverter, considere que dados gravados depois do ponto escolhido podem deixar de aparecer no estado restaurado.\n\n### Exemplo passo a passo: escolher modo e plataforma\n\nRafael vai testar uma atualização Linux e separar um ambiente de laboratório da infraestrutura de produção. Primeiro identifica a camada: no computador pessoal, VirtualBox roda sobre o sistema hospedeiro e é exemplo de tipo 2; num servidor dedicado com XenServer, Xen inicia sobre o hardware e é tipo 1, ainda que dom0 Linux forneça gerenciamento.\n\nEm seguida, Rafael confere se o kernel convidado suporta PVH. Se a plataforma oferecer esse modo, PVH pode evitar dispositivos legados emulados. Se o convidado não tiver suporte PV, HVM permite usar uma máquina virtual convencional; drivers PV de disco e rede nesse convidado HVM caracterizam PVHVM. PV puro é apropriado quando o convidado tem suporte às interfaces Xen. Por fim, ele dimensiona processador, memória e armazenamento, restringe o acesso de gerenciamento e configura backup fora do armazenamento principal. Antes de confiar na proteção, testa a restauração de uma VM.\n\n**Pegadinha:** tipo 1/tipo 2 indica a posição do hipervisor em relação ao sistema operacional hospedeiro; PV/HVM/PVHVM/PVH indica como o convidado Xen inicializa e usa interfaces virtuais. A presença do dom0 Linux não transforma Xen em tipo 2. PVHVM é HVM com drivers PV; PVH é outro modo híbrido. XenServer é a plataforma baseada em Xen, não um nome alternativo para o hipervisor isolado.\n\n**Resumo para a prova**\n\n- Host fornece hardware; hipervisor controla VMs; cada convidado tem sistema operacional próprio.\n- Tipo 1 inicia diretamente sobre hardware; tipo 2 depende de sistema operacional hospedeiro.\n- Xen PV usa interfaces paravirtualizadas; HVM virtualiza hardware e emula dispositivos; PVHVM acrescenta drivers PV ao HVM; PVH é um modo híbrido próprio sem o conjunto legado emulado.\n- XenServer combina Xen tipo 1, dom0, XAPI e ferramentas como XenCenter.\n- Proxmox VE usa KVM para VMs e LXC para contêineres; LXC compartilha o kernel do host.\n- Switches virtuais controlam conectividade, não substituem firewall.\n- Snapshot/checkpoint não substitui backup independente e restauração testada."
+    }
+  ],
+  "summary": "A administração operacional de Windows e Linux envolve observar estados de serviços e processos, conferir identidade de execução, permissões, dependências e logs. No Windows, `Get-Service`, `Start-Service` e as ACLs ajudam a gerenciar serviços e acesso; em sistemas Linux com systemd, `systemctl status/start/stop/enable` e `journalctl -u` distinguem operação atual e inicialização futura. `chmod`, `chown`, grupos e `sudo` controlam acesso no Linux. Em Debian/Ubuntu, `apt update` atualiza índices, `apt install` instala e `apt remove`/`purge` diferem quanto às configurações; DPKG atua em pacotes locais. DNF/RPM é comum em famílias Red Hat. Windows usa Windows Update, Store, instaladores e, em ambientes compatíveis, `winget`. Scripts Bash e PowerShell automatizam consultas e ações, mas precisam validar entradas, tratar erros, citar caminhos e controlar privilégios. PowerShell transmite objetos pelo pipeline e sua política de execução não é uma barreira de segurança completa. Hyper-V, VMware ESXi/vSphere e Proxmox VE gerenciam VMs e recursos virtuais. VMs têm host, convidado, CPU, memória, discos e adaptadores de rede; KVM é máquina virtual e LXC é contêiner que compartilha o kernel do host. Snapshots e checkpoints registram estado/deltas para retorno pontual, mas não equivalem a backup independente.",
+  "flashcards": [
+    {
+      "front": "O que `systemctl enable` faz em relação a um serviço?",
+      "back": "Configura vínculos para que a unidade seja iniciada em boots futuros; não inicia necessariamente a unidade agora."
+    },
+    {
+      "front": "Como iniciar e habilitar uma unidade systemd em uma operação?",
+      "back": "`systemctl enable --now nome.service`."
+    },
+    {
+      "front": "Qual ferramenta consulta registros de uma unidade systemd?",
+      "back": "`journalctl -u nome.service`."
+    },
+    {
+      "front": "O que significa `chmod 640 arquivo`?",
+      "back": "Proprietário lê e grava; grupo só lê; demais usuários não têm permissões."
+    },
+    {
+      "front": "Para que serve `chown usuario:grupo arquivo`?",
+      "back": "Altera proprietário e grupo associados ao arquivo."
+    },
+    {
+      "front": "Qual a diferença entre autenticação e autorização?",
+      "back": "Autenticação identifica a conta; autorização decide quais ações e recursos essa identidade pode acessar."
+    },
+    {
+      "front": "Qual conta Linux deve ser usada para obter privilégio administrativo pontual?",
+      "back": "Uma conta autorizada pode executar o comando necessário com `sudo`, em vez de operar continuamente como root."
+    },
+    {
+      "front": "O que `apt update` atualiza?",
+      "back": "Os índices locais de pacotes a partir dos repositórios configurados; não instala sozinho todas as atualizações."
+    },
+    {
+      "front": "Como `apt remove` difere de `apt purge`?",
+      "back": "`remove` remove o pacote e normalmente mantém configurações; `purge` remove também configurações administradas pelo pacote."
+    },
+    {
+      "front": "Qual o papel de DPKG em Debian/Ubuntu?",
+      "back": "Gerenciar pacotes `.deb` localmente; ele não resolve sozinho dependências baixadas como o APT."
+    },
+    {
+      "front": "Quais ferramentas são comuns para instalar pacotes em sistemas Red Hat?",
+      "back": "DNF resolve instalações a partir de repositórios; RPM consulta e opera pacotes locais e o banco instalado."
+    },
+    {
+      "front": "O que faz `winget search termo`?",
+      "back": "Procura pacotes no catálogo/origem configurada do Windows Package Manager."
+    },
+    {
+      "front": "O que o pipeline PowerShell encaminha entre cmdlets?",
+      "back": "Normalmente objetos estruturados com propriedades, em vez de somente texto."
+    },
+    {
+      "front": "Qual o uso adequado de `Format-Table` em PowerShell?",
+      "back": "Formatar objetos para apresentação, geralmente ao final do pipeline, não para processamento posterior."
+    },
+    {
+      "front": "Por que usar aspas em `\"$variavel\"` no Bash?",
+      "back": "Para preservar espaços e impedir expansões de palavras e curingas indesejadas."
+    },
+    {
+      "front": "Política de execução PowerShell é um limite de segurança completo?",
+      "back": "Não. É um controle de segurança em camadas e pode ser sobreposto por políticas superiores."
+    },
+    {
+      "front": "Que tecnologia sustenta PowerShell Remoting no Windows?",
+      "back": "WinRM, implementação Microsoft de WS-Management, com permissões e configurações de sessão próprias."
+    },
+    {
+      "front": "Qual diferença central entre host e convidado?",
+      "back": "O host físico executa o hipervisor e fornece recursos; o convidado é o sistema operacional dentro da VM."
+    },
+    {
+      "front": "Qual é a diferença entre KVM e LXC no Proxmox VE?",
+      "back": "KVM executa uma VM com kernel próprio; LXC executa contêineres que compartilham o kernel Linux do host."
+    },
+    {
+      "front": "Por que snapshot não é sinônimo de backup?",
+      "back": "Pode depender dos discos-base e de arquivos delta no mesmo armazenamento; não garante cópia independente nem restauração após falha do datastore."
+    },
+    {
+      "front": "Que cmdlet cria checkpoint no Hyper-V?",
+      "back": "`Checkpoint-VM`; o tipo de checkpoint e seus efeitos devem ser avaliados para a carga."
+    },
+    {
+      "front": "Que arquivo de disco virtual é comum em Hyper-V?",
+      "back": "VHDX."
+    },
+    {
+      "front": "Que arquivo de disco virtual é comum em VMware?",
+      "back": "VMDK."
+    },
+    {
+      "front": "O que é um switch virtual externo do Hyper-V?",
+      "back": "Um switch ligado a um adaptador de rede físico para conectar VMs à rede externa."
+    },
+    {
+      "front": "Que uso tem um pool no Proxmox VE?",
+      "back": "Agrupar convidados e recursos de armazenamento para organização e delegação de permissões."
+    }
+  ],
+  "tips": [
+    "Para um serviço que não inicia, leia estado e logs antes de reiniciar: identifique conta, dependências e caminho dos arquivos.",
+    "Separe `systemctl start` (agora) de `systemctl enable` (boots futuros); a opção `--now` combina as duas ações.",
+    "Leia cada dígito de chmod na ordem proprietário, grupo, demais; 6 é leitura e gravação, 4 é leitura, 0 é nenhum acesso.",
+    "Em Debian/Ubuntu, primeiro atualize o índice com `apt update`; depois use `apt install` ou o comando de atualização adequado.",
+    "No PowerShell, filtre e selecione objetos antes da formatação; `Format-*` destina-se à saída visual.",
+    "Ao comparar plataformas, guarde os pares: Hyper-V/VHDX, VMware/VMDK, Proxmox/KVM e LXC.",
+    "Trate snapshot como ponto de retorno temporário e mantenha backup separado com teste de restauração.",
+    "Antes de automatizar uma mudança, valide a entrada, confira o código de saída e limite os privilégios do script."
+  ],
+  "traps": [
+    "Confundir `systemctl enable` com iniciar agora: enable configura inicialização futura, enquanto start ativa no momento.",
+    "Afirmar que `apt update` atualiza os programas instalados: ele baixa metadados e índices dos repositórios.",
+    "Dizer que `dpkg -i` resolve automaticamente todas as dependências: a ferramenta de baixo nível não faz o papel do APT.",
+    "Supor que as permissões de compartilhamento anulam as permissões NTFS: o acesso remoto depende das verificações aplicáveis a ambas.",
+    "Tratar a política de execução do PowerShell como uma fronteira de segurança impossível de contornar: a própria documentação a descreve como defesa em camadas.",
+    "Tratar todo pipeline PowerShell como texto: cmdlets normalmente passam objetos com propriedades.",
+    "Confundir máquina virtual KVM e contêiner LXC: o contêiner compartilha o kernel do host Linux.",
+    "Considerar checkpoint ou snapshot um backup autônomo: deltas podem depender do disco-base e do datastore original."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como você diferencia serviço, processo e unidade systemd?",
+      "answer": "Processo é uma instância em execução com PID; serviço é um programa em segundo plano; unidade systemd é um objeto de configuração/gestão que pode representar um serviço e suas relações."
+    },
+    {
+      "question": "Descreva a sequência para investigar um serviço Linux que falha ao iniciar.",
+      "answer": "Consultar `systemctl status`, examinar `journalctl -u`, verificar unidade, dependências, identidade e permissões, corrigir a causa e confirmar o estado e a função após nova tentativa."
+    },
+    {
+      "question": "Explique `chmod 750 pasta`.",
+      "answer": "Proprietário tem leitura, gravação e travessia; grupo tem leitura e travessia; demais não têm acesso. Em diretório, `x` permite atravessá-lo."
+    },
+    {
+      "question": "Qual o roteiro básico de atualização de pacote em Ubuntu?",
+      "answer": "Revisar os repositórios configurados, atualizar os índices com `apt update`, examinar as mudanças propostas e usar o comando de instalação/atualização apropriado; validar o serviço depois."
+    },
+    {
+      "question": "Diferencie APT de DPKG.",
+      "answer": "APT consulta repositórios, baixa pacotes e resolve dependências; DPKG administra pacotes `.deb` e o banco local, sem resolver por si só dependências remotas."
+    },
+    {
+      "question": "Como saber se um pipeline PowerShell seleciona somente serviços em execução?",
+      "answer": "Use `Get-Service | Where-Object { $_.Status -eq 'Running' }`; o filtro avalia a propriedade Status de cada objeto."
+    },
+    {
+      "question": "Por que um script Bash deve citar variáveis e conferir retornos?",
+      "answer": "Aspas preservam espaços e evitam expansão acidental; testar o código de saída permite tratar erros em vez de presumir sucesso."
+    },
+    {
+      "question": "Compare snapshot e backup de VM.",
+      "answer": "Snapshot registra ponto temporal e alterações subsequentes, normalmente dependendo dos discos originais; backup cria cópia recuperável independente e deve ser armazenado e testado separadamente."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Estado atual e inicialização futura confundidos",
+      "summary": "`start`/`stop` alteram o serviço agora; `enable`/`disable` configuram inclusão em inicialização futura. Logs de systemd e Visualizador de Eventos ajudam a diagnosticar falhas."
+    },
+    {
+      "key": "e2",
+      "title": "Identidade e permissões mal interpretadas",
+      "summary": "A conta que executa o serviço determina seus acessos. Em Linux, modos separam proprietário, grupo e demais; em Windows, descritores e ACLs controlam acesso a objetos."
+    },
+    {
+      "key": "e3",
+      "title": "Camadas do gerenciamento de pacotes trocadas",
+      "summary": "APT/DNF consultam fontes e resolvem dependências; DPKG/RPM trabalham no nível do pacote e do banco local. Atualizar o índice não é atualizar todo o software."
+    },
+    {
+      "key": "e4",
+      "title": "Scripts presumem sucesso ou operam com privilégio excessivo",
+      "summary": "Bash e PowerShell precisam validar argumentos, tratar retornos, proteger caminhos e restringir privilégios. Pipeline PowerShell transmite objetos; política de execução não é fronteira absoluta."
+    },
+    {
+      "key": "e5",
+      "title": "Snapshot tratado como backup ou virtualização confundida",
+      "summary": "Host fornece recursos e guest executa o SO. KVM cria VMs; LXC compartilha kernel. Checkpoints e snapshots dependem da cadeia e do armazenamento e não substituem backup restaurável."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um Linux com systemd, uma unidade precisa iniciar agora e também nos próximos boots. Qual comando atende às duas necessidades?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`systemctl enable --now app.service`, habilitando-a para o boot e iniciando-a nesta sessão.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`systemctl start app.service`, que registra a unidade para execução automática em todos os boots.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`systemctl status app.service`, que inicia a unidade e grava a habilitação para a próxima inicialização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`systemctl disable app.service`, que inicia o processo atual sem alterar o comportamento futuro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`journalctl -u app.service`, que ativa a unidade e habilita sua partida automática no sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "A opção `--now` combina a habilitação para inicializações futuras com a ativação imediata. `start` só inicia agora, `enable` sozinho não inicia a sessão atual, status e journal consultam informações, e disable remove a habilitação.",
+      "section": "1. Serviços, processos, identidades e permissões",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que concede `chmod 640 relatorio.txt` em Linux?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Leitura e gravação ao proprietário, leitura ao grupo e nenhum acesso aos demais.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Leitura e execução ao proprietário, gravação ao grupo e leitura aos demais usuários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gravação ao proprietário, leitura e gravação ao grupo e execução aos demais usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Leitura a todos, gravação ao grupo e execução apenas para o proprietário do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Acesso completo ao proprietário, leitura e execução ao grupo e leitura aos demais usuários.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os algarismos correspondem a proprietário, grupo e demais: 6 reúne leitura e gravação; 4 concede leitura; 0 não concede permissões. O modo não contém bit de execução.",
+      "section": "1. Serviços, processos, identidades e permissões",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador quer consultar as últimas mensagens de uma unidade chamada `api.service`. Qual comando é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`chmod -u api.service`, para exibir os registros recentes associados à unidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`apt update api.service`, para consultar o histórico de execução do serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`journalctl -u api.service`, para filtrar o journal pelas mensagens dessa unidade.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`systemctl enable api.service`, para listar mensagens sem alterar a configuração de boot.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`chown api.service`, para consultar o registro operacional escrito pelo processo.",
+          "correct": false
+        }
+      ],
+      "explanation": "`journalctl -u` filtra as mensagens associadas à unidade. `systemctl enable` altera habilitação para boot, APT opera pacotes e chmod/chown alteram permissões ou propriedade.",
+      "section": "1. Serviços, processos, identidades e permissões",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a interpretação correta da relação entre permissões de compartilhamento e NTFS em uma pasta Windows acessada pela rede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A permissão mais ampla sempre prevalece, pois o compartilhamento substitui a ACL NTFS.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A ACL NTFS só é consultada quando o usuário inicia uma sessão local no servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A permissão de compartilhamento decide tudo, e a permissão NTFS vira apenas informativa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As verificações aplicáveis a compartilhamento e NTFS participam da decisão de acesso remoto.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O UAC converte automaticamente qualquer acesso negado em permissão de leitura pela rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "O acesso pela rede passa pelos controles do compartilhamento e do sistema de arquivos; a concessão em uma camada não elimina a restrição efetiva da outra. UAC trata elevação de processos e não substitui ACLs de rede.",
+      "section": "1. Serviços, processos, identidades e permissões",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Ubuntu, qual comando atualiza os índices locais dos repositórios configurados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`apt purge`, que atualiza os índices sem remover arquivos de configuração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`apt update`, que sincroniza os metadados locais dos repositórios configurados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`dpkg -L`, que baixa a lista atual de versões oferecidas por cada repositório.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`apt remove`, que instala atualizações disponíveis sem modificar pacotes instalados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`apt install`, que apenas atualiza índices e nunca altera pacotes instalados.",
+          "correct": false
+        }
+      ],
+      "explanation": "`apt update` baixa os índices e metadados das fontes configuradas. Para instalar atualizações dos pacotes já instalados, é necessário um comando de atualização, como `apt upgrade`.",
+      "section": "2. Pacotes, repositórios e atualização controlada",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma estação Windows compatível com Windows Package Manager, que ação corresponde a `winget search editor`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remove o editor instalado e apaga as configurações de todos os usuários locais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Atualiza todos os aplicativos sem exibir quais pacotes correspondem ao termo informado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Procura correspondências no catálogo ou nas origens configuradas do gerenciador.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Consulta exclusivamente os processos ativos e filtra os que possuem editor no nome.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Edita a política de instalação do Windows para permitir qualquer executável baixado.",
+          "correct": false
+        }
+      ],
+      "explanation": "`winget search` pesquisa pacotes usando o termo e as origens configuradas. Instalação e atualização usam outros subcomandos, e a disponibilidade depende da configuração e compatibilidade do ambiente.",
+      "section": "2. Pacotes, repositórios e atualização controlada",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação diferencia adequadamente o `dpkg -i` do APT?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`dpkg -i` instala um arquivo `.deb` local, mas não resolve dependências baixando-as como o APT.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`dpkg -i` atualiza o índice remoto de pacotes e seleciona automaticamente o repositório preferido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O APT só instala arquivos locais sem consultar repositórios ou calcular dependências necessárias.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O APT consulta o banco local, mas não pode baixar pacotes disponibilizados por repositórios.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "DPKG e APT são interfaces diferentes para instalar qualquer formato de pacote Linux.",
+          "correct": false
+        }
+      ],
+      "explanation": "DPKG opera diretamente sobre pacotes Debian locais e seu banco. APT acrescenta acesso a repositórios e resolução/obtenção de dependências; não são instaladores universais para qualquer formato Linux.",
+      "section": "2. Pacotes, repositórios e atualização controlada",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa periódica não encontra um executável quando roda em cron, embora funcione no terminal interativo. Qual ajuste é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar todo cron como root, pois tarefas agendadas não herdam permissões do usuário configurado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desabilitar o registro da tarefa, já que a sessão interativa é a fonte de configuração do cron.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substituir o comando por uma chamada a `chmod 777` sobre todo o sistema de arquivos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar caminho absoluto e definir explicitamente variáveis necessárias no ambiente da tarefa.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Adicionar uma espera longa antes do comando para copiar o perfil interativo do usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tarefas cron normalmente têm ambiente reduzido e diretório corrente diferente da sessão do usuário. Caminhos absolutos e variáveis explícitas tornam a execução previsível sem elevar privilégios nem afrouxar permissões globais.",
+      "section": "3. Automação com Bash e PowerShell",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um pipeline PowerShell, qual é a função de `Where-Object { $_.Status -eq 'Running' }` após `Get-Service`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Converter todos os serviços em linhas de texto formatadas para uma tabela final.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Alterar o estado de cada serviço parado para execução sem validar permissões.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Selecionar os serviços cujo objeto tem a propriedade Status igual a Running.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Exportar todos os serviços ativos em formato CSV para o diretório atual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Procurar serviços na rede e iniciar aqueles que respondem ao computador local.",
+          "correct": false
+        }
+      ],
+      "explanation": "`Where-Object` filtra objetos recebidos, e `$_` representa o objeto atual. A expressão testa a propriedade Status; não inicia serviços nem formata ou exporta a saída.",
+      "section": "3. Automação com Bash e PowerShell",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script Bash recebe um caminho com espaços no primeiro argumento. Qual expansão preserva esse caminho como um único argumento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`$1`, sem aspas, para que o shell mantenha o valor integral em qualquer contexto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`\"$1\"`, impedindo divisão por espaços e expansão de curingas no valor recebido.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`$?`, porque esse parâmetro armazena o primeiro argumento recebido pelo script.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`$*`, que sempre preserva cada argumento individual sem considerar aspas usadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`$(1)`, que executa o valor do primeiro argumento como uma substituição de comando.",
+          "correct": false
+        }
+      ],
+      "explanation": "`\"$1\"` expande o primeiro argumento mantendo-o como uma palavra, mesmo com espaços, e impede expansão acidental de curingas. `$?` é o código de saída do comando anterior, não argumento posicional.",
+      "section": "3. Automação com Bash e PowerShell",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição de snapshot VMware vSphere é adequada para planejar proteção de dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É uma cópia independente em mídia externa que substitui automaticamente uma política de backup.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É uma imagem compactada e imutável que não consome datastore após a criação inicial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É um registro de alterações e estado que pode depender do disco-base e crescer com novas gravações.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "É um checkpoint que remove todos os discos originais depois de confirmar a consistência do convidado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É um mecanismo do ESXi que transfere a VM para outro host e valida sua restauração.",
+          "correct": false
+        }
+      ],
+      "explanation": "Snapshots VMware usam arquivos delta para registrar alterações em relação ao disco-base e podem crescer conforme as gravações. A documentação da Broadcom adverte para não tratá-los como backup, pois os arquivos delta isolados não bastam se o disco-base for perdido.",
+      "section": "4. Virtualização: host, convidados e plataformas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Proxmox VE, qual comparação entre KVM e LXC é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "KVM é um sistema de pacotes e LXC é o formato de disco virtual de máquinas Windows.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "KVM oferece virtualização de máquinas; LXC oferece contêineres que compartilham kernel Linux.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "KVM e LXC são dois formatos de snapshot com dependência idêntica de VHDX.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "LXC executa um kernel próprio em cada contêiner, enquanto KVM usa o kernel do host.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "LXC administra somente switches e KVM agrupa usuários em pools do Proxmox.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Proxmox VE usa KVM para máquinas virtuais e LXC para contêineres Linux. Um contêiner compartilha o kernel do host, enquanto a VM virtualiza hardware e executa seu próprio sistema operacional.",
+      "section": "4. Virtualização: host, convidados e plataformas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Hyper-V, que cmdlet cria um checkpoint para uma máquina virtual chamada `Lab`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`Checkpoint-VM -Name Lab`, que cria checkpoint para a VM especificada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`Get-VM -Name Lab`, que cria checkpoint e desliga a máquina automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`New-VMSwitch -Name Lab`, que salva o estado de memória da máquina virtual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`Start-VM -Name Lab`, que cria uma cópia do disco antes de ligar a máquina.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`Set-Service -Name Lab`, que registra um estado recuperável do sistema convidado.",
+          "correct": false
+        }
+      ],
+      "explanation": "`Checkpoint-VM` é o cmdlet Hyper-V que cria checkpoint de uma VM. `Get-VM` consulta objetos, `New-VMSwitch` cria switch virtual e `Start-VM` inicia a máquina.",
+      "section": "4. Virtualização: host, convidados e plataformas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Hyper-V, uma VM deve acessar uma rede física externa pelo adaptador do host. Que tipo de switch atende a esse desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Privado, pois permite comunicação direta das VMs com qualquer rede externa do host.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Interno, pois conecta a VM ao adaptador físico sem envolver o sistema operacional do host.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Externo, associado a um adaptador de rede físico e configurado para acesso à rede externa.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Diferencial, que transforma o disco virtual da VM em uma interface de rede compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Isolado, opção que cria automaticamente roteamento entre a VM e a rede corporativa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Switch externo do Hyper-V se associa a um adaptador físico e pode conectar convidados à rede externa. Switch interno conecta o host e as VMs; privado conecta VMs entre si. Switches não substituem regras de firewall.",
+      "section": "4. Virtualização: host, convidados e plataformas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VM VMware mantém snapshots antigos e apresenta datastore quase cheio. Qual risco deve ser considerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os snapshots consomem espaço com arquivos delta e podem afetar a operação se mantidos por muito tempo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Os snapshots transferem automaticamente os discos-base para outro datastore sem custo de espaço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A presença de snapshots reduz permanentemente o uso de armazenamento da VM original.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A cadeia de snapshots substitui o backup e garante recuperação mesmo após perda do datastore.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O datastore só armazena memória virtual, pois snapshots mantêm dados em RAM do host.",
+          "correct": false
+        }
+      ],
+      "explanation": "Snapshots registram mudanças em discos delta e podem crescer conforme a atividade de escrita. A retenção prolongada aumenta consumo e risco operacional; snapshots não são cópias de backup independentes.",
+      "section": "4. Virtualização: host, convidados e plataformas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um host Linux Proxmox VE, um administrador precisa delegar a um grupo acesso organizado a um conjunto de VMs. Qual recurso combina melhor com essa finalidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um pool com membros definidos e permissões concedidas ao caminho apropriado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um snapshot de cada VM, pois snapshots controlam identidade e acesso dos operadores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um arquivo LXC compartilhado, pois contêineres concedem permissões de interface web.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma bridge de rede, pois bridges agrupam usuários e atribuem papéis administrativos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um datastore dedicado, pois capacidade de armazenamento equivale a uma ACL de usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pools agrupam convidados e storages no Proxmox e podem receber permissões, apoiando delegação sobre um conjunto de recursos. Snapshot, bridge e datastore têm finalidades diferentes; usuários e papéis definem a autorização.",
+      "section": "4. Virtualização: host, convidados e plataformas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço Windows deve ler arquivos de uma pasta específica, mas não precisa de direitos administrativos no host. Qual configuração segue o menor privilégio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar o serviço com uma conta dedicada e conceder a ela somente o acesso necessário à pasta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executá-lo como LocalSystem e remover as ACLs de todos os arquivos da unidade do sistema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adicionar todos os usuários autenticados ao grupo Administradores para que o serviço leia os dados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar o UAC e permitir que o serviço use qualquer identidade disponível no computador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conceder controle total a Everyone na raiz do disco para evitar falhas de leitura futuras.",
+          "correct": false
+        }
+      ],
+      "explanation": "A identidade de serviço dedicada limita o impacto e permite conceder acesso somente ao recurso necessário. As demais opções ampliam direitos de forma desproporcional ou removem controles de segurança.",
+      "section": "1. Serviços, processos, identidades e permissões",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pacote foi instalado pelo DNF em um servidor da família Red Hat. Qual comando consulta o banco local RPM para verificar se ele está instalado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`apt update pacote`, que consulta o registro local de pacotes RPM.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`rpm -q pacote`, que consulta o banco local de pacotes instalados.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`systemctl status pacote`, que verifica a presença de qualquer biblioteca RPM.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`dpkg -L pacote`, que lista arquivos em um banco DNF independente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`winget show pacote`, que pesquisa o banco de pacotes RPM do servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "`rpm -q` consulta o banco local RPM. APT e DPKG pertencem ao ecossistema Debian; systemctl gerencia unidades e winget é do Windows Package Manager.",
+      "section": "2. Pacotes, repositórios e atualização controlada",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um script PowerShell executa um programa nativo e precisa decidir com base no código numérico retornado por esse executável. Qual variável deve ser examinada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`$PROFILE`, que contém o código de saída do processo externo mais recente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`$PSHOME`, que armazena o status numérico devolvido por cada executável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`$_`, que guarda o código de término persistente do último processo filho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`$LASTEXITCODE`, que recebe o código de saída de um programa nativo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`$ErrorActionPreference`, que sempre contém o número de saída do programa chamado.",
+          "correct": false
+        }
+      ],
+      "explanation": "`$LASTEXITCODE` contém o código de saída do programa nativo executado mais recentemente. `$?` indica sucesso/falha da operação PowerShell anterior, mas não substitui o código numérico do processo externo.",
+      "section": "3. Automação com Bash e PowerShell",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O operador quer descobrir quais ações um cmdlet de alteração oferece sem executá-las durante uma revisão. Se o cmdlet suportar o recurso, qual parâmetro pode ajudar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`-Force`, que converte toda alteração em simulação sem produzir efeitos no sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`-Verbose`, que sempre bloqueia o comando depois de imprimir cada etapa prevista.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`-WhatIf`, que simula automaticamente qualquer cmdlet, mesmo quando ele não oferece esse parâmetro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`-Confirm:$false`, que ativa uma simulação detalhada e impede a gravação de mudanças.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`-WhatIf`, disponível em cmdlets compatíveis para avaliar efeitos antes da execução real.",
+          "correct": true
+        }
+      ],
+      "explanation": "Cmdlets que implementam a capacidade ShouldProcess podem oferecer `-WhatIf` para simular a ação. `-Verbose` relata detalhes, `-Force` não significa simulação e suprimir confirmação pode permitir a mudança sem prompt.",
+      "section": "3. Automação com Bash e PowerShell",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A política de execução efetiva do PowerShell foi definida por Política de Grupo e difere da configuração em CurrentUser. Como interpretar a situação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CurrentUser prevalece sempre, pois configurações de grupo se aplicam somente a programas gráficos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Process prevalece em qualquer caso, inclusive quando uma política de grupo define a execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "LocalMachine sempre substitui MachinePolicy, pois afeta todas as contas do computador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As cinco configurações se combinam por média, formando uma política mais permissiva.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "MachinePolicy/UserPolicy têm precedência sobre escopos definidos por Set-ExecutionPolicy.",
+          "correct": true
+        }
+      ],
+      "explanation": "Políticas configuradas por Group Policy têm precedência sobre os escopos Process, CurrentUser e LocalMachine. A política efetiva deve ser consultada, pois definir outro escopo local pode não alterar o resultado.",
+      "section": "3. Automação com Bash e PowerShell",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao dimensionar uma VM, a equipe observa alta latência de armazenamento mesmo com CPU ociosa. Qual conclusão operacional é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Investigar latência e contenção do datastore, pois armazenamento pode limitar a carga sem saturar CPU.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar vCPUs imediatamente, pois qualquer latência de disco indica falta de processamento virtual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar o monitoramento de IOPS, já que CPU ociosa prova que o disco não está limitado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mover a memória virtual para a rede externa, pois switch virtual reduz automaticamente a latência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Examinar filas, IOPS e latência do armazenamento antes de mudar a alocação de CPU.",
+          "correct": true
+        }
+      ],
+      "explanation": "O desempenho depende de CPU, memória, rede e armazenamento. Latência de disco pode ser gargalo mesmo com CPU ociosa; verifique métricas de datastore e padrão de I/O antes de redimensionar recursos não relacionados.",
+      "section": "4. Virtualização: host, convidados e plataformas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um contêiner LXC deve executar uma aplicação Linux em Proxmox VE. Qual propriedade deve ser considerada ao avaliar seu isolamento em relação a uma VM KVM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "LXC exige sempre um hypervisor separado dentro de cada contêiner para manter o kernel próprio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "KVM executa contêineres compartilhados, enquanto LXC oferece VMs com kernel próprio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "LXC pode carregar um kernel próprio em cada contêiner, independente do kernel Linux do host.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "LXC fornece um ambiente de contêiner que compartilha o kernel do host; isso difere da VM KVM.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "LXC e KVM têm a mesma camada de hardware virtual; a diferença é apenas o formato do disco.",
+          "correct": false
+        }
+      ],
+      "explanation": "LXC isola processos em contêineres que compartilham o kernel Linux do host. KVM virtualiza máquinas com sistema operacional convidado e kernel próprio. Esse contraste afeta compatibilidade e fronteiras de isolamento.",
+      "section": "4. Virtualização: host, convidados e plataformas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um operador deseja configurar reinicialização automática de um serviço Linux em boots futuros e iniciar a unidade agora. Qual alternativa expressa corretamente essa intenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `systemctl status --now`, que consulta registros e ativa a unidade persistente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `systemctl disable --now`, que preserva a habilitação futura e inicia o serviço.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `systemctl mask --now`, que bloqueia a unidade nos próximos boots e a interrompe no momento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `systemctl restart --boot`, que cria a configuração de inicialização sem reiniciar agora.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `systemctl enable --now`, que habilita para boots futuros e também inicia agora.",
+          "correct": true
+        }
+      ],
+      "explanation": "`enable --now` combina as duas intenções: habilita para futuras inicializações e inicia a unidade. `status` consulta, `disable` remove a habilitação, e `restart` não configura boot futuro.",
+      "section": "1. Serviços, processos, identidades e permissões",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VM Hyper-V usa um disco diferencial associado a um disco-base. Qual comportamento deve ser esperado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O disco diferencial armazena as alterações e depende do disco pai para compor o estado completo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O disco diferencial guarda todos os dados da VM em cópia independente, descartando o pai.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O disco diferencial substitui um switch virtual e registra pacotes de rede enviados pelo convidado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O disco diferencial contém as alterações em relação ao pai; manter a cadeia íntegra é necessário.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O disco diferencial reduz o espaço do pai e impede que o convidado grave novos dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Discos diferenciais armazenam alterações em relação a um disco pai e dependem dele para representar a visão completa. Mover, apagar ou alterar a cadeia sem procedimento adequado pode tornar a VM inconsistente ou inutilizável.",
+      "section": "4. Virtualização: host, convidados e plataformas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Debian/Ubuntu, `apt update` atualiza os índices dos repositórios, e `apt upgrade` instala atualizações disponíveis para pacotes instalados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A atualização de índices informa ao APT quais versões estão disponíveis; `upgrade` realiza a atualização compatível dos pacotes instalados.",
+      "section": "2. Pacotes, repositórios e atualização controlada",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No systemd, habilitar uma unidade com `systemctl enable` sempre inicia imediatamente o serviço na sessão atual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Enable configura vínculos para inicializações futuras. Para iniciar a unidade agora, use `start`, ou combine a operação com `enable --now`.",
+      "section": "1. Serviços, processos, identidades e permissões",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Linux, o bit de execução `x` em um diretório permite atravessá-lo ou pesquisar nomes dentro dele, sujeito às demais permissões.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Para diretórios, `x` representa permissão de travessia/pesquisa; seu efeito é diferente da execução de um arquivo regular.",
+      "section": "1. Serviços, processos, identidades e permissões",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma conta de serviço Windows que executa como LocalSystem tem acesso amplo ao computador e deve ser considerada ao restringir privilégios.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A identidade de execução determina os recursos acessíveis; LocalSystem é uma conta interna de alto privilégio, por isso uma conta com direitos mais limitados é preferível quando viável.",
+      "section": "1. Serviços, processos, identidades e permissões",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando `apt purge nome` remove o pacote e procura remover também arquivos de configuração administrados por ele.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `purge` é a operação do APT que remove o pacote e suas configurações gerenciadas, diferentemente do `remove`, que normalmente as mantém.",
+      "section": "2. Pacotes, repositórios e atualização controlada",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando `dpkg -L pacote` lista os arquivos registrados como fornecidos pelo pacote instalado no banco local.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. DPKG consulta o banco local de pacotes; `-L` lista os caminhos associados ao pacote, sem pesquisar o conteúdo dos repositórios remotos.",
+      "section": "2. Pacotes, repositórios e atualização controlada",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No ecossistema PowerShell, `Get-Service` consulta serviços e `Restart-Service` altera o estado de um serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os nomes seguem o padrão Verbo-Substantivo: Get consulta os objetos de serviço, enquanto Restart solicita a reinicialização e pode depender das permissões do operador.",
+      "section": "3. Automação com Bash e PowerShell",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O pipeline padrão do PowerShell encaminha objetos com propriedades entre cmdlets, embora a saída possa ser convertida em texto deliberadamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cmdlets normalmente passam objetos .NET no pipeline. Comandos de formatação ou gravação podem produzir texto, por isso é recomendável fazer filtragem e seleção antes da formatação final.",
+      "section": "3. Automação com Bash e PowerShell",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A política de execução do PowerShell é uma fronteira de segurança inviolável que impede qualquer forma de executar código não autorizado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A documentação da Microsoft descreve a política como um recurso de segurança em camadas, não como uma fronteira de segurança. Ela reduz execuções inadvertidas, mas não substitui controles de acesso e proteção do sistema.",
+      "section": "3. Automação com Bash e PowerShell",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em scripts Bash, expandir um caminho com espaços como `\"$arquivo\"` ajuda a preservar o valor como um único argumento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Aspas duplas preservam espaços no valor expandido e evitam divisão em múltiplas palavras e expansão de curingas nessa expansão.",
+      "section": "3. Automação com Bash e PowerShell",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina administrativa deve considerar um código de saída e tratar erros em vez de assumir que o comando anterior sempre concluiu a operação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um processo pode falhar por permissões, dependências ou indisponibilidade. Checar o retorno e registrar a falha permite interromper ou corrigir a rotina de forma controlada.",
+      "section": "3. Automação com Bash e PowerShell",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VM consiste apenas no processo do hipervisor e não possui discos, configuração de hardware virtual ou interfaces próprias.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A VM inclui configuração de hardware virtual, discos, adaptadores de rede e o estado de execução do sistema convidado, além dos processos que a implementam no host.",
+      "section": "4. Virtualização: host, convidados e plataformas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um switch privado do Hyper-V conecta as VMs associadas entre si, mas não oferece por si só acesso ao adaptador físico externo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O switch privado comunica VMs no host; o switch externo se vincula a um adaptador físico e o interno também permite comunicação com o sistema operacional de gerenciamento.",
+      "section": "4. Virtualização: host, convidados e plataformas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O LXC, usado pelo Proxmox VE, executa um kernel Linux independente para cada contêiner, da mesma forma que uma máquina KVM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Contêineres LXC isolam ambientes de processos, mas compartilham o kernel Linux do host. Uma VM KVM virtualiza hardware para que o convidado execute seu próprio kernel.",
+      "section": "4. Virtualização: host, convidados e plataformas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um checkpoint Hyper-V e um snapshot VMware podem facilitar retorno a estado anterior, mas não devem ser considerados cópia de backup independente sem outro processo de proteção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esses recursos registram estado e diferenças em relação aos discos virtuais. Em geral dependem da cadeia de discos e do armazenamento que os contém, enquanto backup precisa permitir restauração independente, preferencialmente testada.",
+      "section": "4. Virtualização: host, convidados e plataformas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Gerenciar serviços no Windows com PowerShell",
+      "publisher": "Microsoft Learn",
+      "reference": "Cmdlets Get-Service, Start-Service, Stop-Service e Restart-Service",
+      "url": "https://learn.microsoft.com/powershell/module/microsoft.powershell.management/get-service",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Grant users rights to manage services",
+      "publisher": "Microsoft Learn",
+      "reference": "Permissões para iniciar, parar, pausar e retomar serviços do Windows",
+      "url": "https://learn.microsoft.com/en-us/troubleshoot/windows-server/windows-security/grant-users-rights-manage-services",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Access control overview",
+      "publisher": "Microsoft Learn",
+      "reference": "Autenticação, autorização, ACLs, propriedade e controle de acesso no Windows",
+      "url": "https://learn.microsoft.com/windows/security/identity-protection/access-control/access-control",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "about_Execution_Policies",
+      "publisher": "Microsoft Learn",
+      "reference": "Escopos, precedência e limites da política de execução PowerShell",
+      "url": "https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_execution_policies",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "about_Remote_Requirements",
+      "publisher": "Microsoft Learn",
+      "reference": "Requisitos e configuração de PowerShell Remoting com WinRM",
+      "url": "https://learn.microsoft.com/powershell/module/microsoft.powershell.core/about/about_remote_requirements",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Install and manage packages",
+      "publisher": "Ubuntu Server documentation",
+      "reference": "APT, atualização de índice, install, remove, purge, apt-get e DPKG",
+      "url": "https://ubuntu.com/server/docs/package-management/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Welcome to the terminal",
+      "publisher": "Ubuntu Server documentation",
+      "reference": "Permissões rwx, chmod, chown, umask e notação octal",
+      "url": "https://ubuntu.com/server/docs/tutorial/welcome-to-the-terminal/",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "systemctl",
+      "publisher": "freedesktop.org",
+      "reference": "Comandos de controle de unidades systemd, enable e start",
+      "url": "https://www.freedesktop.org/software/systemd/man/latest/systemctl.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Using checkpoints",
+      "publisher": "Microsoft Learn",
+      "reference": "Tipos e operação de checkpoints do Hyper-V",
+      "url": "https://learn.microsoft.com/en-us/windows-server/virtualization/hyper-v/checkpoints",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "New-VMSwitch (Hyper-V)",
+      "publisher": "Microsoft Learn",
+      "reference": "Criação de switch virtual associado a adaptador de rede",
+      "url": "https://learn.microsoft.com/powershell/module/hyper-v/new-vmswitch",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Overview of virtual machine snapshots in vSphere",
+      "publisher": "Broadcom Knowledge Base",
+      "reference": "Estado de VM, discos delta e limites do uso de snapshots como backup",
+      "url": "https://knowledge.broadcom.com/external/article/342618/overview-of-virtual-machine-snapshots-in.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Proxmox VE Administration Guide",
+      "publisher": "Proxmox Server Solutions GmbH",
+      "reference": "Administração, pools, permissões, armazenamento e máquinas virtuais Proxmox VE",
+      "url": "https://pve.proxmox.com/pve-docs/pve-admin-guide.pdf",
+      "accessedAt": "2026-11-04"
+    }
+  ]
+}

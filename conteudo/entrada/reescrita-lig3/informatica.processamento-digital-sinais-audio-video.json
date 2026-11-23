@@ -1,0 +1,2201 @@
+{
+  "id": "informatica.processamento-digital-sinais-audio-video",
+  "subject": "Informática",
+  "title": "Processamento digital de sinais de áudio e vídeo",
+  "version": 3,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Processamento digital de sinais de áudio e vídeo",
+    "Processamento digital de áudio e vídeo",
+    "Digitalização de sinais de áudio",
+    "Digitalização de sinais de vídeo",
+    "Amostragem e quantização de áudio digital",
+    "Amostragem e quantização de vídeo digital",
+    "Codificação e compressão de áudio digital",
+    "Codificação e compressão de vídeo digital",
+    "Representação digital de sinais audiovisuais",
+    "Conversão analógico-digital de áudio e vídeo"
+  ],
+  "scope": {
+    "covers": "Representação e processamento digital de áudio e vídeo: conversão analógico-digital, amostragem, frequência de amostragem, teorema de Nyquist-Shannon, aliasing, filtros antialiasing, quantização, resolução em bits, PCM, taxa de bits, canais, codificação com e sem perdas, compressão temporal e espacial, codecs e contêineres, quadros e taxa de quadros, varredura progressiva e entrelaçada, resolução, luminância e crominância, subamostragem de cor, padrões ITU-T G.711 e H.264 e ITU-R BT.601 e BT.709.",
+    "excludes": "Projeto eletrônico detalhado de conversores, implementação matemática completa de transformadas e codecs, edição profissional de mídia, protocolos de transporte e normas de radiodifusão além das necessárias para entender a representação digital."
+  },
+  "theoryTitle": "Como o áudio e o vídeo viram dados digitais",
+  "chapters": [
+    {
+      "title": "1. Do sinal contínuo à sequência de números",
+      "markdown": "### O problema que este assunto resolve\n\nUm microfone transforma vibrações do ar em uma tensão que varia continuamente; um computador só consegue guardar uma quantidade finita de números. A conversão analógico-digital (ADC, do inglês *analog-to-digital converter*) resolve essa diferença: mede o sinal em instantes determinados, aproxima cada medida a um nível permitido e codifica o nível em bits. As três operações têm efeitos diferentes. Amostrar decide **quando** medir; quantizar decide **qual valor discreto** representa cada medida; codificar decide **como escrever esse valor** em bits.\n\n### Amostragem e limite de representação\n\nUma amostra é o valor do sinal em um instante. A frequência de amostragem, representada por `fₛ`, é o número de amostras por segundo e é medida em hertz (Hz). Uma sequência de amostras descreve bem mudanças lentas se for medida com frequência suficiente; se a medição for lenta demais, mudanças rápidas podem parecer outras mudanças, mais lentas.\n\nO teorema de amostragem de Nyquist-Shannon estabelece, para um sinal limitado em banda e sob condições ideais, que a taxa de amostragem deve ser pelo menos o dobro da maior frequência presente para que a reconstrução seja possível. Na prática, filtros reais precisam de uma faixa de transição, então o projeto reserva margem e não opera com a componente útil exatamente no limite.\n\nÉ essencial separar dois nomes que às vezes aparecem trocados:\n\n| Termo | Significado | Exemplo se `fmax` for 20 kHz |\n|---|---|---|\n| Frequência de Nyquist | Metade da frequência de amostragem: `fₛ/2`. É o teto representável pelo sistema amostrado. | Com `fₛ = 48 kHz`, é 24 kHz. |\n| Taxa de Nyquist | Duas vezes a maior frequência do sinal: `2 × fmax`. É a taxa mínima teórica para amostrar essa banda. | Para `fmax = 20 kHz`, é 40 kHz. |\n\nPortanto, a frequência de Nyquist não é `2 × fmax`. Ela é `fₛ/2`; a taxa de Nyquist é que corresponde a duas vezes a maior frequência que se quer preservar. A taxa de amostragem efetivamente escolhida precisa permitir que metade dela cubra a banda útil.\n\n### Aliasing e filtro antialiasing\n\nAliasing é a sobreposição ambígua de frequências causada por amostragem insuficiente: uma componente acima de `fₛ/2` pode aparecer na sequência como uma frequência falsa mais baixa. Depois que essa ambiguidade foi registrada nas amostras, não há como descobrir, olhando apenas a sequência, qual era a frequência original. O filtro antialiasing reduz, **antes do conversor**, as componentes que poderiam ultrapassar a faixa representável. Em áudio, costuma ser um filtro passa-baixas, isto é, deixa passar as frequências baixas e atenua as altas.\n\nO filtro não aumenta a frequência de amostragem, não cria níveis de amplitude e não remove qualquer ruído indistintamente. Sua função é limitar a banda antes da conversão. Filtros analógicos reais não têm corte vertical perfeito; por isso, a banda de transição e a atenuação fazem parte do projeto.\n\n### Quantização linear e não linear\n\nQuantização associa cada amplitude medida a um dos níveis disponíveis. Com `b` bits por amostra há `2ᵇ` códigos possíveis. Na quantização linear uniforme, os intervalos entre níveis têm a mesma largura. O erro de quantização é a diferença entre o valor medido e o nível escolhido; aumentando os bits, em geral, os níveis ficam mais próximos dentro da mesma faixa e esse erro diminui. Se o sinal ultrapassar a faixa configurada, ocorre *clipping* (recorte): valores extremos são limitados e a forma de onda é deformada.\n\nQuantização não linear usa passos efetivos diferentes ao longo da faixa. Uma curva de *companding* (compressão e expansão) comprime a faixa antes de quantizar e a expande na reprodução, dando mais resolução relativa a sinais fracos. As leis A e μ da codificação telefônica G.711 são exemplos de representação PCM não uniforme. Isso não significa que se aumentou o número total de códigos; redistribuiu-se onde eles são mais densos.\n\n### PCM, canais e taxa bruta\n\nPCM (*pulse-code modulation*, modulação por código de pulsos) registra cada amostra quantizada como uma palavra digital. A taxa bruta de um fluxo PCM sem cabeçalhos é `fₛ × bits por amostra × número de canais`. Um canal é uma sequência independente de amostras, como o canal esquerdo ou direito de uma gravação estéreo. Assim, duplicar canais duplica a taxa se os demais parâmetros forem iguais.\n\n**Exemplo passo a passo.** Joana grava uma entrevista em mono, com 48.000 amostras por segundo e 16 bits por amostra. A taxa bruta é `48.000 × 16 × 1 = 768.000 bits/s`. Se ela gravar dois canais com os mesmos ajustes, passa a `48.000 × 16 × 2 = 1.536.000 bits/s`. O arquivo final pode incluir cabeçalhos e metadados; se houver compressão, a taxa armazenada também deixa de ser necessariamente esse produto.\n\n### Conversão de volta e leitura da forma de onda\n\nNa reprodução, um conversor digital-analógico (DAC, *digital-to-analog converter*) transforma códigos em uma tensão variável. A saída inicialmente pode ter degraus ou imagens espectrais; a reconstrução inclui filtragem para suavizar componentes indesejadas. Esse processo não recupera frequências perdidas por aliasing nem amplitudes eliminadas pelo *clipping*. Por isso, a qualidade começa na captação e na escolha adequada da faixa e da taxa.\n\n**Exemplo passo a passo.** Rafael grava um tom agudo, mas escolhe uma taxa de amostragem cujo limite `fₛ/2` fica abaixo do tom. A componente pode reaparecer como um tom mais grave. Repetir a gravação com mais amostras por segundo não corrige retroativamente o arquivo antigo; é preciso limitar a entrada com o filtro antialiasing ou captar novamente com taxa apropriada.\n\n### Como cai na prova\n\nIdentifique a etapa descrita: instantes indicam amostragem; níveis de amplitude, quantização; representação binária, codificação. `fₛ` conta amostras por segundo e `fₛ/2` é a frequência de Nyquist. O dobro de `fmax` é a taxa de Nyquist, não a frequência de Nyquist. Aumentar `fₛ` amplia o teto de frequências, enquanto aumentar bits por amostra melhora a resolução de amplitude. O filtro antialiasing atua antes da conversão.\n\n**Pegadinha:** A banca chama `2 × fmax` de frequência de Nyquist ou diz que o filtro posterior remove aliasing já registrado. A frequência de Nyquist é `fₛ/2`; a taxa mínima teórica é `2 × fmax`, e a filtragem preventiva ocorre antes da amostragem.\n\n**Resumo para a prova**\n\n- Amostragem escolhe instantes; quantização escolhe níveis; codificação representa os níveis em bits.\n- Frequência de Nyquist = `fₛ/2`; taxa de Nyquist = `2 × fmax`.\n- O filtro antialiasing limita a banda antes do ADC.\n- Quantização uniforme usa intervalos iguais; companding distribui a resolução de modo não uniforme.\n- PCM bruto = `fₛ × bits/amostra × canais`; *clipping* ocorre quando a faixa é excedida.\n",
+      "questions": []
+    },
+    {
+      "title": "2. Áudio digital, codificação e compressão",
+      "markdown": "### O problema que este assunto resolve\n\nO áudio gravado contém mudanças de pressão ao longo do tempo, mas muitas tarefas pedem outra visão: medir tons presentes, localizar ruídos, separar faixas ou transmitir fala com poucos bits. O processamento digital oferece ferramentas para converter a sequência de amostras em informações sobre frequência e para codificar voz explorando sua estrutura. Uma **transformada** é uma operação matemática que reexpressa um sinal em outra base; no caso da análise espectral, a base descreve oscilações de diferentes frequências.\n\n### DFT e FFT: da forma de onda ao espectro\n\nA transformada discreta de Fourier (DFT, *discrete Fourier transform*) calcula quanto de cada frequência representada está presente em um bloco finito de amostras. Seu resultado é um conjunto de coeficientes complexos, cada qual associado a uma **bin** (posição ou compartimento de frequência). O módulo do coeficiente indica a intensidade relativa e o ângulo informa a fase, isto é, o deslocamento da oscilação no ciclo. A DFT não cria informação: organiza matematicamente o bloco para facilitar sua análise.\n\nA transformada rápida de Fourier (FFT, *fast Fourier transform*) é uma família de algoritmos eficientes para calcular a DFT. FFT não é uma transformada diferente nem um tipo de compressão; é uma forma rápida de obter o mesmo resultado da DFT. Em um bloco de `N` amostras colhidas à frequência `fₛ`, o espaçamento entre bins é `Δf = fₛ/N`. Aumentar `N` mantendo `fₛ` reduz o espaçamento em frequência. Se o bloco cobre um intervalo maior, também se observa por mais tempo, o que ajuda a distinguir frequências próximas, mas reduz a capacidade de localizar mudanças rápidas dentro desse intervalo.\n\nA resolução não depende só de exibir muitos pontos no gráfico. Uma DFT com preenchimento de zeros pode deixar a curva desenhada mais lisa por interpolação, mas não aumenta o tempo de observação nem separa por si só componentes que o bloco original não resolve. Também é preciso diferenciar o tamanho da DFT do conteúdo real da amostra: o zero acrescentado não equivale a uma nova medição.\n\n### Janelamento e vazamento espectral\n\nUm bloco de áudio é finito. Ao aplicar a DFT, ele é tratado como se pudesse se repetir periodicamente. Se o começo e o fim do bloco não se encontram suavemente, essa repetição contém uma descontinuidade; energia de uma frequência pode espalhar-se por bins vizinhos. Esse espalhamento é o **vazamento espectral**.\n\nUma janela é uma sequência de pesos multiplicada pelas amostras antes da DFT. Ela reduz a influência das bordas do bloco e, assim, costuma diminuir o vazamento. A janela retangular equivale a não aplicar pesos adicionais; janelas como Hann ou Hamming atenuam progressivamente as extremidades. A escolha envolve compromisso: reduzir lóbulos laterais (energia espalhada longe do pico) pode alargar o lóbulo principal (pico), dificultando distinguir tons muito próximos. Se o sinal já contém um número inteiro de ciclos no bloco, o vazamento da janela retangular pode ser pequeno; na prática nem sempre se conhece essa condição.\n\n**Exemplo passo a passo.** Bruno registra um bloco curto em que um tom não completa um número inteiro de ciclos. O início e o fim do bloco diferem e o espectro mostra energia espalhada, em vez de uma única linha. Ele aplica uma janela Hann, calcula a FFT e compara os gráficos. O pico fica mais concentrado que antes, embora tenha alguma largura e o nível aparente dependa da correção da janela. Se Bruno ampliar o bloco de análise, melhora a separação de tons próximos, mas perde precisão sobre o instante em que cada tom mudou.\n\n### Espectro e espectrograma\n\nO **espectro** mostra conteúdo por frequência para um bloco ou para o sinal inteiro. Pode representar módulo, potência (módulo ao quadrado) ou nível em decibéis (escala logarítmica que expressa razões). A normalização, a janela e a duração do bloco importam ao comparar valores; dois gráficos com escalas diferentes podem parecer contraditórios mesmo calculados a partir dos mesmos dados.\n\nO **espectrograma** mostra como o conteúdo em frequência varia no tempo. Ele costuma ser obtido pela transformada de Fourier de tempo curto (STFT, *short-time Fourier transform*): divide-se o áudio em quadros curtos, aplica-se uma janela a cada quadro, calcula-se a DFT e posicionam-se os resultados em sequência temporal. A cor ou intensidade representa a magnitude ou potência de cada frequência ao longo do tempo. Quadros sobrepostos tornam a transição visual mais contínua, mas não eliminam o compromisso entre resolução temporal e frequência: janelas longas distinguem melhor frequências próximas; janelas curtas mostram melhor eventos breves.\n\nNo espectrograma, assobios podem aparecer como linhas finas, ruído amplo como energia distribuída em muitas frequências e vogais como faixas harmônicas. A imagem depende de escala, faixa dinâmica e parâmetros; ela auxilia a inspeção, mas não é, sozinha, uma prova de que o som seja audível ou de que uma fala tenha determinado significado.\n\n### Filtros digitais: resposta ao impulso, FIR e IIR\n\nUm filtro digital altera seletivamente componentes da sequência. A **resposta ao impulso** é a saída do sistema quando sua entrada é um impulso discreto (uma amostra unitária cercada de zeros); ela descreve a reação do filtro e permite entender como cada amostra de saída depende da entrada. Filtros podem ser descritos no tempo por equações de diferenças ou na frequência por sua resposta em frequência, que informa quanto cada faixa é atenuada ou reforçada.\n\nUm filtro de resposta finita ao impulso (FIR, *finite impulse response*) calcula a saída usando uma quantidade finita de amostras atuais e anteriores da entrada. Em geral, é inerentemente estável sob coeficientes finitos e pode ser projetado para fase linear, preservando o alinhamento temporal relativo das frequências. Para uma resposta de corte muito seletiva, pode exigir muitos coeficientes e mais operações.\n\nUm filtro de resposta infinita ao impulso (IIR, *infinite impulse response*) usa amostras de entrada e também saídas anteriores, criando realimentação. Uma resposta ao impulso pode, portanto, persistir por tempo indefinido, embora diminua. IIR pode obter transições acentuadas com menos coeficientes, mas a realimentação exige cuidado: certas escolhas tornam o filtro instável, e sua fase geralmente não é linear.\n\n| Tipo | Dados usados no cálculo | Vantagem frequente | Atenção típica |\n|---|---|---|---|\n| FIR | Amostras atuais e passadas da entrada | Estabilidade simples e possibilidade de fase linear | Pode exigir ordem alta para corte estreito |\n| IIR | Entrada e saídas passadas (realimentação) | Corte seletivo com menos coeficientes | Estabilidade e fase precisam de análise |\n\nOs nomes de resposta descrevem a faixa que o filtro deixa passar: passa-baixas preserva baixas frequências e atenua altas; passa-altas faz o inverso; passa-faixa preserva uma região entre duas bordas; rejeita-faixa atenua uma região e mantém as demais. Uma frequência de corte não representa uma parede ideal; filtros reais têm transição. Filtros digitais podem remover ruído dentro de uma gravação, mas não desfazem aliasing ocorrido antes da conversão.\n\n**Exemplo passo a passo.** Clara tem uma gravação de voz com zumbido grave e chiado agudo. Ela examina o espectrograma e identifica energia persistente nas faixas indesejadas. Um passa-altas pode reduzir o zumbido abaixo da faixa de voz importante, e um passa-baixas pode atenuar o chiado acima dela. Se escolher cortes muito próximos da voz, também apagará partes úteis da fala. Para processamento offline e fase linear, pode escolher FIR; se precisar de corte econômico em tempo real, pode avaliar IIR, verificando estabilidade e distorção de fase.\n\n### Codificação de voz: diferenças e modelos\n\nUma codificação de voz procura manter a fala inteligível usando menos bits do que uma sequência PCM simples. As famílias variam quanto ao que predizem e ao tipo de informação transmitida. **Predição** usa uma estimativa baseada em amostras ou quadros anteriores; o erro entre valor observado e estimado é chamado resíduo ou diferença.\n\nPCM (*pulse-code modulation*, modulação por código de pulsos) codifica cada amostra. G.711 usa quantização não uniforme por leis A e μ e é adequada a uma referência de voz telefônica tradicional. **ADPCM** (*adaptive differential pulse-code modulation*, modulação diferencial adaptativa por código de pulsos) codifica uma diferença em relação a uma previsão, adaptando a quantização ao sinal; por isso pode transmitir voz com menos bits que PCM com amostragem comparável. A recomendação ITU-T G.726 define variantes em 16, 24, 32 e 40 kbit/s. O ganho de taxa vem com uma representação diferente, e não com uma cópia bit a bit das amostras originais.\n\n**LPC** (*linear predictive coding*, codificação por predição linear) modela o trato vocal como um sistema que molda uma fonte sonora. Em termos simples, os coeficientes de predição resumem a ressonância do trato vocal; o codificador estima a contribuição das amostras vizinhas e transmite parâmetros do modelo e uma excitação. Vogais sonoras têm periodicidade relacionada à vibração das pregas vocais; consoantes surdas se parecem mais com ruído. Um modelo pode representar essas características compactamente, mas simplificações podem produzir voz artificial.\n\n**CELP** (*code-excited linear prediction*, predição linear excitada por código) combina um modelo de predição linear com uma tabela de sequências de excitação candidatas, chamada livro de códigos. O codificador procura a excitação que, após passar pelo modelo, melhor aproxima a fala original segundo um critério de erro perceptual; transmite índices e parâmetros em vez de todas as amostras. **Vocoder** (codificador de voz que transmite parâmetros de um modelo de produção vocal) é uma denominação ampla para sistemas que analisam e sintetizam voz por parâmetros. CELP é uma família de codificação paramétrica relacionada a essa ideia, mas nem todo codec de voz é simplesmente um vocoder.\n\n| Família | O que representa principalmente | Relação com a fala | Exemplo de referência |\n|---|---|---|---|\n| PCM/G.711 | Amostras com lei de quantização | Forma de onda codificada diretamente | Lei A ou μ |\n| ADPCM | Diferença adaptativa entre amostra e previsão | Forma de onda com quantização diferencial | G.726 |\n| LPC/vocoder | Parâmetros do modelo de produção vocal | Representação paramétrica compacta | Modelo de fonte e filtro |\n| CELP | Parâmetros LPC e excitação escolhida de um livro de códigos | Síntese perceptual da fala | G.729 usa CS-ACELP; G.728 usa LD-CELP |\n\n**Exemplo passo a passo.** Diego precisa enviar fala por um enlace limitado. Com PCM, cada amostra recebe seu código; com ADPCM, o codificador prevê a próxima amostra e envia uma diferença quantizada que acompanha mudanças do sinal. Se a aplicação admite compressão mais orientada à fala, um CELP analisa o trato vocal, testa excitações do livro de códigos e envia os parâmetros escolhidos. No receptor, o algoritmo recompõe uma fala aproximada. Nenhum desses métodos garante que a onda reconstruída seja idêntica ao microfone; taxa, atraso, ruído, idioma e implementação influenciam o resultado.\n\n### Compressão, qualidade e fluxo\n\nCompressão sem perdas elimina redundância sem descartar dados: a descompressão devolve exatamente a sequência que entrou no compressor. Compressão com perdas pode remover detalhes considerados menos importantes ou usar um modelo simplificado, de modo que a saída não seja idêntica. A taxa de bits (*bitrate*) é a quantidade de bits produzidos por unidade de tempo; não basta, isoladamente, para prever qualidade, porque codec, conteúdo, banda, atraso, ruído e configuração também contam.\n\nUm codec é o método ou implementação que codifica e decodifica áudio ou vídeo. Um contêiner é o formato que reúne fluxos comprimidos, marcas de tempo e metadados; não substitui o codec. Dizer que um arquivo é MP4, por exemplo, não informa sozinho qual algoritmo foi usado para o áudio.\n\n**Como cai na prova.** DFT é a operação; FFT é um algoritmo rápido para calculá-la. `Δf = fₛ/N` dá o espaçamento nominal entre bins. Janela reduz descontinuidade nas bordas, com compromisso entre largura do pico e espalhamento. STFT calcula blocos sucessivos para formar espectrograma. FIR não usa realimentação de saída; IIR usa. ADPCM codifica diferenças adaptativas; LPC modela a fala; CELP escolhe excitação para o modelo. Compressão com perdas não reconstrói exatamente as amostras.\n\n**Pegadinha:** A banca afirma que FFT e DFT são transformadas distintas, que aumentar artificialmente o número de pontos sempre melhora a resolução real, ou que todo codec de voz analisa frequências como um MP3. FFT calcula a DFT; zeros não acrescentam observações, e ADPCM, LPC e CELP exploram diferenças ou modelos diferentes.\n\n**Resumo para a prova**\n\n- DFT organiza um bloco por frequências; FFT calcula a DFT com eficiência.\n- Espaçamento entre bins: `fₛ/N`; blocos longos favorecem resolução em frequência.\n- Janelamento reduz vazamento espectral, mas altera a largura e a amplitude dos picos.\n- Espectro resume frequência; espectrograma (STFT em quadros) também mostra evolução temporal.\n- FIR usa entrada passada; IIR usa entrada e saída passada. Passa-baixas, passa-altas e passa-faixa selecionam regiões distintas.\n- ADPCM codifica diferenças adaptativas; LPC modela a fala; CELP combina predição e excitação de livro de códigos.\n",
+      "questions": []
+    },
+    {
+      "title": "3. Vídeo digital: quadros, cor e amostragem",
+      "markdown": "### O problema que este assunto resolve\n\nUma câmera registra uma cena contínua, mas a tela precisa receber uma grade finita de pontos e uma sequência finita de imagens. O vídeo digital representa a cena em duas dimensões espaciais e ao longo do tempo: cada quadro (imagem individual da sequência) contém pixels, e a taxa de quadros informa quantos quadros são mostrados por segundo. Resolução, cor, profundidade e movimento são aspectos diferentes dessa representação.\n\n### Pixels, resolução e taxa de quadros\n\nUm pixel é o menor ponto endereçável de uma imagem digital. Se um quadro tem largura `W` e altura `H`, ele contém `W × H` posições de pixel. Dobrar largura **e** altura quadruplica o número de posições, pois `2W × 2H = 4WH`. Isso aumenta os dados não comprimidos se profundidade, componentes e taxa temporal forem mantidos.\n\nA taxa de quadros, frequentemente escrita em quadros por segundo ou fps (*frames per second*), mede quantas imagens temporais são exibidas por segundo. Não é a resolução espacial: um vídeo pode ter poucos pixels e muitos quadros, ou muitos pixels e poucos quadros. Para conteúdo não comprimido, uma estimativa de dados depende do total de pixels por quadro, do número e precisão das componentes por pixel e da taxa de quadros. Em vídeo comprimido, movimento e redundância também afetam a quantidade efetiva.\n\n### Varredura progressiva e entrelaçada\n\nNa varredura progressiva, cada quadro contém todas as linhas da imagem. Na varredura entrelaçada, a imagem é separada em dois campos de linhas alternadas, um contendo linhas pares e outro linhas ímpares. Os campos podem corresponder a instantes diferentes. O método entrelaçado foi usado para apresentar movimento com transmissão de campos em sequência, mas pode gerar serrilhado ou contornos duplicados quando objetos se movem entre os campos.\n\nDesentrelaçamento é o processo de produzir uma imagem progressiva a partir de campos entrelaçados. Um algoritmo simples pode combinar linhas dos dois campos; em áreas em movimento, essa combinação pode misturar instantes distintos. Algoritmos mais elaborados estimam o movimento ou interpolam linhas. A escolha envolve qualidade, custo computacional e preservação de detalhes.\n\n### Representação de brilho e cor\n\nUma representação comum separa a luminância `Y`, componente associada ao brilho, das componentes de crominância `Cb` e `Cr`, que representam diferenças de cor em relação ao brilho. O sistema de cores e as fórmulas exatas dependem do padrão; para entender a amostragem, basta perceber que luminância e crominância podem ter grades diferentes. A visão humana costuma notar mais facilmente perda de detalhe de brilho do que perda de detalhe de cor, o que permite guardar menos amostras cromáticas em algumas aplicações.\n\nSubamostragem de crominância reduz a quantidade de amostras de cor em relação à luminância. Na notação usual, 4:4:4 mantém crominância na mesma resolução horizontal e vertical da luminância; 4:2:2 mantém a resolução vertical, mas reduz pela metade a amostragem horizontal de cada componente cromática; 4:2:0 reduz também a resolução vertical, normalmente compartilhando amostras entre linhas vizinhas. A notação descreve uma relação de amostras, não a taxa de quadros nem a profundidade de bits.\n\n| Notação | Amostragem de crominância em relação a Y | Efeito prático típico |\n|---|---|---|\n| 4:4:4 | Completa, horizontal e verticalmente | Preserva melhor bordas coloridas e trabalho de composição |\n| 4:2:2 | Metade na horizontal; completa na vertical | Reduz dados de cor sem reduzir igual a grade de brilho |\n| 4:2:0 | Reduzida na horizontal e na vertical | Usa ainda menos dados cromáticos; comum em distribuição de vídeo |\n\nRGB é outra representação, que guarda componentes vermelho, verde e azul. RGB pode ser adequado à exibição e à edição; Y/Cb/Cr separa brilho e diferenças de cor e facilita subamostragem cromática. Converter entre representações exige fórmulas, faixa de valores e referência de cor coerentes; mudar a notação não é, por si só, compressão.\n\n### Profundidade e tamanho bruto\n\nProfundidade de bits é o número de bits destinado a cada componente ou pixel. Com `b` bits para uma componente há `2ᵇ` códigos possíveis para ela. Profundidade maior permite gradações mais finas, mas aumenta o volume bruto de dados. Isso não equivale a resolução espacial, que conta pixels, nem à taxa temporal, que conta quadros por segundo.\n\n**Exemplo passo a passo.** Marina compara dois vídeos não comprimidos com mesma taxa de quadros e mesma profundidade. O primeiro tem 1.920 por 1.080 pixels; o segundo tem 3.840 por 2.160. A largura e a altura do segundo dobraram, então há quatro vezes mais posições de pixel por quadro. Se a subamostragem de cor e o número de bits por componente também forem iguais, a taxa bruta tende a quadruplicar. Com compressão, o resultado pode variar porque a cena e o movimento também influenciam os bits necessários.\n\n### Padrões de representação\n\nAs recomendações ITU-R BT.601 e BT.709 especificam parâmetros para representação de vídeo em seus contextos. A BT.601 trata parâmetros de codificação digital de televisão de estúdio, incluindo componentes e estruturas de amostragem; a BT.709 reúne parâmetros associados a formatos de imagem de alta definição. São referências para parâmetros de sinal, não sinônimos de um codec como H.264. Para interpretar uma questão, identifique se ela trata de amostragem e componentes, resolução, taxa de quadros ou compressão.\n\n**Como cai na prova.** Se largura e altura dobram, a área em pixels quadruplica. fps mede quadros por segundo; profundidade mede códigos por componente; 4:2:2 e 4:2:0 indicam subamostragem cromática. Campo entrelaçado não é simplesmente um quadro progressivo de menor resolução: os campos podem registrar instantes distintos.\n\n**Pegadinha:** A banca diz que 4:2:2 reduz a luminância pela metade, que 4:2:0 significa metade dos quadros ou que dobrar largura e altura apenas dobra o tamanho. A notação se refere à amostragem cromática; a área quadruplica quando ambas as dimensões dobram.\n\n**Resumo para a prova**\n\n- Quadro é uma imagem; pixel é uma posição da grade; fps mede quadros por segundo.\n- Dobrar largura e altura quadruplica as posições de pixel.\n- Progressivo atualiza todas as linhas por quadro; entrelaçado usa campos alternados.\n- `Y` representa luminância; `Cb` e `Cr`, diferenças de cor.\n- 4:4:4 é crominância completa; 4:2:2 reduz na horizontal; 4:2:0 reduz também na vertical.\n- BT.601 e BT.709 definem parâmetros de representação, não são codecs de compressão.\n",
+      "questions": []
+    },
+    {
+      "title": "4. Compressão de vídeo, codecs e fluxo de trabalho",
+      "markdown": "### O problema que este assunto resolve\n\nUm vídeo sem compressão guarda muitos valores para cada pixel de cada quadro. Em uma cena comum, pixels vizinhos tendem a se parecer e quadros sucessivos frequentemente repetem o fundo, mudando apenas alguns objetos. A compressão de vídeo explora essas repetições para reduzir armazenamento e transmissão. O desafio é decidir quanto detalhe preservar e quais dependências aceitar para que o fluxo ainda possa ser decodificado.\n\n### Redundância espacial e temporal\n\nRedundância espacial é a repetição ou semelhança dentro de um mesmo quadro. Um codificador pode transformar blocos de pixels em coeficientes que concentram energia, quantizar esses coeficientes e codificá-los. Quantização nesse contexto aproxima valores para reduzir dados; quando descarta precisão, introduz perda. A compressão intraquadro usa informação do próprio quadro, por isso cada quadro pode ser decodificado com pouca dependência temporal dos vizinhos.\n\nRedundância temporal é a semelhança entre quadros. Na predição interquadros, o codificador compara uma região com quadros de referência, estima deslocamentos e guarda vetores de movimento e diferenças residuais. Vetor de movimento descreve um deslocamento estimado de uma região, não necessariamente o movimento físico exato de um objeto. Em uma cena parada, a diferença pode ser pequena; em corte brusco ou movimento complexo, pode aumentar.\n\nUm grupo de quadros pode combinar imagens intraquadro e imagens preditas. Quadros de referência permitem reconstruir outros quadros, mas criam dependências: perder ou não conseguir decodificar uma referência pode afetar imagens seguintes. Mais quadros independentes facilitam edição e busca aleatória, mas costumam exigir mais bits. O desenho do fluxo equilibra taxa, latência, robustez e facilidade de acesso.\n\n### Perdas, taxa e artefatos\n\nCompressão sem perdas permite reconstruir exatamente a entrada do compressor. Compressão com perdas reduz dados descartando diferenças que se julgam menos importantes; decodificar não recupera os valores originais. Uma quantização mais grosseira costuma baixar a taxa e aumentar distorções, como blocos visíveis, borramento, contornos ondulados e perda de textura. Conteúdo com ruído ou muitos detalhes pode ser mais difícil de comprimir do que uma área lisa.\n\nTaxa de bits variável (VBR, *variable bitrate*) permite que o número de bits por trecho aumente nas partes complexas e diminua nas simples, sujeita a limites escolhidos. Taxa de bits constante (CBR, *constant bitrate*) busca manter saída mais regular ao longo do tempo, útil quando se precisa de previsibilidade de canal; a qualidade visual pode oscilar. Nenhuma dessas estratégias garante sozinha uma qualidade específica: contam o codificador, o conteúdo, o perfil escolhido e as restrições de transmissão.\n\n### Padrão, codec e contêiner\n\nUm padrão de codificação define sintaxe e regras para codificadores e decodificadores compatíveis. H.264, também chamado AVC (*Advanced Video Coding*), é um padrão de codificação de vídeo desenvolvido em conjunto pela ITU-T e pela ISO/IEC. A recomendação descreve ferramentas como predição, transformada, quantização e codificação de dados; ela não garante que qualquer aparelho tenha suporte nem que o fluxo seja sem perdas.\n\nUm codec é o codificador/decodificador ou o método usado para comprimir e reconstruir um fluxo. Um contêiner é o invólucro que organiza um ou mais fluxos, marcas de tempo, metadados, legendas e índices. MP4 e Matroska são exemplos de contêineres; H.264 é um codec/padrão de vídeo. O mesmo contêiner pode armazenar fluxos codificados de maneiras diferentes, desde que a combinação seja permitida e suportada pelo leitor.\n\n| Elemento | Pergunta a que responde | Exemplos |\n|---|---|---|\n| Resolução e taxa de quadros | Qual grade e ritmo temporal têm as imagens? | 1.920 × 1.080; 30 fps |\n| Codec ou padrão | Como os dados de imagem são codificados e reconstruídos? | H.264/AVC |\n| Contêiner | Como fluxos, tempos e metadados são organizados no arquivo? | MP4, Matroska |\n\n### Da captura à reprodução\n\nUma cadeia de vídeo pode capturar quadros, converter componentes e cores, comprimir vídeo e áudio, multiplexar os fluxos no contêiner, transmitir ou armazenar o arquivo, demultiplexar os fluxos e decodificá-los para exibição. Multiplexar é reunir fluxos sincronizados; demultiplexar é separá-los novamente. Marcas de tempo ajudam a manter áudio e vídeo alinhados. Reconhecer o contêiner não significa que o dispositivo consiga decodificar cada codec contido nele.\n\n**Exemplo passo a passo.** Felipe recebe um arquivo MP4 que não reproduz em um aparelho antigo. O aparelho reconhece o invólucro, mas pode não aceitar o codec de vídeo, o perfil, a resolução ou o formato de áudio. Felipe verifica os fluxos e suas propriedades. Se o problema for incompatibilidade de codec, pode converter para uma combinação suportada; trocar apenas a extensão do arquivo não converte o conteúdo. Se a origem usou compressão com perdas, uma nova conversão não recupera os detalhes já descartados e pode acrescentar perda.\n\n### Como cai na prova\n\nCompressão intraquadro explora redundância dentro do quadro; predição interquadros aproveita semelhança temporal. Vetores de movimento e resíduos ajudam a descrever diferenças entre quadros. H.264/AVC é um padrão de codificação, ao passo que MP4 é um contêiner. Compressão com perdas diminui dados e pode gerar artefatos; decodificação não reconstitui os pixels originais.\n\n**Pegadinha:** A banca trata extensão de arquivo como codec, ou afirma que o padrão H.264 garante reprodução em qualquer aparelho e ausência de perda. O contêiner apenas organiza fluxos; suporte depende dos decodificadores disponíveis, e compressão com perdas não é reversível.\n\n**Resumo para a prova**\n\n- Compressão espacial atua no quadro; temporal usa predição entre quadros.\n- Imagens de referência economizam dados, mas criam dependência de decodificação.\n- Quantização com perdas reduz a taxa e pode produzir blocos, borramento e perda de textura.\n- VBR adapta bits à complexidade; CBR busca fluxo mais regular.\n- H.264/AVC é padrão de codificação; MP4 e Matroska são contêineres.\n- A cadeia inclui codificar, multiplexar, transportar/armazenar, demultiplexar e decodificar.\n",
+      "questions": []
+    }
+  ],
+  "summary": "Um sinal contínuo torna-se digital por amostragem no tempo, quantização da amplitude e codificação em bits. A frequência de amostragem limita as frequências representáveis; sem filtragem antialiasing pode haver aliasing. A profundidade em bits define quantos níveis de amplitude existem. PCM calcula sua taxa bruta por frequência de amostragem × bits por amostra × canais; G.711 usa PCM de voz com 8 kHz e 8 bits por amostra e leis A e μ. Compressão sem perdas permite reconstrução idêntica; com perdas descarta informação para reduzir bitrate. Vídeo combina amostragem espacial em pixels e temporal em quadros, com taxa de quadros, luminância/crominância, profundidade e resolução como parâmetros diferentes. BT.601 e BT.709 especificam parâmetros de representação de vídeo; H.264 é um padrão de codificação. Codec codifica e decodifica; contêiner reúne fluxos e metadados.",
+  "flashcards": [
+    {
+      "front": "Quais são as três etapas centrais da conversão analógico-digital?",
+      "back": "Amostragem no tempo, quantização da amplitude e codificação dos níveis em bits."
+    },
+    {
+      "front": "O que determina a frequência de amostragem?",
+      "back": "Quantas amostras são coletadas por segundo; ela determina a resolução temporal e o limite de frequências representáveis."
+    },
+    {
+      "front": "O que é aliasing?",
+      "back": "A representação aparente de componentes acima do limite de Nyquist como frequências falsas mais baixas, por amostragem insuficiente."
+    },
+    {
+      "front": "Para que serve o filtro antialiasing?",
+      "back": "Reduz componentes acima da banda que será amostrada antes do ADC."
+    },
+    {
+      "front": "Quantos códigos existem com b bits por amostra?",
+      "back": "2 elevado a b códigos possíveis."
+    },
+    {
+      "front": "Qual é a fórmula da taxa bruta de áudio PCM?",
+      "back": "Frequência de amostragem × bits por amostra × número de canais."
+    },
+    {
+      "front": "O que acontece à taxa PCM se o áudio passar de mono para estéreo mantendo os outros parâmetros?",
+      "back": "A taxa bruta dobra porque há duas sequências de amostras em vez de uma."
+    },
+    {
+      "front": "Quais parâmetros nominais de amostragem e codificação a G.711 define para voz PCM?",
+      "back": "8.000 amostras por segundo e 8 bits por amostra; inclui as leis A e μ."
+    },
+    {
+      "front": "O que distingue compressão sem perdas de compressão com perdas?",
+      "back": "Sem perdas recupera exatamente a entrada; com perdas descarta informação e não reconstrói a entrada bit a bit."
+    },
+    {
+      "front": "O que especifica a ITU-T G.711.0?",
+      "back": "Compressão sem perdas de fluxos PCM G.711."
+    },
+    {
+      "front": "O que representa a taxa de quadros?",
+      "back": "Quantos quadros de imagem são exibidos ou processados por segundo."
+    },
+    {
+      "front": "O que é varredura progressiva?",
+      "back": "Cada quadro representa todas as linhas da imagem, em vez de campos com linhas alternadas."
+    },
+    {
+      "front": "Qual a diferença entre luminância e crominância?",
+      "back": "Luminância representa brilho; crominância representa componentes de diferença de cor."
+    },
+    {
+      "front": "O que indica 4:2:2 em vídeo?",
+      "back": "A crominância tem metade da amostragem horizontal da luminância, mantendo amostras para cada linha."
+    },
+    {
+      "front": "O que indica 4:2:0 em comparação com 4:4:4?",
+      "back": "Redução da amostragem cromática tanto na horizontal quanto na vertical."
+    },
+    {
+      "front": "O que é compressão intraquadro?",
+      "back": "Compressão que explora redundância dentro de uma imagem, sem depender de outros quadros."
+    },
+    {
+      "front": "O que é predição interquadros?",
+      "back": "Codificação que usa quadros de referência e diferenças, frequentemente com vetores de movimento."
+    },
+    {
+      "front": "H.264 é codec ou contêiner?",
+      "back": "É um padrão de codificação de vídeo, conhecido também como AVC."
+    },
+    {
+      "front": "O que faz um contêiner de mídia?",
+      "back": "Reúne fluxos codificados, temporização e metadados, como áudio, vídeo e legendas."
+    },
+    {
+      "front": "O que a ITU-R BT.601 define?",
+      "back": "Parâmetros de codificação digital de vídeo de estúdio, incluindo estruturas de amostragem e representação de componentes."
+    },
+    {
+      "front": "O que a ITU-R BT.709 define?",
+      "back": "Parâmetros de formatos de imagem e HDTV, incluindo formatos e taxas de quadro."
+    },
+    {
+      "front": "Qual efeito provável da quantização mais agressiva em compressão com perdas?",
+      "back": "Menor bitrate, mas maior descarte de informação e maior probabilidade de artefatos."
+    }
+  ],
+  "tips": [
+    "Separe sempre as perguntas: amostragem trata de instantes; quantização trata de amplitudes; codificação trata de bits.",
+    "Para calcular taxa PCM, confirme unidade por segundo, bits por amostra e número de canais antes de multiplicar.",
+    "Nyquist descreve limite de frequência representável; a profundidade em bits descreve níveis de amplitude.",
+    "Em vídeo, resolução espacial, taxa de quadros e profundidade de cor são dimensões independentes.",
+    "Lembre-se: codec codifica; contêiner organiza fluxos e metadados.",
+    "Associe G.711 a PCM de voz, BT.601/BT.709 a parâmetros de vídeo e H.264 a codificação de vídeo."
+  ],
+  "traps": [
+    "Afirmar que aumentar bits por amostra eleva a frequência máxima representável. Isso depende da frequência de amostragem, não da profundidade.",
+    "Dizer que o filtro antialiasing corrige aliasing após ele ter sido gravado. O filtro limita a banda antes da amostragem.",
+    "Tratar compressão sem perdas como ausência de qualquer redução do arquivo. Ela pode remover redundância mantendo reconstrução exata.",
+    "Confundir bitrate com qualidade garantida. Codec, conteúdo, canais, amostragem e configuração também afetam o resultado.",
+    "Interpretar 4:2:2 como redução da resolução de luminância. A notação trata da amostragem de crominância.",
+    "Chamar MP4 de codec ou H.264 de contêiner. MP4 é contêiner; H.264 é padrão de codificação de vídeo."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique por que amostragem, quantização e codificação não são sinônimos.",
+      "answer": "Amostragem decide quando medir o sinal, quantização escolhe um nível discreto para a amplitude medida e codificação representa esse nível por bits."
+    },
+    {
+      "question": "Por que um sinal de frequência alta pode aparecer com uma frequência falsa após digitalização?",
+      "answer": "Se ultrapassar o limite de Nyquist para a frequência de amostragem, suas amostras podem ser indistinguíveis das de uma frequência mais baixa, causando aliasing."
+    },
+    {
+      "question": "Como reduzir aliasing antes de converter o sinal?",
+      "answer": "Limitar a banda de entrada com filtro passa-baixas antialiasing antes da amostragem."
+    },
+    {
+      "question": "Calcule conceitualmente o que precisa para estimar a taxa bruta de PCM.",
+      "answer": "Multiplicar amostras por segundo por bits usados em cada amostra e pelo número de canais; converter bits em bytes se o resultado for pedido nessa unidade."
+    },
+    {
+      "question": "Diferencie profundidade de bits e frequência de amostragem.",
+      "answer": "Profundidade indica níveis possíveis de amplitude por amostra; frequência indica a quantidade de amostras por segundo."
+    },
+    {
+      "question": "O que a G.711 ensina como exemplo de PCM telefônico?",
+      "answer": "A amostragem nominal é 8 kHz, cada amostra usa oito bits e há leis de codificação A e μ."
+    },
+    {
+      "question": "Diferencie compressão com perdas e sem perdas ao restaurar o sinal.",
+      "answer": "Sem perdas permite reconstruir exatamente os dados codificados; com perdas descarta informação e a saída decodificada não precisa ser idêntica à original."
+    },
+    {
+      "question": "Como luminância e crominância permitem reduzir dados de vídeo?",
+      "answer": "Separando brilho e cor, sistemas podem manter a amostragem de luminância e representar crominância com menos amostras espaciais, aproveitando a menor sensibilidade visual a detalhe cromático."
+    },
+    {
+      "question": "Diferencie compressão espacial e temporal de vídeo.",
+      "answer": "A espacial explora redundância dentro de um quadro; a temporal usa semelhanças e movimento entre quadros."
+    },
+    {
+      "question": "Diferencie codec, contêiner e padrão de codificação.",
+      "answer": "Codec é o codificador/decodificador; padrão define regras de sintaxe e decodificação interoperáveis; contêiner multiplexa fluxos e metadados."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Amostragem e quantização confundidas",
+      "summary": "A frequência de amostragem controla medições por segundo e o limite de frequência; bits por amostra controlam níveis de amplitude."
+    },
+    {
+      "key": "e2",
+      "title": "PCM e bitrate calculados incorretamente",
+      "summary": "A taxa PCM bruta é frequência de amostragem multiplicada por bits por amostra e canais. Cabeçalhos e metadados são adicionais."
+    },
+    {
+      "key": "e3",
+      "title": "Representação de vídeo confundida",
+      "summary": "Resolução, taxa de quadros, luminância, crominância e subamostragem descrevem características distintas da imagem e da sequência."
+    },
+    {
+      "key": "e4",
+      "title": "Compressão, codec e contêiner misturados",
+      "summary": "Compressão reduz redundância; codec codifica e decodifica; contêiner reúne fluxos e metadados. A compressão pode ser com perdas ou sem perdas."
+    },
+    {
+      "key": "e5",
+      "title": "Padrões técnicos trocados",
+      "summary": "G.711 especifica PCM de voz; G.711.0 comprime G.711 sem perdas; BT.601 e BT.709 definem parâmetros de vídeo; H.264 define codificação de vídeo."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Amostragem e quantização são a mesma etapa: ambas determinam apenas os níveis de amplitude disponíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Amostragem seleciona instantes e controla a resolução temporal; quantização associa amplitudes a níveis discretos. A codificação representa depois esses níveis em bits.",
+      "section": "1. Do sinal contínuo à sequência de números",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar a profundidade de bits por amostra, mantendo a frequência de amostragem, aumenta diretamente a frequência máxima representável pelo sinal digital.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A frequência máxima representável depende da frequência de amostragem. Mais bits oferecem mais níveis de amplitude e podem reduzir erro de quantização, mas não elevam o limite de frequência.",
+      "section": "1. Do sinal contínuo à sequência de números",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na ausência de filtragem adequada, componentes acima da frequência de Nyquist podem aparecer como frequências mais baixas no sinal amostrado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Esse fenômeno é aliasing. O filtro antialiasing limita a banda antes do conversor para reduzir componentes que seriam subamostradas.",
+      "section": "1. Do sinal contínuo à sequência de números",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um filtro antialiasing aplicado depois do ADC elimina com segurança o aliasing já incorporado às amostras.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Depois da amostragem, uma frequência falsa causada por aliasing já está representada nos dados e não pode ser distinguida de uma componente real mais baixa apenas por filtragem digital. O filtro antialiasing atua antes do ADC.",
+      "section": "1. Do sinal contínuo à sequência de números",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Com b bits por amostra, há 2ᵇ códigos possíveis para representar níveis quantizados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada bit tem dois estados possíveis; combinando b bits obtêm-se 2 elevado a b códigos. O número de códigos não determina por si só a faixa analógica de entrada.",
+      "section": "1. Do sinal contínuo à sequência de números",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se a amplitude de entrada exceder a faixa que o conversor consegue representar, pode ocorrer clipping e distorção da forma de onda.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Clipping ocorre quando os extremos do sinal ultrapassam a faixa representável e são limitados ao maior ou menor nível disponível. Aumentar a taxa de amostragem não corrige esse excesso de amplitude.",
+      "section": "1. Do sinal contínuo à sequência de números",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ITU-T G.711 define, para PCM de voz, amostragem nominal de 8.000 amostras por segundo e oito bits binários por amostra.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A recomendação G.711 especifica esses parâmetros nominais para codificação de frequências de voz e descreve as leis A e μ. Não se deve generalizar esses valores como regra para todo áudio digital.",
+      "section": "2. Áudio digital, codificação e compressão",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A G.711.0 é um esquema de compressão com perdas que exige reconstituir aproximativamente o fluxo G.711.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A ITU-T descreve G.711.0 como compressão sem perdas de um fluxo G.711. Logo, o fluxo original pode ser recuperado exatamente após a descompressão, embora o tamanho codificado possa diminuir por exploração de redundância.",
+      "section": "2. Áudio digital, codificação e compressão",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A taxa de bits PCM depende da frequência de amostragem, da quantidade de bits por amostra e do número de canais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Multiplicam-se amostras por segundo, bits por amostra e canais para obter bits por segundo de áudio PCM sem compressão. Metadados e cabeçalhos do arquivo não fazem parte desse produto básico.",
+      "section": "2. Áudio digital, codificação e compressão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao passar de mono para estéreo sem alterar frequência de amostragem ou profundidade, a taxa bruta de PCM dobra.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Mono possui um canal e estéreo dois. Mantendo os bits por amostra e o número de amostras por segundo em cada canal, o total de bits de áudio por segundo duplica.",
+      "section": "2. Áudio digital, codificação e compressão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Compressão sem perdas permite recuperar exatamente a sequência de dados de entrada, ainda que o arquivo comprimido possa ocupar menos espaço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A redução sem perdas explora redundância e mantém informação suficiente para reconstruir os dados originais. Compressão com perdas, por outro lado, descarta informação e não garante reconstrução idêntica.",
+      "section": "2. Áudio digital, codificação e compressão",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma taxa de bits maior garante por si só melhor qualidade audível, independentemente do codec e do sinal de origem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A qualidade também depende do codec, do conteúdo, da taxa de amostragem, dos canais e das configurações de codificação. Uma taxa maior pode permitir melhor representação em certas condições, mas não constitui garantia isolada.",
+      "section": "2. Áudio digital, codificação e compressão",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Luminância e crominância representam, respectivamente, informação associada ao brilho e componentes associadas à cor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A separação entre luminância e crominância permite tratar detalhes de brilho e cor de modo diferente. Sistemas podem subamostrar crominância porque a visão costuma tolerar mais a redução de detalhe cromático.",
+      "section": "3. Vídeo digital: quadros, cor e amostragem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na varredura progressiva, um quadro representa todas as linhas da imagem, enquanto a varredura entrelaçada divide a imagem em campos de linhas alternadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A definição distingue os dois modos de varredura. Como campos entrelaçados podem corresponder a momentos diferentes, movimento rápido pode gerar artefatos quando são combinados sem tratamento.",
+      "section": "3. Vídeo digital: quadros, cor e amostragem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A notação 4:2:2 indica que a luminância é amostrada pela metade em relação à crominância.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A notação descreve subamostragem de crominância em relação à luminância. Em 4:2:2, cada componente cromática tem metade da amostragem horizontal da luminância, enquanto a amostragem vertical permanece por linha.",
+      "section": "3. Vídeo digital: quadros, cor e amostragem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na notação 4:2:0, há redução de amostras de crominância tanto na direção horizontal quanto na vertical em comparação com 4:4:4.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "4:2:0 reduz a resolução cromática horizontal e vertical em relação à luminância, segundo a convenção de amostragem. A luminância não é a componente que a notação indica como subamostrada.",
+      "section": "3. Vídeo digital: quadros, cor e amostragem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A recomendação ITU-R BT.601 especifica parâmetros de codificação digital de vídeo de estúdio e inclui estruturas como 4:2:2.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A BT.601 trata de parâmetros de codificação de televisão digital para estúdio, incluindo membros 4:2:2 e 4:4:4 e sinais de luminância/diferença de cor ou RGB. Ela não é, por si só, um codec de compressão.",
+      "section": "3. Vídeo digital: quadros, cor e amostragem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ITU-R BT.709 define parâmetros de formatos de imagem para HDTV e contempla taxas de quadro e captura progressiva ou entrelaçada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A recomendação BT.709 define parâmetros para formatos HDTV e lista taxas de quadro e modos de captura. Esse papel é diferente do padrão H.264, que define regras de codificação de vídeo.",
+      "section": "3. Vídeo digital: quadros, cor e amostragem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "H.264 é um padrão de codificação de vídeo, e MP4 é um formato de contêiner que pode organizar fluxos codificados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "H.264/AVC estabelece a codificação e decodificação de vídeo. MP4 é um contêiner capaz de reunir fluxos e metadados; reconhecer o contêiner não garante suporte a todo codec nele armazenado.",
+      "section": "4. Compressão de vídeo, codecs e fluxo de trabalho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A compressão temporal explora semelhanças entre quadros, enquanto a compressão espacial explora redundância dentro de um quadro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A predição interquadros aproveita redundância temporal e pode codificar diferenças e movimento. Métodos intraquadro reduzem redundância espacial sem depender de outros quadros.",
+      "section": "4. Compressão de vídeo, codecs e fluxo de trabalho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao aumentar a compressão com perdas, é possível reduzir o bitrate, mas também aumentar artefatos e perda de detalhes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Quantização mais agressiva pode descartar mais informação e reduzir a taxa necessária. O custo possível é degradação perceptível, como blocos, borramento, ringing ou perda de textura.",
+      "section": "4. Compressão de vídeo, codecs e fluxo de trabalho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao decodificar vídeo comprimido com perdas, o decodificador sempre recupera exatamente os pixels do vídeo original.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A compressão com perdas descarta informação para reduzir dados. O decodificador reconstrói uma aproximação conforme o fluxo codificado, mas não garante recuperar os pixels de entrada bit a bit.",
+      "section": "4. Compressão de vídeo, codecs e fluxo de trabalho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo pode ter contêiner reconhecido pelo reprodutor e ainda assim falhar se o codec de um dos fluxos não for suportado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Contêiner e codec têm papéis diferentes. O primeiro organiza fluxos e metadados; o segundo define como decodificar conteúdo. Suporte ao contêiner não implica suporte a todas as codificações internas.",
+      "section": "4. Compressão de vídeo, codecs e fluxo de trabalho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma gravação de áudio possui 48.000 amostras por segundo, 16 bits por amostra e dois canais. Qual é a taxa bruta de áudio PCM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "768.000 bits por segundo, pois só se contam as amostras de um canal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "1.536.000 bits por segundo, considerando os dois canais PCM.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "96.000 bits por segundo, pois a profundidade substitui os canais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "3.072.000 bits por segundo, contando cada bit duas vezes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "48.000 bits por segundo, pois a taxa já representa o fluxo total.",
+          "correct": false
+        }
+      ],
+      "explanation": "A taxa é 48.000 × 16 × 2 = 1.536.000 bits/s. Multiplicam-se amostras por segundo, bits por amostra e canais; o resultado não inclui metadados do arquivo.",
+      "section": "2. Áudio digital, codificação e compressão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um conversor usa 10 bits por amostra. Quantos códigos distintos pode representar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "10 códigos, um código correspondente a cada bit usado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "20 códigos, porque cada bit representa dois níveis no total.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "512 códigos, equivalentes à metade das combinações binárias.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "1.024 códigos, correspondentes a 2 elevado a 10 combinações.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "10.000 códigos, pois se multiplica a quantidade por si mesma.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com b bits há 2ᵇ combinações. Para dez bits, 2¹⁰ = 1.024 códigos; a faixa física representada depende também da escala do conversor.",
+      "section": "1. Do sinal contínuo à sequência de números",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe grava sinal com componentes até 18 kHz e deseja evitar aliasing. Qual decisão atende ao critério ideal de Nyquist para esse limite?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Amostragem a 18 kHz, igual à frequência máxima do sinal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Amostragem a 24 kHz, abaixo do dobro da frequência máxima.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Amostragem acima de 36 kHz e filtragem da banda antes do ADC.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Amostragem a 8 kHz, pois qualquer sinal de áudio cabe nessa taxa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar a profundidade de bits sem alterar a frequência de amostragem.",
+          "correct": false
+        }
+      ],
+      "explanation": "O critério exige frequência de amostragem maior que duas vezes a maior frequência de interesse. Para 18 kHz, o dobro é 36 kHz; na prática usa-se filtro antialiasing para limitar componentes fora da banda representável.",
+      "section": "1. Do sinal contínuo à sequência de números",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sinal foi amostrado a 30 kHz sem filtro, contendo uma componente de 19 kHz. Que problema a equipe deve investigar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Clipping, porque a amplitude certamente ultrapassou a faixa do ADC.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aliasing, pois a componente supera a frequência de Nyquist de 15 kHz.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Subamostragem cromática, porque 19 kHz indica formato 4:2:0.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quantização temporal, pois 30 kHz determina níveis de amplitude.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Compressão interquadros, pois faltam quadros de referência.",
+          "correct": false
+        }
+      ],
+      "explanation": "A frequência de Nyquist é metade da frequência de amostragem: 15 kHz. Uma componente em 19 kHz pode sofrer aliasing se não for atenuada antes da conversão. Clipping se relaciona à faixa de amplitude, não à frequência.",
+      "section": "1. Do sinal contínuo à sequência de números",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço precisa reduzir o tamanho de um fluxo G.711 sem alterar os dados que o decodificador recuperará. Qual abordagem corresponde a essa necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Trocar o contêiner, pois todo contêiner reduz o fluxo sem perdas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reduzir a amostragem à metade e interpolar os valores descartados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar quantização mais agressiva para apagar níveis próximos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter o fluxo para codec perceptual com perdas de informação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "G.711.0 comprime sem perdas o fluxo original do G.711.",
+          "correct": true
+        }
+      ],
+      "explanation": "A recomendação G.711.0 descreve um esquema sem perdas para comprimir o fluxo G.711, preservando a reconstrução exata após descompressão. Reduzir amostras ou quantizar agressivamente modifica os dados; trocar o contêiner não é garantia de compressão.",
+      "section": "2. Áudio digital, codificação e compressão",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma captura de vídeo é de 1.920 × 1.080 pixels por quadro. Quantos pixels são representados em cada quadro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "1.920 pixels, porque a largura define o total de cada quadro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "1.080 pixels, porque só se contabilizam as linhas da imagem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "2.073.600 pixels, pelo produto entre largura e altura.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "3.000 pixels, pela soma da largura com a altura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "2.073.600 quadros por segundo, pela contagem de posições.",
+          "correct": false
+        }
+      ],
+      "explanation": "A quantidade de posições de pixel por quadro é largura × altura: 1.920 × 1.080 = 2.073.600. A taxa de quadros é outro parâmetro e não foi especificada.",
+      "section": "3. Vídeo digital: quadros, cor e amostragem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um vídeo tem resolução constante e passa de 25 para 50 quadros por segundo, sem compressão nem outras mudanças. Qual efeito ocorre na quantidade de imagens processadas por segundo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cai pela metade, pois cada quadro dura menos tempo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Dobra, pois o número de quadros por segundo duplica.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Permanece igual, pois só a resolução controla os quadros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quadruplica, pois cada dimensão da imagem dobra.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Vira 50 pixels por segundo, pois fps mede resolução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Dobrar a taxa de quadros duplica a quantidade de quadros processados por segundo. Mantidas resolução e representação por quadro, a taxa de dados não comprimida tende também a dobrar.",
+      "section": "3. Vídeo digital: quadros, cor e amostragem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um editor quer manter o detalhe de brilho e reduzir dados de cor usando 4:2:2. O que essa notação indica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A luminância cai à metade na horizontal e na vertical.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "As duas componentes de crominância têm metade da amostragem horizontal da luminância.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Todos os canais RGB perdem metade das amostras em todas as direções.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A taxa de quadros passa a ser duas imagens por segundo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A imagem passa a ter duas vezes mais pixels de brilho.",
+          "correct": false
+        }
+      ],
+      "explanation": "4:2:2 descreve subamostragem de crominância: a resolução horizontal das componentes cromáticas é reduzida em relação à luminância, sem a redução vertical correspondente. Não é uma medida de taxa de quadros nem uma mudança da resolução de brilho.",
+      "section": "3. Vídeo digital: quadros, cor e amostragem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma câmera grava cenas esportivas com movimentos rápidos. Qual característica distingue a varredura progressiva da entrelaçada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A progressiva usa pixels; a entrelaçada representa somente vetores de movimento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A progressiva armazena só crominância; a entrelaçada guarda apenas luminância.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A progressiva depende de codec; a entrelaçada é sempre sem compressão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A progressiva mede bits por amostra; a entrelaçada mede canais de áudio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Progressiva exibe todas as linhas do quadro em uma varredura.",
+          "correct": true
+        }
+      ],
+      "explanation": "A progressiva atualiza todas as linhas em cada quadro. A entrelaçada divide a imagem em campos de linhas alternadas, possivelmente capturados em instantes diferentes; combinar campos em movimento pode gerar artefatos que o desentrelaçamento tenta tratar.",
+      "section": "3. Vídeo digital: quadros, cor e amostragem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe escolhe uma referência para parâmetros de codificação digital de vídeo de estúdio, incluindo estruturas 4:2:2 e 4:4:4. Qual recomendação é pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ITU-T G.711, voltada à codificação PCM de voz por leis A e μ.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ITU-R BT.601, que especifica parâmetros de codificação digital de vídeo de estúdio.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "ITU-T H.264, que define a estrutura de um contêiner audiovisual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ITU-R BT.709, que especifica exclusivamente compressão interquadros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ITU-T G.711.0, que estabelece formatos de imagem HDTV.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ITU-R BT.601 trata de parâmetros de codificação de televisão digital para estúdio e inclui estruturas de amostragem 4:2:2 e 4:4:4. H.264 é um padrão de codificação de vídeo, BT.709 define parâmetros HDTV, e G.711/G.711.0 são recomendações de áudio.",
+      "section": "3. Vídeo digital: quadros, cor e amostragem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma produção HDTV, a equipe procura uma recomendação ITU-R que defina parâmetros de formatos de imagem e taxas de quadro. Qual deve consultar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "BT.601, que se limita a codecs de áudio para televisão digital.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "G.711, que define a matriz de cores e a resolução de televisão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "G.711.0, que define os quadros e a varredura de HDTV.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "H.264, que especifica a frequência de amostragem de estúdio 4:2:2.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "BT.709 define os formatos HDTV e parâmetros de taxa de quadro.",
+          "correct": true
+        }
+      ],
+      "explanation": "A recomendação ITU-R BT.709 define parâmetros dos formatos HDTV e contempla taxas de quadro e modos de captura. BT.601 trata de codificação digital de vídeo de estúdio; G.711 e G.711.0 são padrões de áudio; H.264 define codificação de vídeo.",
+      "section": "3. Vídeo digital: quadros, cor e amostragem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao dobrar largura e altura de um quadro, mantendo a mesma taxa de quadros e representação por pixel, como muda a quantidade de pixels por quadro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dobra, porque somente a largura influencia o total de pixels.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Triplica, porque a soma dos dois lados cresce três vezes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quadruplica, pois o produto das duas dimensões fica quatro vezes maior.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Permanece igual, pois a taxa de quadros não mudou.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cai pela metade, porque cada pixel ocupa menos área física.",
+          "correct": false
+        }
+      ],
+      "explanation": "O número de pixels é largura vezes altura. Dobrar cada dimensão multiplica esse produto por 2 × 2 = 4; a taxa de quadros não altera a contagem espacial de um quadro individual.",
+      "section": "3. Vídeo digital: quadros, cor e amostragem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma apresentação digital reúne vídeo H.264, áudio e legendas. O arquivo MP4 é reconhecido, mas o vídeo não reproduz no dispositivo. Qual explicação é tecnicamente consistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Legendas tornam a decodificação de H.264 impossível por definição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "MP4 é o codec e H.264 é o contêiner, então os nomes foram invertidos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O reconhecimento do contêiner garante suporte a qualquer codec nele armazenado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Contêiner reconhecido não garante suporte ao codec de vídeo usado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A falta de reprodução prova que o vídeo foi gravado com bitrate sem perdas.",
+          "correct": false
+        }
+      ],
+      "explanation": "MP4 organiza fluxos e metadados, enquanto H.264 define codificação de vídeo. Um reprodutor pode reconhecer o invólucro sem ter suporte ao decodificador ou às características específicas do fluxo.",
+      "section": "4. Compressão de vídeo, codecs e fluxo de trabalho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um vídeo contém muitas cenas estáticas e repetitivas. Qual recurso de compressão pode explorar diretamente semelhanças entre imagens sucessivas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Subamostragem de áudio, reduzindo canais durante cada quadro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Predição interquadros usa diferenças temporais.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Quantização de amostras de microfone, eliminando o fluxo visual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Varredura progressiva, que remove redundância sem codificação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumento de resolução, que reduz o número de pixels semelhantes.",
+          "correct": false
+        }
+      ],
+      "explanation": "A predição interquadros usa quadros de referência para representar semelhanças e diferenças ao longo do tempo. A compressão intraquadro explora redundância dentro de cada imagem, e não entre imagens sucessivas.",
+      "section": "4. Compressão de vídeo, codecs e fluxo de trabalho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transmissão deve ajustar a taxa de dados conforme a complexidade das cenas, aceitando que o fluxo varie ao longo do tempo. Qual modo atende a essa intenção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Varredura entrelaçada, que garante largura de banda fixa sem codificação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "PCM uniforme, que mantém idêntica a taxa de todo arquivo audiovisual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Taxa constante, que por definição aumenta bits em qualquer cena complexa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Subamostragem 4:2:0, que regula o bitrate temporal por quadro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Taxa variável adapta a quantidade de bits à complexidade de cada cena.",
+          "correct": true
+        }
+      ],
+      "explanation": "Taxa variável permite que o codificador ajuste a quantidade de bits à complexidade do conteúdo. Taxa constante busca previsibilidade no fluxo, mas não garante qualidade uniforme nem alocação proporcional a cada cena.",
+      "section": "4. Compressão de vídeo, codecs e fluxo de trabalho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um vídeo comprimido apresenta blocos visíveis em áreas de gradiente depois que o codificador foi configurado para reduzir muito o tamanho. Qual causa é mais plausível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quantização agressiva gerou artefatos com perdas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O aumento de bits por pixel produziu necessariamente clipping de áudio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A compressão sem perdas sempre altera pixels em blocos na decodificação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A taxa de quadros define os níveis de cor, causando aliasing espacial.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O contêiner MP4 realizou sozinho uma transformação cromática destrutiva.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quantização agressiva em compressão com perdas pode reduzir o bitrate, mas também descartar informação e gerar blocos ou outras distorções. O contêiner organiza fluxos e não é, por si só, o algoritmo de compressão.",
+      "section": "4. Compressão de vídeo, codecs e fluxo de trabalho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema de videoconferência precisa de um padrão de codificação de vídeo usado em comunicação, armazenamento e streaming. Qual referência corresponde ao requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ITU-T G.711.0, que define predição interquadros para videoconferência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ITU-T G.711, que especifica compactação de quadros de imagem HDTV.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ITU-R BT.601, que é exclusivamente um codec temporal com perdas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "H.264 (ISO/IEC 14496-10) codifica vídeo para comunicação e armazenamento.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "ITU-R BT.709, que é um contêiner obrigatório para fluxos de streaming.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ITU-T H.264, também ISO/IEC 14496-10, é um padrão de codificação avançada de vídeo destinado a usos como videoconferência, armazenamento, radiodifusão e streaming. As recomendações G.711 e G.711.0 são de áudio, e BT.601/BT.709 definem parâmetros de vídeo.",
+      "section": "4. Compressão de vídeo, codecs e fluxo de trabalho",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema de captura, qual cadeia descreve corretamente a conversão de áudio analógico para dados PCM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quantizar o arquivo comprimido, depois aplicar filtro analógico e por fim escolher os instantes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Filtrar a entrada, amostrar, quantizar e codificar cada nível em bits.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Codificar níveis primeiro, remover o filtro e converter bits em frequências contínuas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Subamostrar crominância, intercalar quadros e quantizar o som no contêiner.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Escolher o contêiner, calcular fps e deixar que isso substitua o ADC.",
+          "correct": false
+        }
+      ],
+      "explanation": "O filtro limita a banda antes do conversor para reduzir aliasing; a amostragem mede valores em instantes; a quantização associa amplitudes a níveis; a codificação representa os níveis em bits. Codec e contêiner entram em etapas posteriores de armazenamento ou compressão.",
+      "section": "1. Do sinal contínuo à sequência de números",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alteração eleva a resolução de amplitude de uma representação PCM, mantendo o mesmo número de amostras por segundo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar os bits por amostra, oferecendo mais níveis de quantização.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o número de canais, elevando os níveis por amostra.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar o bitrate do contêiner sem mudar a palavra de amostra.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o número de quadros de vídeo por segundo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Reduzir a frequência de amostragem, criando códigos adicionais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mais bits por amostra aumentam a quantidade de códigos possíveis e permitem representar amplitudes com passos menores, dada uma faixa de entrada. Isso afeta resolução de amplitude, não a frequência máxima representável.",
+      "section": "1. Do sinal contínuo à sequência de números",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma conversão PCM com faixa de entrada fixa, qual efeito tende a ocorrer ao elevar a profundidade de bits sem clipping?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mais bits criam passos menores e tendem a reduzir o erro de quantização.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A frequência de Nyquist cai pela metade automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A frequência de amostragem dobra sem mudar a configuração do ADC.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O filtro antialiasing deixa de ser necessário para qualquer sinal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A amplitude analógica de entrada passa a ser ilimitada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mais códigos para a mesma faixa permitem passos de quantização menores e tendem a reduzir o erro de quantização. A frequência de Nyquist continua determinada pela frequência de amostragem; clipping continua possível se a entrada exceder a faixa.",
+      "section": "1. Do sinal contínuo à sequência de números",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada de voz PCM G.711 possui um canal, 8.000 amostras por segundo e oito bits por amostra. Desconsiderando cabeçalhos, qual é a taxa bruta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "8.000 bits por segundo, pois a amostragem define a taxa total.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "16.000 bits por segundo, pois cada amostra representa dois bytes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "64.000 bits por segundo, pelo produto de amostras e bits por amostra.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "128.000 bits por segundo, pois a lei μ duplica cada palavra.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "1.000.000 bits por segundo, pois PCM exige um megabit fixo.",
+          "correct": false
+        }
+      ],
+      "explanation": "8.000 amostras/s × 8 bits/amostra × 1 canal = 64.000 bits/s. O cálculo usa os parâmetros da G.711 para voz e não conta cabeçalhos de transporte ou arquivo.",
+      "section": "2. Áudio digital, codificação e compressão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma gravação tem taxa PCM bruta calculada corretamente, mas o arquivo final é maior que o produto amostras × bits × canais sugeria. Qual explicação é plausível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cabeçalhos e metadados ampliam o arquivo além dos bits PCM calculados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A fórmula PCM sempre exclui os bits de todas as amostras do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A quantização adiciona necessariamente uma segunda cópia do sinal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A frequência de amostragem é convertida em pixels extras no áudio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O número de canais não participa da taxa de áudio PCM.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fórmula calcula a taxa bruta do fluxo PCM, não todo o tamanho do arquivo. Contêiner, metadados, cabeçalhos e outros fluxos podem acrescentar dados; a fórmula continua contando cada canal de amostras.",
+      "section": "2. Áudio digital, codificação e compressão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe compara duas gravações com o mesmo bitrate, mas codecs e conteúdo diferentes. Qual conclusão é mais correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O bitrate idêntico prova que a qualidade audível também é idêntica.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Codec e conteúdo alteram a qualidade percebida mesmo com bitrate igual.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O arquivo de menor duração sempre terá mais canais e melhor fidelidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Bitrate se aplica apenas a vídeo e não descreve fluxo de áudio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um contêiner comum converte automaticamente codecs diferentes na mesma qualidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bitrate informa dados por unidade de tempo, mas não caracteriza sozinho a eficiência do codec, o conteúdo, a configuração nem a qualidade perceptual. Dois fluxos na mesma taxa podem ter resultados distintos.",
+      "section": "2. Áudio digital, codificação e compressão",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma gravação usa PCM uniforme e a equipe deseja obter a forma de onda original exatamente após descompressão. Qual característica deve procurar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Compressão sem perdas permite reconstruir exatamente a sequência original.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Compressão com perdas de alta taxa, que sempre recupera cada bit original.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Subamostragem de canais, que reconstrói canais removidos sem informação auxiliar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Redução da profundidade, que aumenta automaticamente a precisão de amplitude.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Troca de formato do contêiner, que garante identidade da onda sem codec.",
+          "correct": false
+        }
+      ],
+      "explanation": "A propriedade necessária é compressão sem perdas, que permite reconstruir exatamente a sequência PCM. Compressão com perdas pode aproximar perceptualmente o sinal, mas não garante recuperar todos os valores originais.",
+      "section": "2. Áudio digital, codificação e compressão",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao converter um sinal de áudio digital para reprodução analógica, qual componente realiza a conversão no sentido inverso ao ADC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um codificador PCM de entrada, que desempenha apenas a função de microfone.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um filtro antialiasing, que transforma bits diretamente em amostras novas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um multiplexador de contêiner, que converte quadros em onda sonora.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um DAC converte códigos digitais em sinal analógico de saída.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um filtro de crominância, que restaura tensão a partir de vetores de movimento.",
+          "correct": false
+        }
+      ],
+      "explanation": "O DAC converte a representação numérica em sinal analógico para reprodução. Um filtro pode suavizar componentes de reconstrução, mas não substitui o processo de conversão; o ADC faz o sentido oposto.",
+      "section": "1. Do sinal contínuo à sequência de números",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fluxo de vídeo não comprimido possui quatro vezes mais pixels por quadro e mantém os mesmos bits por pixel e fps. Qual consequência é esperada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Com fps e bits por pixel fixos, quatro vezes mais pixels quadruplicam a taxa bruta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A taxa cai para um quarto, pois cada pixel recebe mais vizinhos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A taxa não muda, pois somente quadros por segundo importam.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A taxa dobra, pois quatro dimensões são reduzidas a duas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A taxa vira zero, pois maior resolução dispensa codificação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com taxa de quadros e bits por pixel constantes, quatro vezes mais pixels em cada quadro significam aproximadamente quatro vezes mais dados brutos de imagem por segundo. A compressão pode alterar o tamanho efetivo conforme a redundância do conteúdo.",
+      "section": "3. Vídeo digital: quadros, cor e amostragem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma imagem digital de estúdio precisa seguir parâmetros de amostragem e níveis de codificação de componentes de vídeo definidos para produção. Que afirmação sobre BT.601 é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "BT.601 define parâmetros de amostragem e codificação de vídeo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ela é um algoritmo de compressão perceptual de áudio multicanal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela é um contêiner que armazena qualquer codec audiovisual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela define apenas o sistema de arquivos de vídeos HDTV.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela estabelece a lei μ da codificação telefônica G.711.",
+          "correct": false
+        }
+      ],
+      "explanation": "A BT.601 descreve parâmetros de codificação digital de televisão de estúdio, com componentes de luminância e diferença de cor ou RGB, estruturas de amostragem e quantização PCM uniforme. A lei μ pertence à G.711.",
+      "section": "3. Vídeo digital: quadros, cor e amostragem",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um dispositivo deve mostrar movimento com maior continuidade visual e recebe conteúdo capturado a taxas diferentes. Qual parâmetro indica o número de imagens temporais por segundo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A profundidade de cor, expressa pelo número de bits por componente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A taxa de quadros, indicada em quadros por segundo ou fps.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A crominância, expressa pela proporção de componentes de cor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A resolução espacial, expressa em pixels por quadro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O contêiner, que mede quadros por segundo em seu nome.",
+          "correct": false
+        }
+      ],
+      "explanation": "A taxa de quadros mede quantas imagens temporais são apresentadas por segundo. Resolução conta pixels espaciais; profundidade descreve níveis por componente e crominância descreve informação de cor.",
+      "section": "3. Vídeo digital: quadros, cor e amostragem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comparação entre 4:4:4 e 4:2:2 está correta para vídeo componente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "4:4:4 mantém crominância completa; 4:2:2 a reduz na horizontal.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "4:4:4 é áudio mono; 4:2:2 é áudio estéreo comprimido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "4:4:4 reduz a luminância pela metade; 4:2:2 reduz a taxa de quadros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "4:4:4 é contêiner; 4:2:2 é codec temporal sem perdas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "4:4:4 usa dois campos entrelaçados; 4:2:2 usa um quadro progressivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A notação descreve proporções de amostras cromáticas em relação à luminância. 4:4:4 mantém amostragem completa da crominância; em 4:2:2, cada componente cromática tem metade da amostragem horizontal.",
+      "section": "3. Vídeo digital: quadros, cor e amostragem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um profissional precisa preservar resolução cromática total para composição e correção de cor. Qual estrutura tem amostragem completa de crominância entre as opções?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "4:2:0, que reduz amostras cromáticas na horizontal e vertical.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "4:2:2, que reduz pela metade a amostragem cromática horizontal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "4:4:4, que mantém a resolução cromática completa em relação à luminância.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "8 kHz PCM, que registra componentes de cor de vídeo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "24 fps, que define a proporção de amostras de crominância.",
+          "correct": false
+        }
+      ],
+      "explanation": "4:4:4 representa amostragem cromática completa em relação à luminância. 4:2:2 e 4:2:0 reduzem amostras de crominância, enquanto 8 kHz e fps medem propriedades de áudio e tempo de vídeo, respectivamente.",
+      "section": "3. Vídeo digital: quadros, cor e amostragem",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um codificador H.264 usa quadros de referência e descreve deslocamentos de regiões entre imagens sucessivas. Que técnica está sendo usada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Predição interquadros usa vetores de movimento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Quantização PCM uniforme de amostras de microfone em cada pixel.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Subamostragem de crominância que identifica os canais de áudio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Multiplexação de contêiner que substitui a codificação de imagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Filtro antialiasing analógico aplicado depois da decodificação final.",
+          "correct": false
+        }
+      ],
+      "explanation": "Predição interquadros usa informação de imagens de referência e vetores de movimento para representar relações temporais. A quantização e a transformada podem compor a codificação, mas não são o conceito descrito pelos deslocamentos entre quadros.",
+      "section": "4. Compressão de vídeo, codecs e fluxo de trabalho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um material será editado quadro a quadro e deve evitar dependência de imagens anteriores para decodificar cada quadro. Qual abordagem é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Codificação intraquadro, que representa cada imagem usando informação do próprio quadro.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Predição interquadros exclusiva, que exige sempre quadros de referência futuros.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Subamostragem temporal, que remove todas as imagens independentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Multiplexação de legendas, que codifica a luminância de cada pixel.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Compressão sem perdas G.711.0, que codifica imagens de vídeo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A codificação intraquadro não depende de outros quadros para representar a imagem, embora ainda possa usar compressão espacial. Predição interquadros reduz dados usando relações temporais e cria dependências de referência.",
+      "section": "4. Compressão de vídeo, codecs e fluxo de trabalho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cadeia audiovisual deve separar os fluxos de áudio e vídeo e guardar legendas, horários e metadados em um arquivo único. Qual componente cumpre principalmente essa função?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O contêiner, que multiplexa fluxos codificados e informações auxiliares.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A frequência de Nyquist, que reúne metadados e trilhas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O filtro passa-baixas, que associa legendas às amostras de voz.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A quantização, que transforma o fluxo em arquivo de sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A crominância, que multiplexa os canais esquerdo e direito.",
+          "correct": false
+        }
+      ],
+      "explanation": "O contêiner organiza fluxos de áudio, vídeo e outros dados com temporização e metadados. Codec é responsável por codificar ou decodificar cada tipo de fluxo; uma coisa não substitui a outra.",
+      "section": "4. Compressão de vídeo, codecs e fluxo de trabalho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja que o fluxo comprimido seja reproduzido em diferentes sistemas, mantendo regras comuns de decodificação. Qual papel tem um padrão como H.264?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Define regras compatíveis de codificação e decodificação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Garante que todo aparelho possua licença e hardware para reproduzir qualquer arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazena diretamente todos os fluxos, legendas e metadados no contêiner.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substitui resolução, taxa de quadros e parâmetros de cor por um único número.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Determina que a compressão seja sempre sem perdas e sem artefatos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um padrão de codificação define regras para que codificadores e decodificadores interoperem. Ele não garante que todo dispositivo tenha suporte, não é um contêiner e não significa que a compressão seja sem perdas.",
+      "section": "4. Compressão de vídeo, codecs e fluxo de trabalho",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "ITU-T G.711 — Pulse code modulation (PCM) of voice frequencies",
+      "publisher": "International Telecommunication Union",
+      "reference": "Taxa de amostragem nominal de 8.000 amostras/s, oito bits por amostra e leis A e μ para codificação PCM de voz.",
+      "url": "https://www.itu.int/rec/T-REC-G.711/en",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ITU-T G.711.0 — Lossless compression of G.711 pulse code modulation",
+      "publisher": "International Telecommunication Union",
+      "reference": "Compressão sem perdas de fluxo G.711.",
+      "url": "https://www.itu.int/ITU-T/recommendations/rec.aspx?rec=10038",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ITU-R BT.601 — Studio encoding parameters of digital television",
+      "publisher": "International Telecommunication Union",
+      "reference": "Parâmetros de codificação de vídeo de estúdio, sinais componentes, estruturas de amostragem e quantização.",
+      "url": "https://www.itu.int/rec/R-REC-BT.601/",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ITU-R BT.709 — Parameter values for the HDTV standards",
+      "publisher": "International Telecommunication Union",
+      "reference": "Parâmetros de formato de imagem HDTV, taxas de quadro e modos de captura.",
+      "url": "https://www.itu.int/rec/R-REC-BT.709/en",
+      "accessedAt": "2026-11-01"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "ITU-T H.264 — Advanced video coding for generic audiovisual services",
+      "publisher": "International Telecommunication Union",
+      "reference": "Padrão de codificação de vídeo para videoconferência, armazenamento, radiodifusão e streaming.",
+      "url": "https://www.itu.int/ITU-T/recommendations/rec.aspx?rec=H.264",
+      "accessedAt": "2026-11-01"
+    }
+  ]
+}
