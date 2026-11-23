@@ -34,5 +34,6 @@ Pesquise na web e use fontes oficiais com link real.
 
 === REGRAS DE CONTEÚDO (valem para tudo) ===
 - Se não tiver CERTEZA de um número de lei, artigo, súmula, prazo, pena ou valor, não cite o número: explique o conteúdo. Nunca invente norma, julgado ou dado.
+- PROIBIDO citar emenda, lei, decreto, resolução, tema do STF/STJ ou julgado de 2025 ou 2026 (são os que mais saem inventados). Número de tema repetitivo ou de repercussão geral só com certeza absoluta.
 - Não use normas, decisões ou fatos que você não consiga confirmar; evite pontos controvertidos (divergência entre gramáticos, doutrina ou tribunais).
 - Português do Brasil, nível de cursinho caro. Nada de rascunho ("exemplo genérico", "a completar").

@@ -27,7 +27,10 @@ Deno.serve({ hostname: "127.0.0.1", port: 8788 }, async (req) => {
     // Nos pedidos de múltipla escolha, lembra de espalhar o gabarito (o Gemini concentrava quase tudo em A e B).
     const OBS = "; OBS: distribua o gabarito por igual entre A, B, C, D e E (cerca de 1/5 cada) e a alternativa correta não pode ser sempre a mais longa";
     const linhas = new TextDecoder().decode(o.stdout).trim().split("\n").filter(Boolean)
-      .map((l) => /^QUESTÕES:/.test(l) && !/formato=Certo\/Errado/i.test(l) ? l + OBS : l);
+      .map((l) => /^QUESTÕES:/.test(l) && !/formato=Certo\/Errado/i.test(l) ? l + OBS : l)
+      // 23/11: a auditoria apagou ~90 questões que citavam normas inventadas ("EC 141/2026", "Lei 15.402/2026", "STF 2026")
+      // e temas do STF com número trocado. Vale para questões e matérias.
+      .map((l) => l + "; PROIBIDO: citar emenda, lei, decreto, resolução, tema ou julgado de 2025 ou 2026, e qualquer número de norma ou tema de que você não tenha certeza absoluta (explique o conteúdo sem o número); questão que dependa disso não deve ser escrita");
     log(`entregues ${linhas.length} pedidos ao script${u.searchParams.get("conta") ? ` (conta ${u.searchParams.get("conta")!.slice(0, 10)})` : ""}`);
     return json(linhas);
   }
