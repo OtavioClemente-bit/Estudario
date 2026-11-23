@@ -157,6 +157,8 @@ data class PlanTask(
     val locked: Boolean = false,
     val progressNote: String = "",
     val updatedAt: Long = 0,
+    /** A tarefa da qual esta nasceu ao reorganizar (o resto de uma tarefa em andamento). */
+    val replannedFrom: String? = null,
 )
 
 @Serializable

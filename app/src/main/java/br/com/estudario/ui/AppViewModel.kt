@@ -376,6 +376,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 br.com.estudario.domain.ProgressInputs.Sources(
                     executions = bundle.executions.map { br.com.estudario.domain.ProgressInputs.Execution(it.taskId, it.completedAt, it.actualMinutes, it.questionsDone, it.correctAnswers) },
                     taskTypes = typeById,
+                    // As partes remarcadas (o resto de uma tarefa em andamento) são a mesma tarefa.
+                    replannedFrom = types.mapNotNull { row -> row.replannedFromTaskId?.let { row.id to it } }.toMap(),
                 ),
                 zone.toKotlinTimeZone(),
             )

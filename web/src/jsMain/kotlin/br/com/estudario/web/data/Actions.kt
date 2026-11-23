@@ -43,8 +43,12 @@ object Actions {
 
     // ------------------------------------------------------------------ plano
 
-    /** StudyExecutionService.complete: registra a execução e conclui (ou deixa em andamento) a tarefa. */
-    fun completeTask(data: Snapshot, taskId: String, minutes: Int, questions: Int = 0, correct: Int = 0, notes: String = "", fromQuiz: Boolean = false, fromTopic: Boolean = false): Snapshot {
+    /**
+     * StudyExecutionService.complete: registra a execução e conclui (ou deixa em andamento) a tarefa.
+     * [finish] é o "Concluir" explícito da pessoa: fecha a tarefa mesmo com menos tempo que o planejado.
+     * Sem ele, menos tempo só salva o progresso (fica em andamento).
+     */
+    fun completeTask(data: Snapshot, taskId: String, minutes: Int, questions: Int = 0, correct: Int = 0, notes: String = "", fromQuiz: Boolean = false, fromTopic: Boolean = false, finish: Boolean = false): Snapshot {
         val task = data.tasks.firstOrNull { it.id == taskId } ?: return data
         if (fromTopic && task.type !in setOf("THEORY", "REVIEW")) return data
         if (task.status in setOf("CONCLUIDA", "NAO_REALIZADA", "PAUSADA")) return data
@@ -52,7 +56,7 @@ object Actions {
         val completedAt = now()
         val startedAt = completedAt - minutes.coerceAtLeast(0) * 60_000L
         val nextRevision = plan.revision + 1
-        val nextStatus = if (!fromQuiz && !fromTopic && minutes < task.minutes) "EM_ANDAMENTO" else "CONCLUIDA"
+        val nextStatus = if (!finish && !fromQuiz && !fromTopic && minutes < task.minutes) "EM_ANDAMENTO" else "CONCLUIDA"
         val reason = when {
             fromQuiz -> "QUESTION_BATTERY_COMPLETED"
             nextStatus == "CONCLUIDA" -> "TASK_COMPLETED"

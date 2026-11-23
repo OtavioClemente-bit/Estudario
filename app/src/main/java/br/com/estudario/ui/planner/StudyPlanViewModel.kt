@@ -271,7 +271,7 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
         executions.complete(taskId, input)
         // Teoria concluída pelo plano conta como tópico estudado (como no site): entram as revisões
         // D+1, D+7 e D+30 e o plano passa a tratar o tópico como visto. Antes só a tela do tópico fazia isso.
-        if (task?.type == br.com.estudario.domain.planner.PlanTaskType.THEORY && task.topicId != null && input.actualMinutes >= task.plannedMinutes) {
+        if (task?.type == br.com.estudario.domain.planner.PlanTaskType.THEORY && task.topicId != null && (input.finish || input.actualMinutes >= task.plannedMinutes)) {
             app.repository.topics.first().firstOrNull { it.id == task.topicId && it.status == br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO }
                 ?.let { app.repository.markStudied(it) }
         }

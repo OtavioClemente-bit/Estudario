@@ -723,7 +723,7 @@ fun CompleteTaskDialog(task: PlanTask, onClose: () -> Unit) {
             }
         }
         if (focusOfTask) Div({ classes("banner", "info") }) { Icon("timer"); Text("O modo foco desta tarefa está rodando (${Queries.minutesLabel(TopicFocus.elapsedMinutes.coerceAtLeast(1))}). Ao concluir, ele é encerrado e esse tempo entra aqui.") }
-        if (minutes < task.minutes) Div({ classes("banner", "info") }) { Icon("info"); Text("Menos tempo que o planejado: a tarefa fica em andamento para você continuar depois, como no app.") }
+        if (minutes < task.minutes) Div({ classes("banner", "info") }) { Icon("info"); Text("Menos tempo que o planejado. \"Concluir\" fecha a tarefa assim mesmo; \"Salvar só o progresso\" deixa ela em andamento com o tempo que falta, para continuar depois.") }
         // Já estudou este tópico antes (fora do app, em outro curso): sai a teoria, entram as revisões, e o
         // plano segue para o próximo. As questões do tópico ficam, para conferir que sabe mesmo.
         if (task.type == "THEORY" && task.topicId != null) Div({ classes("row", "end") }) {
@@ -761,19 +761,32 @@ fun CompleteTaskDialog(task: PlanTask, onClose: () -> Unit) {
         }
         Div({ classes("row", "end") }) {
             Btn("Cancelar", onClose, style = "ghost")
-            Btn("Concluir", {
+            // "Concluir" sempre fecha a tarefa. Antes, com menos tempo que o planejado (o tempo do foco já
+            // vinha preenchido), ela ficava em andamento, o plano trocava o resto por outra tarefa no mesmo
+            // dia e cada toque registrava de novo, com XP: a tarefa nunca saía do dia (caso real de 23/11).
+            fun save(finish: Boolean) {
                 if (focusOfTask) TopicFocus.stop()
+                val before = Store.data
                 Store.update { data ->
-                    val worked = Actions.completeTask(data, task.id, minutes, questions, correct.coerceIn(0, questions))
+                    val worked = Actions.completeTask(data, task.id, minutes, questions, correct.coerceIn(0, questions), finish = finish)
+                    if (worked === data) return@update data
+                    val closed = worked.tasks.firstOrNull { it.id == task.id }?.status == "CONCLUIDA"
                     // Teoria concluída no plano também marca o tópico como estudado (e agenda as revisões).
-                    val done = if (task.type == "THEORY" && task.topicId != null && minutes >= task.minutes) Actions.completeStudy(worked, task.topicId) else worked
+                    val done = if (closed && task.type == "THEORY" && task.topicId != null) Actions.completeStudy(worked, task.topicId) else worked
                     // Como no app: concluir reorganiza o plano.
-                    runCatching { Planning.replan(done, task.planId, ReplanReason.TASK_COMPLETED) }.getOrDefault(done)
+                    runCatching { Planning.replan(done, task.planId, if (closed) ReplanReason.TASK_COMPLETED else ReplanReason.TASK_PARTIAL) }.getOrDefault(done)
                 }
-                if (minutes >= task.minutes) som("concluir")
-                Toast.show(if (minutes >= task.minutes) "Tarefa concluída! +${Progress.taskXp(task)} XP" else "Progresso registrado")
+                val after = Store.data
+                val status = after.tasks.firstOrNull { it.id == task.id }?.status
+                when {
+                    after === before || status == null -> Toast.show("Não deu para salvar: esta tarefa já foi concluída, pulada ou trocada pelo plano. Atualize a página e abra a tarefa de novo.")
+                    status == "CONCLUIDA" -> { som("concluir"); Toast.show("Tarefa concluída! +${Progress.taskXp(task)} XP") }
+                    else -> Toast.show("Progresso salvo. A tarefa continua no plano com o tempo que falta.")
+                }
                 onClose()
-            }, icon = "check")
+            }
+            if (minutes < task.minutes) Btn("Salvar só o progresso", { save(finish = false) }, style = "tonal")
+            Btn("Concluir", { save(finish = true) }, icon = "check")
         }
     }
 }

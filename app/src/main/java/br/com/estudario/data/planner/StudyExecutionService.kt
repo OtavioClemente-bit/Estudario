@@ -18,6 +18,8 @@ data class CompleteTaskInput(
     val correct: Int = 0,
     val notes: String = "",
     val perceivedDifficulty: PerceivedDifficulty = PerceivedDifficulty.NORMAL,
+    /** "Concluir" explícito: fecha a tarefa mesmo com menos tempo que o planejado (sem ele, só salva o progresso). */
+    val finish: Boolean = false,
 )
 
 class StudyExecutionService(
@@ -73,7 +75,7 @@ class StudyExecutionService(
                 perceivedDifficulty = input.perceivedDifficulty,
             ),
         )
-        val nextStatus = if (source == CompletionSource.MANUAL && input.actualMinutes < task.plannedMinutes) PlanTaskStatus.EM_ANDAMENTO else PlanTaskStatus.CONCLUIDA
+        val nextStatus = if (source == CompletionSource.MANUAL && !input.finish && input.actualMinutes < task.plannedMinutes) PlanTaskStatus.EM_ANDAMENTO else PlanTaskStatus.CONCLUIDA
         planner.updateTask(task.withStatus(nextStatus, plan.revision + 1))
         val reason = when {
             source == CompletionSource.TOPIC -> "TOPIC_COMPLETED"

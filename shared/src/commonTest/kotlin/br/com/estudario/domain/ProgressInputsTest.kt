@@ -48,6 +48,29 @@ class ProgressInputsTest {
         assertEquals(day0.plusDays(1), work[0].date)
     }
 
+    /**
+     * Caso real de 23/11 (teoria de Literatura): cada "Concluir" com menos tempo que o planejado deixava a
+     * tarefa em andamento, a reorganização trocava o resto por uma tarefa nova (outro id) e o XP base era
+     * pago de novo a cada toque. As partes remarcadas são a mesma tarefa: o XP base entra uma vez só.
+     */
+    @Test
+    fun partesRemarcadasDaMesmaTarefaPagamOXpUmaVezSo() {
+        val theory = PlanTaskType.THEORY
+        val s = ProgressInputs.Sources(
+            executions = listOf(
+                ProgressInputs.Execution("t1", at(0, 8), 5, 0, 0),
+                ProgressInputs.Execution("t2", at(0, 9), 5, 0, 0),
+                ProgressInputs.Execution("t3", at(0, 10), 5, 0, 0),
+            ),
+            taskTypes = mapOf("t1" to theory, "t2" to theory, "t3" to theory),
+            replannedFrom = mapOf("t2" to "t1", "t3" to "t2"),
+        )
+        val work = ProgressInputs.planWork(s, zone)
+        assertEquals(1, work.size)
+        assertEquals(15, work[0].minutes)
+        assertEquals(ProgressEngine.planTaskXp(theory, 15, 0), work.sumOf { ProgressEngine.planTaskXp(it.type, it.minutes, it.correct) })
+    }
+
     @Test
     fun editalContaSoOsTopicosFinaisDoPrincipal() {
         val s = ProgressInputs.Sources(

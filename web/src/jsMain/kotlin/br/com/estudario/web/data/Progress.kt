@@ -232,6 +232,7 @@ object Progress {
             executions = data.executions.map { br.com.estudario.domain.ProgressInputs.Execution(it.taskId, it.completedAt, it.minutes, it.questions, it.correct) },
             questionRuns = data.questionSessions.map { br.com.estudario.domain.ProgressInputs.QuestionRun(it.startedAt, it.completedAt, it.questionCount) },
             taskTypes = data.tasks.mapNotNull { t -> runCatching { PlanTaskType.valueOf(t.type) }.getOrNull()?.let { t.id to it } }.toMap(),
+            replannedFrom = data.tasks.mapNotNull { t -> t.replannedFrom?.let { t.id to it } }.toMap(),
             topics = data.topics.map { br.com.estudario.domain.ProgressInputs.TopicRow(it.id, it.subjectId, it.parentTopicId, Queries.isStudied(it)) },
             primarySubjectIds = data.subjects.filter { primary != null && it.competitionId == primary.id }.mapTo(hashSetOf()) { it.id },
             marks = data.theoryMarks.size + data.notes.size,

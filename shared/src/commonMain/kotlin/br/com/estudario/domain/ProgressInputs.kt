@@ -30,6 +30,11 @@ object ProgressInputs {
         val questionRuns: List<QuestionRun> = emptyList(),
         /** Tipo de cada tarefa do plano, pelo id (tarefa sem tipo conhecido não rende XP de plano). */
         val taskTypes: Map<String, PlanTaskType> = emptyMap(),
+        /**
+         * De qual tarefa cada uma nasceu ao reorganizar (replannedFrom): a parte que sobra de uma tarefa
+         * em andamento vira outra tarefa, com outro id, e continua sendo a mesma tarefa para o XP.
+         */
+        val replannedFrom: Map<String, String> = emptyMap(),
         val topics: List<TopicRow> = emptyList(),
         /** Matérias do edital principal: o emblema de edital conta só os tópicos dele. */
         val primarySubjectIds: Set<Long> = emptySet(),
@@ -61,10 +66,15 @@ object ProgressInputs {
         zone = zone,
     )
 
-    /** Uma tarefa é uma só, com o tempo e os acertos de todos os registros somados, no dia do último. */
+    /**
+     * Uma tarefa é uma só, com o tempo e os acertos de todos os registros somados, no dia do último.
+     * Conta também as partes remarcadas dela: salvar menos tempo que o planejado deixa a tarefa em
+     * andamento e a reorganização troca o resto por uma tarefa nova (outro id). Agrupando só pelo id,
+     * cada toque em "Concluir" pagava o XP base de novo e a tarefa nunca saía do dia (caso real de 23/11).
+     */
     fun planWork(s: Sources, zone: TimeZone): List<ProgressEngine.PlanWork> =
-        s.executions.filter { it.taskId != null }.groupBy { it.taskId!! }.mapNotNull { (taskId, runs) ->
-            val type = s.taskTypes[taskId] ?: return@mapNotNull null
+        s.executions.filter { it.taskId != null }.groupBy { rootTask(it.taskId!!, s.replannedFrom) }.mapNotNull { (taskId, runs) ->
+            val type = s.taskTypes[taskId] ?: runs.firstNotNullOfOrNull { s.taskTypes[it.taskId] } ?: return@mapNotNull null
             ProgressEngine.PlanWork(
                 date = br.com.estudario.time.epochMillisToDate(runs.maxOf { it.completedAt }, zone),
                 type = type,
@@ -73,6 +83,17 @@ object ProgressInputs {
                 questions = runs.sumOf { it.questions },
             )
         }
+
+    /** A primeira tarefa da cadeia de remarcações (com trava contra ciclo vindo de dados ruins). */
+    private fun rootTask(taskId: String, replannedFrom: Map<String, String>): String {
+        var current = taskId
+        val seen = hashSetOf(current)
+        while (true) {
+            val parent = replannedFrom[current] ?: return current
+            if (!seen.add(parent)) return current
+            current = parent
+        }
+    }
 
     /** (total, estudados): os tópicos finais (sem subtópicos) do edital principal. */
     fun syllabus(s: Sources): Pair<Int, Int> {

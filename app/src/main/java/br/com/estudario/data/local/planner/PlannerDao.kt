@@ -9,7 +9,7 @@ import br.com.estudario.domain.planner.PlanTaskType
 import kotlinx.coroutines.flow.Flow
 
 /** Projeção enxuta: o XP só precisa do tipo de cada tarefa, não da tarefa inteira. */
-data class PlanTaskTypeRow(val id: String, val type: PlanTaskType)
+data class PlanTaskTypeRow(val id: String, val type: PlanTaskType, val replannedFromTaskId: String? = null)
 
 @Dao
 interface PlannerDao {
@@ -70,7 +70,7 @@ interface PlannerDao {
     @Query("SELECT * FROM plan_tasks WHERE planId = :planId ORDER BY scheduledEpochDay, sequence, createdAt") suspend fun tasksForOnce(planId: String): List<PlanTaskEntity>
     @Query("SELECT * FROM plan_tasks ORDER BY planId, scheduledEpochDay, sequence, createdAt") suspend fun tasksOnce(): List<PlanTaskEntity>
     /** Todas as tarefas, de todos os planos: o XP precisa saber o tipo de cada execução. */
-    @Query("SELECT id, type FROM plan_tasks") fun taskTypes(): Flow<List<PlanTaskTypeRow>>
+    @Query("SELECT id, type, replannedFromTaskId FROM plan_tasks") fun taskTypes(): Flow<List<PlanTaskTypeRow>>
     @Query("SELECT * FROM plan_tasks WHERE planId = :planId AND scheduledEpochDay BETWEEN :start AND :end ORDER BY scheduledEpochDay, sequence, createdAt") suspend fun tasksInRange(planId: String, start: Long, end: Long): List<PlanTaskEntity>
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertDependencies(values: List<PlanTaskDependencyEntity>)
     @Query("SELECT * FROM plan_task_dependencies WHERE taskId IN (SELECT id FROM plan_tasks WHERE planId = :planId)") suspend fun dependenciesFor(planId: String): List<PlanTaskDependencyEntity>

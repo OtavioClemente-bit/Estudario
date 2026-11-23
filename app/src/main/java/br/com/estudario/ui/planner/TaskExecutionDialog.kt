@@ -50,6 +50,11 @@ fun TaskExecutionDialog(task: PlannerTaskUi, measuredMinutes: Int? = null, onDis
             if (onAlreadyStudied != null && task.entity.type == br.com.estudario.domain.planner.PlanTaskType.THEORY && task.entity.topicId != null) {
                 TextButton(kind = br.com.estudario.ui.brand.NoteKind.Study, onClick = { onAlreadyStudied(); onDismiss() }) { Text("Já estudei este tópico") }
             }
+            if (valid && m!! < task.entity.plannedMinutes) Text(
+                "Menos tempo que o planejado (${task.entity.plannedMinutes} min). \"Concluir\" fecha a tarefa assim mesmo; \"Só o progresso\" deixa ela em andamento com o tempo que falta.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             if (!valid) Text("Use números não negativos e acertos entre zero e o total.", color = MaterialTheme.colorScheme.error)
             else Text(
                 "Você vai receber ${ProgressEngine.earnedPlanTask(task.entity.type, m ?: 0, (c ?: 0).coerceAtMost(q ?: 0))} XP por esta atividade.",
@@ -58,7 +63,15 @@ fun TaskExecutionDialog(task: PlannerTaskUi, measuredMinutes: Int? = null, onDis
                 color = MaterialTheme.colorScheme.tertiary,
             )
         } },
-        confirmButton = { TextButton(enabled = valid, onClick = { val now = System.currentTimeMillis(); onConfirm(CompleteTaskInput(now - (m!! * 60_000L), now, m, q!!, c!!, note, difficulty)); onDismiss() }) { Text("Salvar execução") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
+        // "Concluir" sempre fecha a tarefa. Antes, com menos tempo que o planejado (o tempo do foco já vinha
+        // preenchido), ela ficava em andamento, o plano trocava o resto por outra tarefa no mesmo dia e cada
+        // toque registrava de novo, com XP: a tarefa nunca saía do dia (caso real de 23/11).
+        confirmButton = { TextButton(enabled = valid, onClick = { val now = System.currentTimeMillis(); onConfirm(CompleteTaskInput(now - (m!! * 60_000L), now, m, q!!, c!!, note, difficulty, finish = true)); onDismiss() }) { Text("Concluir") } },
+        dismissButton = {
+            Row {
+                if (valid && m!! < task.entity.plannedMinutes) TextButton(onClick = { val now = System.currentTimeMillis(); onConfirm(CompleteTaskInput(now - (m * 60_000L), now, m, q!!, c!!, note, difficulty)); onDismiss() }) { Text("Só o progresso") }
+                TextButton(onClick = onDismiss) { Text("Cancelar") }
+            }
+        },
     )
 }
