@@ -65,6 +65,12 @@ function conferir(id: string): string[] | null {
   let novo: Json, velho: Json;
   try { novo = ler(`${SAIDA}/${id}.json`); } catch (e) { try { Deno.statSync(`${SAIDA}/${id}.json`); return [`JSON inválido: ${e}`]; } catch { return null; } }
   try { velho = ler(publicada(id)); } catch { return ["matéria publicada não encontrada"]; }
+  // 23/11: o Codex mexia nos capítulos/questões ao engrossar e 102 matérias foram desistidas por isso. Como só
+  // flashcards e activeRecall podem mudar, o script recopia capítulos e questões da publicada (cópia, nada é escrito).
+  if (JSON.stringify(novo.chapters) !== JSON.stringify(velho.chapters) || JSON.stringify(novo.questions) !== JSON.stringify(velho.questions)) {
+    novo.chapters = velho.chapters; novo.questions = velho.questions;
+    Deno.writeTextFileSync(`${SAIDA}/${id}.json`, JSON.stringify(novo, null, 2));
+  }
   const erros: string[] = [];
   if (JSON.stringify(novo.chapters) !== JSON.stringify(velho.chapters)) erros.push("os capítulos mudaram; copie-os de volta exatamente como estão na matéria publicada (só flashcards e activeRecall mudam)");
   if (JSON.stringify(novo.questions) !== JSON.stringify(velho.questions)) erros.push("as questões mudaram; copie-as de volta exatamente como estão na matéria publicada");

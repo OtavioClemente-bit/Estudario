@@ -27,6 +27,8 @@ deno run -A scripts\codex\loop-engrossar.ts
 deno run -A scripts\codex\loop-materias.ts
 deno run -A scripts\codex\proxima-lista.ts 300
 deno run -A scripts\codex\loop-itens.ts
+rem 23/11: com as filas acima vazias, reescrita didatica das materias antigas (conteudo/fila/reescrita-didatica-faltam.txt).
+deno run -A scripts\codex\loop-reescrita.ts
 rem Se outra conta estava decidindo, espera um pouco antes de voltar a procurar materias.
 timeout /t 300 /nobreak >nul
 goto ciclo

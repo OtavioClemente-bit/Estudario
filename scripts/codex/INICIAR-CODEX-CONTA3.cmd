@@ -27,5 +27,7 @@ set CODEX_LIG3=
 rem 14/11: primeiro engrossa os recortes magros (flashcards e memorizacao), depois as materias novas.
 deno run -A scripts\codex\loop-engrossar.ts
 deno run -A scripts\codex\loop-materias.ts
+rem 23/11: com as filas acima vazias, reescrita didatica das materias antigas (conteudo/fila/reescrita-didatica-faltam.txt).
+deno run -A scripts\codex\loop-reescrita.ts
 timeout /t 300 /nobreak >nul
 goto ciclo
