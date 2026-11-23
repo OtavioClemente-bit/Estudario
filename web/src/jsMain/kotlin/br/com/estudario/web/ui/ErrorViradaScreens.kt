@@ -349,7 +349,7 @@ fun ViradaMissionScreen() {
             return@Div
         }
         key(missionIds[index]) {
-            MissionItem(missionIds[index], sessionId, results, onAnswered = { ok, topic -> results += ok; topic?.let { topicIds += it }; if (ok) climbed++ }) { index++ }
+            MissionItem(missionIds[index], sessionId, results, onAnswered = { ok, topic -> results += ok; topic?.let { topicIds += it }; if (ok) climbed++ }) { if (results.size > index) index++ }
         }
     }
 }

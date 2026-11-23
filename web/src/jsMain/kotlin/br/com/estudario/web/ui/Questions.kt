@@ -465,7 +465,9 @@ private fun QuizAttempt(scope: String, onRepeat: () -> Unit) {
     }
     fun mark(key: String) { if (selected == null) marked = if (marked == key) null else key }
     fun confirm() { marked?.let { choose(it) } }
-    fun next() { selected = null; marked = null; revealed = false; index++ }
+    // Avança uma vez só por questão respondida: Enter e o clique no botão "Próxima" chegavam juntos e
+    // pulavam uma questão (a casa ficava vazia e o amarelo ia para a seguinte).
+    fun next() { if (selected == null) return; selected = null; marked = null; revealed = false; index++ }
 
     // Teclado: A–E escolhem, Enter avança.
     val latestChoose = androidx.compose.runtime.rememberUpdatedState(::mark)
