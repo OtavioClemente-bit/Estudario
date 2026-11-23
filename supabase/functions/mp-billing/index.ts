@@ -53,6 +53,14 @@ async function handle(request: Request): Promise<Response> {
   const action = String(body.action ?? "");
 
   try {
+    if (action === "ping") {
+      // diagnóstico: de quem é o token configurado (sem mostrar o token)
+      const t = mpToken() ?? "";
+      const r = await mp("/users/me");
+      const me = await r.json() as Record<string, unknown>;
+      return json({ mp: r.status, prefix: t.slice(0, 8), length: t.length, nickname: me.nickname ?? null, site: me.site_id ?? null, test: Array.isArray(me.tags) ? (me.tags as string[]).includes("test_user") : null, message: me.message ?? null });
+    }
+
     if (action === "status") {
       return json({ planTier: await profileTier(userId), subscriptions: await subscriptions(userId) });
     }
@@ -100,7 +108,8 @@ async function handle(request: Request): Promise<Response> {
           body: JSON.stringify({
             reason: label,
             external_reference: reference("sub", userId, tier, period),
-            payer_email: email,
+            // em teste, o Mercado Pago só aceita comprador de teste (MP_TEST_PAYER_EMAIL); em produção, o e-mail da conta
+            payer_email: Deno.env.get("MP_TEST_PAYER_EMAIL")?.trim() || email,
             back_url: `${SITE}/?pagamento=assinatura`,
             notification_url: notify,
             status: "pending",
@@ -108,7 +117,7 @@ async function handle(request: Request): Promise<Response> {
           }),
         });
         const p = await r.json() as Record<string, unknown>;
-        if (!r.ok || !p.init_point) { console.error("mp-billing preapproval", r.status, JSON.stringify(p)); return fail("CHECKOUT_FAILED", 502, "Não deu para abrir o pagamento agora."); }
+        if (!r.ok || !p.init_point) { console.error("mp-billing preapproval", r.status, JSON.stringify(p)); return json({ error: { code: "CHECKOUT_FAILED", message: "Não deu para abrir o pagamento agora.", mp: { status: r.status, message: p.message, error: p.error, cause: p.cause } } }, 502); }
         return json({ url: p.init_point });
       }
 
@@ -116,7 +125,7 @@ async function handle(request: Request): Promise<Response> {
         method: "POST",
         body: JSON.stringify({
           items: [{ id: `${tier}-${period}`, title: label, quantity: 1, unit_price: amount, currency_id: "BRL" }],
-          payer: { email },
+          // sem payer: o Mercado Pago pede o e-mail na página dele (com credencial de teste, um e-mail real é recusado)
           external_reference: reference("once", userId, tier, period),
           back_urls: { success: `${SITE}/?pagamento=ok`, pending: `${SITE}/?pagamento=pendente`, failure: `${SITE}/?pagamento=falhou` },
           auto_return: "approved",
@@ -126,7 +135,7 @@ async function handle(request: Request): Promise<Response> {
         }),
       });
       const p = await r.json() as Record<string, unknown>;
-      if (!r.ok || !p.init_point) { console.error("mp-billing preference", r.status, JSON.stringify(p)); return fail("CHECKOUT_FAILED", 502, "Não deu para abrir o pagamento agora."); }
+      if (!r.ok || !p.init_point) { console.error("mp-billing preference", r.status, JSON.stringify(p)); return json({ error: { code: "CHECKOUT_FAILED", message: "Não deu para abrir o pagamento agora.", mp: { status: r.status, message: p.message, error: p.error, cause: p.cause } } }, 502); }
       return json({ url: p.init_point });
     }
 
