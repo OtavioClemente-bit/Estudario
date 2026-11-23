@@ -1244,7 +1244,7 @@ private fun DeckDialog(deck: Summary, onClose: () -> Unit) {
     val cards = remember(deck.markdown) { deckCards(deck.markdown) }
     var index by remember { mutableStateOf(0) }
     var flipped by remember { mutableStateOf(false) }
-    Modal(onDismiss = onClose) {
+    Modal(onDismiss = onClose, extraClass = "fc-modal") {
         Div({ classes("row", "between") }) {
             Span({ classes("small", "muted", "strong") }) { Text(if (cards.isEmpty()) "Baralho" else "${index + 1} de ${cards.size}") }
             IconButton("close", "Fechar", onClose)
@@ -1254,7 +1254,7 @@ private fun DeckDialog(deck: Summary, onClose: () -> Unit) {
         val card = cards[index]
         val saved = Store.data.snippets.any { it.externalId == Actions.savedCardId(deck.id, card.front, card.back) }
         PaperFlashCard(card.front, card.back, flipped, index, cards.size, "Toque para virar") { flipped = !flipped }
-        Div({ classes("row", "between") }) {
+        Div({ classes("row", "between", "fc-nav") }) {
             Btn("Anterior", { if (index > 0) { index--; flipped = false } }, style = "ghost", icon = "arrow_back", enabled = index > 0)
             Btn(if (saved) "Salvo no Caderno" else "Salvar cartão", { Store.update { Actions.toggleSavedFlashcard(it, deck.id, deck.topicId, card.front, card.back) } }, style = if (saved) "tonal" else "outline", icon = if (saved) "bookmark" else "bookmark_border")
             if (index < cards.lastIndex) Btn("Próximo", { index++; flipped = false }, style = "primary", icon = "arrow_forward")
