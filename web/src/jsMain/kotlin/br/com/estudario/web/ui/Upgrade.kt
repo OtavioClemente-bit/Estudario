@@ -93,7 +93,7 @@ fun UpgradeModal(reason: UpgradeReason, onDismiss: () -> Unit) {
             P({ classes("offer-note") }) { Text("No Grátis continuam a matéria do plano de hoje, as revisões, o treino e o caderno.") }
             Button({ classes("btn", "k-pro", "offer-cta"); onClick { onDismiss(); Router.go(Route.PlanLimits) } }) { Icon("Gem"); Text("Conhecer os planos") }
             Button({ classes("btn", "small", "k-paper", "offer-later"); onClick { onDismiss() } }) { Text("Agora não") }
-            P({ classes("offer-fine") }) { Text("Assinatura pelo app, na Google Play. Vale aqui na mesma conta. Cancela quando quiser.") }
+            P({ classes("offer-fine") }) { Text("Assine aqui, no cartão ou no Pix, ou pelo app. Vale no site e no celular. Cancela quando quiser.") }
         }
     }
 }

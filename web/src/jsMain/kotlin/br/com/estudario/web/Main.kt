@@ -14,4 +14,6 @@ fun main() {
     kotlinx.browser.document.getElementById("root")?.innerHTML = ""
     br.com.estudario.web.ui.installNoteStamp()
     renderComposable(rootElementId = "root") { App() }
+    // Volta do Mercado Pago: confere o pagamento e avisa.
+    br.com.estudario.web.ui.WebBilling.handleReturn()
 }

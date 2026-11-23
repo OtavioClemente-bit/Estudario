@@ -744,6 +744,15 @@ fun PlanLimitsScreen() {
     }
     val tiers = listOf("FREE", "ESSENCIAL", "PRO").filter { t -> current.plans.any { it.first == t } }
     var yearly by remember { mutableStateOf(false) }
+    var paying by remember { mutableStateOf<String?>(null) }
+    paying?.let { t ->
+        val p = current.pricing[t]
+        PayChooser(
+            tier = t, yearly = yearly, planName = p?.name?.ifBlank { null } ?: planName(t),
+            priceText = if (p == null) "" else if (yearly) "${brl(p.yearCents)} por ano" else "${brl(p.monthCents)} por mês",
+            onDismiss = { paying = null },
+        )
+    }
 
     // ---------- seu plano
     Div({ classes("pl-hero", tierClass(current.tier)) }) {
@@ -831,13 +840,15 @@ fun PlanLimitsScreen() {
                     when {
                         mine -> Span({ classes("pl-cta", "ghost") }) { Text("Você está aqui") }
                         !paid -> Span({ classes("pl-cta", "ghost") }) { Text("Já incluso na sua conta") }
-                        else -> A(href = PLAY_URL, { attr("target", "_blank"); attr("rel", "noopener"); classes("pl-cta") }) { Text("Assinar o ${price?.name?.ifBlank { null } ?: planName(tier)}") }
+                        Store.demo -> Span({ classes("pl-cta", "ghost") }) { Text("Entre com sua conta para assinar") }
+                        else -> Button({ classes("pl-cta"); attr("type", "button"); onClick { paying = tier } }) { Text("Assinar o ${price?.name?.ifBlank { null } ?: planName(tier)}") }
                     }
                 }
             }
         }
     }
-    P({ classes("pl-fine") }) { Text("A assinatura é feita no app, pela Google Play, e vale na hora na mesma conta, no celular e aqui no site.") }
+    WebSubscriptionBox()
+    P({ classes("pl-fine") }) { Text("Pague aqui pelo Mercado Pago (cartão ou Pix) ou no app Android, pela Google Play. Vale na hora na mesma conta, no celular e aqui no site.") }
 
     // ---------- a comparação completa
     Div({ classes("pl-section-head") }) { org.jetbrains.compose.web.dom.H2 { Text("Tudo o que cada plano tem") } }
