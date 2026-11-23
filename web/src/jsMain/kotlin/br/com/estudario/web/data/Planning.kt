@@ -205,7 +205,29 @@ object Planning {
     fun fitOverdue(data: Snapshot, planId: String): Snapshot {
         val late = overdue(data, planId).filter { it.locked }.mapTo(hashSetOf()) { it.id }
         val unlocked = if (late.isEmpty()) data else data.edit(Keys.TASKS) { if (it.str("id") in late) it.with("locked" to JsonPrimitive(false), "updatedAt" to JsonPrimitive(now())) else it }
-        return replan(unlocked, planId, ReplanReason.DAY_MISSED)
+        val replanned = replan(unlocked, planId, ReplanReason.DAY_MISSED)
+        // O motor não tira do passado tarefa de plano trazido da IA, sem matéria ou de dia travado: elas
+        // ficavam no dia antigo e o aviso voltava. Vão para os próximos dias com espaço (OverdueFit, igual ao app).
+        val today = Queries.todayEpoch()
+        val stuck = overdue(replanned, planId) // já vem do dia mais antigo para o mais novo
+        if (stuck.isEmpty()) return replanned
+        val week = replanned.availability.filter { it.planId == planId }.associateBy { it.day }
+        val overrides = replanned.array("studyDayOverrides").mapNotNull { it as? JsonObject }.filter { it.str("planId") == planId }.associateBy { it.long("day") }
+        val capacity: (Long) -> Int = { day ->
+            val o = overrides[day]
+            val base = week[br.com.estudario.domain.planner.OverdueFit.isoDayOfWeek(day)]
+            when {
+                o?.bool("unavailable") == true -> 0
+                o?.int("minutes") != null -> o.int("minutes")!!
+                base == null || base.unavailable -> 0
+                else -> base.minutes
+            }
+        }
+        val used = replanned.tasks.filter { it.planId == planId && it.day >= today && it.status != "REPROGRAMADA" && it.status != "CANCELADA" && it.status != "NAO_REALIZADA" }
+            .groupBy { it.day }.mapValues { (_, l) -> l.sumOf { it.minutes } }
+        val days = br.com.estudario.domain.planner.OverdueFit.distribute(stuck.map { br.com.estudario.domain.planner.OverdueFit.Item(it.id, it.minutes) }, today, capacity, used)
+        val at = now()
+        return replanned.edit(Keys.TASKS) { row -> days[row.str("id")]?.let { row.with("day" to JsonPrimitive(it), "locked" to JsonPrimitive(false), "updatedAt" to JsonPrimitive(at)) } ?: row }
     }
 
     /** "Empurrar tudo": da atrasada mais antiga em diante, cada estudo anda o mesmo número de dias (a mais antiga cai em hoje). */

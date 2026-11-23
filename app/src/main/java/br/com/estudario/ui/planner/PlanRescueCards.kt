@@ -88,7 +88,10 @@ fun OverdueRescueCard(state: ActivePlanUiState, onFit: () -> Unit, onPush: () ->
                 OutlinedButton(onClick = onPush, modifier = Modifier.weight(1f)) {
                     Text(if (days == 1) "Empurrar tudo 1 dia" else "Empurrar tudo $days dias")
                 }
-                OutlinedButton(onClick = { prefs.edit().putLong("adiado", today).apply(); hidden = true }, modifier = Modifier.weight(1f)) {
+                OutlinedButton(onClick = {
+                    prefs.edit().putLong("adiado", today).apply(); hidden = true
+                    android.widget.Toast.makeText(context, "Combinado. O aviso volta amanhã; passada uma semana, o plano encaixa sozinho.", android.widget.Toast.LENGTH_LONG).show()
+                }, modifier = Modifier.weight(1f)) {
                     Text("Deixar para depois")
                 }
             }

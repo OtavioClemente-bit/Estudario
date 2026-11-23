@@ -198,7 +198,18 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
             val finish = finishAtPace ?: today.plusMonths(6)
             maxOf(today.plusDays(60), finish.plusDays(daysBetween(today, finish) / 4 + 21))
         }
-        build(end, hasExam = false, open).let { it to (it.coverageDate ?: finishAtPace) }
+        // Sem data de prova não existe "não cabe": se o prazo escolhido (ou estimado) ficou curto, o
+        // prazo do plano cresce até o edital caber (no máximo 3 anos). Antes aparecia "suas horas não
+        // cobrem tudo" para quem nem tinha prova marcada.
+        var roadmap = build(end, hasExam = false, open)
+        var tryEnd = end
+        val limit = today.plusYears(3)
+        while (roadmap.verdict == br.com.estudario.domain.planner.RoadmapVerdict.DOES_NOT_FIT && tryEnd.isBefore(limit)) {
+            tryEnd = minOf(limit, tryEnd.plusDays(maxOf(30L, daysBetween(today, tryEnd) / 2)))
+            roadmap = build(tryEnd, hasExam = false, open)
+        }
+        if (saved != null && tryEnd != end) roadmapPrefs.edit().putLong("end_${plan.id}", tryEnd.toEpochDay()).apply()
+        roadmap.let { it to (it.coverageDate ?: finishAtPace) }
     }
 
     /** Sem data de prova: muda o prazo do plano em [days] dias (mínimo de 30 dias a partir de hoje). */
@@ -279,9 +290,51 @@ class StudyPlanViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     /** Reorganiza agora: o que venceu volta na frente e o resto é reencaixado no ritmo do edital. */
-    fun reorganize() = launch("Reorganizando o plano") { service.fitOverdue(_state.value.activePlan!!.id) }
+    fun reorganize() = rescue("Reorganizando o plano") { id ->
+        val result = service.fitOverdue(id)
+        when {
+            result.tasks == 0 -> "Nada atrasado: o plano já estava em dia."
+            else -> (if (result.tasks == 1) "1 estudo atrasado encaixado" else "${result.tasks} estudos atrasados encaixados") +
+                (result.until?.let { " até ${dayLabel(it)}" } ?: " nos próximos dias") + "."
+        }
+    }
     /** Atrasadas: empurra o plano inteiro para a frente (a mais antiga cai em hoje). */
-    fun pushOverdue() = _state.value.activePlan?.id?.let { id -> launch("Empurrando o plano") { service.pushOverdue(id) } }
+    fun pushOverdue() = rescue("Empurrando o plano") { id ->
+        when (val shift = service.pushOverdue(id)) {
+            0L -> "Nada atrasado: o plano já estava em dia."
+            1L -> "Plano empurrado 1 dia. O atrasado mais antigo ficou para hoje."
+            else -> "Plano empurrado $shift dias. O atrasado mais antigo ficou para hoje."
+        }
+    }
+
+    /**
+     * Ações do aviso de estudo atrasado (Início e Plano): sempre respondem com um aviso curto, do que foi
+     * feito ou de por que não deu. Antes o Início não mostrava nada, nem quando a ação falhava.
+     */
+    private fun rescue(busyTitle: String, block: suspend (String) -> String) = viewModelScope.launch {
+        val id = _state.value.activePlan?.id
+        if (id == null) { toast("Não há plano ativo para reorganizar."); return@launch }
+        _busy.value = PlanBusyState(busyTitle, null)
+        try {
+            runCatching { block(id) }
+                .onSuccess { toast(it); br.com.estudario.ui.widget.WidgetUpdater.update(app) }
+                .onFailure { toast("Não deu para reorganizar: " + (it.message ?: "tente de novo.")) }
+        } finally {
+            _busy.value = null
+        }
+    }
+
+    private fun toast(message: String) = android.widget.Toast.makeText(app, message, android.widget.Toast.LENGTH_LONG).show()
+
+    private fun dayLabel(day: LocalDate): String {
+        val today = LocalDate.now()
+        return when (day) {
+            today -> "hoje"
+            today.plusDays(1) -> "amanhã"
+            else -> day.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.forLanguageTag("pt-BR")) +
+                " (" + day.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM")) + ")"
+        }
+    }
     /** "Hoje não vou conseguir" (ou desfaz): o dia fica sem estudo e o que estava nele vai para a frente. */
     fun setDayOff(date: LocalDate, off: Boolean) = _state.value.activePlan?.id?.let { id -> launch(if (off) "Passando o dia para a frente" else "Devolvendo o dia") { service.setDayOff(id, date, off) } }
     /** Concursos que podem entrar no plano (id, nome, se já está nele). */

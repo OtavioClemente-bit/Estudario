@@ -20,8 +20,27 @@ object FocusRules {
     const val STEP_MINUTES = 5
     val PRESETS = listOf(25, 50, 90)
 
-    /** Teto de uma sessão: passou disso, foi esquecida aberta e é encerrada sozinha. */
-    const val MAX_SESSION_MINUTES = 240
+    /**
+     * Cronômetro esquecido (a mesma regra no app e no site):
+     * - passou de [checkAfterMinutes] (o dobro da meta, no mínimo meta + 30 min, nunca mais que
+     *   [CHECK_MAX_MINUTES]; sem meta, [CHECK_MAX_MINUTES]) a tela pergunta "Você ainda está estudando?";
+     * - "sim" vale por mais [RECHECK_MINUTES] e a pergunta volta depois disso;
+     * - sem resposta por [UNANSWERED_CLOSE_MINUTES] depois da pergunta, a sessão é encerrada sozinha;
+     * - salva sem ninguém responder (sozinha, pela notificação, ou trocada por outra sessão), conta só o
+     *   tempo confiável: a meta (sem meta, [DEFAULT_MINUTES]) ou o último "sim", o que for maior.
+     */
+    const val CHECK_MAX_MINUTES = 180
+    const val RECHECK_MINUTES = 60
+    const val UNANSWERED_CLOSE_MINUTES = 60
+
+    /** Teto sem nenhuma resposta e sem meta: a rede de segurança do app olha a sessão nesse prazo. */
+    const val MAX_SESSION_MINUTES = CHECK_MAX_MINUTES + UNANSWERED_CLOSE_MINUTES
+
+    fun checkAfterMinutes(plannedMinutes: Int?): Int =
+        plannedMinutes?.takeIf { it > 0 }?.let { minOf(CHECK_MAX_MINUTES, maxOf(it * 2, it + 30)) } ?: CHECK_MAX_MINUTES
+
+    /** O tempo sugerido quando a pessoa diz que já tinha parado: a meta, ou o padrão. */
+    fun suggestedMinutes(plannedMinutes: Int?): Int = plannedMinutes?.takeIf { it > 0 } ?: DEFAULT_MINUTES
 
     /** Menos que isso não entra no histórico (nem no app nem no site). */
     const val MIN_SAVED_SECONDS = 60L
@@ -108,6 +127,8 @@ data class FocusRunning(
     val pausedMillis: Long = 0L,
     val updatedAt: Long = startedAt,
     val endedAt: Long = 0L,
+    /** Tempo estudado (sem pausas) no último "sim, ainda estou estudando" (0 = nunca perguntado). */
+    val checkedMillis: Long = 0L,
 ) {
     val active: Boolean get() = startedAt > 0L && endedAt == 0L && sessionId.isNotBlank()
     val paused: Boolean get() = active && pausedAt > 0L
@@ -117,8 +138,29 @@ data class FocusRunning(
 
     fun elapsedMinutes(now: Long): Int = (elapsedMillis(now) / 60_000L).toInt()
 
-    /** Esquecida aberta além do teto. */
-    fun expired(now: Long): Boolean = active && elapsedMinutes(now) >= FocusRules.MAX_SESSION_MINUTES
+    /** Quando (em tempo estudado) a tela pergunta "Você ainda está estudando?". */
+    fun nextCheckMillis(): Long =
+        if (checkedMillis > 0L) checkedMillis + FocusRules.RECHECK_MINUTES * 60_000L
+        else FocusRules.checkAfterMinutes(plannedMinutes) * 60_000L
+
+    /** Contou tempo demais sem ninguém confirmar: hora de perguntar. */
+    fun needsCheck(now: Long): Boolean = active && elapsedMillis(now) >= nextCheckMillis()
+
+    /** Esquecida aberta: perguntou e ninguém respondeu por [FocusRules.UNANSWERED_CLOSE_MINUTES]. */
+    fun expired(now: Long): Boolean = active && elapsedMillis(now) >= nextCheckMillis() + FocusRules.UNANSWERED_CLOSE_MINUTES * 60_000L
+
+    /**
+     * O tempo que vale salvar sem perguntar: tudo, se ainda não passou do ponto da pergunta; senão só o
+     * confiável (a meta ou o último "sim", o que for maior). Um cronômetro esquecido não vira 9 horas.
+     */
+    fun unattendedMillis(now: Long): Long {
+        val elapsed = elapsedMillis(now)
+        if (!needsCheck(now)) return elapsed
+        return minOf(elapsed, maxOf(checkedMillis, FocusRules.suggestedMinutes(plannedMinutes) * 60_000L))
+    }
+
+    /** "Sim, ainda estou estudando": a pergunta só volta mais tarde. */
+    fun confirm(at: Long): FocusRunning = if (!active) this else copy(checkedMillis = elapsedMillis(at), updatedAt = at)
 
     fun pause(at: Long): FocusRunning = if (!active || paused) this else copy(pausedAt = at, updatedAt = at)
     fun resume(at: Long): FocusRunning = if (!paused) this else copy(pausedMillis = pausedMillis + (at - pausedAt).coerceAtLeast(0L), pausedAt = 0L, updatedAt = at)
@@ -138,6 +180,7 @@ data class FocusRunning(
         "pausedMillis" to pausedMillis,
         "updatedAt" to updatedAt,
         "endedAt" to endedAt,
+        "checkedMillis" to checkedMillis,
     )
 
     /** O que fazer aqui com a sessão que veio da conta. */
@@ -148,6 +191,11 @@ data class FocusRunning(
         data class Adopt(val running: FocusRunning) : Remote
         /** A sessão daqui foi encerrada no outro aparelho: some sem salvar de novo. */
         data object EndedElsewhere : Remote
+        /**
+         * O outro aparelho começou uma sessão nova com esta ainda aberta: esta é salva aqui até o
+         * começo da outra ([endAt]) e a nova passa a valer. Nunca duas sessões correndo juntas.
+         */
+        data class Replace(val running: FocusRunning, val endAt: Long) : Remote
     }
 
     companion object {
@@ -167,6 +215,7 @@ data class FocusRunning(
                 pausedMillis = (get("pausedMillis") as? Number)?.toLong() ?: 0L,
                 updatedAt = (get("updatedAt") as? Number)?.toLong() ?: started,
                 endedAt = (get("endedAt") as? Number)?.toLong() ?: 0L,
+                checkedMillis = (get("checkedMillis") as? Number)?.toLong() ?: 0L,
             )
         }
 
@@ -192,8 +241,13 @@ data class FocusRunning(
                 return if (remote.active) Remote.Adopt(remote) else Remote.EndedElsewhere
             }
             if (mine != null) {
-                // Duas sessões diferentes: a daqui foi salva em outro lugar, então some; senão fica.
-                return if (saved(mine.sessionId)) Remote.EndedElsewhere else Remote.Keep
+                // Duas sessões diferentes: a daqui foi salva em outro lugar, então some.
+                if (saved(mine.sessionId)) return Remote.EndedElsewhere
+                // A da conta é mais nova e está correndo: a daqui acaba onde a outra começou.
+                if (remote.active && remote.startedAt > mine.startedAt && !remote.expired(now) &&
+                    !saved(remote.sessionId) && remote.sessionId != lastEndedHere
+                ) return Remote.Replace(remote, endAt = remote.startedAt.coerceAtMost(now))
+                return Remote.Keep
             }
             if (!remote.active || remote.expired(now) || saved(remote.sessionId) || remote.sessionId == lastEndedHere) return Remote.Keep
             return Remote.Adopt(remote)

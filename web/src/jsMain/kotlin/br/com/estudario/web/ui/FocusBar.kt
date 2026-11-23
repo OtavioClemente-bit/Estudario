@@ -82,8 +82,44 @@ fun FocusModalsHost() {
             }
         }
     }
+    // Cronômetro esquecido (a mesma regra do app): esta pergunta vem antes das outras janelas do foco.
+    if (TopicFocus.needsCheck) { StillStudyingModal(); return }
     if (FocusModals.confirmStop && TopicFocus.active) StopFocusModal(onDismiss = { FocusModals.confirmStop = false })
     if (TopicFocus.timeUp) TimeUpModal()
+}
+
+/** "Você ainda está estudando?": sim segue contando; já parei pergunta quanto tempo e salva só isso. */
+@Composable
+private fun StillStudyingModal() {
+    val label = br.com.estudario.web.data.Queries::minutesLabel
+    val elapsed = TopicFocus.elapsedMinutes.coerceAtLeast(1)
+    val planned = TopicFocus.plannedMinutes
+    var asking by remember(TopicFocus.sessionId) { mutableStateOf(false) }
+    var minutes by remember(TopicFocus.sessionId) { mutableStateOf(br.com.estudario.domain.FocusRules.suggestedMinutes(planned).coerceAtMost(elapsed)) }
+    Modal(onDismiss = {}) {
+        if (!asking) {
+            FolhaSays("thinking", 72) { H2 { Text("Você ainda está estudando?") } }
+            P({ classes("muted") }) { Text("O cronômetro do foco está ligado há ${label(elapsed)}. Se você já tinha parado, a gente salva só o tempo que você estudou de verdade.") }
+            Div({ classes("stack", "tight") }) {
+                Btn("Sim, continuar", { TopicFocus.confirmStillStudying() }, style = "primary", icon = "check", block = true)
+                Btn("Já parei", { asking = true }, style = "outline", icon = "stop", block = true)
+            }
+        } else {
+            H2 { Text("Quanto tempo você estudou?") }
+            P({ classes("muted") }) { Text("Ajuste o tempo e o foco é salvo com ele.") }
+            Div({ classes("row"); style { property("justify-content", "center"); property("align-items", "center"); property("gap", "12px") } }) {
+                Btn("−5", { minutes = (minutes - 5).coerceAtLeast(1) }, style = "outline")
+                B { Text(label(minutes)) }
+                Btn("+5", { minutes = (minutes + 5).coerceAtMost(elapsed) }, style = "outline")
+            }
+            Div({ classes("stack", "tight") }) {
+                if (planned != null && planned in 1..elapsed && planned != minutes) Btn("Usar a meta (${label(planned)})", { minutes = planned }, style = "ghost", block = true)
+                if (minutes != elapsed) Btn("Estudei o tempo todo (${label(elapsed)})", { minutes = elapsed }, style = "ghost", block = true)
+                Btn("Salvar ${label(minutes)}", { TopicFocus.stop(studiedMinutes = minutes) }, style = "primary", icon = "check", block = true)
+                Btn("Voltar", { asking = false }, style = "ghost", block = true)
+            }
+        }
+    }
 }
 
 /** Encerrar: só salvar o tempo, ou salvar e concluir o tópico (e a tarefa do plano). */

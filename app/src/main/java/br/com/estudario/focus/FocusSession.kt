@@ -32,11 +32,15 @@ object FocusSessionManager {
         taskId: String?,
     ): Long {
         val app = context.applicationContext as EstudarioApplication
-        // Já existe sessão aberta: respeitar a que está correndo em vez de zerar o cronômetro dela.
         val atual = app.preferences.focusSession.first()
         if (atual.active) {
-            showFor(context, atual)
-            return atual.startedAt
+            // A mesma coisa de novo (mesmo tópico e tarefa): segue a que está correndo, sem zerar o cronômetro.
+            if (atual.topicId == topicId && atual.taskId == taskId && atual.origin == origin) {
+                showFor(context, atual)
+                return atual.startedAt
+            }
+            // Outra coisa: a sessão aberta é encerrada e salva antes. Nunca duas sessões ao mesmo tempo.
+            stop(context)
         }
         val startedAt = System.currentTimeMillis()
         val wantsDnd = app.preferences.focusDoNotDisturb.first()
@@ -66,19 +70,29 @@ object FocusSessionManager {
      * Sessão presa a uma tarefa do plano não vira sessão de estudo aqui, quem registra o tempo
      * dela é a conclusão da tarefa, e contar duas vezes inflaria o histórico.
      */
-    suspend fun stop(context: Context): Int {
+    /**
+     * [studiedMinutes] é o tempo que a pessoa disse ter estudado (pergunta do cronômetro esquecido);
+     * sem ele, vale a regra de FocusRunning.unattendedMillis: tudo, ou só o confiável se o cronômetro
+     * passou do ponto da pergunta sem resposta. [endAt] encerra num momento anterior (a sessão nova
+     * começou no outro aparelho); [publishEnd] = false não avisa a conta (a sessão nova já está lá).
+     */
+    suspend fun stop(context: Context, studiedMinutes: Int? = null, endAt: Long? = null, publishEnd: Boolean = true): Int {
         val app = context.applicationContext as EstudarioApplication
         val session = app.preferences.focusSession.first()
         if (!session.active) return 0
-        val completedAt = System.currentTimeMillis()
-        val minutes = session.elapsedMinutes(completedAt)
-        // Tempo estudado de verdade: pausas não contam.
-        val studiedSeconds = session.elapsedMillis(completedAt) / 1_000L
+        val running = session.toRunning() ?: return 0
+        val completedAt = (endAt ?: System.currentTimeMillis()).coerceAtLeast(session.startedAt)
+        // Tempo estudado de verdade: pausas não contam, e cronômetro esquecido não vira horas.
+        val studiedMillis = studiedMinutes?.let { (it * 60_000L).coerceIn(0L, running.elapsedMillis(completedAt)) }
+            ?: running.unattendedMillis(completedAt)
+        val studiedSeconds = studiedMillis / 1_000L
+        val minutes = (studiedSeconds / 60L).toInt()
         val history = FocusSessionEntity(
             id = session.sessionId.ifBlank { "legacy-${session.startedAt}" },
             title = session.title.ifBlank { "Sessão de estudo" },
             startedAt = session.startedAt,
-            completedAt = completedAt,
+            // Tempo cortado (esquecido aberto): o estudo foi no começo, então a linha termina lá.
+            completedAt = if (studiedMillis < running.elapsedMillis(completedAt)) session.startedAt + studiedMillis else completedAt,
             durationSeconds = studiedSeconds.coerceAtLeast(0L),
             subjectIdsText = session.subjectIds.filter { it > 0L }.sorted().joinToString(","),
             origin = session.origin,
@@ -88,7 +102,7 @@ object FocusSessionManager {
         // Menos de 1 minuto não entra no histórico (igual no site). O id da linha é o da sessão em
         // andamento, o mesmo que o site usaria: encerrada nos dois, a foto fica com uma linha só.
         val counts = FocusRules.counts(studiedSeconds)
-        val ended = session.toRunning()?.end(completedAt)
+        val ended = running.end(completedAt).takeIf { publishEnd }
         FocusSessionStopCoordinator(
             save = { if (counts) app.focusSessionRepository.recordOnce(it) },
             clearActive = {
@@ -112,13 +126,22 @@ object FocusSessionManager {
         val session = app.preferences.focusSession.first()
         if (!session.active) return
         val minutes = session.elapsedMinutes()
-        if (minutes >= FocusRules.MAX_SESSION_MINUTES) {
-            stop(context)
-            FocusMode.notifyAutoClosed(context, minutes)
+        // Perguntou "Você ainda está estudando?" e ninguém respondeu: encerra salvando só o tempo confiável.
+        if (session.toRunning()?.expired(System.currentTimeMillis()) == true) {
+            val saved = stop(context)
+            FocusMode.notifyAutoClosed(context, minutes, saved)
         } else {
             showFor(context, session)
             FocusMode.scheduleSafetyNet(context)
         }
+    }
+
+    /** "Sim, ainda estou estudando": a pergunta só volta mais tarde (e o outro aparelho fica sabendo). */
+    suspend fun confirmStillStudying(context: Context) {
+        val app = context.applicationContext as EstudarioApplication
+        app.preferences.confirmFocusSession(System.currentTimeMillis())
+        FocusMode.scheduleSafetyNet(context)
+        syncSoon(context)
     }
 
     /** Pausa o cronômetro (o Não Perturbe continua como está). */
@@ -162,6 +185,13 @@ object FocusSessionManager {
                 val same = local.active && local.sessionId == decision.running.sessionId
                 app.preferences.adoptFocusSession(decision.running, sameSession = same)
                 if (!same) FocusMode.scheduleSafetyNet(context)
+                showFor(context, app.preferences.focusSession.first())
+            }
+            is FocusRunning.Remote.Replace -> {
+                // Começaram outra sessão no outro aparelho: a daqui é salva até ali e a nova passa a valer.
+                stop(context, endAt = decision.endAt, publishEnd = false)
+                app.preferences.adoptFocusSession(decision.running, sameSession = false)
+                FocusMode.scheduleSafetyNet(context)
                 showFor(context, app.preferences.focusSession.first())
             }
             FocusRunning.Remote.EndedElsewhere -> {

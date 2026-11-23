@@ -250,7 +250,18 @@ private fun MainNavigation(viewModel: AppViewModel) {
     val uiPrefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("estudario_ui", android.content.Context.MODE_PRIVATE)
     var focusTimeUpSeen by remember(focusSession.sessionId) { mutableStateOf(uiPrefs.getString("focus_timeup_session", "") == focusSession.sessionId) }
     val planned = focusPlanned
-    if (focusSession.active && !focusSession.paused && !focusTimeUpSeen && planned != null && focusSession.elapsedMinutes(focusClockNow) >= planned) {
+    // Cronômetro esquecido (a mesma regra do site, FocusRunning.needsCheck): ao abrir o app ou com ele
+    // aberto, passou muito da meta sem ninguém confirmar, pergunta se a pessoa ainda está estudando.
+    val focusNeedsCheck = focusSession.active && !focusSession.paused && focusSession.needsCheck(focusClockNow)
+    if (focusNeedsCheck) {
+        br.com.estudario.ui.focus.FocusStillStudyingDialog(
+            elapsedMinutes = focusSession.elapsedMinutes(focusClockNow),
+            plannedMinutes = focusSession.plannedMinutes ?: planned,
+            onStillStudying = viewModel::confirmStillStudying,
+            onSave = { minutes -> focusScope.launch { viewModel.stopFocus(minutes) } },
+        )
+    }
+    if (!focusNeedsCheck && focusSession.active && !focusSession.paused && !focusTimeUpSeen && planned != null && focusSession.elapsedMinutes(focusClockNow) >= planned) {
         fun markSeen() { focusTimeUpSeen = true; uiPrefs.edit().putString("focus_timeup_session", focusSession.sessionId).apply() }
         br.com.estudario.ui.focus.FocusTimeUpDialog(
             plannedMinutes = planned,

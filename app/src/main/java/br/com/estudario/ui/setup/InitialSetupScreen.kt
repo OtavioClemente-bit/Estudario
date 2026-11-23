@@ -517,12 +517,17 @@ private fun CompetitionStep(
     var name by rememberSaveable(snapshot.competitionId) { mutableStateOf(snapshot.competitionName) }
     var role by rememberSaveable(snapshot.competitionId) { mutableStateOf(snapshot.role) }
     var query by rememberSaveable { mutableStateOf("") }
-    var category by remember { mutableStateOf<br.com.estudario.domain.catalog.ExamCategory?>(null) }
-    var shownCount by rememberSaveable { mutableStateOf(20) }
-    LaunchedEffect(query) { shownCount = 20 }
-    var selectedExamId by rememberSaveable(snapshot.competitionId) { mutableStateOf(snapshot.catalogExamId) }
+    // Os filtros ficam atrás de "Filtrar"; por padrão, só os editais recentes.
+    var filter by remember { mutableStateOf(ExamPickerFilter()) }
+    var showFilters by rememberSaveable { mutableStateOf(false) }
+    var shownCount by rememberSaveable { mutableStateOf(12) }
+    LaunchedEffect(query, filter) { shownCount = 12 }
+    // Edital com vários cargos escolhido: a tela mostra só a lista de cargos dele.
+    var cargoGroupKey by rememberSaveable { mutableStateOf<String?>(null) }
     // Quem já digitou um concurso fora do catálogo volta direto para o formulário.
     var manual by rememberSaveable { mutableStateOf(snapshot.catalogExamId == null && snapshot.competitionName.isNotBlank()) }
+    val freeTier = br.com.estudario.ui.plans.rememberFreeTier()
+    var pdfOffer by remember { mutableStateOf(false) }
     // Busca sem teto de resultados (antes parava em 30: "TRT" não mostrava todos).
     // Fora da tela e depois de uma pausa na digitação: buscar nos 4 mil editais a cada letra, na linha
     // que desenha a tela, travava o teclado e a rolagem.
@@ -534,103 +539,96 @@ private fun CompetitionStep(
         }
     }
     val thisYear = java.time.LocalDate.now().year
-    var recentOnly by rememberSaveable { mutableStateOf(true) }
-    var board by rememberSaveable { mutableStateOf<String?>(null) }
-    val selectedEntry = catalog.entries.firstOrNull { it.id == selectedExamId }
+    // Agrupar e ordenar só quando a lista, a busca ou o filtro mudam (não a cada redesenho).
+    val groups = remember(catalog.entries, results, query.isBlank(), filter, thisYear) {
+        if (query.isBlank()) browseExams(catalog.entries, filter, thisYear) else searchExams(results, filter)
+    }
+    val cargoGroup = cargoGroupKey?.let { key -> groups.firstOrNull { it.key == key } ?: groupExams(catalog.entries.filter { examGroupKey(it) == key }).firstOrNull() }
     LaunchedEffect(name, role) {
         kotlinx.coroutines.delay(500)
         viewModel.updateDraftIdentity(name, role)
+    }
+    val goManual = {
+        manual = true
+        cargoGroupKey = null
+        if (name.isBlank() && query.isNotBlank()) name = query.trim()
     }
     // O cargo decide quais matérias valem no edital: sem ele a leitura do PDF pode pegar as de outro cargo.
     val canContinueManual = name.trim().length >= 2 && role.trim().length >= 2
     SetupPage(
         eyebrow = "Seu objetivo",
-        title = "Qual concurso você vai prestar?",
-        description = if (manual) "Me diga o concurso e o cargo. Com o PDF do edital, as matérias saem iguais às publicadas."
-        else "Busque pelo concurso ou pelo órgão. Com um edital do catálogo, as matérias já vêm prontas, sem anexar nada.",
+        title = if (cargoGroup != null && !manual) "Qual é o seu cargo?" else "Qual concurso você vai prestar?",
+        description = when {
+            manual -> "Me diga o concurso e o cargo. Com o PDF do edital, as matérias saem iguais às publicadas."
+            cargoGroup != null -> "Este edital tem vários cargos. Toque no seu: as matérias mudam de um cargo para outro."
+            else -> "Digite o nome do concurso ou do órgão e toque no seu. As matérias já vêm prontas."
+        },
         icon = Icons.Outlined.School,
         bottom = {
             if (manual) {
                 SetupPrimaryButton("Continuar", { viewModel.saveCompetition(name, role) }, enabled = canContinueManual)
             } else {
-                SetupPrimaryButton(
-                    if (selectedEntry != null) "Usar este edital" else "Escolha um edital",
-                    { selectedEntry?.let(viewModel::chooseCatalogExam) },
-                    enabled = selectedEntry != null,
-                )
+                // A única ação secundária: quem não achou segue para o formulário (no Grátis, sem PDF).
+                ExamNotFoundAction(freeTier, onClick = goManual)
             }
         },
     ) {
-        if (competitions.isNotEmpty()) {
-            Text("Ou retome um concurso salvo", style = MaterialTheme.typography.titleSmall)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                competitions.take(8).forEach { competition ->
-                    FilterChip(selected = selected?.id == competition.id, onClick = { viewModel.selectCompetition(competition) }, label = { Text(competition.name) })
+        if (pdfOffer) br.com.estudario.ui.plans.UpgradeDialog(br.com.estudario.ui.plans.UpgradeReason.SYLLABUS, onDismiss = { pdfOffer = false })
+        if (!manual && cargoGroup != null) {
+            ExamCargoPicker(cargoGroup, onPick = { viewModel.chooseCatalogExam(it) }, onBack = { cargoGroupKey = null })
+        } else if (!manual) {
+            if (competitions.isNotEmpty()) {
+                // Retomar um concurso salvo: cartões como os do catálogo, no máximo três.
+                Text("Continuar um concurso salvo", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                competitions.take(3).forEach { competition ->
+                    br.com.estudario.ui.brand.BrandChoice(selected = selected?.id == competition.id, onClick = { viewModel.selectCompetition(competition) }) {
+                        Text(competition.name, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.width(8.dp))
+                        br.com.estudario.ui.brand.BrandChoiceMark(selected?.id == competition.id)
+                    }
                 }
+                Spacer(Modifier.height(8.dp))
             }
-            Spacer(Modifier.height(8.dp))
-        }
-        if (!manual) {
-            // O PDF fica no alto (antes ficava no fim da lista e sumia rolando). No Grátis, a oferta dos planos.
-            val freeTier = br.com.estudario.ui.plans.rememberFreeTier()
-            var pdfOffer by remember { mutableStateOf(false) }
-            PdfEditalCta(freeTier) {
-                if (freeTier) pdfOffer = true else {
-                    manual = true
-                    selectedExamId = null
-                    if (name.isBlank() && query.isNotBlank()) name = query.trim()
-                }
+            ExamSearchField(query) { query = it }
+            if (catalog.entries.isNotEmpty()) ExamFilterBar(filter, thisYear, onOpen = { showFilters = true }, onClear = { filter = ExamPickerFilter() })
+            if (showFilters) ExamFilterDialog(catalog.entries, filter, thisYear, onChange = { filter = it }, onDismiss = { showFilters = false })
+            val pick: (ExamGroup) -> Unit = { group ->
+                if (group.single) viewModel.chooseCatalogExam(group.entries.first()) else cargoGroupKey = group.key
             }
-            if (pdfOffer) br.com.estudario.ui.plans.UpgradeDialog(br.com.estudario.ui.plans.UpgradeReason.SYLLABUS, onDismiss = { pdfOffer = false })
-            // No Grátis continua dando para informar o concurso e montar as matérias à mão.
-            if (freeTier) TextButton(onClick = { manual = true; selectedExamId = null; if (name.isBlank() && query.isNotBlank()) name = query.trim() }) { Text("Informar o concurso sem PDF") }
-            Spacer(Modifier.height(8.dp))
-            if (catalog.entries.isNotEmpty()) CatalogHero(catalog.entries.size)
-            CatalogSearchField(query) { query = it }
-            if (query.isBlank()) CatalogQuickSearches { query = it }
-            val recent = { e: br.com.estudario.data.catalog.ExamCatalogEntry -> (e.year ?: 0) >= thisYear - 1 }
-            // Catálogo tem centenas de editais: ordenar e filtrar só quando a lista ou o filtro muda,
-            // não a cada toque num cartão (era o que travava a escolha do edital).
-            val recentCount = remember(catalog.entries, thisYear) { catalog.entries.count(recent) }
-            if (query.isBlank() && catalog.entries.isNotEmpty()) CatalogTabs(recentOnly, recentCount, catalog.entries.size, "Recentes · $thisYear e ${thisYear - 1}") { recentOnly = it; shownCount = 20 }
-            val base = remember(catalog.entries, recentOnly, query.isBlank(), thisYear) { if (recentOnly && query.isBlank()) catalog.entries.filter(recent) else catalog.entries }
-            CatalogCategoryChips(base, category) { category = it; shownCount = 20 }
-            CatalogBoardChips(base, board) { board = it; shownCount = 20 }
-            // Sem busca: os editais mais novos primeiro, e entre eles os mais completos.
-            val pool = remember(base, results, query.isBlank()) { if (query.isBlank()) base.sortedWith(compareByDescending<br.com.estudario.data.catalog.ExamCatalogEntry> { it.year ?: 0 }.thenByDescending { it.readyPercent }) else results }
-            val filtered = remember(pool, category, board) { pool.filter { (category == null || it.category() == category) && (board == null || it.board?.trim() == board) } }
-            if (filtered.isNotEmpty()) CatalogListHeader(filtered.size, searching = query.isNotBlank())
-            filtered.take(shownCount).forEach { entry ->
-                ExamResultCard(entry, entry.id == selectedExamId) {
-                    selectedExamId = if (selectedExamId == entry.id) null else entry.id
+            ExamGroupList(
+                title = when {
+                    query.isNotBlank() -> if (groups.size == 1) "1 edital encontrado" else "${groups.size} editais encontrados"
+                    filter.recentOnly -> "Editais recentes"
+                    else -> "Editais mais novos"
+                },
+                groups = groups.take(shownCount),
+                thisYear = thisYear,
+                onPick = pick,
+            )
+            // A lista não é preguiçosa (fica dentro da página que rola): mais cartões por botão, até 150.
+            if (groups.size > shownCount && shownCount < 150) {
+                OutlinedButton(onClick = { shownCount += 24 }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Mostrar mais editais (${groups.size - shownCount})")
                 }
-            }
-            // A lista não é preguiçosa (fica dentro da página que rola): até 150 cartões, o resto pela busca.
-            if (filtered.size > shownCount && shownCount < 150) {
-                // Carrega mais sozinho quando o fim da lista aparece na tela.
-                Row(Modifier.fillMaxWidth().padding(12.dp).loadMoreWhenVisible(shownCount) { shownCount += 30 }, horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                    androidx.compose.material3.CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(10.dp))
-                    Text("Carregando mais editais…", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            } else if (filtered.size > shownCount) Text(
-                "Mostrando ${shownCount} de ${filtered.size}. Busque pelo nome do concurso ou da banca para achar os outros.",
+            } else if (groups.size > shownCount) Text(
+                "Mostrando $shownCount de ${groups.size}. Digite o nome do concurso para achar os outros.",
                 Modifier.fillMaxWidth().padding(12.dp),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )
-            if (filtered.isEmpty()) {
+            if (groups.isEmpty()) {
                 CatalogEmptyState(
                     query = query,
                     loading = catalog.loading && catalog.entries.isEmpty(),
                     error = catalog.error.takeIf { catalog.entries.isEmpty() },
                     onRetry = { viewModel.loadCatalog(force = true) },
                 )
+                // Filtro escondendo tudo: o jeito de sair fica à vista.
+                if (filter.activeCount > 0 && catalog.entries.isNotEmpty()) TextButton(onClick = { filter = ExamPickerFilter() }) { Text("Limpar filtros") }
             }
-            selectedEntry?.let { SelectedExamSummary(it) }
         } else {
             if (catalog.entries.isNotEmpty()) {
-                TextButton(onClick = { manual = false }) { Text("Voltar para os editais prontos") }
+                TextButton(onClick = { manual = false }) { Text("Voltar para a busca de editais") }
             }
             OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nome do concurso") }, placeholder = { Text("Ex.: Polícia Federal") }, singleLine = true)
             Spacer(Modifier.height(10.dp))
@@ -644,41 +642,16 @@ private fun CompetitionStep(
             SetupCard {
                 Text("Anexe o edital", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "Com o PDF, as matérias saem iguais às do edital publicado. É opcional, e dá pra anexar depois, no passo do edital.",
-                    style = MaterialTheme.typography.bodySmall,
+                    "Com o PDF, as matérias saem iguais às do edital publicado. É opcional, e dá pra anexar depois, no passo do edital." +
+                        if (freeTier) " A leitura do PDF é dos planos Essencial e Pro; no Grátis você monta as matérias à mão." else "",
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                AttachmentPicker(editalAttachment, "Anexar edital (PDF)", onPickEditalAttachment, onClearEditalAttachment)
+                // No Grátis, anexar abre a oferta dos planos (como antes fazia o botão "Enviar PDF").
+                AttachmentPicker(editalAttachment, "Anexar edital (PDF)", { if (freeTier) pdfOffer = true else onPickEditalAttachment() }, onClearEditalAttachment)
                 EditalCheckCard(attachmentCheck)
                 SeparateAnnexHint()
             }
-        }
-    }
-}
-
-
-/** "Não achou? Envie o PDF do edital": cartão de console no alto da busca, com o botão dourado. */
-@Composable
-private fun PdfEditalCta(freeTier: Boolean, onClick: () -> Unit) {
-    br.com.estudario.ui.studio.GxPanel {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(br.com.estudario.ui.studio.Gx.tint(0.07f))
-                        .border(1.5.dp, br.com.estudario.ui.studio.Gx.gold.copy(alpha = 0.5f), RoundedCornerShape(16.dp)),
-                    contentAlignment = Alignment.Center,
-                ) { br.com.estudario.ui.brand.BrandIcon(br.com.estudario.ui.brand.Glyph.Doc, size = 40.dp) }
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("Não achou o seu concurso? Envie o PDF do edital", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = br.com.estudario.ui.studio.Gx.strong)
-                    Text("Eu leio o edital e monto as matérias e os tópicos para você." + if (freeTier) " Nos planos Essencial e Pro." else "", style = MaterialTheme.typography.bodySmall, color = br.com.estudario.ui.studio.Gx.mute)
-                }
-            }
-            br.com.estudario.ui.studio.GxLaunch(
-                "Enviar PDF", glyph = br.com.estudario.ui.brand.Glyph.Doc,
-                colors = listOf(androidx.compose.ui.graphics.Color(0xFFFFE08A), br.com.estudario.ui.studio.Gx.gold),
-                ink = androidx.compose.ui.graphics.Color(0xFF1A1440), onClick = onClick,
-            )
         }
     }
 }
@@ -1357,7 +1330,8 @@ internal fun SetupPrimaryButton(label: String, onClick: () -> Unit, enabled: Boo
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = Modifier.fillMaxWidth().height(56.dp),
+        // Altura mínima, não fixa: com fonte grande o rótulo quebra linha em vez de cortar.
+        modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
         shape = RoundedCornerShape(18.dp),
     ) {
         Text(label, style = MaterialTheme.typography.titleSmall)

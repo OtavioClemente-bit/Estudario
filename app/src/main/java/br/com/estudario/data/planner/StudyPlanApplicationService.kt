@@ -262,28 +262,78 @@ class StudyPlanApplicationService(
         replan(planId, ReplanReason.DAY_MISSED)
     }
 
+    /** Resultado de "Encaixar nos próximos dias": quantas atrasadas e até que dia foram parar. */
+    data class OverdueFitResult(val tasks: Int, val until: LocalDate?)
+
     /** Atrasadas: o que ficou de dias que passaram e não foi feito. */
     suspend fun overdue(planId: String, today: LocalDate = LocalDate.now()): List<br.com.estudario.data.local.planner.PlanTaskEntity> =
         planner.tasksForOnce(planId).filter { it.scheduledEpochDay < today.toEpochDay() && it.status in pendingStatuses }
 
     /** "Encaixar nos próximos dias": as atrasadas voltam na frente e o resto se reorganiza no ritmo do edital. */
-    suspend fun fitOverdue(planId: String) {
-        val late = overdue(planId).filter { it.locked }
+    suspend fun fitOverdue(planId: String, today: LocalDate = LocalDate.now()): OverdueFitResult {
+        val before = overdue(planId, today)
+        val late = before.filter { it.locked }
         if (late.isNotEmpty()) db.withTransaction {
             val now = System.currentTimeMillis()
             late.forEach { planner.updateTask(it.copy(locked = false, updatedAt = now)) }
         }
-        replan(planId, ReplanReason.DAY_MISSED)
+        replan(planId, ReplanReason.DAY_MISSED, today)
+        // O motor não tira do passado tarefa de plano trazido da IA, tarefa sem matéria nem tarefa de dia
+        // travado: elas ficavam no dia antigo e o aviso de atraso voltava a cada abertura do app. Vão para
+        // os próximos dias com espaço (OverdueFit), de verdade, gravadas no banco.
+        val moved = db.withTransaction {
+            val t = today.toEpochDay()
+            val tasks = planner.tasksForOnce(planId)
+            val stuck = tasks.filter { it.scheduledEpochDay < t && it.status in pendingStatuses }
+                .sortedWith(compareBy({ it.scheduledEpochDay }, { it.sequence }))
+            if (stuck.isEmpty()) return@withTransaction emptyMap<String, Long>()
+            val plan = planner.plan(planId) ?: error("Plano não encontrado.")
+            val week = planner.availabilityFor(planId).associateBy { it.dayOfWeek }
+            val overrides = planner.dayOverridesFor(planId).associateBy { it.epochDay }
+            val capacity: (Long) -> Int = { day ->
+                val o = overrides[day]
+                val base = week[br.com.estudario.domain.planner.OverdueFit.isoDayOfWeek(day)]
+                when {
+                    o?.unavailable == true -> 0
+                    o?.availableMinutes != null -> o.availableMinutes
+                    base == null || base.unavailable -> 0
+                    else -> base.availableMinutes
+                }
+            }
+            val used = tasks.filter { it.scheduledEpochDay >= t && it.status.countsAsLoad() }
+                .groupBy { it.scheduledEpochDay }.mapValues { (_, l) -> l.sumOf { it.plannedMinutes } }
+            val days = br.com.estudario.domain.planner.OverdueFit.distribute(
+                stuck.map { br.com.estudario.domain.planner.OverdueFit.Item(it.id, it.plannedMinutes) }, t, capacity, used,
+            )
+            require(planner.claimRevision(plan.id, plan.revision, System.currentTimeMillis()) == 1)
+            val now = System.currentTimeMillis()
+            stuck.forEach { task ->
+                planner.updateTask(task.copy(scheduledEpochDay = days.getValue(task.id), locked = false, updatedRevision = plan.revision + 1, updatedAt = now))
+            }
+            planner.insertRevision(StudyPlanRevisionEntity(plan.id, plan.revision + 1, plan.revision, "OVERDUE_FIT", summary = "${stuck.size} tarefa(s) encaixada(s)."))
+            days
+        }
+        val after = planner.tasksForOnce(planId)
+        val left = after.count { it.scheduledEpochDay < today.toEpochDay() && it.status in pendingStatuses }
+        check(left == 0) { "Não deu para encaixar $left estudo(s) atrasado(s). Tente de novo ou reprograme pelo calendário." }
+        // Até quando: o dia mais distante para onde foi uma das atrasadas (ou a continuação dela).
+        val beforeIds = before.mapTo(hashSetOf()) { it.id }
+        val until = (after.filter { it.status in pendingStatuses && (it.replannedFromTaskId in beforeIds) }.map { it.scheduledEpochDay } + moved.values)
+            .maxOrNull()?.let(LocalDate::ofEpochDay)
+        return OverdueFitResult(before.size, until)
     }
+
+    private fun br.com.estudario.domain.planner.PlanTaskStatus.countsAsLoad() =
+        br.com.estudario.domain.planner.PlanRules.isCurrent(name) && this != br.com.estudario.domain.planner.PlanTaskStatus.NAO_REALIZADA
 
     /**
      * "Empurrar tudo": o plano anda junto, sem pular nada. Da atrasada mais antiga em diante, cada
      * estudo vai para a frente o mesmo número de dias (a mais antiga cai em hoje).
      */
-    suspend fun pushOverdue(planId: String, today: LocalDate = LocalDate.now()) = db.withTransaction {
+    suspend fun pushOverdue(planId: String, today: LocalDate = LocalDate.now()): Long = db.withTransaction {
         val plan = planner.plan(planId) ?: error("Plano não encontrado.")
         val tasks = planner.tasksForOnce(planId).filter { it.status in pendingStatuses }
-        val oldest = tasks.filter { it.scheduledEpochDay < today.toEpochDay() }.minOfOrNull { it.scheduledEpochDay } ?: return@withTransaction
+        val oldest = tasks.filter { it.scheduledEpochDay < today.toEpochDay() }.minOfOrNull { it.scheduledEpochDay } ?: return@withTransaction 0L
         val shift = today.toEpochDay() - oldest
         require(planner.claimRevision(plan.id, plan.revision, System.currentTimeMillis()) == 1)
         val now = System.currentTimeMillis()
@@ -291,6 +341,7 @@ class StudyPlanApplicationService(
             planner.updateTask(it.copy(scheduledEpochDay = it.scheduledEpochDay + shift, updatedRevision = plan.revision + 1, updatedAt = now))
         }
         planner.insertRevision(StudyPlanRevisionEntity(plan.id, plan.revision + 1, plan.revision, "PUSHED", summary = "$shift dia(s)"))
+        shift
     }
 
     /**
@@ -461,10 +512,13 @@ class StudyPlanApplicationService(
         )
         // O mesmo motor tinha marcado as tarefas da IA como REPROGRAMADA para pôr as dele no lugar.
         // A pessoa nunca gera esse status (reprogramar com data só muda a data), então toda tarefa
-        // importada nele volta a valer.
+        // importada nele volta a valer. Só de hoje em diante e sem continuação: antes isto rodava a cada
+        // abertura e ressuscitava também a de dia passado (e a que a reimportação já tinha trocado por
+        // outra), e o aviso de estudo atrasado voltava mesmo depois de a pessoa encaixar tudo.
         sql.execSQL(
-            "UPDATE plan_tasks SET status = 'PLANEJADA', updatedAt = ? WHERE planId = ? AND origin = 'IMPORTED' AND status = 'REPROGRAMADA'",
-            arrayOf<Any>(System.currentTimeMillis(), planId),
+            "UPDATE plan_tasks SET status = 'PLANEJADA', updatedAt = ? WHERE planId = ? AND origin = 'IMPORTED' AND status = 'REPROGRAMADA' " +
+                "AND scheduledEpochDay >= ? AND id NOT IN (SELECT replannedFromTaskId FROM plan_tasks WHERE planId = ? AND replannedFromTaskId IS NOT NULL)",
+            arrayOf<Any>(System.currentTimeMillis(), planId, LocalDate.now().toEpochDay(), planId),
         )
         removed
     }

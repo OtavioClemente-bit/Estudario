@@ -1000,6 +1000,43 @@ private const val FIRST_DAY_LOCAL = "estudario.primeiro-dia"
 private const val OVERDUE_LATER = "estudario.atrasadas.depois"
 
 /**
+ * "Encaixar nos próximos dias" (Início e Plano): faz e diz o que aconteceu, quantas e até quando, ou
+ * por que não deu. Antes o aviso era sempre o mesmo texto fixo, tivesse saído do atraso ou não.
+ */
+internal fun fitOverdueNow(planId: String) {
+    val today = Queries.todayEpoch()
+    val late = Queries.overdueTasks(Store.data, planId, today)
+    if (late.isEmpty()) { Toast.show("Nada atrasado: o plano já estava em dia."); return }
+    val ids = late.mapTo(hashSetOf()) { it.id }
+    val failure = runCatching { Store.update { br.com.estudario.web.data.Planning.fitOverdue(it, planId) } }.exceptionOrNull()
+    if (failure != null) { Toast.show("Não deu para reorganizar: ${failure.message ?: "tente de novo."}"); return }
+    val left = Queries.overdueTasks(Store.data, planId, today).size
+    if (left > 0) { Toast.show("Não deu para encaixar $left estudo(s) atrasado(s). Reprograme pelo calendário."); return }
+    // As que o motor remarcou viram cópias novas; as que foram movidas mantêm o id (dá o "até quando").
+    val until = Store.data.tasks.filter { it.id in ids && it.status in setOf("PLANEJADA", "EM_ANDAMENTO") }.maxOfOrNull { it.day }
+    val count = if (late.size == 1) "1 estudo atrasado encaixado" else "${late.size} estudos atrasados encaixados"
+    Toast.show(count + (until?.let { " até ${overdueDayLabel(it, today)}" } ?: " nos próximos dias") + ".")
+}
+
+/** "Empurrar tudo": faz e diz quantos dias o plano andou. */
+internal fun pushOverdueNow(planId: String) {
+    val today = Queries.todayEpoch()
+    val oldest = Queries.overdueTasks(Store.data, planId, today).minOfOrNull { it.day }
+    if (oldest == null) { Toast.show("Nada atrasado: o plano já estava em dia."); return }
+    val days = (today - oldest).toInt()
+    val failure = runCatching { Store.update { br.com.estudario.web.data.Planning.pushOverdue(it, planId) } }.exceptionOrNull()
+    if (failure != null) { Toast.show("Não deu para empurrar o plano: ${failure.message ?: "tente de novo."}"); return }
+    Toast.show("Plano empurrado $days dia${if (days == 1) "" else "s"}. O atrasado mais antigo ficou para hoje.")
+}
+
+private fun overdueDayLabel(day: Long, today: Long): String = when (day) {
+    today -> "hoje"
+    today + 1 -> "amanhã"
+    else -> listOf("segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo")[br.com.estudario.domain.planner.OverdueFit.isoDayOfWeek(day) - 1] +
+        " (" + Queries.shortDate(kotlinx.datetime.LocalDate.fromEpochDays(day.toInt())) + ")"
+}
+
+/**
  * Atrasadas no Início (o mesmo cartão do app): quantas, de quando e quanto tempo; cada uma com
  * "Fazer agora" para recuperar na hora, e as saídas de reorganizar (encaixar nos próximos dias ou
  * empurrar o plano). "Deixar para depois" esconde até amanhã.
@@ -1044,16 +1081,15 @@ private fun HomeOverdue(data: Snapshot, planId: String) {
         }
         Div({ classes("row", "wrap"); attr("style", "margin-top:12px;gap:8px") }) {
             Btn("Encaixar nos próximos dias", {
-                Store.update { br.com.estudario.web.data.Planning.fitOverdue(it, planId) }
-                Toast.show("Pronto: as atrasadas voltaram na frente e o resto do plano se ajustou ao seu ritmo.")
+                fitOverdueNow(planId)
             }, style = "tonal", small = true, icon = "auto_awesome")
             Btn(if (days == 1) "Empurrar tudo 1 dia" else "Empurrar tudo $days dias", {
-                Store.update { br.com.estudario.web.data.Planning.pushOverdue(it, planId) }
-                Toast.show("O plano inteiro andou $days dia${if (days == 1) "" else "s"}: nada ficou para trás.")
+                pushOverdueNow(planId)
             }, style = "ghost", small = true, icon = "fast_forward")
             Btn("Deixar para depois", {
                 runCatching { kotlinx.browser.localStorage.setItem(OVERDUE_LATER, todayEpoch.toString()) }
                 hidden = true
+                Toast.show("Combinado. O aviso volta amanhã; passada uma semana, o plano encaixa sozinho.")
             }, style = "ghost", small = true)
         }
     }

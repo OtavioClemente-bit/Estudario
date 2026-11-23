@@ -103,6 +103,15 @@ object Forecast {
         }
         val open = project(today.plusYears(3), withExam = false)
         val finishAtPace = open?.coverageDate
-        return Result(summary(build(maxOf(today.plusDays(60), (finishAtPace ?: today.plusMonths(6)).plusDays(21)), hasExam = false, open)), finishAtPace)
+        // Sem data de prova não existe "não cabe": se o prazo estimado ficou curto, ele cresce até o
+        // edital caber (no máximo 3 anos), igual ao app.
+        var end = maxOf(today.plusDays(60), (finishAtPace ?: today.plusMonths(6)).plusDays(21))
+        var roadmap = build(end, hasExam = false, open)
+        val limit = today.plusYears(3)
+        while (roadmap.verdict == br.com.estudario.domain.planner.RoadmapVerdict.DOES_NOT_FIT && end < limit) {
+            end = minOf(limit, end.plusDays(maxOf(30L, daysBetween(today, end) / 2).toInt()))
+            roadmap = build(end, hasExam = false, open)
+        }
+        return Result(summary(roadmap), finishAtPace ?: roadmap.coverageDate)
     }
 }

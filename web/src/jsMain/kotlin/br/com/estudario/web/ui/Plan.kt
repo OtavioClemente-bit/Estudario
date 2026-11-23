@@ -160,12 +160,10 @@ fun PlanScreen() {
                     val days = (todayEpoch - overdueTasks.first().day).toInt()
                     Div({ classes("row", "wrap"); attr("style", "margin-top:10px;gap:8px") }) {
                         Btn("Encaixar nos próximos dias", {
-                            Store.update { br.com.estudario.web.data.Planning.fitOverdue(it, plan.id) }
-                            Toast.show("Pronto: as atrasadas voltaram na frente e o resto do plano se ajustou ao seu ritmo.")
+                            fitOverdueNow(plan.id)
                         }, small = true, icon = "auto_awesome")
                         Btn(if (days == 1) "Empurrar tudo 1 dia" else "Empurrar tudo $days dias", {
-                            Store.update { br.com.estudario.web.data.Planning.pushOverdue(it, plan.id) }
-                            Toast.show("O plano inteiro andou $days dia${if (days == 1) "" else "s"}: nada ficou para trás.")
+                            pushOverdueNow(plan.id)
                         }, style = "tonal", small = true, icon = "fast_forward")
                     }
                 }

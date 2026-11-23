@@ -114,12 +114,14 @@ object FocusMode {
     fun clearOngoing(context: Context) = NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID)
 
     /** Avisa que uma sessão esquecida foi encerrada sozinha, a pessoa precisa saber. */
-    fun notifyAutoClosed(context: Context, minutes: Int) {
+    fun notifyAutoClosed(context: Context, minutes: Int, savedMinutes: Int = minutes) {
         if (!canPost(context)) return
+        val text = "O cronômetro ficou ligado por $minutes minutos sem resposta. Salvamos só $savedMinutes min de estudo."
         val notification = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Modo foco encerrado sozinho")
-            .setContentText("A sessão ficou aberta por $minutes minutos. O Não Perturbe voltou ao normal.")
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setAutoCancel(true)
             .setSilent(true)
             .build()

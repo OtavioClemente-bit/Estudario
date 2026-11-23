@@ -32,10 +32,14 @@ object DailyActivityBuilder {
         // "Tópico estudado" vale uma vez por tópico, no dia da primeira sessão dele.
         val firstSessionIds = sessions.filter { it.topicId != 0L }.groupBy { it.topicId }.mapTo(hashSetOf()) { (_, r) -> r.minBy { it.completedAt }.id }
         sessions.forEach { s -> merge(day(s.completedAt)) { it.copy(studySessions = it.studySessions + if (s.id in firstSessionIds) 1 else 0) } }
+        // Minutos de foco do dia: sessões que se sobrepõem (duas abertas ao mesmo tempo) contam uma vez só.
+        fun focusSpans(rows: List<Focus>) = rows.mapNotNull { StudyTime.focus(it.completedAt, it.durationSeconds) }
+        val freeByDay = StudyTime.minutesByDay(focusSpans(focusSessions.filter { it.free }), zone)
         focusSessions.groupBy { day(it.completedAt) }.forEach { (date, rowsForDay) ->
-            val total = (rowsForDay.sumOf { it.durationSeconds.coerceAtLeast(0L) } / 60L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-            val free = (rowsForDay.filter { it.free }.sumOf { it.durationSeconds.coerceAtLeast(0L) } / 60L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-            merge(date) { it.copy(focusSessions = it.focusSessions + rowsForDay.size, focusMinutes = it.focusMinutes + total, freeFocusMinutes = it.freeFocusMinutes + free) }
+            merge(date) { it.copy(focusSessions = it.focusSessions + rowsForDay.size) }
+        }
+        StudyTime.minutesByDay(focusSpans(focusSessions), zone).forEach { (date, m) ->
+            merge(date) { it.copy(focusMinutes = m, freeFocusMinutes = freeByDay[date] ?: 0) }
         }
         executionsCompletedAt.forEach { at -> merge(day(at)) { it.copy(planTasks = it.planTasks + 1) } }
         // O tempo do dia: foco + baterias de questões, contando uma vez só o que se sobrepõe.

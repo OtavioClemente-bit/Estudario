@@ -33,6 +33,8 @@ object TopicFocus {
     var pausedTotal by mutableStateOf(0L)
     /** Minutos previstos (tarefa do plano ou aviso escolhido); null = sem aviso. */
     var plannedMinutes by mutableStateOf<Int?>(null)
+    /** Tempo estudado no último "sim, ainda estou estudando" (FocusRunning.checkedMillis). */
+    var checkedMillis by mutableStateOf(0L)
     var now by mutableStateOf(0L)
 
     /** Contagem escondida (o tempo distrai): some da barra, do título da aba, do tópico e do Modo foco. Fica neste navegador. */
@@ -100,7 +102,7 @@ object TopicFocus {
         ticker = null
         document.title = "Estudário"
         topicId = null; taskId = null; subjectId = null; title = ""; startedAt = 0L; pausedAt = null; pausedTotal = 0L; plannedMinutes = null; timeUpSeen = false; rev = 0L
-        sessionId = ""; subjectList = emptyList()
+        sessionId = ""; subjectList = emptyList(); checkedMillis = 0L
     }
 
     /** Copia o foco guardado (de outra janela) para esta. */
@@ -116,6 +118,7 @@ object TopicFocus {
         timeUpSeen = o.timeUpSeen == true
         startedAt = started
         pausedTotal = (o.pausedTotal as? Number)?.toLong() ?: 0L
+        checkedMillis = (o.checkedMillis as? Number)?.toLong() ?: 0L
         val lastSeen = (o.lastSeen as? Number)?.toLong() ?: started
         pausedAt = (o.pausedAt as? Number)?.toLong() ?: if (keepRunning) null else lastSeen
         rev = (o.rev as? Number)?.toLong() ?: 0L
@@ -138,6 +141,7 @@ object TopicFocus {
             o.topicId = topicId?.toDouble(); o.taskId = taskId; o.subjectId = subjectId?.toDouble(); o.title = title
             o.startedAt = startedAt.toDouble(); o.pausedAt = pausedAt?.toDouble(); o.pausedTotal = pausedTotal.toDouble()
             o.plannedMinutes = plannedMinutes; o.timeUpSeen = timeUpSeen; o.lastSeen = Date.now(); o.rev = rev.toDouble()
+            o.checkedMillis = checkedMillis.toDouble()
             window.localStorage.setItem(SAVE_KEY, JSON.stringify(o))
         }
     }
@@ -146,10 +150,12 @@ object TopicFocus {
         ticker?.let { window.clearInterval(it) }
         ticker = window.setInterval({
             now = Date.now().toLong()
-            // Esquecido aberto além do teto (o mesmo do app): encerra e salva sozinho.
-            if (running && elapsedMinutes >= FocusRules.MAX_SESSION_MINUTES) {
-                stop()
-                Toast.show("O foco ficou aberto por ${FocusRules.MAX_SESSION_MINUTES / 60} horas e foi encerrado sozinho.")
+            // Esquecido aberto (a regra do app, FocusRunning.expired): perguntou e ninguém respondeu.
+            // Encerra e salva só o tempo confiável.
+            if (running && running()?.expired(now) == true) {
+                val total = elapsedMinutes
+                val saved = stop()
+                Toast.show("O foco ficou ligado por ${br.com.estudario.web.data.Queries.minutesLabel(total)} sem resposta e foi encerrado. Salvamos só ${br.com.estudario.web.data.Queries.minutesLabel(saved)}.")
                 return@setInterval
             }
             document.title = if (clockHidden) "Foco · Estudário" else "${clock()} · Foco · Estudário"
@@ -166,8 +172,20 @@ object TopicFocus {
         sessionId = sessionId.ifBlank { "web-$startedAt" }, startedAt = startedAt, title = title.ifBlank { FocusRules.DEFAULT_TITLE },
         subjectIds = subjectList.ifEmpty { listOfNotNull(subjectId) }, origin = FocusRules.origin(taskId, topicId),
         topicId = topicId, taskId = taskId, plannedMinutes = plannedMinutes,
-        pausedAt = pausedAt ?: 0L, pausedMillis = pausedTotal, updatedAt = rev,
+        pausedAt = pausedAt ?: 0L, pausedMillis = pausedTotal, updatedAt = rev, checkedMillis = checkedMillis,
     )
+
+    /** Hora de perguntar "Você ainda está estudando?" (a mesma regra do app). */
+    val needsCheck: Boolean get() = running && running()?.needsCheck(now) == true
+
+    /** "Sim, ainda estou estudando": a pergunta só volta mais tarde (e o app fica sabendo). */
+    fun confirmStillStudying() {
+        val r = running() ?: return
+        val t = Date.now().toLong()
+        checkedMillis = r.confirm(t).checkedMillis
+        rev = t
+        persist(); publish()
+    }
 
     private fun publish(r: FocusRunning? = running()) {
         if (r == null || Store.demo) return
@@ -195,9 +213,15 @@ object TopicFocus {
                 o.topicId = r.topicId?.toDouble(); o.taskId = r.taskId; o.subjectId = r.subjectIds.firstOrNull()?.toDouble()
                 o.title = r.title; o.plannedMinutes = r.plannedMinutes; o.timeUpSeen = !isNew && timeUpSeen
                 o.startedAt = r.startedAt.toDouble(); o.pausedAt = r.pausedAt.takeIf { it > 0L }?.toDouble(); o.pausedTotal = r.pausedMillis.toDouble()
-                o.rev = r.updatedAt.toDouble(); o.lastSeen = Date.now()
+                o.rev = r.updatedAt.toDouble(); o.lastSeen = Date.now(); o.checkedMillis = r.checkedMillis.toDouble()
                 adopt(o, keepRunning = true)
                 if (isNew) Toast.show("Foco começado no outro aparelho: o tempo segue aqui também.")
+            }
+            is FocusRunning.Remote.Replace -> {
+                // Começaram outra sessão no outro aparelho: a daqui é salva até ali e a nova passa a valer.
+                stop(endAt = d.endAt, publishEnd = false)
+                lastData = null
+                watchAccount()
             }
             FocusRunning.Remote.EndedElsewhere -> {
                 markDone(startedAt)
@@ -264,6 +288,7 @@ object TopicFocus {
         now = startedAt
         pausedAt = null
         pausedTotal = 0L
+        checkedMillis = 0L
         timeUpSeen = false
         rev = startedAt
         startTicker()
@@ -280,8 +305,13 @@ object TopicFocus {
     /** O último encerrar não salvou porque esse foco já estava salvo (outra janela ou atualização). */
     private var lastStopWasDuplicate = false
 
-    /** Encerra e salva no histórico (menos de 1 minuto não conta). Devolve os minutos. */
-    fun stop(): Int {
+    /**
+     * Encerra e salva no histórico (menos de 1 minuto não conta). Devolve os minutos. [studiedMinutes]
+     * é o que a pessoa disse ter estudado (pergunta do cronômetro esquecido); sem ele, vale
+     * FocusRunning.unattendedMillis (tudo, ou só o confiável se passou da pergunta sem resposta).
+     * [endAt] encerra antes (a sessão nova começou no outro aparelho); [publishEnd] = false não avisa a conta.
+     */
+    fun stop(studiedMinutes: Int? = null, endAt: Long? = null, publishEnd: Boolean = true): Int {
         lastStopWasDuplicate = false
         if (!active) return 0
         // Já salvo antes (em outra janela, ou a página voltou com ele): não salva de novo.
@@ -293,10 +323,15 @@ object TopicFocus {
             return 0
         }
         markDone(startedAt)
-        val end = Date.now().toLong()
-        val seconds = elapsedMs / 1000
+        val current = running()
+        val stopAt = (endAt ?: Date.now().toLong()).coerceAtLeast(startedAt)
+        val elapsedAtStop = current?.elapsedMillis(stopAt) ?: 0L
+        val studiedMs = studiedMinutes?.let { (it * 60_000L).coerceIn(0L, elapsedAtStop) } ?: current?.unattendedMillis(stopAt) ?: 0L
+        val seconds = studiedMs / 1000
+        // Tempo cortado (esquecido aberto): o estudo foi no começo, então a linha termina lá.
+        val end = if (studiedMs < elapsedAtStop) startedAt + studiedMs else stopAt
         // O outro aparelho fica sabendo que acabou (e não salva de novo).
-        val ended = running()?.end(end)
+        val ended = current?.end(stopAt)
         val savedId = ended?.sessionId ?: Actions.newSessionId()
         val savedSubjects = subjectList.ifEmpty { listOfNotNull(subjectId) }
         lastEndedHere = savedId
@@ -309,9 +344,9 @@ object TopicFocus {
         ticker?.let { window.clearInterval(it) }
         ticker = null
         document.title = "Estudário"
-        topicId = null; taskId = null; startedAt = 0L; pausedAt = null; pausedTotal = 0L; plannedMinutes = null; timeUpSeen = false; rev = 0L
+        topicId = null; taskId = null; startedAt = 0L; pausedAt = null; pausedTotal = 0L; plannedMinutes = null; timeUpSeen = false; rev = 0L; checkedMillis = 0L
         persist()
-        publish(ended)
+        if (publishEnd) publish(ended)
         if (!FocusRules.counts(seconds)) { Toast.show("Foco encerrado (menos de 1 minuto não conta)"); return 0 }
         som("foco_fim")
         Store.update {
