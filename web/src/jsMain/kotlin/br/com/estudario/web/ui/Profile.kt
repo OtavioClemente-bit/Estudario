@@ -744,7 +744,14 @@ fun PlanLimitsScreen() {
     }
     val tiers = listOf("FREE", "ESSENCIAL", "PRO").filter { t -> current.plans.any { it.first == t } }
     var yearly by remember { mutableStateOf(false) }
-    var paying by remember { mutableStateOf<String?>(null) }
+    // Vindo do estudario.com.br (?assinar=ESSENCIAL|PRO): já abre a escolha de como pagar.
+    var paying by remember {
+        val wanted = org.w3c.dom.url.URLSearchParams(window.location.search).get("assinar")?.uppercase()
+        mutableStateOf(wanted?.takeIf { (it == "ESSENCIAL" || it == "PRO") && !Store.demo && current.tier != it && current.tier != "PRO" })
+    }
+    LaunchedEffect(Unit) {
+        if (window.location.search.contains("assinar=")) window.history.replaceState(null, "", window.location.pathname + window.location.hash)
+    }
     paying?.let { t ->
         val p = current.pricing[t]
         PayChooser(

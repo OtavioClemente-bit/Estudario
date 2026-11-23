@@ -106,7 +106,12 @@ fun PayChooser(tier: String, yearly: Boolean, planName: String, priceText: Strin
     Div({ classes("pay-back"); onClick { if (busy == null) onDismiss() } }) {
         Div({ classes("pay-sheet"); attr("role", "dialog"); attr("aria-modal", "true"); onClick { it.stopPropagation() } }) {
             H2 { Text("Assinar o $planName") }
-            P({ classes("pay-sub") }) { Text("$priceText · ${if (yearly) "plano anual" else "plano mensal"}. Vale aqui no site e no app, na mesma conta.") }
+            P({ classes("pay-sub") }) { Text("$priceText · ${if (yearly) "plano anual" else "plano mensal"}. Escolha como pagar: vale aqui no site e no app, na mesma conta.") }
+            // Quem tem Android pode assinar pela Google Play (cobrança e cancelamento pela Play).
+            org.jetbrains.compose.web.dom.A(href = PLAY_URL, { classes("pay-opt"); attr("target", "_blank"); attr("rel", "noopener") }) {
+                Icon("shop")
+                Span { B { Text("Google Play") }; Span { Text("No app Android. Cobrança e cancelamento pela Play.") } }
+            }
             Button({ classes("pay-opt"); if (busy != null) attr("disabled", ""); onClick { go("card") } }) {
                 Icon("credit_card")
                 Span { B { Text(if (busy == "card") "Abrindo…" else "Cartão de crédito") }; Span { Text(if (yearly) "Renova sozinho a cada ano. Cancela quando quiser." else "Renova sozinho todo mês. Cancela quando quiser.") } }
