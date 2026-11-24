@@ -225,7 +225,7 @@ fun SimulationsScreen() {
         // 4. Do que você estudou: só o banco e as questões da própria pessoa.
         val lock = SimulationUnlock.lock(SimulationMode.STUDIED, readiness)
         Div({ classes("gx-panel", "sx-panel") }) {
-            SimSection("DO QUE VOCÊ ESTUDOU", "Simulado dos seus tópicos", "Questões do banco e as suas, só do que você já estudou. Fica pronto na hora.")
+            SimSection("DO QUE VOCÊ ESTUDOU", "Simulado dos seus tópicos", "Questões do banco e as suas, do que você já estudou (no começo, do edital todo). Fica pronto na hora.")
             if (lock.unlocked) Div({ classes("sx-build") }) {
                 FilterChips(listOf(20 to "20 questões", 30 to "30 questões"), studiedSize) { studiedSize = it }
                 Btn("Montar", {

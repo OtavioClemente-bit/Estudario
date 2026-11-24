@@ -52,7 +52,8 @@ class SimulationBlueprintTest {
     @Test fun `unlock rules`() {
         val fresh = SimulationReadiness(leafTopics = 40, studiedTopics = 0, coveredTopics = 0, studyDays = 0, wrongInFinished = 0)
         assertTrue(SimulationUnlock.lock(SimulationMode.DIAGNOSTIC, fresh).unlocked)
-        assertFalse(SimulationUnlock.lock(SimulationMode.STUDIED, fresh).unlocked)
+        // Simulado do que foi estudado: sem trava desde 24/11 (só os pagos veem; sem estudo, sai do banco do edital).
+        assertTrue(SimulationUnlock.lock(SimulationMode.STUDIED, fresh).unlocked)
         assertFalse(SimulationUnlock.lock(SimulationMode.REMATCH, fresh).unlocked)
         val studying = fresh.copy(studiedTopics = 6, coveredTopics = 6, studyDays = 4)
         assertTrue(SimulationUnlock.lock(SimulationMode.STUDIED, studying).unlocked)

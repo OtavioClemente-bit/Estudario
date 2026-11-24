@@ -208,15 +208,10 @@ object SimulationUnlock {
 
     fun lock(mode: SimulationMode, readiness: SimulationReadiness): SimulationLock = when (mode) {
         SimulationMode.DIAGNOSTIC -> SimulationLock(readiness.leafTopics > 0, 1f, "Importe o edital para liberar")
-        SimulationMode.STUDIED -> {
-            val topics = readiness.coveredTopics.coerceAtMost(STUDIED_MIN_TOPICS)
-            val days = readiness.studyDays.coerceAtMost(STUDIED_MIN_DAYS)
-            SimulationLock(
-                readiness.coveredTopics >= STUDIED_MIN_TOPICS && readiness.studyDays >= STUDIED_MIN_DAYS,
-                (topics.toFloat() / STUDIED_MIN_TOPICS + days.toFloat() / STUDIED_MIN_DAYS) / 2f,
-                "Estude $STUDIED_MIN_TOPICS tópicos em $STUDIED_MIN_DAYS dias diferentes (${readiness.coveredTopics}/$STUDIED_MIN_TOPICS tópicos · ${readiness.studyDays}/$STUDIED_MIN_DAYS dias)",
-            )
-        }
+        // 24/11 (pedido do dono): sem trava. Só os planos pagos veem este simulado, e quem assina não pode passar a
+        // primeira semana sem nenhum. Sem tópico estudado, o blueprint usa os tópicos do edital com material
+        // (eligible: studied || hasContent), então ele sai do banco do edital.
+        SimulationMode.STUDIED -> SimulationLock(readiness.leafTopics > 0, 1f, "Importe o edital para liberar")
         SimulationMode.FULL -> {
             val coverage = (readiness.coverage / FULL_MIN_COVERAGE).coerceAtMost(1.0)
             val days = readiness.studyDays.coerceAtMost(FULL_MIN_DAYS).toDouble() / FULL_MIN_DAYS
