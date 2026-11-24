@@ -64,6 +64,8 @@ object Simulations {
     private fun JsonObject.int(key: String): Int? = (this[key] as? JsonPrimitive)?.intOrNull
     private fun JsonElement?.text(): String = (this as? JsonPrimitive)?.contentOrNull.orEmpty()
 
+    /** Tempo que a pessoa realmente usou na prova (o resultado mostrava o limite, 240 min, como se fosse o usado). */
+    fun elapsedSeconds(data: Snapshot, id: Long): Long = row(data, id)?.long("elapsedSeconds") ?: 0L
     fun row(data: Snapshot, id: Long): JsonObject? = data.array(Keys.SIMULATIONS).firstOrNull { (it as? JsonObject)?.long("id") == id } as? JsonObject
 
     // ---------------------------------------------------------------- prontidão

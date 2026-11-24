@@ -381,7 +381,9 @@ object Planning {
         val newRows = proposal.newTasks.map { task ->
             jsonOf(
                 "id" to task.id, "planId" to planId, "competitionId" to (task.subjectId?.let { subjectCompetition[it] } ?: competitionId), "annualPhaseId" to null, "monthlyPlanId" to null, "weeklyPlanId" to null,
-                "subjectId" to task.subjectId, "topicId" to task.topicId, "subjectName" to (task.subjectId?.let { subjectNames[it] } ?: "Matéria não vinculada"),
+                // O simulado do plano cobra várias matérias; o subjectId é só o vínculo técnico (a primeira matéria ativa),
+                // e o nome dela aparecia no cartão como se fosse um simulado só de Língua Portuguesa.
+                "subjectId" to task.subjectId, "topicId" to task.topicId, "subjectName" to (if (task.type == br.com.estudario.domain.planner.PlanTaskType.SIMULATION) "Matérias já estudadas" else task.subjectId?.let { subjectNames[it] } ?: "Matéria não vinculada"),
                 "topicName" to task.topicId?.let { topicNames[it] }, "day" to task.date.toEpochDay(), "type" to task.type.name, "minutes" to task.plannedMinutes,
                 "questions" to task.plannedQuestions, "priority" to task.priority.name, "status" to task.status.name, "origin" to task.origin.name, "notes" to "",
                 "locked" to task.locked, "progressNote" to "", "replannedFrom" to task.replannedFromTaskId, "createdRevision" to nextRevision,

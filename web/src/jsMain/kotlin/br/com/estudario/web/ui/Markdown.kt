@@ -32,9 +32,15 @@ import org.jetbrains.compose.web.dom.Ul
 @Composable
 fun Markdown(source: String, compact: Boolean = false) {
     Div({ classes(*listOfNotNull("reader", if (compact) "compact" else null).toTypedArray()) }) {
-        parseBlocks(MathText.normalize(source)).forEach { block -> RenderBlock(block) }
+        parseBlocks(MathText.normalize(withoutEmptyTrap(source))).forEach { block -> RenderBlock(block) }
     }
 }
+
+/** 24/11: milhares de explicações (simulados e recortes) terminam com "Pegadinha: —", um campo vazio que aparecia
+ *  para o aluno. Só some na tela; o texto guardado não muda. */
+private val EMPTY_TRAP = Regex("""[ \t]*\**Pegadinha\**:?\**[ \t]*[—–-][ \t]*(?=\n|$)""")
+internal fun withoutEmptyTrap(source: String): String =
+    if ("Pegadinha" !in source) source else source.replace(EMPTY_TRAP, "").trimEnd()
 
 internal val LocalMarkdownLinksEnabled = staticCompositionLocalOf { true }
 

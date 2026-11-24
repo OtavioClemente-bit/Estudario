@@ -254,7 +254,7 @@ fun SimulationsScreen() {
     // 5. Histórico: todos os simulados, do mais novo ao mais antigo.
     Div({ classes("gx-panel", "sx-panel") }) {
         SimSection("HISTÓRICO", "Seus simulados")
-        if (list.isEmpty()) P({ classes("gx-note") }) { Text(if (free) "Quando você fizer o simulado do plano, ele aparece aqui." else "Nenhum simulado ainda. Comece por uma prova do edital.") }
+        if (list.isEmpty()) P({ classes("gx-note") }) { Text(if (free) "Quando você fizer o simulado do plano, ele aparece aqui." else if (!exams.isNullOrEmpty()) "Nenhum simulado ainda. Comece por uma prova do edital." else "Nenhum simulado ainda. O simulado do plano aparece aqui quando você fizer.") }
         else Div({ classes("sx-list") }) {
             list.forEach { simulation -> androidx.compose.runtime.key(simulation.id) { SimulationRow(simulation, profile.targetPercent) { discarding = simulation } } }
         }
@@ -560,7 +560,13 @@ private fun ExamView(simulation: Simulation) {
         H2 { Text("Entregar o simulado?") }
         P({ classes("muted") }) {
             val blank = questions.size - answers.size
-            Text(if (blank > 0) "Você deixou $blank questão(ões) em branco. Questão em branco conta como erro." else "Todas respondidas. Depois de entregar não dá para mudar as respostas.")
+            // Regra Cebraspe (Certo/Errado): em branco vale zero, não é erro. Nas de múltipla escolha só não soma.
+            val cebraspe = questions.isNotEmpty() && questions.all { q -> q.options.map { it.key }.toSet() == setOf("C", "E") }
+            Text(when {
+                blank == 0 -> "Todas respondidas. Depois de entregar não dá para mudar as respostas."
+                cebraspe -> "Você deixou $blank item(ns) em branco. Na regra Cebraspe, em branco vale zero: não soma nem tira ponto."
+                else -> "Você deixou $blank questão(ões) em branco. Em branco não soma ponto."
+            })
         }
         Div({ classes("row", "end") }) {
             Btn("Continuar a prova", { confirm = false }, style = "ghost")
@@ -582,7 +588,11 @@ private fun ResultView(simulation: Simulation) {
     val ceItems = questions.filter { q -> q.options.map { it.key }.toSet() == setOf("C", "E") }
     val ceRight = ceItems.count { q -> answers[q.id] == q.options.firstOrNull { it.correct }?.key }
     val ceWrong = ceItems.count { q -> q.id in answers && answers[q.id] != q.options.firstOrNull { it.correct }?.key }
-    val reading = SimulationInsights.read(questions.map { q ->
+    // "Onde você perdeu pontos" olha só o que foi respondido: questão em branco não é ponto perdido por erro
+    // (na regra Cebraspe vale zero). As em branco aparecem numa linha à parte.
+    val blankCount = questions.count { it.id !in answers }
+    val elapsedMinutes = (Simulations.elapsedSeconds(data, simulation.id) + 59) / 60
+    val reading = SimulationInsights.read(questions.filter { it.id in answers }.map { q ->
         SimulationInsights.Answered(q.topicId, q.difficulty, q.explanation, answers[q.id]?.let { it == q.options.firstOrNull { o -> o.correct }?.key })
     })
     Div({ classes("row") }) { Btn("Simulados", { Router.go(Route.Simulations) }, style = "ghost", small = true, icon = "arrow_back") }
@@ -633,8 +643,9 @@ private fun ResultView(simulation: Simulation) {
                         topic?.let { t -> Div({ classes("row") }) { Btn("Estudar o tópico", { Router.go(Route.Topic(t.id)) }, style = "ghost", small = true) } }
                     }
                 }
-                if (reading.lostTopics.isEmpty()) P({ classes("small", "muted") }) { Text("Nenhum ponto perdido. Prova fechada!") }
-                P({ classes("xs", "muted") }) { Text("Tempo de prova: ${simulation.timeLimitMinutes} min · entregue em ${Queries.shortDate(Queries.dateOf(simulation.finishedAt ?: simulation.createdAt))}.") }
+                if (blankCount > 0) P({ classes("small", "muted") }) { Text("$blankCount em branco (não contam como erro).") }
+                if (reading.lostTopics.isEmpty()) P({ classes("small", "muted") }) { Text(if (blankCount > 0) "Nenhum erro nas que você respondeu." else "Nenhum ponto perdido. Prova fechada!") }
+                P({ classes("xs", "muted") }) { Text("Você usou ${if (elapsedMinutes > 0) "$elapsedMinutes" else "menos de 1"} min de ${simulation.timeLimitMinutes} · entregue em ${Queries.shortDate(Queries.dateOf(simulation.finishedAt ?: simulation.createdAt))}.") }
             }
         }
     }

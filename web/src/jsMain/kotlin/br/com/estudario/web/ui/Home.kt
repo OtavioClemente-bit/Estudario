@@ -660,7 +660,9 @@ fun TaskRow(task: PlanTask, onComplete: () -> Unit) {
                 if (done) Span({ classes("done-pill") }) { Icon("check_circle"); Text("Concluída") }
                 else if (task.status != "NAO_REALIZADA") {
                     // Tarefa de um dia que ainda vem: "Adiantar" (no Grátis, adiantar segue a regra dele, mostrada ao tocar).
-                    if (task.status == "PLANEJADA" && task.day > todayEpoch) Btn("Adiantar", { advanceTask(task) }, small = true, style = "primary", icon = "fast_forward")
+                    // O simulado do plano não se adianta (mede o que foi estudado até o dia): no lugar do botão que não fazia nada, diz quando abre.
+                    if (task.status == "PLANEJADA" && task.day > todayEpoch && task.type == "SIMULATION") Span({ classes("xs", "muted") }) { Text("Abre no dia marcado") }
+                    else if (task.status == "PLANEJADA" && task.day > todayEpoch) Btn("Adiantar", { advanceTask(task) }, small = true, style = "primary", icon = "fast_forward")
                     else Btn(if (task.status == "EM_ANDAMENTO") "Continuar" else if (overdue) "Fazer agora" else "Começar", { openTask(task) }, small = true, style = "primary")
                     Btn("Concluir", { latest.value() }, small = true, style = "tonal", icon = "task_alt")
                     if (!task.locked && !Store.demo) Btn("Reprogramar", { Reprogram.task = task }, small = true, style = if (overdue) "outline" else "ghost", icon = "event_repeat")
