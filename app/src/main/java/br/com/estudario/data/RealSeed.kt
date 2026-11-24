@@ -385,6 +385,16 @@ object RealSeed {
             }
         }
 
+        // O plano semeado já é o que a abertura do app produziria: a mesma reorganização diária (automática, hoje
+        // intocado) roda aqui até não mudar mais nada, e o dia fica marcado como reorganizado. Antes o primeiro
+        // reinício depois da semente refazia o plano (as tarefas feitas acima entraram depois do INITIAL) e o dia mudava.
+        for (round in 0 until 3) {
+            val proposal = app.planService.replan(planId, ReplanReason.DAY_MISSED, automatic = true)
+            if (br.com.estudario.domain.planner.PlanStability.isNoop(proposal)) break
+        }
+        app.getSharedPreferences("plano_diario", android.content.Context.MODE_PRIVATE).edit()
+            .putLong("dia", java.time.LocalDate.now().toEpochDay()).putBoolean("metodo2:$planId", true).apply()
+
         // O app abre direto no plano, sem assistente nem guia.
         app.preferences.updateInitialSetup {
             it.copy(

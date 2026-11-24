@@ -18,6 +18,25 @@ object PlanRules {
     /** Atrasada: de um dia que já passou (antes de hoje, no fuso do aparelho) e ainda por fazer. */
     fun isOverdue(day: Long, status: String, todayEpoch: Long): Boolean = day < todayEpoch && isPending(status)
 
+    /**
+     * Tarefas que já têm continuação (outra tarefa nasceu delas num replanejamento, em qualquer aparelho):
+     * não são "atrasadas" mesmo se o status ficou planejado (a junção de dois aparelhos pode deixar a
+     * original aberta enquanto a cópia segue no plano). [replannedFrom] são os replannedFrom de todas as
+     * tarefas do plano.
+     */
+    fun replaced(replannedFrom: Collection<String?>): Set<String> = replannedFrom.filterNotNullTo(hashSetOf())
+
+    /** 31/10/2026 00:00 em Brasília: o método novo do plano (30/10) já estava no app e no site. */
+    const val METHOD2_SINCE_MS = 1_793_415_600_000L
+
+    /**
+     * O plano ainda é do método antigo e precisa ser refeito uma vez? Só se nenhuma reorganização dele foi
+     * gravada depois do método novo, em qualquer aparelho. Antes valia só a marca local (preferência do app,
+     * localStorage do site): cada navegador novo ou dados do site limpos refaziam o plano inteiro do zero
+     * (o "0 tarefa(s) planejada(s)" seguido de 83 no log real).
+     */
+    fun needsMethodUpgrade(proposalRevisionTimes: Collection<Long>): Boolean = proposalRevisionTimes.none { it >= METHOD2_SINCE_MS }
+
     /** Plano visto como candidato a "ativo". */
     data class PlanRef<T>(val value: T, val active: Boolean, val archived: Boolean, val competitionId: Long?)
 

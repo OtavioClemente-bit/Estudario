@@ -6,13 +6,19 @@ package br.com.estudario.domain.planner
  * cópia também fica, e a pessoa via a mesma teoria duas vezes, uma delas pedindo para estudar de novo.
  *
  * A cópia de uma tarefa só nasce de tarefa planejada ou em andamento; se alguma tarefa acima na
- * corrente (replannedFrom) está concluída ou foi pulada, a cópia ainda planejada (não começada) é velha e sai.
+ * corrente (replannedFrom) está concluída, a cópia ainda planejada (não começada) é velha e sai.
  */
 object StaleCopies {
     /** [slot]: dia e tipo da tarefa ("106|THEORY"); null quando quem chama não sabe (aí só vale a regra da corrente). */
     data class Row(val id: String, val replannedFrom: String?, val status: String, val slot: String? = null)
 
-    private val finished = setOf("CONCLUIDA", "NAO_REALIZADA")
+    /**
+     * Só a concluída encerra a corrente. A NAO_REALIZADA não: é o que o motor grava na tarefa de um dia que
+     * passou, junto com a cópia dela nos próximos dias (a continuação de verdade). Antes ela contava como fim
+     * e toda cópia de estudo atrasado era cancelada a cada sincronização (e a cada abertura do site); o
+     * motor marcava de novo com outro id na reorganização seguinte e o plano mudava "do nada" ao longo do dia.
+     */
+    private val finished = setOf("CONCLUIDA")
     private val open = setOf("PLANEJADA", "NAO_REALIZADA")
 
     fun ids(rows: List<Row>): Set<String> {

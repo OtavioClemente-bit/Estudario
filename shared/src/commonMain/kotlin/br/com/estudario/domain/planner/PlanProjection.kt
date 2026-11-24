@@ -58,6 +58,17 @@ object PlanProjection {
             tasks.removeAll { it.id in moved }
             tasks += proposal.newTasks
 
+            // Cobertura primeiro: o plano já marca a primeira leitura de todo tópico que cabe (até o fim do conteúdo).
+            // Com todos os que faltam marcados, o dia de cada um é o da tarefa; não precisa andar dia a dia (com o plano
+            // longo isso ficava lento). Faltando algum (fora do plano agora, sem espaço, reta final), segue dia a dia
+            // como antes: andando os dias o plano real ainda pode encaixá-lo.
+            val liveTheory = tasks.filter { it.type == PlanTaskType.THEORY && it.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO) && it.topicId != null && !it.date.isAfter(until) }
+                .groupBy { it.topicId!! }.mapValues { (_, l) -> l.minOf { it.date } }
+            if (pendingIds.all { it in studiedOn || it in liveTheory }) {
+                pendingIds.filter { it !in studiedOn }.forEach { id -> liveTheory[id]?.let { studiedOn[id] = it } }
+                break
+            }
+
             // A semana feita do jeito que o plano mandou, dia por dia.
             val weekEnd = if (daysBetween(input.today, day) < DAILY_DAYS) day else day.plusDays(6)
             val due = tasks.filter { it.status in setOf(PlanTaskStatus.PLANEJADA, PlanTaskStatus.EM_ANDAMENTO) && !it.date.isBefore(day) && !it.date.isAfter(minOf(weekEnd, until)) }

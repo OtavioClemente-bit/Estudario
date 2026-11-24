@@ -85,7 +85,11 @@ data class ActivePlanUiState(
     val upcomingWeekTasks get() = currentTasks.filter { it.entity.scheduledEpochDay in (today.toEpochDay() + 1)..(today.toEpochDay() + 7) }
     /** "Hoje não vou conseguir" marcado para hoje. */
     val todayOff get() = dayOverrides.any { it.epochDay == today.toEpochDay() && it.unavailable }
-    val overdueTasks get() = if (!syncFresh) emptyList() else tasks.filter { br.com.estudario.domain.planner.PlanRules.isOverdue(it.entity.scheduledEpochDay, it.entity.status.name, LocalDate.now().toEpochDay()) }.sortedBy { it.entity.scheduledEpochDay }
+    // Só o que ficou para trás de verdade: a tarefa que já tem continuação (remarcada em outro aparelho) não conta.
+    val overdueTasks get() = if (!syncFresh) emptyList() else {
+        val replaced = br.com.estudario.domain.planner.PlanRules.replaced(tasks.map { it.entity.replannedFromTaskId })
+        tasks.filter { it.entity.id !in replaced && br.com.estudario.domain.planner.PlanRules.isOverdue(it.entity.scheduledEpochDay, it.entity.status.name, LocalDate.now().toEpochDay()) }.sortedBy { it.entity.scheduledEpochDay }
+    }
     val todayCompletionPercent: Int get() = todayTasks.plannedLoadCompletionPercent()
     val weekStart: LocalDate get() = today.minusDays((today.dayOfWeek.value - 1).toLong())
     val weekTasks get() = currentTasks.filter { LocalDate.ofEpochDay(it.entity.scheduledEpochDay) in weekStart..weekStart.plusDays(6) }

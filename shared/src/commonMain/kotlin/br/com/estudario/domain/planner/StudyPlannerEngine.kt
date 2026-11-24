@@ -15,7 +15,9 @@ class StudyPlannerEngine(
         // muda a matéria do dia); o replanejamento vale de amanhã em diante.
         // "Hoje não vou conseguir" (o dia marcado sem estudo) vale também no grátis: o dia sai do plano.
         val todayOff = snapshot.dayOverrides[snapshot.today]?.unavailable == true
-        val keepToday = snapshot.policy.keepTodayTasks && !todayOff && reason != ReplanReason.INITIAL && snapshot.tasks.any {
+        // Reorganização automática (freezeToday): hoje fica como está também nos pagos, e nada do dia sai nem muda.
+        val frozenToday = snapshot.policy.freezeToday && !todayOff && reason != ReplanReason.INITIAL
+        val keepToday = (snapshot.policy.keepTodayTasks || snapshot.policy.freezeToday) && !todayOff && reason != ReplanReason.INITIAL && snapshot.tasks.any {
             it.date == snapshot.today && it.status !in terminalInactiveStatuses
         }
         // Semana estável: concluir, pular, fazer parte de uma tarefa ou virar o dia não refaz os próximos
@@ -93,7 +95,8 @@ class StudyPlannerEngine(
             task.status == PlanTaskStatus.PLANEJADA && !task.locked && task.origin == PlanOrigin.ENGINE && task.subjectId != null && subjectsById.isNotEmpty() &&
                 executionsByTask[task.id].isNullOrEmpty() && subjectsById[task.subjectId]?.paused != false
         }
-        val dropped: (PlannerTask) -> Boolean = { task -> task.id in surplus || leftoverTheory(task) || outOfPlan(task) }
+        // Reorganização automática não tira nada de hoje (nem a cópia a mais, que sai amanhã).
+        val dropped: (PlannerTask) -> Boolean = { task -> !(frozenToday && task.date == snapshot.today) && (task.id in surplus || leftoverTheory(task) || outOfPlan(task)) }
         // Dia da semana estável acima das horas (dois aparelhos, "empurrar tudo", plano antigo): as últimas tarefas
         // do dia, questões antes da teoria, deixam de ficar presas e vão para um dia com espaço.
         val overflowing = hashSetOf<String>()
@@ -137,7 +140,7 @@ class StudyPlannerEngine(
             it.type == PlanTaskType.THEORY && it.topicId != null && it.locked && it.status in liveStatuses
         }.groupBy { it.topicId!! }.mapValues { (_, l) -> l.maxOf { it.date } }
         val waitsForTheory: (PlannerTask) -> Boolean = { task ->
-            task.type != PlanTaskType.THEORY && task.status == PlanTaskStatus.PLANEJADA && !task.locked && snapshot.dayOverrides[task.date]?.locked != true && (
+            !(frozenToday && task.date == snapshot.today) && task.type != PlanTaskType.THEORY && task.status == PlanTaskStatus.PLANEJADA && !task.locked && snapshot.dayOverrides[task.date]?.locked != true && (
                 (task.topicId in theoryFloating && (task.topicId in theoryBack || !(dayKeeping && task.date <= snapshot.today))) ||
                     (task.topicId != null && pinnedTheoryDay[task.topicId]?.let { task.date < it } == true)
                 )

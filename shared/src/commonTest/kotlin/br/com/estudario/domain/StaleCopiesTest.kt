@@ -17,6 +17,16 @@ class StaleCopiesTest {
         assertEquals(setOf("b", "e", "g"), StaleCopies.ids(rows))
     }
 
+    /** O motor grava NAO_REALIZADA na tarefa de um dia que passou e cria a continuação dela: a continuação fica. */
+    @Test
+    fun continuacaoDeTarefaAtrasadaNaoEhCopiaVelha() {
+        val rows = listOf(
+            Row("seg", null, "NAO_REALIZADA", "100|THEORY"), Row("ter", "seg", "PLANEJADA", "101|THEORY"),
+            Row("x", null, "NAO_REALIZADA"), Row("y", "x", "REPROGRAMADA"), Row("z", "y", "PLANEJADA"),
+        )
+        assertEquals(emptySet(), StaleCopies.ids(rows))
+    }
+
     /** Celular e site reorganizaram a mesma tarefa para o mesmo dia: fica uma cópia só (a de menor id). */
     @Test
     fun duasCopiasDaMesmaTarefaNoMesmoDiaViramUma() {

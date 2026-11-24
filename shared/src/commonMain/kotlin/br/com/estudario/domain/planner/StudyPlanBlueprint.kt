@@ -82,6 +82,13 @@ data class BlueprintInput(
     val liveSimulation: Boolean = false,
     /** Matérias que já têm uma revisão de matéria marcada e ainda não feita. */
     val liveSubjectMixes: Set<Long> = emptySet(),
+    /**
+     * Cobertura primeiro: a primeira leitura de todo tópico do edital é marcada já, até o fim do conteúdo (não só nas
+     * [horizonDays] semanas do plano rolante). Sem prova, o fim do conteúdo cresce até tudo caber; com prova e pouco
+     * tempo, cada tópico fica mais curto (teoria menor, menos questões) para todos serem vistos antes da reta final.
+     * O plano do app e do site liga (PlannerSnapshotBuilder); a prévia do assistente não.
+     */
+    val coverAll: Boolean = false,
 )
 
 data class BlueprintResult(
@@ -98,6 +105,26 @@ data class BlueprintResult(
     val theoryTopicsPerDay: Int? = null,
     /** O tamanho certo da teoria de cada tópico pendente, já no ritmo da pessoa (para redimensionar o que já estava marcado). */
     val theoryMinutesByTopic: Map<Long, Int> = emptyMap(),
+    /** Dias, a partir de hoje, até onde a primeira leitura do edital foi marcada ([BlueprintInput.coverAll]); null sem cobertura. */
+    val coverageHorizonDays: Int? = null,
+    /** A conta da cobertura: se todo tópico cabe antes da reta final e, se não, por quê. */
+    val coverage: CoverageCheck? = null,
+)
+
+/**
+ * Cabe ver o edital inteiro? [pendingTopics] tópicos ainda sem primeira leitura, [availableMinutes] de estudo até o
+ * fim do conteúdo e [neededMinutes] do que eles pedem (depois de encurtar, se foi preciso). [compressed]: a teoria e
+ * as questões de cada tópico ficaram menores para tudo caber. [impossible]: nem no mínimo por tópico cabe; aí cabem
+ * cerca de [fittingTopics], os de mais peso primeiro, e [reason] diz isso à pessoa.
+ */
+data class CoverageCheck(
+    val pendingTopics: Int,
+    val availableMinutes: Int,
+    val neededMinutes: Int,
+    val compressed: Boolean,
+    val impossible: Boolean,
+    val fittingTopics: Int,
+    val reason: String?,
 )
 
 /**
@@ -325,16 +352,23 @@ object StudyPlanBlueprint {
         // matéria (quando o edital não cabe, é o que fica de fora).
         val (highIncidence, lowIncidence) = incidenceLevels(topicsBySubject.values.map { list -> list.mapNotNull { t -> t.incidence?.let { t.topicId to it } } })
         val maxWeight = weights.values.maxOrNull()?.coerceAtLeast(1) ?: 1
-        val contentEnd = phases.firstOrNull { it.kind == PlanPhaseKind.RETA_FINAL }?.start?.minusDays(1) ?: phases.last().end
+        val phaseContentEnd = phases.firstOrNull { it.kind == PlanPhaseKind.RETA_FINAL }?.start?.minusDays(1) ?: phases.last().end
+        // Cobertura primeiro (coverAll): antes a primeira leitura só era marcada nas 4 semanas do plano rolante e,
+        // sem prova, numa janela fixa de 180 dias desde o início do plano (depois dela, nenhum tópico novo entrava
+        // mais). A pessoa via menos da metade do edital no plano (casos reais BB e PMMG, 23/11).
+        val coverage = if (input.coverAll && phase.kind != PlanPhaseKind.RETA_FINAL) coverageFor(input, activeSubjects, topicsBySubject, lowIncidence, weights, phaseContentEnd) else null
+        val contentEnd = coverage?.contentEnd ?: phaseContentEnd
         val contentDays = if (phase.kind == PlanPhaseKind.RETA_FINAL) 0
             else (daysBetween(input.today, contentEnd).toInt() + 1).coerceAtLeast(1)
+        coverage?.note?.let { notes += it }
         var theoryPlanned = 0
         var contentNeeded = 0.0
         var questionsPlanned = 0
         var diagnosticCount = 0
         var skippedByEvidence = 0
         val anchoredUnits = mutableListOf<Triple<LocalDate, Int, List<TaskDemand>>>()
-        val horizonEndContent = minOf(input.today.plusDays(input.horizonDays.toLong()), contentEnd.plusDays(1))
+        val horizonEndContent = if (coverage != null) contentEnd.plusDays(1)
+            else minOf(input.today.plusDays(input.horizonDays.toLong()), contentEnd.plusDays(1))
         val newUnits = mutableListOf<Pair<Long, List<TaskDemand>>>()
         val theorySizes = mutableMapOf<Long, Int>()
 
@@ -344,10 +378,12 @@ object StudyPlanBlueprint {
                 .sortedWith(compareBy({ it.topicId in lowIncidence }, { it.position }, { it.topicId }))
                 .map { it to trackOf(it, subject) }
             skippedByEvidence += tracks.count { (t, track) -> track == Track.COVERED && !t.studied }
-            val pending = tracks.filter { it.second != Track.COVERED }
+            // Sem tempo nem para o mínimo de cada tópico: entram só os escolhidos pelo peso (coverageFor).
+            val pending = tracks.filter { it.second != Track.COVERED && (coverage?.chosen == null || it.second == Track.DIAGNOSE || it.first.topicId in coverage.chosen) }
+            val theoryScale = coverage?.theoryScale ?: 1.0
             fun minutesOf(track: Track) = when (track) {
-                Track.FULL -> roundTo5(THEORY_BASE_MINUTES * factor * config.theoryPace)
-                Track.SHORT -> roundTo5(SHORT_THEORY_MINUTES * factor * config.theoryPace).coerceAtLeast(20)
+                Track.FULL -> roundTo5(THEORY_BASE_MINUTES * factor * config.theoryPace * theoryScale).coerceAtLeast(if (theoryScale < 1.0) MIN_FIRST_THEORY_MINUTES else 5)
+                Track.SHORT -> roundTo5(SHORT_THEORY_MINUTES * factor * config.theoryPace * theoryScale).coerceAtLeast(20)
                 Track.DIAGNOSE -> DIAGNOSTIC_QUESTIONS * config.minutesPerQuestion
                 Track.COVERED -> 0
             }
@@ -438,7 +474,8 @@ object StudyPlanBlueprint {
                         val planned = if (topicNeed == null) config.questionsPerTopic else {
                             QuestionAllocator.allocate(config.questionsPerTopic, topicNeed, topic.evidence, covered = false).questions
                         }
-                        val scaled = javaRound(planned * factor.coerceAtLeast(0.8) * (if (topic.topicId in highIncidence) HIGH_INCIDENCE_BOOST else 1.0)).toInt().coerceAtLeast(1)
+                        val scaled = javaRound(planned * factor.coerceAtLeast(0.8) * (if (topic.topicId in highIncidence) HIGH_INCIDENCE_BOOST else 1.0) * (coverage?.questionScale ?: 1.0)).toInt()
+                            .coerceAtLeast(if (coverage != null && coverage.questionScale < 1.0) minOf(MIN_FIRST_QUESTIONS, planned) else 1)
                         val quantidade = topic.questionCap?.let { minOf(scaled, it) } ?: scaled
                         unit += TaskDemand(
                             id = "topic-questions:${topic.topicId}", subjectId = subject.subjectId, topicId = topic.topicId,
@@ -764,7 +801,120 @@ object StudyPlanBlueprint {
             plannedMinutes = planned,
             horizonCapacityMinutes = horizonCapacity,
             theoryMinutesByTopic = theorySizes,
+            coverageHorizonDays = coverage?.let { (daysBetween(input.today, contentEnd).toInt() + 1).coerceAtLeast(input.horizonDays) },
+            coverage = coverage?.check,
         )
+    }
+
+    /** Primeira leitura mais curta que isso não ensina: abaixo dela o tópico não cabe (caminho "impossível"). */
+    const val MIN_FIRST_THEORY_MINUTES = 20
+    /** Questões mínimas depois da primeira leitura quando o tempo aperta. */
+    const val MIN_FIRST_QUESTIONS = 5
+    /** Parte do dia que a primeira passada pelo edital pode usar (o resto: revisões, treino, folga para atraso). */
+    private const val FIRST_STUDY_SHARE = 0.85
+    /** Sem prova, até onde o plano marca a primeira leitura (2 anos): edital maior que isso é caso de mais horas. */
+    const val MAX_COVERAGE_DAYS = 730
+
+    private class Coverage(
+        val contentEnd: LocalDate,
+        val theoryScale: Double,
+        val questionScale: Double,
+        /** Só estes tópicos entram (o tempo não dá nem para o mínimo de todos); null = todos. */
+        val chosen: Set<Long>?,
+        val note: String?,
+        val check: CoverageCheck,
+    )
+
+    /**
+     * A conta da cobertura primeiro: quanto a primeira leitura de cada tópico pendente pede (teoria + questões) e
+     * quanto tempo há até o fim do conteúdo. Sem prova o fim cresce até caber. Com prova e pouco tempo, teoria e
+     * questões de cada tópico encolhem na mesma proporção, até o mínimo; se nem o mínimo cabe, os tópicos são
+     * escolhidos pelo peso da matéria (e, dentro dela, os que mais caem) e a pessoa é avisada.
+     */
+    private fun coverageFor(
+        input: BlueprintInput,
+        subjects: List<BlueprintSubject>,
+        topicsBySubject: Map<Long, List<BlueprintTopic>>,
+        lowIncidence: Set<Long>,
+        weights: Map<Long, Int>,
+        phaseContentEnd: LocalDate,
+    ): Coverage {
+        val config = input.config
+        val mpq = config.minutesPerQuestion
+        data class Item(val subjectId: Long, val topic: BlueprintTopic, val theory: Int, val questions: Int)
+        val items = subjects.flatMap { subject ->
+            val factor = difficultyFactor(subject.dimensions.personalDifficulty)
+            topicsBySubject[subject.subjectId].orEmpty()
+                .filter { (it.topicId to PlanTaskType.THEORY) !in input.occupied }
+                .mapNotNull { topic ->
+                    val theory = when (trackOf(topic, subject)) {
+                        Track.FULL -> roundTo5(THEORY_BASE_MINUTES * factor * config.theoryPace)
+                        Track.SHORT -> roundTo5(SHORT_THEORY_MINUTES * factor * config.theoryPace).coerceAtLeast(20)
+                        else -> return@mapNotNull null
+                    }
+                    Item(subject.subjectId, topic, theory, config.questionsPerTopic * mpq)
+                }
+        }
+        val usablePerDay = input.weeklyCapacityMinutes / 7.0 * FIRST_STUDY_SHARE
+        val needed = items.sumOf { it.theory + it.questions }
+        val limitEnd = input.today.plusDays(MAX_COVERAGE_DAYS.toLong() - 1)
+        fun daysTo(end: LocalDate) = (daysBetween(input.today, end).toInt() + 1).coerceAtLeast(1)
+        fun day(d: LocalDate) = "${d.dayOfMonth.toString().padStart(2, '0')}/${d.monthNumber.toString().padStart(2, '0')}/${d.year}"
+        if (items.isEmpty() || usablePerDay <= 0.0) {
+            return Coverage(minOf(phaseContentEnd, limitEnd).let { if (it.isBefore(input.today)) input.today else it }, 1.0, 1.0, null, null,
+                CoverageCheck(items.size, 0, needed, compressed = false, impossible = items.isNotEmpty(), fittingTopics = 0,
+                    reason = if (items.isEmpty()) null else "Sem horas de estudo na semana, nenhum tópico novo cabe no plano."))
+        }
+        if (input.examDate == null) {
+            // Sem prova não existe "não cabe": o fim do conteúdo vai até o edital inteiro ser visto, no ritmo de cada
+            // matéria (a janela de cada uma é uma parte deste período) e com folga para atrasos.
+            val daysNeeded = kotlin.math.ceil(needed / usablePerDay / CONTENT_WINDOW_SHARE / 0.75).toLong() + 7
+            val end = minOf(limitEnd, maxOf(phaseContentEnd, input.today.plusDays(daysNeeded)))
+            val available = (usablePerDay * daysTo(end)).toInt()
+            val fits = available >= needed
+            return Coverage(end, 1.0, 1.0, null,
+                "Sem data de prova, a primeira leitura de todos os ${items.size} tópicos do edital já está no plano, no ritmo das suas horas.",
+                CoverageCheck(items.size, available, needed, compressed = false, impossible = !fits, fittingTopics = if (fits) items.size else (available / ((needed / items.size).coerceAtLeast(1))),
+                    reason = if (fits) null else "Mesmo em dois anos o edital inteiro não cabe nas suas horas: aumente o tempo por dia para ver tudo."))
+        }
+        val end = if (phaseContentEnd.isBefore(input.today)) input.today else minOf(phaseContentEnd, limitEnd)
+        val available = (usablePerDay * daysTo(end)).toInt()
+        if (needed <= available) return Coverage(end, 1.0, 1.0, null, null, CoverageCheck(items.size, available, needed, false, false, items.size, null))
+        val minimum = items.sumOf { MIN_FIRST_THEORY_MINUTES + minOf(MIN_FIRST_QUESTIONS, config.questionsPerTopic) * mpq }
+        if (minimum <= available) {
+            // Encolhe teoria e questões na mesma proporção (a teoria nunca abaixo do mínimo que ensina).
+            val scale = available.toDouble() / needed
+            val theory = items.sumOf { maxOf(MIN_FIRST_THEORY_MINUTES.toDouble(), it.theory * scale) }
+            val questionRoom = (available - theory).coerceAtLeast(0.0)
+            val questionScale = if (items.sumOf { it.questions } == 0) 1.0 else (questionRoom / items.sumOf { it.questions }).coerceIn(0.0, 1.0)
+            val typicalTheory = roundTo5(THEORY_BASE_MINUTES * config.theoryPace * scale).coerceAtLeast(MIN_FIRST_THEORY_MINUTES)
+            val typicalQuestions = javaRound(config.questionsPerTopic * questionScale).toInt().coerceAtLeast(minOf(MIN_FIRST_QUESTIONS, config.questionsPerTopic))
+            return Coverage(end, scale, questionScale, null,
+                "Para ver todos os ${items.size} tópicos antes da reta final (${day(end)}), cada um ficou mais curto: cerca de $typicalTheory min de teoria e $typicalQuestions questões. O aprofundamento vem depois, nas revisões e no treino.",
+                CoverageCheck(items.size, available, items.sumOf { maxOf(MIN_FIRST_THEORY_MINUTES, (it.theory * scale).toInt()) + (it.questions * questionScale).toInt() }, compressed = true, impossible = false, fittingTopics = items.size, reason = null))
+        }
+        // Nem o mínimo por tópico cabe: escolhe pelo peso. Cada matéria recebe vagas na proporção do peso × tópicos
+        // dela, e dentro da matéria entram primeiro os que mais caem, na ordem do edital.
+        val perTopic = MIN_FIRST_THEORY_MINUTES + minOf(MIN_FIRST_QUESTIONS, config.questionsPerTopic) * mpq
+        val fitting = (available / perTopic).coerceIn(0, items.size)
+        val bySubject = items.groupBy { it.subjectId }
+        val share = bySubject.mapValues { (id, list) -> (weights[id] ?: 1).toDouble() * list.size }
+        val total = share.values.sum().coerceAtLeast(1.0)
+        val quota = bySubject.mapValues { (id, list) -> minOf(list.size, kotlin.math.floor(fitting * share.getValue(id) / total).toInt()) }.toMutableMap()
+        var left = fitting - quota.values.sum()
+        // As vagas que sobram do arredondamento vão para as matérias de mais peso que ainda têm tópico.
+        while (left > 0) {
+            val next = bySubject.keys.filter { quota.getValue(it) < bySubject.getValue(it).size }.maxWithOrNull(compareBy<Long> { weights[it] ?: 1 }.thenBy { -it }) ?: break
+            quota[next] = quota.getValue(next) + 1; left--
+        }
+        val chosen = bySubject.flatMap { (id, list) ->
+            list.sortedWith(compareBy({ it.topic.topicId in lowIncidence }, { it.topic.position }, { it.topic.topicId })).take(quota.getValue(id)).map { it.topic.topicId }
+        }.toSet()
+        val hours = input.weeklyCapacityMinutes / 7
+        val reason = "Não dá para ver todos os ${items.size} tópicos até a reta final (${day(end)}): com cerca de ${hours / 60}h${(hours % 60).toString().padStart(2, '0')} por dia cabem uns $fitting, mesmo com o mínimo de $MIN_FIRST_THEORY_MINUTES min de teoria por tópico. " +
+            "Entram primeiro os das matérias de mais peso na prova; ${items.size - fitting} ficam de fora. Para caber tudo, aumente as horas por dia."
+        return Coverage(end, MIN_FIRST_THEORY_MINUTES.toDouble() / THEORY_BASE_MINUTES, 0.0, chosen, reason,
+            CoverageCheck(items.size, available, fitting * perTopic, compressed = true, impossible = true, fittingTopics = fitting, reason = reason))
     }
 
     /**

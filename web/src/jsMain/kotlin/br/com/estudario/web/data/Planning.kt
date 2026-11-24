@@ -181,7 +181,12 @@ object Planning {
         // Plano montado antes do método novo (30/10/2026): uma vez, ele é refeito do zero, sem carregar
         // a estrutura antiga (revisões como tarefa, bateria de uma matéria só). O que já foi feito fica.
         val upgradeKey = "$METHOD_KEY.${plan.id}"
-        val upgrade = runCatching { kotlinx.browser.localStorage.getItem(upgradeKey) }.getOrNull() == null
+        // A marca é deste navegador: o plano já reorganizado pelo método novo (no app ou em outro navegador) não é refeito.
+        val upgrade = runCatching { kotlinx.browser.localStorage.getItem(upgradeKey) }.getOrNull() == null &&
+            br.com.estudario.domain.planner.PlanRules.needsMethodUpgrade(
+                Store.data.array(Keys.PLAN_REVISIONS).mapNotNull { it as? JsonObject }
+                    .filter { it.str("planId") == plan.id && it.str("reason") == "PROPOSAL_APPLIED" }.mapNotNull { it.long("createdAt") },
+            )
         // Com estudo atrasado o plano espera a pessoa escolher (encaixar, empurrar ou deixar) em vez de
         // varrer tudo calado; passada uma semana, encaixa sozinho (como no app).
         val late = overdue(Store.data, plan.id)
@@ -189,7 +194,8 @@ object Planning {
         if (!upgrade && waiting) return
         Store.update { data ->
             // Passada a semana de espera, encaixa como o botão (soltando as fixadas atrasadas, que senão ficavam presas).
-            runCatching { if (upgrade) rebuild(data, plan.id) else if (late.isNotEmpty()) fitOverdue(data, plan.id) else replan(data, plan.id, ReplanReason.DAY_MISSED) }.getOrDefault(data)
+            // Automática (ninguém pediu): o que falta de hoje fica como está; só de amanhã em diante muda (igual ao app).
+            runCatching { if (upgrade) rebuild(data, plan.id, automatic = true) else if (late.isNotEmpty()) fitOverdue(data, plan.id, automatic = true) else replan(data, plan.id, ReplanReason.DAY_MISSED, automatic = true) }.getOrDefault(data)
         }
         runCatching { kotlinx.browser.localStorage.setItem(REORGANIZED_KEY, today); kotlinx.browser.localStorage.setItem(upgradeKey, "2") }
     }
@@ -202,10 +208,10 @@ object Planning {
     fun overdue(data: Snapshot, planId: String) = Queries.overdueTasks(data, planId)
 
     /** "Encaixar nos próximos dias": as atrasadas voltam na frente e o resto se reorganiza no ritmo do edital. */
-    fun fitOverdue(data: Snapshot, planId: String): Snapshot {
+    fun fitOverdue(data: Snapshot, planId: String, automatic: Boolean = false): Snapshot {
         val late = overdue(data, planId).filter { it.locked }.mapTo(hashSetOf()) { it.id }
         val unlocked = if (late.isEmpty()) data else data.edit(Keys.TASKS) { if (it.str("id") in late) it.with("locked" to JsonPrimitive(false), "updatedAt" to JsonPrimitive(now())) else it }
-        val replanned = replan(unlocked, planId, ReplanReason.DAY_MISSED)
+        val replanned = replan(unlocked, planId, ReplanReason.DAY_MISSED, automatic)
         // O motor não tira do passado tarefa de plano trazido da IA, sem matéria ou de dia travado: elas
         // ficavam no dia antigo e o aviso voltava. Vão para os próximos dias com espaço (OverdueFit, igual ao app).
         val today = Queries.todayEpoch()
@@ -225,7 +231,7 @@ object Planning {
         }
         val used = replanned.tasks.filter { it.planId == planId && it.day >= today && it.status != "REPROGRAMADA" && it.status != "CANCELADA" && it.status != "NAO_REALIZADA" }
             .groupBy { it.day }.mapValues { (_, l) -> l.sumOf { it.minutes } }
-        val days = br.com.estudario.domain.planner.OverdueFit.distribute(stuck.map { br.com.estudario.domain.planner.OverdueFit.Item(it.id, it.minutes) }, today, capacity, used)
+        val days = br.com.estudario.domain.planner.OverdueFit.distribute(stuck.map { br.com.estudario.domain.planner.OverdueFit.Item(it.id, it.minutes) }, if (automatic) today + 1 else today, capacity, used)
         val at = now()
         return replanned.edit(Keys.TASKS) { row -> days[row.str("id")]?.let { row.with("day" to JsonPrimitive(it), "locked" to JsonPrimitive(false), "updatedAt" to JsonPrimitive(at)) } ?: row }
     }
@@ -340,11 +346,12 @@ object Planning {
     }
 
     /** Refaz o plano do zero pelo método atual: o que não foi feito sai e o plano é montado de novo. */
-    fun rebuild(data: Snapshot, planId: String): Snapshot =
-        replan(replan(data, planId, ReplanReason.REBUILD), planId, ReplanReason.DAY_MISSED)
+    fun rebuild(data: Snapshot, planId: String, automatic: Boolean = false): Snapshot =
+        replan(replan(data, planId, ReplanReason.REBUILD, automatic), planId, ReplanReason.DAY_MISSED, automatic)
 
     /** StudyPlanApplicationService.replan + applyProposal. */
-    fun replan(data: Snapshot, planId: String, reason: ReplanReason): Snapshot {
+    /** [automatic]: reorganização que a pessoa não pediu; o que falta de hoje fica como está (PlannerPolicy.freezeToday). */
+    fun replan(data: Snapshot, planId: String, reason: ReplanReason, automatic: Boolean = false): Snapshot {
         val planRow = data.array(Keys.PLANS).firstOrNull { (it as? JsonObject)?.str("id") == planId } as? JsonObject ?: return data
         if (planRow.bool("archived") == true) return data
         val revision = planRow.long("revision") ?: 0
@@ -352,10 +359,16 @@ object Planning {
         val tasks = taskRows.mapNotNull { it.toPlannerTask() }
         val today = Queries.todayDate()
         val snapshot = PlannerSnapshotBuilder.build(inputFor(data, planId, planRow, tasks, revision, today))
+            .let { if (automatic) it.copy(policy = it.policy.copy(freezeToday = true)) else it }
         val computed = StudyPlannerEngine().plan(snapshot, reason)
         // Plano trazido da IA é da pessoa: o motor não acrescenta tarefas nem mexe nas importadas.
         val imported = tasks.filter { it.origin == PlanOrigin.IMPORTED }.mapTo(hashSetOf()) { it.id }
-        val proposal = if (imported.isEmpty()) computed else computed.copy(newTasks = emptyList(), transitions = computed.transitions.filterNot { it.taskId in imported })
+        val filtered = if (imported.isEmpty()) computed else computed.copy(newTasks = emptyList(), transitions = computed.transitions.filterNot { it.taskId in imported })
+        // A tarefa que sairia igual fica como está (mesmo id, como no app): sem mudança de verdade nada é
+        // gravado, e o que o plano esvaziaria (dados incompletos) também não (PlanStability).
+        val proposal = br.com.estudario.domain.planner.PlanStability.stabilize(filtered, snapshot.tasks)
+        if (br.com.estudario.domain.planner.PlanStability.isNoop(proposal)) return data
+        if (br.com.estudario.domain.planner.PlanStability.wouldEmptyPlan(proposal, snapshot.tasks, snapshot.today, snapshot.subjects.any { !it.paused }, reason)) return data
 
         val nextRevision = revision + 1
         val at = now()

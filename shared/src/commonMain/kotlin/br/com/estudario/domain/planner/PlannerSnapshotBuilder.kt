@@ -316,8 +316,12 @@ object PlannerSnapshotBuilder {
                 liveSimulation = tasks.any { it.type == PlanTaskType.SIMULATION && it.status in live },
                 lastTheoryBySubject = lastTheory.mapValues { (_, days) -> days.keys.max() },
                 theoryCountOnLastDay = lastTheory.mapValues { (_, days) -> days.getValue(days.keys.max()).size },
+                // Cobertura primeiro: a primeira leitura de todo o edital já entra no plano (não só 4 semanas).
+                coverAll = true,
             ),
         )
+        // O motor marca até onde a primeira leitura do edital foi (o treino e o resto seguem nas 4 semanas).
+        val horizonDays = maxOf(policy.horizonDays, blueprint.coverageHorizonDays ?: 0)
 
         val remainingTopics = blueprintTopics.count { !it.studied }
         StudyPlannerSnapshot(
@@ -335,7 +339,7 @@ object PlannerSnapshotBuilder {
                 // Do dia da prova em diante não há estudo: antes, antecipar a prova deixava tarefas
                 // marcadas depois dela. (Prova que já passou não conta: a pessoa segue para a próxima.)
                 if (examDate == null || examDate < today) marked
-                else marked + (0 until policy.horizonDays).map { today.plusDays(it.toLong()) }.filter { it >= examDate }
+                else marked + (0 until horizonDays).map { today.plusDays(it.toLong()) }.filter { it >= examDate }
                     .associateWith { date -> DayCapacityOverride(date, 0, true, false) }
             },
             subjects = planSubjects.map { SubjectDemand(it.subjectId, it.name, it.priority, it.minimumMaintenanceMinutes, it.position, it.paused) },
@@ -349,13 +353,14 @@ object PlannerSnapshotBuilder {
             remainingPhaseMinutes = remainingTopics * ((config.blockMinutes * pace.theoryFactor).toInt() + config.questionsPerTopic * personalConfig.minutesPerQuestion),
             recurringReservedMinutes = planSubjects.sumOf { it.minimumMaintenanceMinutes },
             // O teto de tópicos novos por dia é o menor entre o do plano (Grátis 2, pagos 4) e o do ritmo.
-            policy = policy.copy(maxTheoryTopicsPerDay = minOf(topicsPerDay(freeRules), blueprint.theoryTopicsPerDay ?: topicsPerDay(freeRules))),
+            policy = policy.copy(horizonDays = horizonDays, maxTheoryTopicsPerDay = minOf(topicsPerDay(freeRules), blueprint.theoryTopicsPerDay ?: topicsPerDay(freeRules))),
             notes = blueprint.notes,
             questionCapByTopic = questionCap,
             theoryMinutesByTopic = if (pace.theorySamples >= PersonalPace.MIN_THEORY_TOPICS) blueprint.theoryMinutesByTopic else emptyMap(),
             minutesPerQuestion = pace.minutesPerQuestion,
             theoryNeedByTopic = blueprint.theoryMinutesByTopic,
             topicStudiedOn = topics.filter { it.studied && it.lastStudiedAt != null }.associate { it.id to epochMillisToDate(it.lastStudiedAt!!, zone) },
+            coverage = blueprint.coverage,
         )
     }
 }

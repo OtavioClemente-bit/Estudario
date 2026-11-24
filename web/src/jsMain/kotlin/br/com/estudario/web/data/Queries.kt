@@ -29,8 +29,12 @@ object Queries {
     )
 
     /** Tarefas atrasadas do plano (PlanRules.isOverdue), da mais antiga para a mais nova. */
-    fun overdueTasks(data: Snapshot, planId: String, todayEpoch: Long = todayEpoch()): List<PlanTask> =
-        data.tasks.filter { it.planId == planId && br.com.estudario.domain.planner.PlanRules.isOverdue(it.day, it.status, todayEpoch) }.sortedBy { it.day }
+    fun overdueTasks(data: Snapshot, planId: String, todayEpoch: Long = todayEpoch()): List<PlanTask> {
+        val tasks = data.tasks.filter { it.planId == planId }
+        // A tarefa que já tem continuação (remarcada no app ou aqui) não é atrasada, mesmo se ficou aberta na junção.
+        val replaced = br.com.estudario.domain.planner.PlanRules.replaced(tasks.map { it.replannedFrom })
+        return tasks.filter { it.id !in replaced && br.com.estudario.domain.planner.PlanRules.isOverdue(it.day, it.status, todayEpoch) }.sortedBy { it.day }
+    }
 
     /**
      * As tarefas do dia que valem. Ao replanejar, a tarefa antiga vira REPROGRAMADA e entra uma cópia

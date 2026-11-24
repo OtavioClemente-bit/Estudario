@@ -158,6 +158,12 @@ data class PlannerPolicy(
     val maxTheoryTopicsPerDay: Int? = null,
     /** O dia de hoje fica como está ao replanejar (Grátis): mudar edital ou horas não troca a matéria do dia. */
     val keepTodayTasks: Boolean = false,
+    /**
+     * Reorganização automática (virar o dia, abrir o app, depois de sincronizar, acomodação do plano longo): o que
+     * falta de hoje fica exatamente como está (mesmas tarefas, tamanhos e ordem) e nada novo entra hoje; só de amanhã
+     * em diante pode mudar. Ações da pessoa (reorganizar, mudar horas ou edital, folga) não ligam isto.
+     */
+    val freezeToday: Boolean = false,
 ) {
     init {
         require(version > 0)
@@ -209,6 +215,8 @@ data class StudyPlannerSnapshot(
      * A teoria deles que estava marcada no plano sai, como a parte que sobra de uma teoria concluída.
      */
     val topicStudiedOn: Map<Long, LocalDate> = emptyMap(),
+    /** A conta da cobertura do edital (StudyPlanBlueprint): cabe tudo, encurtou cada tópico ou não cabe e por quê. */
+    val coverage: CoverageCheck? = null,
 ) {
     init {
         require(revision >= 0)

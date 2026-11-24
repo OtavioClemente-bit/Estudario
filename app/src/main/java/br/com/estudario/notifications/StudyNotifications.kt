@@ -221,9 +221,10 @@ object StudyNotificationCoordinator {
             val plan = br.com.estudario.domain.planner.PlanRules.activePlan(
                 app.database.plannerDao().plansOnce().map { br.com.estudario.domain.planner.PlanRules.PlanRef(it, it.active, it.archived, it.competitionId) }, primary,
             ) ?: return@runCatching emptyList()
-            app.database.plannerDao().tasksOnce().filter {
-                it.planId == plan.id && br.com.estudario.domain.planner.PlanRules.isOverdue(it.scheduledEpochDay, it.status.name, today)
-            }
+            val tasks = app.database.plannerDao().tasksOnce().filter { it.planId == plan.id }
+            // Mesma conta do cartão de atraso: a que já tem continuação (remarcada em outro aparelho) não conta.
+            val replaced = br.com.estudario.domain.planner.PlanRules.replaced(tasks.map { it.replannedFromTaskId })
+            tasks.filter { it.id !in replaced && br.com.estudario.domain.planner.PlanRules.isOverdue(it.scheduledEpochDay, it.status.name, today) }
         }.getOrDefault(emptyList())
         if (late.isEmpty()) { p.edit().remove("overdue_at").apply(); return }
         val last = p.getLong("overdue_at", -1)

@@ -224,21 +224,30 @@ class EstudarioApplication : Application() {
             runCatching {
                 val prefs = getSharedPreferences("plano_diario", MODE_PRIVATE)
                 val today = java.time.LocalDate.now().toEpochDay()
-                val pendingUpgrade = database.plannerDao().plansOnce().any { it.active && !it.archived && !prefs.getBoolean("metodo2:${it.id}", false) }
+                // Só o plano do método antigo de verdade força a passada fora da virada do dia. Antes todo plano novo
+                // (criado no assistente, semeado) ainda sem a marca local fazia o próximo reinício reorganizar o
+                // plano no mesmo dia, e a missão de hoje mudava (4 atividades viravam 6).
+                val pendingUpgrade = database.plannerDao().plansOnce().any {
+                    it.active && !it.archived && !prefs.getBoolean("metodo2:${it.id}", false) &&
+                        br.com.estudario.domain.planner.PlanRules.needsMethodUpgrade(database.plannerDao().revisionsFor(it.id).filter { r -> r.reason == "PROPOSAL_APPLIED" }.map { r -> r.createdAt })
+                }
                 if (prefs.getLong("dia", -1) != today || pendingUpgrade) {
                     database.plannerDao().plansOnce().filter { it.active && !it.archived }.forEach { plan ->
                         // Plano montado antes do método novo (30/10/2026): uma vez, refeito do zero (sem a
                         // estrutura antiga); o que já foi feito fica.
-                        val upgrade = !prefs.getBoolean("metodo2:${plan.id}", false)
+                        // A marca é deste aparelho; o plano já reorganizado pelo método novo em qualquer aparelho não é refeito.
+                        val upgrade = !prefs.getBoolean("metodo2:${plan.id}", false) &&
+                            br.com.estudario.domain.planner.PlanRules.needsMethodUpgrade(database.plannerDao().revisionsFor(plan.id).filter { it.reason == "PROPOSAL_APPLIED" }.map { it.createdAt })
                         runCatching {
-                            if (upgrade) planService.replan(plan.id, br.com.estudario.domain.planner.ReplanReason.REBUILD)
+                            if (upgrade) planService.replan(plan.id, br.com.estudario.domain.planner.ReplanReason.REBUILD, automatic = true)
                             // Com estudo atrasado o plano espera a pessoa escolher (encaixar, empurrar ou
                             // deixar) em vez de varrer tudo calado; passada uma semana, encaixa sozinho.
                             val late = planService.overdue(plan.id)
                             val waiting = late.isNotEmpty() && today - late.minOf { it.scheduledEpochDay } <= OVERDUE_WAIT_DAYS
                             // Passou a semana de espera: encaixa como o botão "Encaixar" (que também solta as
                             // fixadas atrasadas; sem isso elas ficavam presas no dia antigo para sempre).
-                            if (!waiting) { if (late.isNotEmpty()) planService.fitOverdue(plan.id) else planService.replan(plan.id, br.com.estudario.domain.planner.ReplanReason.DAY_MISSED) }
+                            // Automática (ninguém pediu): o que falta de hoje fica como está; só de amanhã em diante muda.
+                            if (!waiting) { if (late.isNotEmpty()) planService.fitOverdue(plan.id, automatic = true) else planService.replan(plan.id, br.com.estudario.domain.planner.ReplanReason.DAY_MISSED, automatic = true) }
                         }
                         prefs.edit().putBoolean("metodo2:${plan.id}", true).apply()
                     }

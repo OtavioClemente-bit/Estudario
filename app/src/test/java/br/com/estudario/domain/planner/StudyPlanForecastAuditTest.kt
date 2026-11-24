@@ -47,12 +47,14 @@ class StudyPlanForecastAuditTest {
 
     @Test
     fun `quando nao cabe a previsao avisa e o que fica de fora bate com o plano real`() {
-        val outcome = run(subjects = 6, topicsPerSubject = 10, examInDays = 35)
+        // 180 tópicos em 5 semanas de 670 min: nem o mínimo por tópico (20 min de teoria e 5 questões) cabe. Com 60
+        // tópicos (o cenário antigo) o plano agora encurta cada tópico e cobre tudo (cobertura primeiro).
+        val outcome = run(subjects = 6, topicsPerSubject = 30, examInDays = 35)
         println("Previsão: ${outcome.promised.verdict}, de fora ${outcome.promised.topicsLeftOut} · plano real: ${outcome.studiedByExam}/${outcome.total} até a prova")
         assertTrue("A previsão deveria avisar que não cabe", outcome.promised.verdict == RoadmapVerdict.DOES_NOT_FIT)
         val realLeftOut = outcome.total - outcome.studiedByExam
         val diff = kotlin.math.abs(realLeftOut - outcome.promised.topicsLeftOut)
-        assertTrue("Plano real deixou $realLeftOut de fora; a previsão disse ${outcome.promised.topicsLeftOut}", diff <= 3)
+        assertTrue("Plano real deixou $realLeftOut de fora; a previsão disse ${outcome.promised.topicsLeftOut}", diff <= maxOf(3, outcome.total * 3 / 100))
         assertTrue("Faltando tópicos, a previsão precisa dizer quantos minutos a mais por dia resolveriam", outcome.promised.extraMinutesPerDayToFit > 0)
     }
 

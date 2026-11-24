@@ -3,6 +3,7 @@ package br.com.estudario.data.planner
 import androidx.room.withTransaction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.withLock
 import br.com.estudario.data.local.AppDatabase
 import br.com.estudario.data.local.planner.PlanSubjectEntity
 import br.com.estudario.data.local.planner.StudyAvailabilityEntity
@@ -79,6 +80,7 @@ class StudyPlanApplicationService(
 ) {
     private val planner = db.plannerDao()
     private val snapshotFactory = StudyPlanSnapshotFactory(db, excludedTopics, freeRules, incidence)
+    private val replanMutex = kotlinx.coroutines.sync.Mutex()
 
     /** Entradas do motor para a previsão (PlanProjection). */
     suspend fun plannerInput(planId: String): br.com.estudario.domain.planner.PlannerSnapshotBuilder.Input = snapshotFactory.input(planId)
@@ -267,17 +269,21 @@ class StudyPlanApplicationService(
 
     /** Atrasadas: o que ficou de dias que passaram e não foi feito. */
     suspend fun overdue(planId: String, today: LocalDate = LocalDate.now()): List<br.com.estudario.data.local.planner.PlanTaskEntity> =
-        planner.tasksForOnce(planId).filter { it.scheduledEpochDay < today.toEpochDay() && it.status in pendingStatuses }
+        planner.tasksForOnce(planId).let { tasks ->
+            // A que já tem continuação (remarcada em outro aparelho) não ficou para trás.
+            val replaced = br.com.estudario.domain.planner.PlanRules.replaced(tasks.map { it.replannedFromTaskId })
+            tasks.filter { it.id !in replaced && it.scheduledEpochDay < today.toEpochDay() && it.status in pendingStatuses }
+        }
 
     /** "Encaixar nos próximos dias": as atrasadas voltam na frente e o resto se reorganiza no ritmo do edital. */
-    suspend fun fitOverdue(planId: String, today: LocalDate = LocalDate.now()): OverdueFitResult {
+    suspend fun fitOverdue(planId: String, today: LocalDate = LocalDate.now(), automatic: Boolean = false): OverdueFitResult {
         val before = overdue(planId, today)
         val late = before.filter { it.locked }
         if (late.isNotEmpty()) db.withTransaction {
             val now = System.currentTimeMillis()
             late.forEach { planner.updateTask(it.copy(locked = false, updatedAt = now)) }
         }
-        replan(planId, ReplanReason.DAY_MISSED, today)
+        replan(planId, ReplanReason.DAY_MISSED, today, automatic)
         // O motor não tira do passado tarefa de plano trazido da IA, tarefa sem matéria nem tarefa de dia
         // travado: elas ficavam no dia antigo e o aviso de atraso voltava a cada abertura do app. Vão para
         // os próximos dias com espaço (OverdueFit), de verdade, gravadas no banco.
@@ -303,7 +309,8 @@ class StudyPlanApplicationService(
             val used = tasks.filter { it.scheduledEpochDay >= t && it.status.countsAsLoad() }
                 .groupBy { it.scheduledEpochDay }.mapValues { (_, l) -> l.sumOf { it.plannedMinutes } }
             val days = br.com.estudario.domain.planner.OverdueFit.distribute(
-                stuck.map { br.com.estudario.domain.planner.OverdueFit.Item(it.id, it.plannedMinutes) }, t, capacity, used,
+                // Automática: o atrasado vai de amanhã em diante (hoje fica como está).
+                stuck.map { br.com.estudario.domain.planner.OverdueFit.Item(it.id, it.plannedMinutes) }, if (automatic) t + 1 else t, capacity, used,
             )
             require(planner.claimRevision(plan.id, plan.revision, System.currentTimeMillis()) == 1)
             val now = System.currentTimeMillis()
@@ -531,6 +538,8 @@ class StudyPlanApplicationService(
             val now = System.currentTimeMillis()
             val changed = mutableListOf<PlanTaskEntity>()
             for (task in planner.tasksForOnce(planId)) {
+                // Hoje e o que passou ficam como estão: a correção vale de amanhã em diante (o dia não muda sozinho).
+                if (task.scheduledEpochDay <= LocalDate.now().toEpochDay()) continue
                 val minutes = QuestionTaskDurationCorrection.correctedMinutes(
                     type = task.type,
                     status = task.status,
@@ -559,19 +568,34 @@ class StudyPlanApplicationService(
      * Ele roda fora da thread principal para a interface continuar respondendo (inclusive a barra
      * de navegação) enquanto o plano é montado.
      */
-    suspend fun replan(planId: String, reason: ReplanReason, today: LocalDate = LocalDate.now()): PlanningProposal {
-        val computed = withContext(Dispatchers.Default) { engine.plan(snapshotFactory.create(planId, today.toKotlinLocalDate()), reason) }
+    /**
+     * [automatic]: reorganização que a pessoa não pediu (virar o dia, abrir o app, acomodar o plano): o que falta de
+     * hoje fica exatamente como está (PlannerPolicy.freezeToday); só de amanhã em diante muda.
+     */
+    suspend fun replan(planId: String, reason: ReplanReason, today: LocalDate = LocalDate.now(), automatic: Boolean = false): PlanningProposal = replanMutex.withLock {
+        // Uma reorganização por vez: concluir uma tarefa chamava o replanejamento de dois ou três lugares ao
+        // mesmo tempo (três revisões no mesmo minuto no log real) e cada um partia de dados diferentes.
+        val snapshot = withContext(Dispatchers.Default) { snapshotFactory.create(planId, today.toKotlinLocalDate()) }
+            .let { if (automatic) it.copy(policy = it.policy.copy(freezeToday = true)) else it }
+        val computed = withContext(Dispatchers.Default) { engine.plan(snapshot, reason) }
         // Plano trazido da IA é da pessoa: o motor automático não acrescenta tarefas próprias nem
         // reprograma as importadas. Sem isso, cada conclusão "completava" o plano da IA com a
         // agenda do motor, e tarefas que a pessoa não pediu apareciam no começo.
         val tasks = planner.tasksForOnce(planId)
         val imported = tasks.any { it.origin == br.com.estudario.domain.planner.PlanOrigin.IMPORTED }
-        val proposal = if (!imported) computed else {
+        val filtered = if (!imported) computed else {
             val importedIds = tasks.filter { it.origin == br.com.estudario.domain.planner.PlanOrigin.IMPORTED }.mapTo(HashSet()) { it.id }
             computed.copy(newTasks = emptyList(), transitions = computed.transitions.filterNot { it.taskId in importedIds })
         }
+        // A tarefa que sairia igual fica como está (mesmo id): sem mudança de verdade, nada é gravado e o
+        // plano de hoje não troca de cartões a cada abertura ou sincronização (PlanStability).
+        val proposal = br.com.estudario.domain.planner.PlanStability.stabilize(filtered, snapshot.tasks)
+        if (br.com.estudario.domain.planner.PlanStability.isNoop(proposal)) return@withLock proposal
+        if (br.com.estudario.domain.planner.PlanStability.wouldEmptyPlan(proposal, snapshot.tasks, snapshot.today, snapshot.subjects.any { !it.paused }, reason)) {
+            return@withLock proposal.copy(transitions = emptyList(), newTasks = emptyList())
+        }
         applyProposal(proposal)
-        
+
         // Sincroniza tarefas do plano em background se a permissão estiver concedida
         calendarSync?.let { sync ->
             val tasks = db.plannerDao().tasksForOnce(planId)
