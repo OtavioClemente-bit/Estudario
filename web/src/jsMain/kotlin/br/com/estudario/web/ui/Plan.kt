@@ -501,6 +501,10 @@ private fun PlanOverview(planId: String, tasks: List<PlanTask>, todayEpoch: Long
         val r = projection.roadmap
         val text = when {
             projection.remainingTopics == 0 -> "Todos os ${r.totalTopics} tópicos já foram vistos. Daqui até a prova é revisão e questões."
+            // Sem data de prova não existe "apertado" nem "reta final": só quando o edital fecha no seu ritmo.
+            exam == null -> (r.coverageDate ?: projection.finishAtPace)?.let {
+                "No seu ritmo, o último tópico do edital é visto em ${Queries.dayLabel(it)}. Cadastre a data da prova para o plano reservar a reta final de revisão."
+            } ?: "Cadastre a data da prova para ver quanto tempo sobra para revisão."
             r.verdict == br.com.estudario.domain.planner.RoadmapVerdict.DOES_NOT_FIT ->
                 "Com as horas de hoje, ${r.topicsLeftOut} de ${projection.remainingTopics} tópicos não cabem antes da reta final" +
                     (r.atRiskSubjects.takeIf { it.isNotEmpty() }?.let { " (mais em ${it.take(3).joinToString()})" } ?: "") +

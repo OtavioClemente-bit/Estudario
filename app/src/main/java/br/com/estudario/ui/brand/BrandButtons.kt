@@ -11,6 +11,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -277,7 +280,8 @@ internal fun NoteSurface(
             .clickable(interactionSource = src, indication = null, enabled = enabled, role = Role.Button, onClick = click)
             .drawBehind {
                 drawNote(
-                    pal = pal, pen = pen, back = back, hole = hole, rail = m.rail.toPx(), holes = if (showRail) 0 else m.holes,
+                    // Sem desenho da ação: folha lisa, sem faixa nem furos (as bolinhas poluíam a tela).
+                    pal = pal, pen = pen, back = back, hole = hole, rail = if (showRail) m.rail.toPx() else 0f, holes = 0,
                     press = press, fold = fold, sweep = sweep.value, stamp = stamp.value, ruled = false,
                 )
             },
@@ -297,7 +301,7 @@ internal fun NoteSurface(
             Modifier
                 .padding(end = BackX, bottom = BackY)
                 .graphicsLayer { translationX = 3.dp.toPx() * press; translationY = 4.dp.toPx() * press }
-                .padding(contentPadding ?: PaddingValues(start = m.rail + 10.dp, end = m.endPad, top = 6.dp, bottom = 6.dp)),
+                .padding(contentPadding ?: PaddingValues(start = if (showRail) m.rail + 10.dp else m.endPad, end = m.endPad, top = 6.dp, bottom = 6.dp)),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -498,13 +502,36 @@ fun TextButton(
     size: NoteSize = NoteSize.Small,
     content: @Composable RowScope.() -> Unit,
 ) {
+    // Botão de texto é ação secundária ("ler mais", "agora não", "hoje não vou conseguir"): link
+    // limpo na cor da marca, sem folha nem furos. A folha fica para as ações principais.
     val k = kind ?: inferKind(colors, NoteKind.Paper)
-    NoteSurface(k, size, enabled, glyph ?: k.glyph, onClick, modifier, null, interactionSource, null, content = content)
+    val s = MaterialTheme.colorScheme
+    val tint = when {
+        !enabled -> s.onSurface.copy(alpha = 0.38f)
+        k == NoteKind.Danger -> s.error
+        else -> s.primary
+    }
+    val src = interactionSource ?: remember { MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    Row(
+        modifier
+            .defaultMinSize(minHeight = 40.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (pressed && enabled) tint.copy(alpha = 0.10f) else Color.Transparent)
+            .clickable(interactionSource = src, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CompositionLocalProvider(LocalContentColor provides tint) {
+            ProvideTextStyle(MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, color = tint)) { content() }
+        }
+    }
 }
 
 /**
- * O botão só de ícone (fechar, voltar, menu): quadradinho de papel com contorno de caneta e a folha
- * de baixo, mesmo movimento, sem pauta. Toque de 48 dp no mínimo.
+ * O botão só de ícone (fechar, voltar, menu): só o ícone, com um círculo leve no toque. Toque de
+ * 48 dp no mínimo. (O quadradinho de papel em volta deixava listas cheias de caixas.)
  */
 @Composable
 fun IconButton(
@@ -516,40 +543,27 @@ fun IconButton(
     kind: NoteKind = NoteKind.Paper,
     content: @Composable () -> Unit,
 ) {
-    val dark = isCadernoNight()
-    val pal = notePalette(kind, dark, enabled)
-    val pen = (if (dark) PenDark else PenLight).copy(alpha = if (enabled) 1f else 0.5f)
-    val back = (if (dark) Color(0xFF3A3470) else PaperLight).copy(alpha = if (enabled) 1f else 0.6f)
-    val reduce = rememberReducedMotion()
+    val s = MaterialTheme.colorScheme
     val src = interactionSource ?: remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
-    val press by animateFloatAsState(if (pressed && enabled) 1f else 0f, if (reduce) snap() else spring(0.5f, 700f), label = "note-icon-press")
-    val stamp = remember { Animatable(-1f) }
-    val scope = rememberCoroutineScope()
     val view = LocalView.current
+    val tint = when {
+        !enabled -> s.onSurface.copy(alpha = 0.38f)
+        kind == NoteKind.Danger -> s.error
+        else -> LocalContentColor.current
+    }
     Box(
         modifier
-            // Mesmo quem pediu um botão menor ganha a folha inteira e o toque de 48 dp.
             .requiredSizeIn(minWidth = 48.dp, minHeight = 48.dp)
+            .clip(CircleShape)
+            .background(if (pressed && enabled) s.onSurface.copy(alpha = 0.10f) else Color.Transparent)
             .clickable(src, indication = null, enabled = enabled, role = Role.Button) {
                 view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-                if (!reduce) scope.launch { stamp.snapTo(0f); stamp.animateTo(1f, tween(450)); stamp.snapTo(-1f) }
                 onClick()
-            }
-            .padding(3.dp)
-            .drawBehind {
-                val r = 11.dp.toPx()
-                drawNote(pal, pen, back, Color.Transparent, rail = 0f, holes = 0, press = press, fold = 0f, sweep = -1f,
-                    stamp = stamp.value, ruled = false, small = r, big = r)
             },
         contentAlignment = Alignment.Center,
     ) {
-        Box(
-            Modifier.padding(end = BackX, bottom = BackY).graphicsLayer { translationX = 3.dp.toPx() * press; translationY = 4.dp.toPx() * press },
-            contentAlignment = Alignment.Center,
-        ) {
-            CompositionLocalProvider(LocalContentColor provides pal.ink) { content() }
-        }
+        CompositionLocalProvider(LocalContentColor provides tint) { content() }
     }
 }
 

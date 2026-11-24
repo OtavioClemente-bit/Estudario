@@ -116,9 +116,11 @@ private fun VerdictCard(roadmap: EditalRoadmapResult, onEditAvailability: () -> 
     val prefs = androidx.compose.runtime.remember { context.getSharedPreferences("plan_roadmap", android.content.Context.MODE_PRIVATE) }
     var focus by androidx.compose.runtime.remember(planId) { androidx.compose.runtime.mutableStateOf(planId.isNotEmpty() && prefs.getBoolean("focus_$planId", false)) }
     fun chooseFocus(value: Boolean) { focus = value; if (planId.isNotEmpty()) prefs.edit().putBoolean("focus_$planId", value).apply() }
-    val notFit = roadmap.verdict == RoadmapVerdict.DOES_NOT_FIT
+    val notFit = roadmap.verdict == RoadmapVerdict.DOES_NOT_FIT && roadmap.hasExamDate
     val focused = notFit && focus
     val (tone, icon, title) = when {
+        // Sem data de prova não há "apertado" nem "não cabe": só quando o edital fecha no ritmo atual.
+        !roadmap.hasExamDate -> Triple(Color(0xFF2EA56F), Icons.Outlined.CheckCircle, "Seu edital no seu ritmo")
         focused -> Triple(Color(0xFF2F5BD3), Icons.Outlined.CheckCircle, "Foco no que mais cai")
         roadmap.verdict == RoadmapVerdict.COMFORTABLE -> Triple(Color(0xFF2EA56F), Icons.Outlined.CheckCircle, "Seu edital cabe com folga")
         roadmap.verdict == RoadmapVerdict.TIGHT -> Triple(Color(0xFFE08A00), Icons.Outlined.WarningAmber, "Cabe, mas no limite")
@@ -128,6 +130,7 @@ private fun VerdictCard(roadmap: EditalRoadmapResult, onEditAvailability: () -> 
     val extra = roadmap.extraMinutesPerDayToFit
     val leftOut = "${roadmap.topicsLeftOut} ${if (roadmap.topicsLeftOut == 1) "tópico" else "tópicos"}"
     val body = when {
+        !roadmap.hasExamDate -> roadmap.coverageDate?.let { "Você vê o último tópico do edital em ${it.toJavaLocalDate().label()}. Cadastre a data da prova para o plano reservar a reta final de revisão." } ?: "Cadastre a data da prova para ver quanto tempo sobra para revisão."
         focused -> "Você cobre ${roadmap.weightCoveredPercent}% do peso da prova. Ficam para o fim os $leftOut que menos caem nas provas" +
             (roadmap.atRiskSubjects.takeIf { it.isNotEmpty() }?.let { ", mais de ${it.take(2).joinToString(" e ")}" } ?: "") +
             ": se sobrar tempo, eles entram."

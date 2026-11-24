@@ -48,6 +48,8 @@ fun WeeklyBalanceCard(balance: WeeklyBalance, roadmap: EditalRoadmapResult?) {
             LinearProgressIndicator(progress = { balance.seenPercent / 100f }, modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)), color = tone)
             roadmap?.let { r ->
                 val text = when {
+                    // Sem data de prova: só a data em que o edital fecha, sem "reta final".
+                    !r.hasExamDate -> r.coverageDate?.let { "No seu ritmo, o edital fecha em ${it.toJavaLocalDate().format(day)}." }
                     r.verdict != RoadmapVerdict.DOES_NOT_FIT && r.coverageDate != null ->
                         "No seu ritmo, o edital fecha em ${r.coverageDate!!.toJavaLocalDate().format(day)}" +
                             (if (r.slackDays > 0) ", ${r.slackDays} dias antes da reta final. Você vai conseguir." else ", colado na reta final.")
