@@ -3,6 +3,11 @@ package br.com.estudario.web.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import br.com.estudario.domain.planner.SubjectTuning
 import br.com.estudario.web.data.Queries
 import org.jetbrains.compose.web.dom.B
 import org.jetbrains.compose.web.dom.Button
@@ -26,23 +31,48 @@ internal object AxisColor {
     const val BLOCK = "#FF7A45"
 }
 
-/** Medidor de níveis: barrinhas crescentes na largura toda, o nível escrito na pílula do título. */
+/**
+ * Medidor de níveis, igual ao do app (SetupPlannerSteps.LevelMeter): barrinhas crescentes na largura
+ * toda, cada uma mais forte que a anterior (clarinha no nível 1, cheia no último, pela mesma
+ * [SubjectTuning.intensity]); o nível escolhido numa pílula na cor do nível; um pulinho na barrinha
+ * clicada; e o "?" que abre ali mesmo a explicação de uma ou duas frases.
+ */
 @Composable
-internal fun LevelMeter(title: String, labels: List<String>, selected: Int, color: String, onSelect: (Int) -> Unit) {
+internal fun LevelMeter(title: String, labels: List<String>, selected: Int, color: String, help: String? = null, onSelect: (Int) -> Unit) {
     val latest = rememberUpdatedState(onSelect)
+    var helpOpen by remember(title) { mutableStateOf(false) }
+    // Troca a cada clique para reiniciar a animação do pulinho (classe alterna entre duas iguais).
+    var bounce by remember { mutableStateOf(-1 to false) }
+    fun tone(i: Int) = "color-mix(in srgb, $color ${(SubjectTuning.intensity(i, labels.size) * 100).toInt()}%, var(--card))"
+    val strong = selected >= labels.size - 2
     Div({ classes("lvl"); attr("style", "--c:$color") }) {
         Div({ classes("lvl-head") }) {
             Span({ classes("lvl-title") }) { Text(title) }
-            Span({ classes("pill-v") }) { Text(labels[selected]) }
+            if (help != null) Button({
+                classes("lvl-help"); attr("type", "button"); attr("aria-expanded", "$helpOpen")
+                attr("aria-label", if (helpOpen) "Fechar explicação de $title" else "O que é $title?")
+                onClick { helpOpen = !helpOpen }
+            }) { Text("?") }
         }
+        Span({ classes("pill-v", "lvl-pill"); attr("style", "background:${tone(selected)};color:${if (strong) "#fff" else color}"); attr("aria-live", "polite") }) { Text(labels[selected]) }
+        if (helpOpen && help != null) Div({ classes("lvl-help-text") }) { Text(help) }
         Div({ classes("lvl-bars"); attr("role", "radiogroup"); attr("aria-label", title) }) {
             labels.forEachIndexed { i, label ->
                 key(i) {
                     Button({
-                        classes(*listOfNotNull(if (i <= selected) "on" else null, if (i == selected) "cur" else null).toTypedArray())
-                        attr("style", "height:${14 + i * (20 / (labels.size - 1).coerceAtLeast(1))}px")
+                        classes(*listOfNotNull(
+                            if (i <= selected) "on" else null, if (i == selected) "cur" else null,
+                            if (bounce.first == i) (if (bounce.second) "bnc-a" else "bnc-b") else null,
+                        ).toTypedArray())
+                        attr("type", "button")
+                        attr("style", "height:${14 + i * (20 / (labels.size - 1).coerceAtLeast(1))}px;--t:${tone(i)}")
                         attr("role", "radio"); attr("aria-checked", (i == selected).toString()); attr("aria-label", "$title: $label"); attr("title", label)
-                        onClick { latest.value(i) }
+                        onClick { bounce = i to !bounce.second; latest.value(i) }
+                        // Setas do teclado trocam o nível, como num grupo de rádio.
+                        onKeyDown { e ->
+                            val next = when (e.key) { "ArrowRight", "ArrowUp" -> selected + 1; "ArrowLeft", "ArrowDown" -> selected - 1; else -> null }
+                            if (next != null && next in labels.indices) { e.preventDefault(); bounce = next to !bounce.second; latest.value(next) }
+                        }
                     })
                 }
             }
@@ -51,7 +81,7 @@ internal fun LevelMeter(title: String, labels: List<String>, selected: Int, colo
     }
 }
 
-/** O que cada medidor quer dizer, uma vez só no topo. */
+/** O que cada medidor quer dizer, uma vez só no topo (a mesma escala do clarinho ao forte). */
 @Composable
 internal fun LevelLegend() {
     Div({ classes("card", "lvl-legend") }) {
@@ -60,7 +90,15 @@ internal fun LevelLegend() {
             AxisColor.PRIORITY to "Peso na prova: quanto espaço a matéria ocupa no plano.",
             AxisColor.EFFORT to "Esforço: o quanto ela costuma dar trabalho para você.",
             AxisColor.KNOWLEDGE to "O quanto já sabe: matérias que você domina vão mais para revisão e questões.",
-        ).forEach { (c, t) -> Div({ classes("lvl-legend-row") }) { Span({ classes("sw"); attr("style", "background:$c") }); Span { Text(t) } } }
+        ).forEach { (c, t) ->
+            Div({ classes("lvl-legend-row") }) {
+                Span({ classes("sw3") }) {
+                    listOf(0, 2, 4).forEach { i -> Span({ attr("style", "height:${6 + i * 1.5}px;background:color-mix(in srgb, $c ${(SubjectTuning.intensity(i, 5) * 100).toInt()}%, var(--card))") }) }
+                }
+                Span { Text(t) }
+            }
+        }
+        Span({ classes("xs", "muted") }) { Text("Clique no \"?\" de cada medidor para ver o que ele muda no seu plano.") }
     }
 }
 

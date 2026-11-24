@@ -2,6 +2,15 @@ package br.com.estudario.ui.setup
 
 import br.com.estudario.ui.components.AlertDialog
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -58,7 +67,9 @@ internal fun SyllabusReviewStep(
     onRemoveSubject: (SubjectEntity) -> Unit,
     onRemoveTopic: (TopicEntity) -> Unit,
 ) {
-    var expandedSubjectId by rememberSaveable { mutableStateOf<Long?>(null) }
+    // Começa com a primeira matéria aberta, para mostrar como é por dentro.
+    var expandedIds by rememberSaveable { mutableStateOf(listOfNotNull(uiState.subjects.firstOrNull()?.id)) }
+    val palette = br.com.estudario.ui.theme.estudarioColors().subjectPalette
     var addingSubject by rememberSaveable { mutableStateOf(false) }
     var addingTopicTo by rememberSaveable { mutableStateOf<Long?>(null) }
     var removingSubject by remember { mutableStateOf<SubjectEntity?>(null) }
@@ -73,9 +84,12 @@ internal fun SyllabusReviewStep(
         showScrollIndicator = true,
         bottom = { SetupPrimaryButton("Está certo, continuar", onContinue, enabled = uiState.subjects.isNotEmpty()) },
     ) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SyllabusCount("${uiState.subjects.size} matérias")
-            SyllabusCount("${uiState.topicEntities.size} tópicos")
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.weight(1f)) { SyllabusCount("${uiState.subjects.size} matérias · ${uiState.topicEntities.size} tópicos") }
+            val allOpen = uiState.subjects.isNotEmpty() && uiState.subjects.all { it.id in expandedIds }
+            if (uiState.subjects.isNotEmpty()) TextButton(onClick = { expandedIds = if (allOpen) emptyList() else uiState.subjects.map { it.id } }) {
+                Text(if (allOpen) "Fechar todas" else "Abrir todas")
+            }
         }
         OutlinedButton(onClick = { addingSubject = true }, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Outlined.Add, null, Modifier.padding(end = 8.dp))
@@ -86,48 +100,53 @@ internal fun SyllabusReviewStep(
         }
         uiState.subjects.forEach { subject ->
             val topics = topicsBySubject[subject.id].orEmpty()
-            val expanded = expandedSubjectId == subject.id
+            val expanded = subject.id in expandedIds
+            val accent = remember(subject.name, palette) { br.com.estudario.ui.components.subjectAccentColor(subject.name, palette) }
+            // Peso na prova, quando o edital traz o quadro de questões ("15 questões · 25% da nota").
+            val weight = remember(subject.assessedPriorityEvidenceJson) {
+                val json = subject.assessedPriorityEvidenceJson
+                br.com.estudario.text.TopicDisplay.weightLabel(br.com.estudario.domain.ExamWeights.questionsOfJson(json), br.com.estudario.domain.ExamWeights.descriptionOfJson(json))
+            }
             ElevatedCard(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
             ) {
+              Row(Modifier.height(IntrinsicSize.Min)) {
+                // Faixa fina na cor da matéria.
+                Box(Modifier.width(4.dp).fillMaxHeight().background(accent))
+                Column(Modifier.weight(1f)) {
                 Row(
                     modifier = Modifier.fillMaxWidth()
                         .testTag("setup_subject_${subject.id}")
                         .semantics { stateDescription = if (expanded) "Expandida" else "Recolhida" }
                         .clickable(role = Role.Button, onClickLabel = if (expanded) "Recolher tópicos" else "Ver tópicos") {
-                            expandedSubjectId = if (expanded) null else subject.id
-                        }.padding(16.dp),
+                            expandedIds = if (expanded) expandedIds - subject.id else expandedIds + subject.id
+                        }.padding(14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
+                    br.com.estudario.ui.brand.SubjectArtTile(br.com.estudario.domain.catalog.SubjectArt.iconFor(subject.name), accent, 44.dp)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(subject.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text("${topics.size} tópicos", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                        Text(if (expanded) "Toque para recolher" else "Toque para ver e ajustar", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            SyllabusChip(if (topics.size == 1) "1 tópico" else "${topics.size} tópicos", MaterialTheme.colorScheme.surfaceContainerHighest)
+                            weight?.let { SyllabusChip(it, accent.copy(alpha = 0.18f)) }
+                        }
                     }
-                    Icon(if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null)
+                    Surface(color = MaterialTheme.colorScheme.surfaceContainerHighest, shape = CircleShape) {
+                        Icon(if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, null, Modifier.padding(6.dp))
+                    }
                 }
                 if (expanded) {
-                    HorizontalDivider(Modifier.padding(horizontal = 16.dp))
-                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        if (topics.isEmpty()) Text("Nenhum tópico por aqui ainda. Adicione o primeiro abaixo.", Modifier.padding(4.dp), style = MaterialTheme.typography.bodyMedium)
+                    HorizontalDivider(Modifier.padding(horizontal = 14.dp))
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp)) {
+                        if (topics.isEmpty()) Text("Nenhum tópico por aqui ainda. Adicione o primeiro abaixo.", Modifier.padding(8.dp), style = MaterialTheme.typography.bodyMedium)
                         val rows = remember(topics) { syllabusTopicRows(topics) }
-                        rows.forEach { row ->
-                            Surface(
-                                modifier = Modifier.fillMaxWidth().padding(start = (row.depth.coerceAtMost(2) * 12).dp),
-                                color = MaterialTheme.colorScheme.surface,
-                                shape = MaterialTheme.shapes.medium,
-                            ) {
-                                Row(Modifier.fillMaxWidth().padding(start = 12.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Text(row.number, Modifier.padding(top = 12.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                                    Text(row.topic.title, Modifier.weight(1f).padding(vertical = 10.dp), style = MaterialTheme.typography.bodyLarge)
-                                    IconButton(onClick = { removingTopic = row.topic }) {
-                                        Icon(Icons.Outlined.DeleteOutline, "Remover tópico ${row.topic.title}", tint = MaterialTheme.colorScheme.error)
-                                    }
-                                }
-                            }
+                        rows.forEachIndexed { index, row ->
+                            if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                            SyllabusTopicLine(row, accent, striped = index % 2 == 1) { removingTopic = row.topic }
                         }
+                        Spacer(Modifier.height(8.dp))
                         OutlinedButton(onClick = { addingTopicTo = subject.id }, modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Outlined.Add, null, Modifier.padding(end = 8.dp))
                             Text("Adicionar tópico")
@@ -138,6 +157,8 @@ internal fun SyllabusReviewStep(
                         }
                     }
                 }
+                }
+              }
             }
         }
     }
@@ -186,6 +207,49 @@ private fun syllabusTopicRows(topics: List<TopicEntity>): List<SyllabusTopicRow>
     topics.filter { it.parentTopicId !in ids }.forEachIndexed { index, topic -> append(topic, 0, "${index + 1}") }
     // Mesmo um vínculo inválido não pode esconder um tópico da revisão.
     topics.filter { it.id !in visited }.forEach { append(it, 0, "•") }
+}
+
+/** Um tópico da matéria: número, texto limpo para leitura (o guardado não muda) e remover. Longo: duas linhas e "ver tudo". */
+@Composable
+private fun SyllabusTopicLine(row: SyllabusTopicRow, accent: androidx.compose.ui.graphics.Color, striped: Boolean, onRemove: () -> Unit) {
+    val text = remember(row.topic.title) { br.com.estudario.text.TopicDisplay.clean(row.topic.title) }
+    var full by rememberSaveable(row.topic.id) { mutableStateOf(false) }
+    var overflows by remember(text) { mutableStateOf(false) }
+    val sub = row.depth > 0
+    Row(
+        Modifier.fillMaxWidth()
+            .background(if (striped) accent.copy(alpha = 0.05f) else androidx.compose.ui.graphics.Color.Transparent, MaterialTheme.shapes.small)
+            .padding(start = (8 + row.depth.coerceAtMost(3) * 16).dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(row.number, Modifier.padding(top = 12.dp).widthIn(min = 24.dp), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = accent)
+        Column(Modifier.weight(1f).padding(vertical = 10.dp)) {
+            Text(
+                text,
+                style = if (sub) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
+                color = if (sub) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                maxLines = if (full) Int.MAX_VALUE else 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                onTextLayout = { if (!full && it.hasVisualOverflow) overflows = true },
+            )
+            if (overflows || full) Text(
+                if (full) "ver menos" else "ver tudo",
+                Modifier.padding(top = 4.dp).clickable(role = Role.Button) { full = !full }.padding(vertical = 4.dp),
+                style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold,
+            )
+        }
+        IconButton(onClick = onRemove) {
+            Icon(Icons.Outlined.DeleteOutline, "Remover tópico $text", tint = MaterialTheme.colorScheme.error)
+        }
+    }
+}
+
+@Composable
+private fun SyllabusChip(label: String, background: androidx.compose.ui.graphics.Color) {
+    Surface(color = background, shape = CircleShape) {
+        Text(label, Modifier.padding(horizontal = 10.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+    }
 }
 
 @Composable

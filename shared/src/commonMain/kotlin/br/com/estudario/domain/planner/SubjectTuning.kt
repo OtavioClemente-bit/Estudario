@@ -1,17 +1,13 @@
-package br.com.estudario.ui.setup
-
-import br.com.estudario.domain.planner.ExamPriority
-import br.com.estudario.domain.planner.InitialKnowledge
-import br.com.estudario.domain.planner.PersonalDifficulty
+package br.com.estudario.domain.planner
 
 /*
  * Textos e regras do passo "Ajuste só o que for diferente para você" (peso, esforço e quanto já
  * sabe, por matéria). Muita gente não entendia o que cada medidor mudava; aqui moram a explicação
- * do "?", a frase do Folha quando um valor muda e a prévia "No plano: …". Sem Compose, para testar.
+ * do "?", a frase do Folha quando um valor muda e a prévia "No plano: …". Sem Compose: app e site usam os mesmos textos.
  */
 
 /** Os três medidores de cada matéria. */
-internal enum class TuningAxis(val title: String, val help: String) {
+enum class TuningAxis(val title: String, val help: String) {
     PRIORITY(
         "Peso na prova",
         "Quanto essa matéria vale na sua prova. Peso maior faz ela aparecer mais vezes na semana; peso menor libera tempo para as outras.",
@@ -26,7 +22,7 @@ internal enum class TuningAxis(val title: String, val help: String) {
     ),
 }
 
-internal object SubjectTuning {
+object SubjectTuning {
     /**
      * A força da cor de cada barrinha (0 a 1): a 1ª é clarinha e a 5ª é a cor cheia, para o nível
      * ler de longe, sem precisar contar barras. [count] barrinhas no total.

@@ -3,6 +3,8 @@ package br.com.estudario.ui.setup
 import br.com.estudario.data.catalog.ExamCatalogEntry
 import br.com.estudario.domain.catalog.ExamCategory
 import br.com.estudario.domain.planner.ExamPriority
+import br.com.estudario.domain.planner.SubjectTuning
+import br.com.estudario.domain.planner.TuningAxis
 import br.com.estudario.domain.planner.InitialKnowledge
 import br.com.estudario.domain.planner.PersonalDifficulty
 import org.junit.Assert.assertEquals

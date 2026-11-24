@@ -27,6 +27,12 @@ import br.com.estudario.web.data.Planning
 import br.com.estudario.web.data.Queries
 import br.com.estudario.web.data.Snapshot
 import br.com.estudario.web.data.Store
+import br.com.estudario.domain.catalog.SubjectArt
+import br.com.estudario.text.TopicDisplay
+import br.com.estudario.domain.planner.SubjectTuning
+import br.com.estudario.domain.planner.TuningAxis
+import org.jetbrains.compose.web.dom.Li
+import org.jetbrains.compose.web.dom.Ol
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
@@ -60,6 +66,14 @@ private fun priorityLabel(p: PlanPriority) = when (p) { PlanPriority.CRITICAL ->
 
 /** Do menor para o maior, na ordem das barrinhas do medidor. */
 private val priorityLevels = listOf(PlanPriority.LOW, PlanPriority.MEDIUM, PlanPriority.HIGH, PlanPriority.CRITICAL)
+
+/** O peso do site (4 níveis) na escala do app, para a prévia "No plano" sair igual. */
+private fun examPriorityOf(priority: PlanPriority): br.com.estudario.domain.planner.ExamPriority = when (priority) {
+    PlanPriority.LOW -> br.com.estudario.domain.planner.ExamPriority.LOW
+    PlanPriority.MEDIUM -> br.com.estudario.domain.planner.ExamPriority.MEDIUM
+    PlanPriority.HIGH -> br.com.estudario.domain.planner.ExamPriority.HIGH
+    PlanPriority.CRITICAL -> br.com.estudario.domain.planner.ExamPriority.VERY_HIGH
+}
 
 private fun flatten(nodes: List<EditalAi.TopicNode>, depth: Int = 0): List<String> =
     nodes.flatMap { listOf("  ".repeat(depth) + it.name) + flatten(it.children, depth + 1) }
@@ -211,12 +225,30 @@ fun SetupScreen() {
             val topicCount = edital.sumOf { it.second.size }
             FolhaSays("point", 88) {
                 H2 { Text("Confere comigo o edital de $editalName") }
-                P({ classes("small", "muted") }) { Text("${edital.size} matérias e $topicCount tópicos. Toque numa matéria para ver os tópicos.") }
+                P({ classes("small", "muted") }) { Text("${edital.size} matérias e $topicCount tópicos. Toque numa matéria para abrir ou fechar os tópicos.") }
             }
-            Card {
-                Div({ classes("stack", "tight") }) {
-                    edital.forEachIndexed { index, (name, topics) ->
-                        key(name + index) { EditalSubjectRow(index + 1, name, topics) }
+            // Peso de cada matéria na prova (só quando o edital do catálogo traz o quadro de questões).
+            val weightLabels = remember(subjects, aiEdital) {
+                if (aiEdital != null) emptyMap() else {
+                    val assessed = br.com.estudario.domain.ExamWeights.assessAll(subjects.map { it.share })
+                    subjects.mapIndexedNotNull { i, s ->
+                        TopicDisplay.weightLabel(s.questions, assessed.getOrNull(i)?.evidence?.firstOrNull()?.description)?.let { s.name to it }
+                    }.toMap()
+                }
+            }
+            // Começa com a primeira matéria aberta, para mostrar como é por dentro.
+            var opened by remember(editalName) { mutableStateOf<Set<Int>>(if (edital.isEmpty()) emptySet() else setOf(0)) }
+            Div({ classes("es-summary") }) {
+                Span({ classes("es-count") }) { Text("${edital.size} matérias · $topicCount tópicos") }
+                val allOpen = edital.isNotEmpty() && opened.size == edital.size
+                Btn(if (allOpen) "Fechar todas" else "Abrir todas", { opened = if (allOpen) emptySet() else edital.indices.toSet() }, style = "ghost", small = true, icon = if (allOpen) "unfold_less" else "unfold_more")
+            }
+            Div({ classes("es-list") }) {
+                edital.forEachIndexed { index, (name, topics) ->
+                    key(name + index) {
+                        EditalSubjectCard(name, topics, weightLabels[name], open = index in opened) {
+                            opened = if (index in opened) opened - index else opened + index
+                        }
                     }
                 }
             }
@@ -277,25 +309,43 @@ fun SetupScreen() {
                 P({ classes("small", "muted") }) { Text("Tudo começa no meio do caminho. Clique nas barrinhas para mudar: eu dou mais tempo ao que pesa na prova, ao que é difícil para você e ao que você ainda não conhece.") }
             }
             LevelLegend()
+            // O Folha comenta a última mudança, com as mesmas frases do app (SubjectTuning, em shared/).
+            var reaction by remember { mutableStateOf<String?>(null) }
             edital.forEach { (name, topics) ->
                 key(name) {
                     val a = axes[name] ?: SubjectAxes()
-                    Card(extra = "lvl-card") {
-                        H3 { Text(name) }
-                        Span({ classes("xs", "muted") }) { Text("${topics.size} tópico(s)") }
-                        LevelMeter("Peso na prova", priorityLevels.map { priorityLabel(it) }, priorityLevels.indexOf(a.priority), AxisColor.PRIORITY) {
+                    Card(extra = "tune-card") {
+                        Div({ classes("tune-head"); attr("style", "--c:${subjectColor(name)}") }) {
+                            Span({ classes("hs-art") }) { Icon(SubjectArt.iconFor(name)) }
+                            Div {
+                                H3 { Text(name) }
+                                Span({ classes("xs", "muted") }) { Text(if (topics.size == 1) "1 tópico" else "${topics.size} tópicos") }
+                            }
+                        }
+                        LevelMeter(TuningAxis.PRIORITY.title, priorityLevels.map { priorityLabel(it) }, priorityLevels.indexOf(a.priority), AxisColor.PRIORITY, help = TuningAxis.PRIORITY.help) {
+                            // Nível 1..4 do site na escala de 5 do app (Baixa, Média, Alta, Muito alta).
+                            reaction = SubjectTuning.reaction(TuningAxis.PRIORITY, it + 1, name)
                             axes = axes + (name to (axes[name] ?: SubjectAxes()).copy(priority = priorityLevels[it]))
                         }
-                        LevelMeter("Esforço para você", PersonalDifficulty.entries.map { it.label }, a.difficulty.ordinal, AxisColor.EFFORT) {
+                        LevelMeter(TuningAxis.EFFORT.title, PersonalDifficulty.entries.map { it.label }, a.difficulty.ordinal, AxisColor.EFFORT, help = TuningAxis.EFFORT.help) {
+                            reaction = SubjectTuning.reaction(TuningAxis.EFFORT, it, name)
                             axes = axes + (name to (axes[name] ?: SubjectAxes()).copy(difficulty = PersonalDifficulty.entries[it]))
                         }
-                        LevelMeter("O quanto você já sabe", InitialKnowledge.entries.map { it.label }, a.knowledge.ordinal, AxisColor.KNOWLEDGE) {
+                        LevelMeter(TuningAxis.KNOWLEDGE.title, InitialKnowledge.entries.map { it.label }, a.knowledge.ordinal, AxisColor.KNOWLEDGE, help = TuningAxis.KNOWLEDGE.help) {
+                            reaction = SubjectTuning.reaction(TuningAxis.KNOWLEDGE, it, name)
                             axes = axes + (name to (axes[name] ?: SubjectAxes()).copy(knowledge = InitialKnowledge.entries[it]))
                         }
-                        // O que essa resposta faz no plano, para a escolha ter peso de verdade.
-                        P({ classes("xs", "muted") }) { Text(br.com.estudario.domain.planner.StudyPlanBlueprint.knowledgeEffect(a.knowledge, a.difficulty)) }
+                        // A prévia do que essas três respostas fazem no plano; muda junto com cada clique.
+                        val preview = SubjectTuning.planPreview(examPriorityOf(a.priority), a.difficulty, a.knowledge)
+                        key(preview) {
+                            Div({ classes("tune-preview"); attr("aria-live", "polite") }) { Icon("calendar_month"); Span { B { Text("No plano: ") }; Text(preview.removePrefix("No plano:").trimStart()) } }
+                        }
                     }
                 }
+            }
+            val line = reaction ?: if (axes.isEmpty()) "Pode seguir sem mexer em nada." else "Ajustes salvos. Dá para mudar depois na aba Plano."
+            Div({ classes("tune-react"); attr("aria-live", "polite") }) {
+                key(line) { FolhaSays("talking", 48) { P({ classes("small") }) { Text(line) } } }
             }
             NextBar("Continuar") { step = 5 }
         }
@@ -340,17 +390,52 @@ private fun NextBar(label: String, enabled: Boolean = true, icon: String = "arro
     Div({ classes("row"); attr("style", "justify-content:flex-end") }) { Btn(label, onNext, icon = icon, enabled = enabled, style = "primary") }
 }
 
+/** Uma matéria do edital como cartão: desenho e cor da matéria, tópicos e peso na prova; abre a lista de tópicos. */
 @Composable
-private fun EditalSubjectRow(number: Int, name: String, topics: List<String>) {
-    var open by remember { mutableStateOf(false) }
-    Div({ classes("edital-row") }) {
-        Button({ classes("pick-row", "flat"); attr("aria-expanded", "$open"); onClick { open = !open } }) {
-            Span({ classes("num") }) { Text("$number") }
-            Span({ classes("grow") }) { B { Text(name) }; Span({ classes("hint") }) { Text("${topics.size} tópicos") } }
-            Icon(if (open) "expand_less" else "expand_more", extraClass = "faint")
+private fun EditalSubjectCard(name: String, topics: List<String>, weight: String?, open: Boolean, onToggle: () -> Unit) {
+    val color = subjectColor(name)
+    Div({ classes(*listOfNotNull("es-card", if (open) "open" else null).toTypedArray()); attr("style", "--c:$color") }) {
+        Button({ classes("es-head"); attr("type", "button"); attr("aria-expanded", "$open"); onClick { onToggle() } }) {
+            Span({ classes("hs-art") }) { Icon(SubjectArt.iconFor(name)) }
+            Span({ classes("es-title") }) {
+                B { Text(name) }
+                Span({ classes("es-chips") }) {
+                    Span({ classes("es-chip") }) { Text(if (topics.size == 1) "1 tópico" else "${topics.size} tópicos") }
+                    weight?.let { Span({ classes("es-chip", "weight") }) { Text(it) } }
+                }
+            }
+            Span({ classes("es-toggle") }) { Icon(if (open) "expand_less" else "expand_more", plain = true) }
         }
-        if (open) Div({ classes("edital-topics") }) {
-            topics.forEach { t -> Div({ attr("style", "padding-left:${(t.length - t.trimStart().length) * 6}px") }) { Text(t.trim()) } }
+        if (open) {
+            // Numeração 1, 1.1, 1.2... seguindo a indentação de cada tópico (subtópicos ficam recuados).
+            val rows = remember(topics) {
+                val counters = mutableListOf<Int>()
+                topics.map { raw ->
+                    val depth = TopicDisplay.depthOf(raw).coerceAtMost(counters.size).coerceAtMost(3)
+                    while (counters.size > depth + 1) counters.removeAt(counters.lastIndex)
+                    if (counters.size == depth + 1) counters[depth]++ else counters.add(1)
+                    Triple(depth, counters.joinToString("."), TopicDisplay.clean(raw))
+                }
+            }
+            Ol({ classes("es-topics") }) {
+                rows.forEachIndexed { i, (depth, number, text) ->
+                    key(i) { EditalTopicItem(depth, number, text) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EditalTopicItem(depth: Int, number: String, text: String) {
+    var full by remember { mutableStateOf(false) }
+    // Sem medir a linha no navegador: acima de ~110 letras costuma passar de duas linhas no celular.
+    val long = text.length > 110
+    Li({ classes(*listOfNotNull("es-topic", if (depth > 0) "sub" else null).toTypedArray()); attr("style", "--d:$depth") }) {
+        Span({ classes("es-num") }) { Text(number) }
+        Span({ classes("es-text") }) {
+            Span({ classes(*listOfNotNull(if (long && !full) "clamp-2" else null).toTypedArray()) }) { Text(text) }
+            if (long) Button({ classes("es-more"); attr("type", "button"); onClick { full = !full } }) { Text(if (full) "ver menos" else "ver tudo") }
         }
     }
 }

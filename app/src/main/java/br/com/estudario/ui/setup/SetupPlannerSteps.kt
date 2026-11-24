@@ -48,6 +48,8 @@ import br.com.estudario.ui.theme.estudarioLayout
 import br.com.estudario.data.local.SubjectEntity
 import br.com.estudario.data.local.TopicEntity
 import br.com.estudario.domain.planner.ExamPriority
+import br.com.estudario.domain.planner.SubjectTuning
+import br.com.estudario.domain.planner.TuningAxis
 import br.com.estudario.domain.planner.FeasibilityOption
 import br.com.estudario.domain.planner.FeasibilityVerdict
 import br.com.estudario.domain.planner.InitialKnowledge
