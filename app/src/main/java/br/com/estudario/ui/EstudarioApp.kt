@@ -664,6 +664,8 @@ private fun MainNavigation(viewModel: AppViewModel) {
                                 onSaved = {},
                                 onEdital = { navController.navigate("syllabus") },
                                 onTrain = { navController.navigate("notebook/quiz/$it") },
+                                onTopic = { navController.navigate("topic/$it") },
+                                onOpenTheory = { theoryId, block -> navController.navigate("theory/$theoryId?block=$block") },
                             )
                         }
                     }

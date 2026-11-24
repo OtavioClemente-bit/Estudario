@@ -180,6 +180,9 @@ fun NotebookHome() {
     val today = Queries.dateOf(now)
     val warmedToday = topics.count { t -> t.lastPracticeAt?.let { Queries.dateOf(it) == today } == true }
 
+    // A busca geral do topo: escrevendo, só os resultados (de todas as matérias); vazia, o caderno de sempre.
+    NotebookSearchBox(NotebookQuery.text) { NotebookQuery.text = it }
+    if (NotebookQuery.text.isNotBlank()) { NotebookSearchResults(NotebookQuery.text); return }
     CompetitionTabs()
     Div({ classes("cb-binder", "rise") }) {
         Div({ classes("cb-rings") }) { repeat(5) { org.jetbrains.compose.web.dom.I() } }

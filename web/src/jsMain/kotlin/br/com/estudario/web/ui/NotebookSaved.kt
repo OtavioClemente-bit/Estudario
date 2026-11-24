@@ -74,7 +74,11 @@ private fun SavedOfTopic.count(k: SavedKind) = when (k) {
 }
 
 /** O tipo aberto em cada tópico (sobrevive a ir à teoria e voltar). */
-private object SavedNav { val open = androidx.compose.runtime.mutableStateMapOf<Long, String>() }
+private object SavedNav {
+    val open = androidx.compose.runtime.mutableStateMapOf<Long, String>()
+    /** Grupos abertos na prateleira de salvos da entrada (por matéria; NOTEBOOK_GENERAL = Geral). */
+    val shelf = androidx.compose.runtime.mutableStateMapOf<Long, Boolean>()
+}
 
 /** O bloco "Salvos deste assunto" de um tópico: abas com contador e a lista do tipo escolhido. */
 @Composable
@@ -237,24 +241,59 @@ fun SavedTopicsShelf() {
     val topics = data.topics.associateBy { it.id }
     val subjects = data.subjects.associateBy { it.id }
     val sorted = entries.sortedWith(compareBy({ if (it.key < 0) 1 else 0 }, { topics[it.key]?.let { t -> subjects[t.subjectId]?.position } ?: 0 }, { topics[it.key]?.position ?: 0 }))
-    Div({ classes("cb-sect") }) { B { Text("Seus salvos, por assunto") }; Span { val n = sorted.sumOf { it.value.total }; Text("$n ${if (n == 1) "item" else "itens"}") } }
-    Div({ classes("nbs-shelf") }) {
-        sorted.forEach { (id, s) ->
-            key(id) {
-                val t = topics[id]
-                val subject = t?.let { subjects[it.subjectId]?.name }
-                Button({ classes("nbs-row"); attr("style", "--c:${subjectColor(subject ?: "Geral")}"); onClick { Router.go(Route.NotebookPage(id)) } }) {
-                    Span({ classes("hs-art"); attr("style", "--c:${subjectColor(subject ?: "Geral")}") }) { Icon(if (t == null) "folder_open" else br.com.estudario.domain.catalog.SubjectArt.iconFor(subject ?: "")) }
-                    Span({ classes("grow", "nbs-row-txt") }) {
-                        if (subject != null) Span({ classes("nbs-row-sub") }) { Text(subject.uppercase()) }
-                        B { Text(t?.title ?: "Geral") }
-                        Span({ classes("nbs-row-kinds") }) {
-                            SavedKind.entries.filter { s.count(it) > 0 }.forEach { k -> Span { Icon(k.icon); Text("${s.count(k)}") } }
+    // Agrupado pela matéria (o "Geral" por último); cada grupo começa fechado, com a contagem.
+    val groups = sorted.groupBy { topics[it.key]?.let { t -> subjects[t.subjectId] } }.entries.toList()
+    val total = sorted.sumOf { it.value.total }
+    Div({ classes("nbs", "nbs-shelfbox") }) {
+        Div({ classes("nbs-head") }) {
+            Icon("bookmarks", filled = true)
+            Div({ classes("grow") }) {
+                H3 { Text("Seus salvos") }
+                Span({ classes("nbs-sub") }) { Text("$total ${if (total == 1) "item guardado" else "itens guardados"}: grifos, anotações, questões e flashcards, por matéria") }
+            }
+        }
+        Div({ classes("nbs-shelf") }) {
+            groups.forEach { (subject, list) ->
+                val gid = subject?.id ?: NOTEBOOK_GENERAL
+                key(gid) {
+                    val open = SavedNav.shelf[gid] == true
+                    val name = subject?.name ?: "Geral (sem tópico)"
+                    val count = list.sumOf { it.value.total }
+                    Div({ classes(*listOfNotNull("nbs-group", if (open) "open" else null).toTypedArray()); attr("style", "--c:${subjectColor(subject?.name ?: "Geral")}") }) {
+                        Button({ classes("nbs-row"); attr("type", "button"); attr("aria-expanded", open.toString()); onClick { SavedNav.shelf[gid] = !open } }) {
+                            Span({ classes("hs-art"); attr("style", "--c:${subjectColor(subject?.name ?: "Geral")}") }) { Icon(if (subject == null) "folder_open" else br.com.estudario.domain.catalog.SubjectArt.iconFor(subject.name)) }
+                            Span({ classes("grow", "nbs-row-txt") }) {
+                                B { Text(name) }
+                                Span({ classes("nbs-row-kinds") }) { Text("${list.size} ${if (list.size == 1) "tópico" else "tópicos"} · $count ${if (count == 1) "item" else "itens"}") }
+                            }
+                            Icon(if (open) "expand_less" else "expand_more", plain = true)
+                        }
+                        if (open) Div({ classes("nbs-topics") }) {
+                            list.forEach { (id, s) ->
+                                key(id) {
+                                    Button({ classes("nbs-topic"); attr("type", "button"); onClick { Router.go(Route.NotebookPage(id)) } }) {
+                                        Span({ classes("grow", "nbs-row-txt") }) {
+                                            B { Text(topics[id]?.title ?: "Geral") }
+                                            Span({ classes("nbs-row-kinds") }) { Text(savedSummary(s)) }
+                                        }
+                                        Icon("chevron_right", plain = true)
+                                    }
+                                }
+                            }
                         }
                     }
-                    Icon("chevron_right", plain = true)
                 }
             }
         }
     }
 }
+
+/** "3 grifos · 1 questão · 2 notas": por extenso, quebra linha em letra grande sem amontoar ícone. */
+private fun savedSummary(s: SavedOfTopic): String = SavedKind.entries.mapNotNull { k ->
+    val n = s.count(k)
+    if (n == 0) null else "$n " + when (k) {
+        SavedKind.MARKS -> if (n == 1) "grifo" else "grifos"; SavedKind.QUESTIONS -> if (n == 1) "questão" else "questões"
+        SavedKind.TIPS -> if (n == 1) "dica" else "dicas"; SavedKind.TRAPS -> if (n == 1) "pegadinha" else "pegadinhas"
+        SavedKind.CARDS -> if (n == 1) "flashcard" else "flashcards"; SavedKind.NOTES -> if (n == 1) "nota" else "notas"
+    }
+}.joinToString(" · ")

@@ -306,7 +306,12 @@ private val CodeBg = Color(0x225B4BE8)
 // ------------------------------------------------------------------ a entrada (o fichário)
 
 @Composable
-fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Long) -> Unit, onSaved: () -> Unit, onEdital: () -> Unit, onTrain: (Long) -> Unit = {}) {
+fun NotebookHomeScreen(
+    viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Long) -> Unit, onSaved: () -> Unit, onEdital: () -> Unit, onTrain: (Long) -> Unit = {},
+    // A busca do topo: tópico ainda não estudado abre o tópico (para estudar ou gerar o material); grifo abre na teoria.
+    onTopic: (Long) -> Unit = onPage, onOpenTheory: (theoryId: Long, block: Int) -> Unit = { _, _ -> },
+) {
+    var query by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
     val topics = rememberNotebookTopics(viewModel) ?: run { NotebookLoading(); return }
     val subjects by viewModel.subjects.collectAsState()
     val profile by viewModel.profile.collectAsState()
@@ -329,6 +334,12 @@ fun NotebookHomeScreen(viewModel: AppViewModel, onFlip: () -> Unit, onPage: (Lon
     val warmedToday = topics.count { (it.lastPracticeAt ?: 0L) >= dayStart }
 
     LazyColumn(contentPadding = PaddingValues(horizontal = 8.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        // A busca geral: escrevendo, a tela mostra só os resultados; vazia, o caderno de sempre.
+        item(key = "search") { Column(Modifier.padding(horizontal = 4.dp).padding(bottom = 12.dp)) { NotebookSearchField(query) { query = it } } }
+        if (query.isNotBlank()) {
+            item(key = "search-results") { Column(Modifier.padding(horizontal = 4.dp)) { NotebookSearchResults(viewModel, query, onPage, onTopic, onOpenTheory, onEdital) } }
+            return@LazyColumn
+        }
         item {
             Column(Modifier.fillMaxWidth().notebookPaper(24f).padding(start = 34.dp, end = 12.dp, top = 18.dp, bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

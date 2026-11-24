@@ -23,6 +23,8 @@ import androidx.compose.material.icons.outlined.BorderColor
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.EditNote
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.MenuBook
@@ -260,6 +262,7 @@ fun TopicSavedPanel(
 }
 
 /** Um item salvo como ficha de caderno: etiqueta, texto em letra confortável e as ações embaixo. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun PaperItem(tag: String, accent: Color, text: String, extra: String?, maxLines: Int = 12, markdown: Boolean = false, actions: @Composable () -> Unit) {
     val night = br.com.estudario.ui.brand.isCadernoNight()
@@ -273,7 +276,10 @@ private fun PaperItem(tag: String, accent: Color, text: String, extra: String?, 
             if (markdown) br.com.estudario.ui.components.StudyInlineText(text, style = MaterialTheme.typography.bodyLarge.copy(fontSize = 17.sp, lineHeight = 25.sp, color = ink))
             else Text(text, fontSize = 17.sp, lineHeight = 25.sp, color = ink, maxLines = maxLines, overflow = TextOverflow.Ellipsis)
             if (extra != null) Text(extra, fontSize = 14.sp, lineHeight = 20.sp, color = ink.copy(alpha = 0.7f))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) { actions() }
+            // As ações quebram linha (letra grande, tela estreita) em vez de se espremerem coladas.
+            androidx.compose.foundation.layout.FlowRow(
+                Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) { actions() }
         }
     }
 }
@@ -290,36 +296,70 @@ fun SavedTopicsShelf(viewModel: AppViewModel, onPage: (Long) -> Unit) {
     val topicById = topics.associateBy { it.id }
     val subjectById = subjects.associateBy { it.id }
     val sorted = entries.sortedWith(compareBy({ if (it.key < 0) 1 else 0 }, { topicById[it.key]?.let { t -> subjectById[t.subjectId]?.position } ?: 0 }, { topicById[it.key]?.position ?: 0 }))
+    // Agrupado pela matéria (o "Geral" por último); cada grupo começa fechado, com a contagem.
+    val groups = sorted.groupBy { topicById[it.key]?.let { t -> subjectById[t.subjectId] } }.entries.toList()
+    val total = sorted.sumOf { it.value.total }
     val scheme = MaterialTheme.colorScheme
-    Column(Modifier.fillMaxWidth().padding(top = 16.dp, start = 4.dp, end = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text("Seus salvos, por assunto", Modifier.weight(1f), fontWeight = FontWeight.Black, fontSize = 17.sp, color = scheme.onSurface)
-            Text(sorted.sumOf { it.value.total }.let { n -> "$n ${if (n == 1) "item" else "itens"}" }, fontSize = 12.sp, color = scheme.onSurfaceVariant)
+    val outer = RoundedCornerShape(20.dp)
+    Column(
+        Modifier.fillMaxWidth().padding(top = 20.dp, start = 4.dp, end = 4.dp).clip(outer).background(scheme.surface).border(2.dp, scheme.outlineVariant, outer).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Icon(Icons.Outlined.Bookmarks, null, Modifier.size(26.dp), tint = Color(0xFFE0A100))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Seus salvos", fontWeight = FontWeight.Black, fontSize = 19.sp, color = scheme.onSurface)
+                Text("$total ${if (total == 1) "item guardado" else "itens guardados"}: grifos, anotações, questões e flashcards, por matéria", fontSize = 13.sp, lineHeight = 18.sp, color = scheme.onSurfaceVariant)
+            }
         }
-        sorted.forEach { (id, s) ->
-            val t = topicById[id]
-            val subject = t?.let { subjectById[it.subjectId]?.name }
-            val shape = RoundedCornerShape(14.dp)
-            Row(
-                Modifier.fillMaxWidth().clip(shape).background(scheme.surface).border(2.dp, scheme.outlineVariant, shape).clickable { onPage(id) }.padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                if (t == null) Icon(Icons.Outlined.FolderOpen, null, Modifier.size(34.dp), tint = scheme.onSurfaceVariant)
-                else br.com.estudario.ui.brand.SubjectArtTile(br.com.estudario.domain.catalog.SubjectArt.iconFor(subject.orEmpty()), br.com.estudario.ui.components.subjectAccentColor(subject.orEmpty(), br.com.estudario.ui.theme.estudarioColors().subjectPalette), 38.dp)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    if (subject != null) Text(subject.uppercase(), fontSize = 10.5.sp, fontWeight = FontWeight.Black, letterSpacing = 0.8.sp, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(t?.title ?: "Geral", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = scheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SavedKind.entries.filter { s.count(it) > 0 }.forEach { k ->
-                            Row(verticalAlignment = Alignment.CenterVertically) { Icon(k.icon, null, Modifier.size(15.dp), tint = scheme.onSurfaceVariant); Spacer(Modifier.width(2.dp)); Text("${s.count(k)}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = scheme.onSurfaceVariant) }
+        groups.forEach { (subject, list) ->
+            val gid = subject?.id ?: NOTEBOOK_GENERAL
+            val open = openShelf[gid] == true
+            val count = list.sumOf { it.value.total }
+            val shape = RoundedCornerShape(16.dp)
+            Column(Modifier.fillMaxWidth().clip(shape).border(2.dp, scheme.outlineVariant, shape)) {
+                Row(
+                    Modifier.fillMaxWidth().clickable { openShelf[gid] = !open }.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    if (subject == null) Icon(Icons.Outlined.FolderOpen, null, Modifier.size(34.dp), tint = scheme.onSurfaceVariant)
+                    else br.com.estudario.ui.brand.SubjectArtTile(br.com.estudario.domain.catalog.SubjectArt.iconFor(subject.name), br.com.estudario.ui.components.subjectAccentColor(subject.name, br.com.estudario.ui.theme.estudarioColors().subjectPalette), 38.dp)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(subject?.name ?: "Geral (sem tópico)", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = scheme.onSurface)
+                        Text("${list.size} ${if (list.size == 1) "tópico" else "tópicos"} · $count ${if (count == 1) "item" else "itens"}", fontSize = 13.sp, color = scheme.onSurfaceVariant)
+                    }
+                    Icon(if (open) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore, if (open) "Fechar" else "Abrir", tint = scheme.onSurfaceVariant)
+                }
+                if (open) list.forEach { (id, s) ->
+                    val t = topicById[id]
+                    Row(
+                        Modifier.fillMaxWidth().background(scheme.surfaceVariant.copy(alpha = 0.35f)).clickable { onPage(id) }.padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(t?.title ?: "Geral", fontWeight = FontWeight.Bold, fontSize = 15.sp, lineHeight = 20.sp, color = scheme.onSurface)
+                            Text(savedSummary(s), fontSize = 13.sp, lineHeight = 18.sp, color = scheme.onSurfaceVariant)
                         }
+                        Icon(Icons.Outlined.ChevronRight, "Abrir", tint = scheme.onSurfaceVariant)
                     }
                 }
-                Icon(Icons.Outlined.ChevronRight, null, tint = scheme.onSurfaceVariant)
             }
         }
     }
 }
+
+/** Grupos abertos na prateleira de salvos (por matéria; NOTEBOOK_GENERAL = Geral). */
+private val openShelf = mutableStateMapOf<Long, Boolean>()
+
+/** "3 grifos · 1 questão · 2 notas": por extenso, quebra linha em letra grande sem amontoar ícone. */
+private fun savedSummary(s: SavedOfTopic): String = SavedKind.entries.mapNotNull { k ->
+    val n = s.count(k)
+    if (n == 0) null else "$n " + when (k) {
+        SavedKind.MARKS -> if (n == 1) "grifo" else "grifos"; SavedKind.QUESTIONS -> if (n == 1) "questão" else "questões"
+        SavedKind.TIPS -> if (n == 1) "dica" else "dicas"; SavedKind.TRAPS -> if (n == 1) "pegadinha" else "pegadinhas"
+        SavedKind.CARDS -> if (n == 1) "flashcard" else "flashcards"; SavedKind.NOTES -> if (n == 1) "nota" else "notas"
+    }
+}.joinToString(" · ")
 
 /** Página do Caderno de um tópico ainda não estudado (ou do Geral) que tem coisa guardada. */
 @Composable
