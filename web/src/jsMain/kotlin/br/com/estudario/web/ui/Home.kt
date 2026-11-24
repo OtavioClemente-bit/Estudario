@@ -396,20 +396,23 @@ private fun PerformanceAndStanding(data: Snapshot, streakDays: Int, best: Int) {
     val before = data.attempts.filter { it.answeredAt < now - 14 * day && it.answeredAt >= now - 28 * day }
     val accuracy = if (recent.isEmpty()) null else percent(recent.count { it.correct }, recent.size)
     val delta = if (accuracy != null && before.size >= 5) accuracy - percent(before.count { it.correct }, before.size) else null
-    Div({ classes("grid", "cols-2"); attr("style", "gap:12px") }) {
+    // Os dois cartões têm a mesma forma (rótulo, número, legenda) para ficarem do mesmo tamanho sem sobra.
+    Div({ classes("grid", "cols-2", "mini-stats"); attr("style", "gap:12px") }) {
         Card(extra = "clickable mini-stat", attrs = { onClick { Router.go(Route.Stats) } }) {
             Span({ classes("insight-label") }) { Text("Desempenho") }
             if (accuracy == null) {
-                P({ classes("small", "muted") }) { Text("Ainda sem questões nos últimos 14 dias.") }
-                Span({ classes("small", "primary-ink", "strong") }) { Text("Resolver questões →") }
+                B({ classes("big-num") }) { Text("—") }
+                P({ classes("xs", "muted") }) { Text("Sem questões em 14 dias · resolver →") }
             } else {
-                B({ classes("big-num"); attr("style", "color:${accuracyColor(accuracy)}") }) { Text("$accuracy%") }
-                P({ classes("xs", "muted") }) { Text("de acerto em ${recent.size} questões (14 dias)") }
-                delta?.let {
-                    Span({ classes("xs", "strong"); attr("style", "color:${if (it > 0) "#2FA36B" else if (it < 0) "#E5484D" else "var(--muted)"}") }) {
-                        Text(when { it > 0 -> "↑ $it pontos"; it < 0 -> "↓ ${-it} pontos"; else -> "estável" })
+                Div({ classes("mini-stat-num") }) {
+                    B({ classes("big-num"); attr("style", "color:${accuracyColor(accuracy)}") }) { Text("$accuracy%") }
+                    delta?.let {
+                        Span({ classes("xs", "strong"); attr("style", "color:${if (it > 0) "#2FA36B" else if (it < 0) "#E5484D" else "var(--muted)"}") }) {
+                            Text(when { it > 0 -> "↑ $it pts"; it < 0 -> "↓ ${-it} pts"; else -> "estável" })
+                        }
                     }
                 }
+                P({ classes("xs", "muted") }) { Text("de acerto em ${recent.size} questões (14 dias)") }
             }
         }
         // Constância: "Comece hoje" leva ao plano do dia.
@@ -419,7 +422,7 @@ private fun PerformanceAndStanding(data: Snapshot, streakDays: Int, best: Int) {
                 B({ classes("big-num") }) { Text("Comece hoje") }
                 P({ classes("xs", "muted") }) { Text("Estude para formar sua sequência.") }
             } else {
-                Div({ classes("row"); attr("style", "gap:6px") }) { Icon("local_fire_department"); B({ classes("big-num") }) { Text("$streakDays ${if (streakDays == 1) "dia" else "dias"}") } }
+                Div({ classes("mini-stat-num") }) { Icon("local_fire_department"); B({ classes("big-num") }) { Text("$streakDays ${if (streakDays == 1) "dia" else "dias"}") } }
                 P({ classes("xs", "muted") }) { Text("em sequência${if (best > streakDays) " · recorde $best" else ""}") }
             }
         }
