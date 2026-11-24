@@ -611,11 +611,11 @@ private fun AiDraftEditor(
                 onAddTopic = { path -> addingTopicTo = subjectIndex to path },
             )
         }
-        OutlinedButton(
+        Button(kind = br.com.estudario.ui.brand.NoteKind.Add,
             onClick = onAddSubject,
             modifier = Modifier.fillMaxWidth().height(52.dp).testTag("ai_add_subject_button"),
             shape = RoundedCornerShape(16.dp),
-        ) { Icon(Icons.Outlined.Add, null); Spacer(Modifier.width(8.dp)); Text("Adicionar matéria") }
+        ) { Text("Adicionar matéria") }
         validationError?.let { InlineError(it, Modifier.testTag("ai_validation_error")) }
         Button(
             onClick = onApply,
@@ -695,9 +695,7 @@ private fun SubjectCard(
                         onAddChild = onAddTopic,
                     )
                 }
-                TextButton(onClick = { onAddTopic(emptyList()) }) {
-                    Icon(Icons.Outlined.Add, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Adicionar tópico")
-                }
+                br.com.estudario.ui.brand.NoteButton(br.com.estudario.ui.brand.NoteKind.Add, "Adicionar tópico", onClick = { onAddTopic(emptyList()) }, size = br.com.estudario.ui.brand.NoteSize.Small)
             }
         }
     }

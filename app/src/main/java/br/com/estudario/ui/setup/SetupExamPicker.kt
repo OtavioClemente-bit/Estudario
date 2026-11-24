@@ -19,7 +19,27 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import br.com.estudario.ui.brand.Glyph
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -224,7 +244,46 @@ internal fun ExamNotFoundAction(freeTier: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** Os filtros numa janela: período, área e banca, uma opção por linha (cada linha com 48 dp ou mais). */
+/** O personagem da turma de cada área, o mesmo traço do Folha (no lugar de uma bolinha de rádio). */
+internal fun ExamCategory.glyph(): Glyph = when (this) {
+    ExamCategory.SECURITY -> Glyph.Shield
+    ExamCategory.COURTS -> Glyph.Balanca
+    ExamCategory.CONTROL -> Glyph.Lupa
+    ExamCategory.FISCAL -> Glyph.Recibo
+    ExamCategory.BANKS -> Glyph.Cofrinho
+    ExamCategory.LEGISLATIVE -> Glyph.Urna
+    ExamCategory.HEALTH -> Glyph.KitMedico
+    ExamCategory.EDUCATION -> Glyph.Cap
+    ExamCategory.ADMINISTRATIVE -> Glyph.Maleta
+}
+
+/**
+ * Quantos editais (não cargos) aparecem com este filtro, para o botão dizer "Mostrar N editais".
+ * [searching]: na busca o período não vale (igual a [searchExams]).
+ */
+internal fun countExams(pool: List<ExamCatalogEntry>, filter: ExamPickerFilter, thisYear: Int, searching: Boolean): Int =
+    pool.asSequence()
+        .filter { (searching || !filter.recentOnly || isRecentExam(it, thisYear)) && filter.matches(it) }
+        .map(::examGroupKey)
+        .distinct()
+        .count()
+
+/** O que o Folha comenta no topo dos filtros, conforme quantos editais sobraram. */
+internal fun examFilterQuip(count: Int?): String = when {
+    count == null -> "Contando os editais…"
+    count == 0 -> "Hmm, nenhum edital assim. Tira um filtro?"
+    count == 1 -> "Achei 1 edital com esse jeitinho."
+    count <= 20 -> "Achei $count editais. Bem certeiro!"
+    else -> "Achei $count editais pra você."
+}
+
+/**
+ * Os filtros numa janela com a cara do Estudário: o Folha no topo contando quantos editais sobram,
+ * escolhas em pílula (cada área com o personagem dela) e um botão claro "Mostrar N editais".
+ * As escolhas valem só ao tocar no botão; fechar pelo X ou por fora deixa o filtro como estava.
+ * Com fonte 2x as pílulas quebram linha e o rodapé empilha; nada corta.
+ * [pool]: os editais da lista atual (a busca, quando há texto; o catálogo inteiro, sem texto).
+ */
 @Composable
 internal fun ExamFilterDialog(
     entries: List<ExamCatalogEntry>,
@@ -232,52 +291,138 @@ internal fun ExamFilterDialog(
     thisYear: Int,
     onChange: (ExamPickerFilter) -> Unit,
     onDismiss: () -> Unit,
+    pool: List<ExamCatalogEntry> = entries,
+    searching: Boolean = false,
 ) {
+    var draft by rememberSaveable(stateSaver = ExamPickerFilterSaver) { mutableStateOf(filter) }
     val categories = remember(entries) { ExamCategory.present(entries.mapTo(hashSetOf()) { it.category() }) }
     val boards = remember(entries) {
         entries.mapNotNull { it.board?.trim()?.takeIf(String::isNotBlank) }.groupingBy { it }.eachCount()
             .entries.sortedByDescending { it.value }.take(8).map { it.key }
     }
-    br.com.estudario.ui.components.AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Filtrar editais") },
-        text = {
-            Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                FilterSection("Ano do edital")
-                FilterOption("Só recentes (${thisYear - 1} e $thisYear)", filter.recentOnly) { onChange(filter.copy(recentOnly = true)) }
-                FilterOption("Todos os anos", !filter.recentOnly) { onChange(filter.copy(recentOnly = false)) }
-                if (categories.size > 1) {
-                    FilterSection("Área")
-                    FilterOption("Todas as áreas", filter.category == null) { onChange(filter.copy(category = null)) }
-                    categories.forEach { c -> FilterOption(c.label, filter.category == c) { onChange(filter.copy(category = c)) } }
+    // Contar fora da thread que desenha (são milhares de editais); o número antigo fica até o novo chegar.
+    val count by produceState<Int?>(null, pool, draft, thisYear, searching) {
+        value = withContext(Dispatchers.Default) { countExams(pool, draft, thisYear, searching) }
+    }
+    val haptic = LocalHapticFeedback.current
+    val pick: (ExamPickerFilter) -> Unit = {
+        if (it != draft) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        draft = it
+    }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        br.com.estudario.ui.brand.Surface(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp),
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surface,
+        ) {
+            Column(Modifier.padding(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // Cabeçalho: o Folha conta o resultado, com o título ao lado e o X para fechar.
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    br.com.estudario.ui.assistant.FolhaTalking(56.dp, examFilterQuip(count))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Filtrar editais", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+                        Text(
+                            examFilterQuip(count),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                        )
+                    }
+                    IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, "Fechar sem mudar") }
                 }
-                if (boards.size > 1) {
-                    FilterSection("Banca")
-                    FilterOption("Todas as bancas", filter.board == null) { onChange(filter.copy(board = null)) }
-                    boards.forEach { b -> FilterOption(b, filter.board == b) { onChange(filter.copy(board = b)) } }
+                Column(
+                    Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    FilterSection("Ano do edital")
+                    FilterChoices {
+                        FilterPill("Só recentes (${thisYear - 1} e $thisYear)", draft.recentOnly, Glyph.Calendar) { pick(draft.copy(recentOnly = true)) }
+                        FilterPill("Todos os anos", !draft.recentOnly, Glyph.Books) { pick(draft.copy(recentOnly = false)) }
+                    }
+                    if (searching && draft.recentOnly) Text(
+                        "Na busca, todos os anos aparecem.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (categories.size > 1) {
+                        FilterSection("Área")
+                        FilterChoices {
+                            FilterPill("Todas as áreas", draft.category == null, Glyph.Globo) { pick(draft.copy(category = null)) }
+                            categories.forEach { c -> FilterPill(c.label, draft.category == c, c.glyph()) { pick(draft.copy(category = c)) } }
+                        }
+                    }
+                    if (boards.size > 1) {
+                        FilterSection("Banca")
+                        FilterChoices {
+                            FilterPill("Todas as bancas", draft.board == null, null) { pick(draft.copy(board = null)) }
+                            boards.forEach { b -> FilterPill(b, draft.board == b, null) { pick(draft.copy(board = b)) } }
+                        }
+                    }
+                }
+                // Rodapé: a ação principal larga, com o número; limpar fica embaixo, discreto.
+                val total = count
+                br.com.estudario.ui.brand.Button(
+                    onClick = { onChange(draft); onDismiss() },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+                    enabled = total != 0,
+                    kind = br.com.estudario.ui.brand.NoteKind.Primary,
+                    glyph = Glyph.Check,
+                ) {
+                    Text(
+                        when (total) {
+                            null -> "Mostrar editais"
+                            0 -> "Nenhum edital assim"
+                            1 -> "Mostrar 1 edital"
+                            else -> "Mostrar $total editais"
+                        },
+                        fontWeight = FontWeight.ExtraBold,
+                    )
+                }
+                if (draft != ExamPickerFilter()) {
+                    TextButton(onClick = { pick(ExamPickerFilter()) }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                        Text("Limpar filtros")
+                    }
                 }
             }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Pronto") } },
-        dismissButton = { TextButton(onClick = { onChange(ExamPickerFilter()) }) { Text("Limpar") } },
-    )
+        }
+    }
 }
+
+/** Guarda o rascunho do filtro ao girar a tela. */
+private val ExamPickerFilterSaver = Saver<ExamPickerFilter, List<Any?>>(
+    save = { listOf(it.recentOnly, it.category?.name, it.board) },
+    restore = { saved ->
+        ExamPickerFilter(
+            recentOnly = saved[0] as Boolean,
+            category = (saved[1] as String?)?.let { name -> ExamCategory.entries.firstOrNull { it.name == name } },
+            board = saved[2] as String?,
+        )
+    },
+)
 
 @Composable
 private fun FilterSection(title: String) {
-    Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp, bottom = 2.dp))
+    Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp, bottom = 2.dp))
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FilterOption(label: String, selected: Boolean, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = Role.RadioButton, onClick = onClick),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        RadioButton(selected = selected, onClick = null)
-        Spacer(Modifier.width(10.dp))
-        Text(label, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f).padding(vertical = 8.dp))
-    }
+private fun FilterChoices(content: @Composable () -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { content() }
+}
+
+/** Uma escolha em pílula (a do app), com o personagem da turma à esquerda quando há um. Toque de 48 dp. */
+@Composable
+private fun FilterPill(label: String, selected: Boolean, glyph: Glyph?, onClick: () -> Unit) {
+    br.com.estudario.ui.brand.FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label) },
+        modifier = Modifier
+            .minimumInteractiveComponentSize()
+            .semantics { this.selected = selected; role = Role.RadioButton },
+        leadingIcon = glyph?.let { g -> { br.com.estudario.ui.brand.BrandIcon(g, size = 22.dp) } },
+    )
 }
 
 // ---- Prévias com fonte grande (acessibilidade): nada pode cortar nem sobrepor. ----

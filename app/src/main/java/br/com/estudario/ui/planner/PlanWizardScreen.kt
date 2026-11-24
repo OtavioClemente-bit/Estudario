@@ -130,17 +130,13 @@ fun PlanWizardScreen(
     }
 
     if (showDatePicker) {
-        val pickerState = rememberDatePickerState(initialSelectedDateMillis = examDate?.atStartOfDay(ZoneId.systemDefault())?.toInstant()?.toEpochMilli())
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    examDate = pickerState.selectedDateMillis?.let { Instant.ofEpochMilli(it).atZone(ZoneId.of("UTC")).toLocalDate() }
-                    showDatePicker = false
-                }) { Text("Usar esta data") }
-            },
-            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancelar") } },
-        ) { DatePicker(pickerState) }
+        br.com.estudario.ui.components.EstudarioDatePickerDialog(
+            initial = examDate,
+            onDismiss = { showDatePicker = false },
+            onConfirm = { examDate = it; showDatePicker = false },
+            title = "Data da prova",
+            examChips = true,
+        )
     }
 
     Dialog(onDismissRequest = onCancel, properties = DialogProperties(usePlatformDefaultWidth = false)) {

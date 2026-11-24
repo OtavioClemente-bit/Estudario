@@ -257,13 +257,7 @@ private fun priorityLabel(priority: PlanPriority): String = when (priority.name)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DaysOffDialog(state: ActivePlanUiState, onDismiss: () -> Unit, onDaysOff: (java.time.LocalDate, java.time.LocalDate, Boolean) -> Unit) {
-    val zone = java.time.ZoneOffset.UTC
     val today = state.today
-    val range = rememberDateRangePickerState(
-        selectableDates = object : SelectableDates {
-            override fun isSelectableDate(utcTimeMillis: Long) = java.time.Instant.ofEpochMilli(utcTimeMillis).atZone(zone).toLocalDate() >= today
-        },
-    )
     // Períodos futuros já sem estudo (dias seguidos viram um intervalo só).
     val offDays = state.dayOverrides.filter { it.unavailable && it.epochDay >= today.toEpochDay() }.map { it.epochDay }.sorted()
     val periods = buildList {
@@ -275,34 +269,28 @@ private fun DaysOffDialog(state: ActivePlanUiState, onDismiss: () -> Unit, onDay
         if (start != null) add(start to prev)
     }
     fun fmt(day: Long) = java.time.LocalDate.ofEpochDay(day).let { "%02d/%02d".format(it.dayOfMonth, it.monthValue) }
-    val from = range.selectedStartDateMillis?.let { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate() }
-    val to = range.selectedEndDateMillis?.let { java.time.Instant.ofEpochMilli(it).atZone(zone).toLocalDate() } ?: from
-    DatePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = { if (from != null && to != null) { onDaysOff(from, to, true); onDismiss() } }, enabled = from != null) {
-                Text(if (from == null) "Escolha os dias" else "Sem estudo de ${fmt(from.toEpochDay())} a ${fmt(to!!.toEpochDay())}")
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Fechar") } },
+    br.com.estudario.ui.components.EstudarioDateRangePickerDialog(
+        onDismiss = onDismiss,
+        onConfirm = { from, to -> onDaysOff(from, to, true); onDismiss() },
+        title = "Dias sem estudo",
+        minDate = today,
+        confirmLabel = { from, to -> if (from == null) "Escolha os dias" else "Sem estudo de ${fmt(from.toEpochDay())} a ${fmt((to ?: from).toEpochDay())}" },
+        dismissLabel = "Fechar",
+        today = today,
     ) {
-        Column {
-            Text(
-                "Férias, viagem ou plantão? Marque o período: nada fica marcado nesses dias e o plano empurra o conteúdo para depois.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 16.dp),
-            )
-            if (periods.isNotEmpty()) Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                Text("Já sem estudo", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
-                periods.take(4).forEach { (a, b) ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(if (a == b) fmt(a) else "${fmt(a)} a ${fmt(b)}", Modifier.weight(1f).padding(start = 8.dp), style = MaterialTheme.typography.bodyMedium)
-                        TextButton(onClick = { onDaysOff(java.time.LocalDate.ofEpochDay(a), java.time.LocalDate.ofEpochDay(b), false); onDismiss() }) { Text("Devolver") }
-                    }
+        Text(
+            "Férias, viagem ou plantão? Marque o período: nada fica marcado nesses dias e o plano empurra o conteúdo para depois.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (periods.isNotEmpty()) Column {
+            Text("Já sem estudo", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            periods.take(4).forEach { (a, b) ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (a == b) fmt(a) else "${fmt(a)} a ${fmt(b)}", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                    TextButton(onClick = { onDaysOff(java.time.LocalDate.ofEpochDay(a), java.time.LocalDate.ofEpochDay(b), false); onDismiss() }) { Text("Devolver") }
                 }
             }
-            DateRangePicker(range, Modifier.weight(1f, fill = false).heightIn(max = 460.dp), title = null, headline = null, showModeToggle = false)
         }
     }
 }
@@ -315,17 +303,14 @@ private fun MethodDialog(plan: StudyPlanEntity, onDismiss: () -> Unit, onSave: (
     var profile by remember { mutableStateOf(plan.methodConfig().profile) }
     var picking by remember { mutableStateOf(false) }
     if (picking) {
-        val picker = rememberDatePickerState(
-            initialSelectedDateMillis = exam?.atStartOfDay(java.time.ZoneOffset.UTC)?.toInstant()?.toEpochMilli(),
-            selectableDates = object : SelectableDates {
-                override fun isSelectableDate(utcTimeMillis: Long) = java.time.Instant.ofEpochMilli(utcTimeMillis).atZone(java.time.ZoneOffset.UTC).toLocalDate() >= java.time.LocalDate.now()
-            },
+        br.com.estudario.ui.components.EstudarioDatePickerDialog(
+            initial = exam,
+            onDismiss = { picking = false },
+            onConfirm = { exam = it; picking = false },
+            title = "Data da prova",
+            minDate = java.time.LocalDate.now(),
+            examChips = true,
         )
-        DatePickerDialog(
-            onDismissRequest = { picking = false },
-            confirmButton = { TextButton(onClick = { picker.selectedDateMillis?.let { exam = java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC).toLocalDate() }; picking = false }) { Text("Usar esta data") } },
-            dismissButton = { TextButton(onClick = { picking = false }) { Text("Cancelar") } },
-        ) { DatePicker(picker) }
     }
     AlertDialog(
         onDismissRequest = onDismiss,

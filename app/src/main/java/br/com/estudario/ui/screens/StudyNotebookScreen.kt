@@ -387,7 +387,7 @@ fun StudyNotebookScreen(
     val allCards = orderedBags.flatMap { it.value.cards }
     Scaffold(
         floatingActionButton = {
-            br.com.estudario.ui.brand.NoteButton(br.com.estudario.ui.brand.NoteKind.Primary, "Nova anotação", onClick = { editingNote = UserNoteEntity(text = "") }, glyph = br.com.estudario.ui.brand.Glyph.Pencil)
+            br.com.estudario.ui.brand.NoteButton(br.com.estudario.ui.brand.NoteKind.Add, "Nova anotação", onClick = { editingNote = UserNoteEntity(text = "") })
         },
     ) { padding ->
         LazyColumn(

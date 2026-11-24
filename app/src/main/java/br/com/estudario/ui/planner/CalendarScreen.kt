@@ -1,6 +1,17 @@
 package br.com.estudario.ui.planner
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
@@ -313,8 +324,11 @@ private fun WeekPlanView(
     val plannedMinutes = weekTasks.plannedLoadMinutes()
     val actualMinutes = weekTasks.sumOf { it.actualMinutes }
     val completionPercent = weekTasks.plannedLoadCompletionPercent()
-    val byDay = weekTasks.groupBy { LocalDate.ofEpochDay(it.entity.scheduledEpochDay) }
+    val byDay = remember(weekTasks) { weekTasks.groupBy { LocalDate.ofEpochDay(it.entity.scheduledEpochDay) } }
     val dayNames = listOf("Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado", "Domingo")
+    // Cada dia da semana numa página: a faixa do topo mostra os 7 dias e deslizar troca de dia.
+    val pager = rememberPagerState(initialPage = weekDayIndex(weekStart, state.today) ?: 0) { 7 }
+    val scope = rememberCoroutineScope()
 
     PlanList(header) {
         item {
@@ -344,21 +358,107 @@ private fun WeekPlanView(
         } else if (weekTasks.isEmpty()) {
             item { EmptyState("Semana livre", "Não há tarefas planejadas para esta semana.", "Gerar planejamento", onGenerate) }
         } else {
-            (0..6).forEach { offset ->
-                val date = weekStart.plusDays(offset.toLong())
-                val tasks = byDay[date].orEmpty()
-                if (tasks.isNotEmpty()) {
-                    item {
+            item(key = "week-strip") {
+                WeekDayStrip(
+                    weekStart = weekStart,
+                    today = state.today,
+                    selected = pager.targetPage,
+                    marks = (0..6).map { dayMark(byDay[weekStart.plusDays(it.toLong())].orEmpty().map { t -> t.entity.status }) },
+                    onSelect = { i -> scope.launch { pager.animateScrollToPage(i) } },
+                )
+            }
+            item(key = "week-pager") {
+                HorizontalPager(
+                    state = pager,
+                    modifier = Modifier.fillMaxWidth(),
+                    pageSpacing = 16.dp,
+                    verticalAlignment = Alignment.Top,
+                ) { page ->
+                    val date = weekStart.plusDays(page.toLong())
+                    val tasks = byDay[date].orEmpty().theoryFirst()
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         Text(
-                            text = dayNames[offset] + " • ${date.dayOfMonth}/${date.monthValue}" + if (date == state.today) " (hoje)" else "",
-                            style = MaterialTheme.typography.titleSmall,
+                            text = dayNames[page] + " • ${date.dayOfMonth}/${date.monthValue}" + if (date == state.today) " (hoje)" else "",
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = if (date == state.today) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(top = 4.dp),
                         )
+                        if (tasks.isEmpty()) {
+                            EmptyState(
+                                title = if (date < state.today) "Nenhuma atividade" else "Dia livre",
+                                body = if (date < state.today) "Não houve tarefas registradas para este dia." else "Não há atividades planejadas para este dia. Deslize para ver os outros dias.",
+                                actionLabel = null,
+                            )
+                        } else {
+                            Text(
+                                "${tasks.count { it.entity.status == PlanTaskStatus.CONCLUIDA }} de ${tasks.size} feitas · " + minutesLabelPtBr(tasks.plannedLoadMinutes()),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            tasks.forEach { taskUi ->
+                                key(taskUi.entity.id) {
+                                    MissionCard(taskUi = taskUi, onStart = { onFocus(taskUi) }, onReprogram = { onReprogram(taskUi) }, onSkip = { onSkip(taskUi) })
+                                }
+                            }
+                        }
                     }
-                    items(tasks, key = { "week_${it.entity.id}" }) { taskUi ->
-                        MissionCard(taskUi = taskUi, onStart = { onFocus(taskUi) }, onReprogram = { onReprogram(taskUi) }, onSkip = { onSkip(taskUi) })
+                }
+            }
+        }
+    }
+}
+
+/** Marca de cada dia na faixa da semana: nada, atividades pendentes ou tudo feito. */
+internal enum class WeekDayMark { NONE, PENDING, DONE }
+
+internal fun dayMark(statuses: List<PlanTaskStatus>): WeekDayMark {
+    val load = statuses.filter { it.countsAsPlannedLoad() }
+    return when {
+        load.isEmpty() -> WeekDayMark.NONE
+        load.all { it == PlanTaskStatus.CONCLUIDA } -> WeekDayMark.DONE
+        else -> WeekDayMark.PENDING
+    }
+}
+
+/** Posição (0 = segunda) de [date] na semana que começa em [weekStart], ou null se estiver fora dela. */
+internal fun weekDayIndex(weekStart: LocalDate, date: LocalDate): Int? {
+    val d = date.toEpochDay() - weekStart.toEpochDay()
+    return if (d in 0L..6L) d.toInt() else null
+}
+
+/** Faixa S T Q Q S S D no topo da semana: hoje destacado, ponto nos dias com atividade, check nos feitos. */
+@Composable
+private fun WeekDayStrip(weekStart: LocalDate, today: LocalDate, selected: Int, marks: List<WeekDayMark>, onSelect: (Int) -> Unit) {
+    val letters = listOf("S", "T", "Q", "Q", "S", "S", "D")
+    val full = listOf("segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo")
+    val scheme = MaterialTheme.colorScheme
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        (0..6).forEach { i ->
+            val date = weekStart.plusDays(i.toLong())
+            val isSel = i == selected
+            val isToday = date == today
+            val bg by animateColorAsState(if (isSel) scheme.primary else if (isToday) scheme.primaryContainer else scheme.surfaceContainerLow, label = "dayBg")
+            val fg by animateColorAsState(if (isSel) scheme.onPrimary else if (isToday) scheme.onPrimaryContainer else scheme.onSurface, label = "dayFg")
+            val markText = when (marks[i]) { WeekDayMark.DONE -> ", tudo feito"; WeekDayMark.PENDING -> ", com atividades"; WeekDayMark.NONE -> "" }
+            Surface(
+                onClick = { onSelect(i) },
+                shape = RoundedCornerShape(14.dp),
+                color = bg,
+                modifier = Modifier.weight(1f).heightIn(min = 64.dp)
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = "${full[i]}, ${date.dayOfMonth}" + (if (isToday) ", hoje" else "") + markText
+                        this.selected = isSel
+                    },
+            ) {
+                Column(Modifier.padding(vertical = 8.dp, horizontal = 2.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(letters[i], style = MaterialTheme.typography.labelMedium, color = fg.copy(alpha = 0.8f), maxLines = 1)
+                    Text("${date.dayOfMonth}", style = MaterialTheme.typography.titleMedium, fontWeight = if (isToday || isSel) FontWeight.Black else FontWeight.Bold, color = fg, maxLines = 1, softWrap = false)
+                    Box(Modifier.height(12.dp), contentAlignment = Alignment.Center) {
+                        when (marks[i]) {
+                            WeekDayMark.DONE -> Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = if (isSel) fg else scheme.tertiary, modifier = Modifier.size(12.dp))
+                            WeekDayMark.PENDING -> Box(Modifier.size(6.dp).clip(CircleShape).background(if (isSel) fg else scheme.primary))
+                            WeekDayMark.NONE -> Unit
+                        }
                     }
                 }
             }

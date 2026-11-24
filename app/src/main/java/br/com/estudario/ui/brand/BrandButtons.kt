@@ -95,7 +95,7 @@ import kotlinx.coroutines.launch
  */
 
 /** A animação própria do ícone de cada ação, tocada no clique. */
-enum class NoteMotion { None, Tilt, Draw, Pulse, Flip, Spin, Turn, Stamp, Shine, Rise, Fly }
+enum class NoteMotion { None, Tilt, Draw, Pulse, Flip, Spin, Turn, Stamp, Shine, Rise, Fly, Pop }
 
 /** As ações do app. Cada uma tem cor, ícone da turma e animação. */
 enum class NoteKind(val glyph: Glyph?, val motion: NoteMotion) {
@@ -119,6 +119,8 @@ enum class NoteKind(val glyph: Glyph?, val motion: NoteMotion) {
     Upload(Glyph.Doc, NoteMotion.Rise),
     /** Próxima, continuar. */
     Next(Glyph.Forward, NoteMotion.Fly),
+    /** Criar algo novo (novo concurso, nova matéria, novo tópico, novo plano): folha menta com o "+" da turma. */
+    Add(Glyph.Plus, NoteMotion.Pop),
     /** Ação principal comum (salvar, entrar): índigo com furos. */
     Primary(null, NoteMotion.None),
     /** Ação comum (cancelar, voltar, fechar): papel com furos. */
@@ -165,6 +167,8 @@ fun notePalette(kind: NoteKind, dark: Boolean, enabled: Boolean = true): NotePal
         NoteKind.Practice -> NotePalette(Color(0xFFFF7A5C), Ink, Ink)
         NoteKind.Review -> NotePalette(Color(0xFFB9A7FF), Ink, Ink)
         NoteKind.Focus, NoteKind.Subscribe -> NotePalette(Sun, Indigo, Ink)
+        // Menta alegre com margem índigo e tinta escura (contraste forte nos dois temas).
+        NoteKind.Add -> NotePalette(if (dark) Color(0xFF6FD9B0) else Color(0xFF8BE6C2), indigo, Ink)
         NoteKind.Danger -> NotePalette(paper, Red, Color(0xFFC6402F))
         else -> NotePalette(paper, Red, Ink)
     }
@@ -276,6 +280,11 @@ internal fun NoteSurface(
     Box(
         modifier
             .defaultMinSize(minWidth = 64.dp, minHeight = m.minHeight)
+            // "Adicionar": a folha inteira dá um pulinho junto com o "+".
+            .then(if (kind.motion == NoteMotion.Pop) Modifier.graphicsLayer {
+                val w = kotlin.math.sin(icon.value * Math.PI).toFloat()
+                scaleX = 1f + 0.06f * w; scaleY = scaleX
+            } else Modifier)
             .then(if (contentDescription != null) Modifier.semantics { this.contentDescription = contentDescription } else Modifier)
             .clickable(interactionSource = src, indication = null, enabled = enabled, role = Role.Button, onClick = click)
             .drawBehind {
@@ -327,6 +336,7 @@ private fun Modifier.noteIconMotion(motion: NoteMotion, t: () -> Float): Modifie
         NoteMotion.Rise -> translationY = -6.dp.toPx() * wave
         NoteMotion.Fly -> { translationX = 8.dp.toPx() * wave; alpha = 1f - 0.5f * wave }
         NoteMotion.Draw -> { scaleX = if (p > 0f) 0.4f + 0.6f * p else 1f; transformOrigin = TransformOrigin(0f, 0.5f) }
+        NoteMotion.Pop -> { scaleX = 1f + 0.45f * wave; scaleY = scaleX; rotationZ = 90f * p }
         NoteMotion.None -> Unit
     }
 }

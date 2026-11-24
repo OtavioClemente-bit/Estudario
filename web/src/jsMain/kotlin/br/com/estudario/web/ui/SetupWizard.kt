@@ -248,10 +248,7 @@ fun SetupScreen() {
                     }
                 }
                 Div({ classes("row"); attr("style", "justify-content:center") }) {
-                    Input(InputType.Date) {
-                        classes("input"); attr("style", "max-width:220px"); value(examDate); attr("min", today.toString())
-                        onInput { examDate = it.value }
-                    }
+                    DateField(examDate, { examDate = it }, min = today.toString(), examChips = true, title = "Data da prova", style = "max-width:220px")
                     if (examDate.isNotBlank()) Btn("Limpar", { examDate = "" }, style = "ghost", small = true)
                 }
                 if (daysLeft != null && daysLeft < 30) P({ classes("small"); attr("style", "text-align:center;margin-top:10px;color:var(--amber-strong)") }) { Text("Reta final! Vou priorizar revisão e questões.") }

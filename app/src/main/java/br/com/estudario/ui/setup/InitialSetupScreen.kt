@@ -179,7 +179,12 @@ fun InitialSetupFlow(
     onFinished: () -> Unit,
 ) {
     val uiState by viewModel.state.collectAsState()
-    val snapshot = uiState.snapshot
+    // A etapa vem direto das preferências (rápido). O estado completo do assistente passa por um
+    // cálculo pesado (banco de questões inteiro) e chega depois: guiar a tela por ele mostrava, ao
+    // tocar em "+ Novo", a tela final ("Seu ponto de partida") da configuração anterior antes de
+    // pular para a escolha do concurso.
+    val liveSnapshot by appViewModel.initialSetup.collectAsState()
+    val snapshot = SetupFreshState.effectiveSnapshot(liveSnapshot, uiState.snapshot)
     val operation by viewModel.operation.collectAsState()
     val incomingTransfer by appViewModel.transfer.collectAsState()
     val context = LocalContext.current
@@ -192,16 +197,25 @@ fun InitialSetupFlow(
     // Primeira etapa do modo novo plano/novo concurso: voltar daqui sai do assistente e volta ao app
     // (no novo concurso ele começa na escolha do concurso; antes, voltar caía na abertura e prendia).
     val planFirstStep = snapshot.step == InitialSetupStep.SUBJECT_PRIORITY || (planMode && snapshot.step == InitialSetupStep.COMPETITION)
-    fun cancelPlanMode() = viewModel.cancelPlanMode(
-        planPrefs.getString(PLAN_MODE_PREVIOUS_STATUS, null),
-        planPrefs.getString(PLAN_MODE_PREVIOUS_STEP, null),
-    ).also { planPrefs.edit().remove(PLAN_MODE_PREVIOUS_STATUS).remove(PLAN_MODE_PREVIOUS_STEP).apply() }
+    // Cancelar desfaz o que o assistente gravou (concurso, matérias, plano) e só então fecha.
+    var cancelling by remember { mutableStateOf(false) }
+    fun cancelPlanMode() {
+        if (cancelling) return
+        cancelling = true
+        viewModel.cancelPlanMode()
+    }
 
     // Voltar do sistema volta um passo, igual à seta do topo; só na primeira tela ele sai do app.
     // No novo plano, voltar da primeira etapa do plano sai do assistente.
-    androidx.activity.compose.BackHandler(enabled = snapshot.step != InitialSetupStep.INTRO) {
-        if (planMode && planFirstStep) cancelPlanMode() else viewModel.goBack()
+    androidx.activity.compose.BackHandler(enabled = snapshot.step != InitialSetupStep.INTRO || planMode) {
+        when {
+            cancelling -> Unit
+            planMode && (planFirstStep || snapshot.step == InitialSetupStep.INTRO) -> cancelPlanMode()
+            else -> viewModel.goBack()
+        }
     }
+    // O cancelamento terminou e o assistente continua aberto (ele já estava aberto antes): libera a tela.
+    LaunchedEffect(snapshot.status, snapshot.step) { cancelling = false }
 
     LaunchedEffect(snapshot.status) {
         if (snapshot.status == InitialSetupStatus.NOT_STARTED) viewModel.begin()
@@ -311,7 +325,7 @@ fun InitialSetupFlow(
             if (snapshot.step != InitialSetupStep.INTRO && snapshot.step != InitialSetupStep.READY && stepIndex >= 0) {
                 SetupProgress(stepIndex, visibleSteps.size)
             }
-            AnimatedContent(
+            if (cancelling) SetupCancelling(Modifier.weight(1f)) else AnimatedContent(
                 targetState = snapshot.step,
                 modifier = Modifier.weight(1f),
                 transitionSpec = { fadeIn() togetherWith fadeOut() },
@@ -375,7 +389,7 @@ fun InitialSetupFlow(
                     InitialSetupStep.READY -> ReadyStep(onFinish = {
                         // Primeiro plano (fora do "novo plano"): o Início abre com o roteiro "Seu primeiro dia".
                         if (!planMode) br.com.estudario.data.sync.CelebratedStore.mark(context, listOf(br.com.estudario.domain.FirstDay.STARTED))
-                        planPrefs.edit().remove(PLAN_MODE_PREVIOUS_STATUS).remove(PLAN_MODE_PREVIOUS_STEP).apply()
+                        planPrefs.edit().remove(PLAN_MODE_PREVIOUS_STATUS).remove(PLAN_MODE_PREVIOUS_STEP).remove(PLAN_MODE_PREVIOUS_SNAPSHOT).remove(PLAN_MODE_BASELINE).apply()
                         viewModel.finish(); onFinished()
                     })
                 }
@@ -540,9 +554,16 @@ private fun CompetitionStep(
     }
     val thisYear = java.time.LocalDate.now().year
     // Agrupar e ordenar só quando a lista, a busca ou o filtro mudam (não a cada redesenho).
-    val groups = remember(catalog.entries, results, query.isBlank(), filter, thisYear) {
-        if (query.isBlank()) browseExams(catalog.entries, filter, thisYear) else searchExams(results, filter)
+    // Fora da thread que desenha: ordenar e agrupar milhares de editais ao abrir "+ Novo" segurava
+    // a primeira tela do assistente. null = ainda calculando (mostra só um aviso leve).
+    val groupsOrNull by androidx.compose.runtime.produceState<List<ExamGroup>?>(null, catalog.entries, results, query.isBlank(), filter, thisYear) {
+        val blank = query.isBlank()
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            if (blank) browseExams(catalog.entries, filter, thisYear) else searchExams(results, filter)
+        }
     }
+    val groups = groupsOrNull.orEmpty()
+    val computingGroups = groupsOrNull == null && catalog.entries.isNotEmpty()
     val cargoGroup = cargoGroupKey?.let { key -> groups.firstOrNull { it.key == key } ?: groupExams(catalog.entries.filter { examGroupKey(it) == key }).firstOrNull() }
     LaunchedEffect(name, role) {
         kotlinx.coroutines.delay(500)
@@ -591,7 +612,10 @@ private fun CompetitionStep(
             }
             ExamSearchField(query) { query = it }
             if (catalog.entries.isNotEmpty()) ExamFilterBar(filter, thisYear, onOpen = { showFilters = true }, onClear = { filter = ExamPickerFilter() })
-            if (showFilters) ExamFilterDialog(catalog.entries, filter, thisYear, onChange = { filter = it }, onDismiss = { showFilters = false })
+            if (showFilters) ExamFilterDialog(
+                catalog.entries, filter, thisYear, onChange = { filter = it }, onDismiss = { showFilters = false },
+                pool = if (query.isBlank()) catalog.entries else results, searching = query.isNotBlank(),
+            )
             val pick: (ExamGroup) -> Unit = { group ->
                 if (group.single) viewModel.chooseCatalogExam(group.entries.first()) else cargoGroupKey = group.key
             }
@@ -619,7 +643,7 @@ private fun CompetitionStep(
             if (groups.isEmpty()) {
                 CatalogEmptyState(
                     query = query,
-                    loading = catalog.loading && catalog.entries.isEmpty(),
+                    loading = (catalog.loading && catalog.entries.isEmpty()) || computingGroups,
                     error = catalog.error.takeIf { catalog.entries.isEmpty() },
                     onRetry = { viewModel.loadCatalog(force = true) },
                 )
@@ -728,33 +752,16 @@ private fun ExamDateStep(snapshot: InitialSetupSnapshot, viewModel: InitialSetup
 
     if (showPicker) {
         val today = LocalDate.now()
-        val initialMillis = (parsed?.takeIf { !it.isBefore(today) } ?: today)
-            .atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-        val pickerState = rememberDatePickerState(
-            initialSelectedDateMillis = initialMillis,
-            selectableDates = object : SelectableDates {
-                override fun isSelectableDate(utcTimeMillis: Long): Boolean {
-                    val candidate = Instant.ofEpochMilli(utcTimeMillis).atZone(ZoneOffset.UTC).toLocalDate()
-                    return !candidate.isBefore(today)
-                }
-            },
+        br.com.estudario.ui.components.EstudarioDatePickerDialog(
+            initial = parsed?.takeIf { !it.isBefore(today) } ?: today,
+            onDismiss = { showPicker = false },
+            onConfirm = { picked -> date = picked?.toString().orEmpty(); showPicker = false },
+            title = "Data da prova",
+            minDate = today,
+            examChips = true,
+            confirmLabel = "Confirmar",
+            today = today,
         )
-        DatePickerDialog(
-            onDismissRequest = { showPicker = false },
-            confirmButton = {
-                TextButton(kind = br.com.estudario.ui.brand.NoteKind.Confirm, onClick = {
-                    pickerState.selectedDateMillis?.let { millis ->
-                        date = Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate().toString()
-                    }
-                    showPicker = false
-                }) { Text("Confirmar") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showPicker = false }) { Text("Cancelar") }
-            },
-        ) {
-            DatePicker(state = pickerState)
-        }
     }
 }
 
@@ -1508,4 +1515,15 @@ private fun ImportPreviewDialog(preview: br.com.estudario.data.transfer.EstudoPr
         confirmButton = { Button(kind = br.com.estudario.ui.brand.NoteKind.Upload, onClick = onConfirm) { Text("Importar e continuar") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Escolher outro") } },
     )
+}
+
+/** Enquanto o Cancelar desfaz o que foi gravado: leve, sem travar, e sem mostrar o passo pela metade. */
+@Composable
+private fun SetupCancelling(modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            androidx.compose.material3.CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp)
+            Text("Desfazendo o que foi salvo…", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
 }

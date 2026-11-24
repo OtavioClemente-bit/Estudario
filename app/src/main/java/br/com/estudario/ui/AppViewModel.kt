@@ -884,6 +884,33 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun stopFocus(studiedMinutes: Int? = null): Int = FocusSessionManager.stop(app, studiedMinutes).also { if (it >= 1) br.com.estudario.ui.brand.EstudarioSom.play(app, "foco_fim", 0.8f) }
 
     /**
+     * Antes de abrir o assistente pelo app: guarda a etapa de antes, a configuração inteira e o
+     * retrato do banco (concursos, matérias, planos). Cancelar usa isso para desfazer o que o
+     * assistente gravou (ver [br.com.estudario.ui.setup.SetupRollback]). Uma configuração que já
+     * estava aberta mantém o retrato de quando começou.
+     */
+    private suspend fun rememberSetupBaseline(previous: br.com.estudario.domain.setup.InitialSetupSnapshot) {
+        val prefs = app.getSharedPreferences(br.com.estudario.ui.setup.PLAN_MODE_PREFS, android.content.Context.MODE_PRIVATE)
+        if (previous.status == InitialSetupStatus.IN_PROGRESS && prefs.contains(br.com.estudario.ui.setup.PLAN_MODE_BASELINE)) return
+        val dao = app.database.dao()
+        val competitions = dao.competitionsOnce()
+        val plans = app.database.plannerDao().plansOnce()
+        val baseline = br.com.estudario.ui.setup.SetupBaseline(
+            competitionIds = competitions.mapTo(hashSetOf()) { it.id },
+            subjectIds = dao.subjectsOnce().mapTo(hashSetOf()) { it.id },
+            planIds = plans.mapTo(hashSetOf()) { it.id },
+            primaryCompetitionId = competitions.firstOrNull { it.isPrimary }?.id,
+            activePlanIds = plans.filter { it.active }.mapTo(hashSetOf()) { it.id },
+            masterPlanIds = plans.filter { it.masterPlan }.mapTo(hashSetOf()) { it.id },
+        )
+        prefs.edit()
+            .putString(br.com.estudario.ui.setup.PLAN_MODE_PREVIOUS_STATUS, previous.status.name)
+            .putString(br.com.estudario.ui.setup.PLAN_MODE_PREVIOUS_STEP, previous.step.name)
+            .putString(br.com.estudario.ui.setup.PLAN_MODE_PREVIOUS_SNAPSHOT, br.com.estudario.domain.setup.InitialSetupSnapshotCodec.encode(previous))
+            .putString(br.com.estudario.ui.setup.PLAN_MODE_BASELINE, baseline.encode())
+            .apply()
+    }
+    /**
      * Abre o mesmo assistente do primeiro acesso, já no concurso, começando na parte do plano
      * (prioridade, dificuldade, disponibilidade, perfil, revisão). Sem concurso, começa do início.
      */
@@ -891,11 +918,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val competition = competitionId?.let { id -> app.database.dao().competitionsOnce().firstOrNull { it.id == id } }
         // Modo "novo plano": o assistente sabe que veio da aba Plano, mostra Cancelar e, ao sair,
         // devolve a configuração ao estado em que estava (normalmente já concluída).
-        val previous = app.preferences.initialSetup.first()
-        app.getSharedPreferences(br.com.estudario.ui.setup.PLAN_MODE_PREFS, android.content.Context.MODE_PRIVATE).edit()
-            .putString(br.com.estudario.ui.setup.PLAN_MODE_PREVIOUS_STATUS, previous.status.name)
-            .putString(br.com.estudario.ui.setup.PLAN_MODE_PREVIOUS_STEP, previous.step.name)
-            .apply()
+        rememberSetupBaseline(app.preferences.initialSetup.first())
         app.preferences.updateInitialSetup { current ->
             if (competition == null) current.copy(status = InitialSetupStatus.IN_PROGRESS, step = br.com.estudario.domain.setup.InitialSetupStep.COMPETITION)
             else current.copy(
@@ -912,11 +935,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * continuam; o que era do concurso anterior (nome, cargo, edital, data, matérias) sai.
      */
     fun startNewCompetitionSetup() = launchCatching {
-        val previous = app.preferences.initialSetup.first()
-        app.getSharedPreferences(br.com.estudario.ui.setup.PLAN_MODE_PREFS, android.content.Context.MODE_PRIVATE).edit()
-            .putString(br.com.estudario.ui.setup.PLAN_MODE_PREVIOUS_STATUS, previous.status.name)
-            .putString(br.com.estudario.ui.setup.PLAN_MODE_PREVIOUS_STEP, previous.step.name)
-            .apply()
+        rememberSetupBaseline(app.preferences.initialSetup.first())
         app.preferences.updateInitialSetup { current ->
             current.copy(
                 status = InitialSetupStatus.IN_PROGRESS,

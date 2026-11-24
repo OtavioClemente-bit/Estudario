@@ -198,9 +198,7 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
                     Text("Meus concursos", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 3.dp).marker())
                     Text("Cada tópico vira material de estudo", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                FilledTonalButton(onClick = { addCompetition = true }, shape = RoundedCornerShape(14.dp)) {
-                    Icon(Icons.Outlined.Add, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Novo")
-                }
+                br.com.estudario.ui.brand.NoteButton(br.com.estudario.ui.brand.NoteKind.Add, "Novo", onClick = { addCompetition = true }, size = br.com.estudario.ui.brand.NoteSize.Small, contentDescription = "Novo concurso")
             }
         }
         if (competitions.isEmpty()) {
@@ -209,7 +207,7 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text("Comece pelo seu concurso", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text("Envie o PDF do edital e o Estudário organiza as matérias e os tópicos. Depois, cada tópico vira teoria, flashcards e questões.")
-                        Button(kind = br.com.estudario.ui.brand.NoteKind.Primary, glyph = br.com.estudario.ui.brand.Glyph.Plus, onClick = { addCompetition = true }, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)) { Icon(Icons.Outlined.Add, null); Spacer(Modifier.width(8.dp)); Text("Criar meu concurso") }
+                        Button(kind = br.com.estudario.ui.brand.NoteKind.Add, onClick = { addCompetition = true }, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)) { Text("Criar meu concurso") }
                     }
                 }
             }
@@ -276,7 +274,7 @@ fun EditalScreen(viewModel: AppViewModel, onTopic: (Long) -> Unit, onHelp: () ->
                         leadingIcon = { Icon(if (onlyWithContent) Icons.Outlined.Check else Icons.Outlined.LibraryBooks, null, Modifier.size(18.dp)) },
                     )
                     Spacer(Modifier.weight(1f))
-                    TextButton(onClick = { addSubject = true }) { Icon(Icons.Outlined.Add, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("Nova matéria") }
+                    br.com.estudario.ui.brand.NoteButton(br.com.estudario.ui.brand.NoteKind.Add, "Nova matéria", onClick = { addSubject = true }, size = br.com.estudario.ui.brand.NoteSize.Small)
                 }
             }
             item { AttentionLegend() }
@@ -394,7 +392,7 @@ internal fun SubjectCard(subject: SubjectEntity, topics: List<TopicEntity>, expa
             }
             if (expanded) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                if (topics.isEmpty()) TextButton(onClick = onAddTopic, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) { Icon(Icons.Outlined.Add, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("Novo tópico") }
+                if (topics.isEmpty()) br.com.estudario.ui.brand.NoteButton(br.com.estudario.ui.brand.NoteKind.Add, "Novo tópico", onClick = onAddTopic, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp), size = br.com.estudario.ui.brand.NoteSize.Small)
                 val rootTopics = topics.filter { it.parentTopicId == null }.sortedBy { it.position }
                 val visibleRootTopics = if (visibleTopicIds != null) rootTopics.filter { it.id in visibleTopicIds } else rootTopics
                 visibleRootTopics.forEach { topic ->

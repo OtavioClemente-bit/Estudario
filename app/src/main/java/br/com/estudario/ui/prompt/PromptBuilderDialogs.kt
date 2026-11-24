@@ -848,12 +848,14 @@ fun PlanPromptBuilderDialog(viewModel: AppViewModel, onDismiss: () -> Unit, onPi
     }
 
     if (pickExamDate) {
-        val state = rememberDatePickerState(initialSelectedDateMillis = options.examDate?.atStartOfDay()?.toInstant(ZoneOffset.UTC)?.toEpochMilli())
-        DatePickerDialog(
-            onDismissRequest = { pickExamDate = false },
-            confirmButton = { TextButton(onClick = { options = options.copy(examDate = state.selectedDateMillis?.let { Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate() }); pickExamDate = false }) { Text("OK") } },
-            dismissButton = { TextButton(onClick = { pickExamDate = false }) { Text("Cancelar") } },
-        ) { DatePicker(state) }
+        br.com.estudario.ui.components.EstudarioDatePickerDialog(
+            initial = options.examDate,
+            onDismiss = { pickExamDate = false },
+            onConfirm = { options = options.copy(examDate = it); pickExamDate = false },
+            title = "Data da prova",
+            examChips = true,
+            confirmLabel = "OK",
+        )
     }
 
     val steps = listOf(

@@ -89,7 +89,7 @@ fun PlanSettingsScreen() {
                 Div({ classes("stack") }) {
                     Div({ classes("field") }) {
                         org.jetbrains.compose.web.dom.Label { Text("Data da prova") }
-                        Input(InputType.Date) { classes("input"); value(examDate); attr("min", Queries.todayDate().toString()); onInput { examDate = it.value } }
+                        DateField(examDate, { examDate = it }, min = Queries.todayDate().toString(), placeholder = "Ainda não sei", examChips = true, title = "Data da prova")
                     }
                     Div({ classes("stack", "tight") }) {
                         StudyProfile.entries.forEach { option ->
@@ -191,11 +191,11 @@ private fun DaysOffCard(planId: String) {
         Div({ classes("row"); attr("style", "gap:8px;flex-wrap:wrap") }) {
             Div({ classes("field") }) {
                 org.jetbrains.compose.web.dom.Label { Text("De") }
-                Input(InputType.Date) { classes("input"); value(from); attr("min", today.toString()); onInput { from = it.value; if (to.isBlank() || to < it.value) to = it.value } }
+                DateField(from, { v -> from = v; if (to.isBlank() || to < v) to = v }, min = today.toString(), title = "Sem estudo a partir de")
             }
             Div({ classes("field") }) {
                 org.jetbrains.compose.web.dom.Label { Text("Até") }
-                Input(InputType.Date) { classes("input"); value(to); attr("min", from.ifBlank { today.toString() }); onInput { to = it.value } }
+                DateField(to, { to = it }, min = from.ifBlank { today.toString() }, title = "Sem estudo até")
             }
         }
         Btn("Marcar sem estudo", {

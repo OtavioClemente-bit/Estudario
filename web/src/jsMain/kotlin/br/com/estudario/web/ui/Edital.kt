@@ -88,7 +88,7 @@ fun EditalScreen() {
         Div({ classes("edital-hero") }) {
             H2 { Text("Comece pelo seu concurso") }
             P { Text("Escolha um edital do catálogo ou envie o PDF: o Estudário organiza as matérias e os tópicos. Depois, cada tópico vira teoria, flashcards e questões.") }
-            Btn("Criar meu concurso", { Router.go(Route.Setup) }, style = "primary", icon = "add")
+            Btn("Criar meu concurso", { Router.go(Route.Setup) }, style = "primary", kind = "add")
         }
         return
     }

@@ -82,7 +82,7 @@ fun Btn(
 
 /**
  * Botão "folha de caderno" (aprovado 22/11): cada ação tem a sua cor e o seu bicho da turma na faixa do
- * fichário. kind: study, confirm, practice, review, sim, focus, done, pro, upload, next, main, paper, danger.
+ * fichário. kind: add, study, confirm, practice, review, sim, focus, done, pro, upload, next, main, paper, danger.
  * size: null (normal), "small" ou "block" (largura toda). O desenho todo está no fim de styles.css.
  */
 @Composable
@@ -93,6 +93,8 @@ fun NoteButton(kind: String, text: String, icon: String? = null, size: String? =
         icon = icon, small = size == "small", block = size == "block", enabled = enabled, kind = kind,
     )
 
+private val AddLabel = Regex("""^(\+ ?)?(novo|nova|adicionar)\b""")
+
 /** Qual ação é este botão, pelo texto (quando quem chama não diz). */
 fun noteKind(style: String, label: String): String {
     val l = label.lowercase()
@@ -100,6 +102,8 @@ fun noteKind(style: String, label: String): String {
     return when {
         style == "danger" || has("apagar", "excluir", "sair da conta", "remover", "descartar", "zerar") -> "danger"
         l.startsWith("voltar") || l.startsWith("cancelar") || l.startsWith("fechar") || l.startsWith("agora não") -> "paper"
+        // "Novo", "Nova matéria", "+ Adicionar tópico": o botão de criar (menta com o "+" da turma).
+        AddLabel.containsMatchIn(l) && !has("simulado") -> "add"
         has("confirmar", "responder") -> "confirm"
         has("simulado", "prova oficial", "prova completa", "fazer a prova") -> "sim"
         has("foco", "pomodoro", "cronômetro") -> "focus"
@@ -117,6 +121,7 @@ fun noteKind(style: String, label: String): String {
 
 /** O desenho da faixa: o da ação; nas ações comuns, o ícone que quem chama pediu (ou os furos do fichário). */
 fun noteIcon(kind: String, icon: String?, label: String): String? = when (kind) {
+    "add" -> "Plus"
     "study" -> "OpenBook"
     "confirm" -> "Check"
     "practice" -> "Target"

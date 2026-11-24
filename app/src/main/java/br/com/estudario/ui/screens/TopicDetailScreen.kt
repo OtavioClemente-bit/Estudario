@@ -745,9 +745,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                 val topicNotes = userNotes.filter { it.topicId == topicId }
                 item(key = "notes-header") {
                     SectionHeader("Minhas anotações", "Também ficam no Caderno de estudo") {
-                        TextButton(onClick = { editingNote = br.com.estudario.data.local.UserNoteEntity(topicId = topicId, text = "") }) {
-                            Icon(Icons.Outlined.Add, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("Nova")
-                        }
+                        br.com.estudario.ui.brand.NoteButton(br.com.estudario.ui.brand.NoteKind.Add, "Nova", onClick = { editingNote = br.com.estudario.data.local.UserNoteEntity(topicId = topicId, text = "") }, size = br.com.estudario.ui.brand.NoteSize.Small, contentDescription = "Nova anotação")
                     }
                 }
                 if (topicNotes.isEmpty()) item(key = "notes-empty") {
@@ -827,7 +825,7 @@ fun TopicDetailScreen(viewModel: AppViewModel, topicId: Long, taskId: String? = 
                     }
                 }
                 item(key = "summary-new") {
-                    TextButton(onClick = { creating = true }) { Icon(Icons.Outlined.Add, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("Escrever meu próprio resumo") }
+                    br.com.estudario.ui.brand.NoteButton(br.com.estudario.ui.brand.NoteKind.Add, "Escrever meu próprio resumo", onClick = { creating = true }, size = br.com.estudario.ui.brand.NoteSize.Small)
                 }
             }
 

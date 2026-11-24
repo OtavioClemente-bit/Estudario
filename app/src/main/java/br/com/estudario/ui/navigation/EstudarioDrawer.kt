@@ -392,7 +392,6 @@ fun estudarioDrawerSections(
         listOf(
             DrawerEntry("Desempenho", Icons.Outlined.QueryStats, onStatistics, "statistics"),
             DrawerEntry("Conquistas", Icons.Outlined.EmojiEvents, onBadges, "badges"),
-            DrawerEntry("Armário do Folha", Icons.Outlined.Checkroom, onWardrobe, "wardrobe"),
             DrawerEntry("Histórico do foco", Icons.Outlined.History, onFocusHistory, "focus-history"),
             DrawerEntry("Histórico e fontes", Icons.Outlined.FactCheck, onSources, "sources"),
         ),

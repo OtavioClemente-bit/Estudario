@@ -47,6 +47,7 @@ fun PlanScreen() {
     var dayOffset by remember { mutableStateOf(0) }
     var weekOffset by remember { mutableStateOf(0) }
     var selectedDay by remember { mutableStateOf(Queries.todayEpoch()) }
+    var slideDir by remember { mutableStateOf("none") }
     var monthOffset by remember { mutableStateOf(0) }
     var completing by remember { mutableStateOf<PlanTask?>(null) }
     var upgradeEdit by remember { mutableStateOf(false) }
@@ -217,6 +218,14 @@ fun PlanScreen() {
             val doneMinutes = weekTasks.filter { it.status == "CONCLUIDA" }.sumOf { it.minutes }
             val totalMinutes = weekTasks.sumOf { it.minutes }
             val selected = if (selectedDay in weekStart..(weekStart + 6)) selectedDay else if (weekOffset == 0) todayEpoch else weekStart
+            // Anda um dia (setas, botões ou deslizar); passando do domingo ou da segunda, troca a semana junto.
+            val goDay: (Int) -> Unit = { delta ->
+                val next = selected + delta
+                if (next > weekStart + 6) weekOffset++ else if (next < weekStart) weekOffset--
+                slideDir = if (delta > 0) "next" else "prev"
+                selectedDay = next
+            }
+            val goDayNow by androidx.compose.runtime.rememberUpdatedState(goDay)
             Div({ classes("row", "between", "wrap") }) {
                 Div({ classes("row") }) {
                     IconButton("chevron_left", "Semana anterior") { weekOffset-- }
@@ -230,7 +239,10 @@ fun PlanScreen() {
                 }
             }
             // Calendário da semana, como no app: um dia por coluna; tocar mostra o que estudar.
-            Div({ classes("week-strip"); attr("role", "tablist") }) {
+            Div({
+                classes("week-strip"); attr("role", "tablist"); attr("aria-label", "Dias da semana (use as setas)")
+                onKeyDown { if (it.key == "ArrowRight") { it.preventDefault(); goDayNow(1) } else if (it.key == "ArrowLeft") { it.preventDefault(); goDayNow(-1) } }
+            }) {
                 days.forEachIndexed { index, epoch ->
                     androidx.compose.runtime.key(epoch) {
                         val list = tasksByDay[epoch].orEmpty()
@@ -240,10 +252,12 @@ fun PlanScreen() {
                         Button({
                             classes(*listOfNotNull("wday", if (epoch == selected) "on" else null, if (epoch == todayEpoch) "today" else null, if (off) "off" else null, if (list.isNotEmpty() && done == list.size) "done" else null).toTypedArray())
                             attr("role", "tab"); attr("aria-selected", (epoch == selected).toString())
-                            onClick { selectedDay = epoch }
+                            attr("tabindex", if (epoch == selected) "0" else "-1")
+                            onClick { if (epoch != selected) slideDir = if (epoch > selected) "next" else "prev"; selectedDay = epoch }
                         }) {
                             Span({ classes("wd") }) { Text(Queries.weekdayShort[index]) }
                             Span({ classes("dn") }) { Text("${LocalDate.fromEpochDays(epoch).day}") }
+                            if (list.isNotEmpty() && done == list.size) Span({ classes("wdone"); attr("aria-label", "tudo feito") }) { Icon("check_circle", filled = true) }
                             Span({ classes("dots") }) {
                                 if (list.isEmpty()) Span({ classes("xs") }) { Text(if (off) "folga" else "livre") }
                                 else list.take(4).forEach { t -> androidx.compose.runtime.key(t.id) { org.jetbrains.compose.web.dom.I({ attr("style", "background:${taskColors(t.type).second}"); if (t.status == "CONCLUIDA") classes("ok") }) } }
@@ -255,12 +269,35 @@ fun PlanScreen() {
             }
             val dayTasks = Queries.tasksOn(data, plan.id, selected)
             Div({ classes("row", "between", "wrap"); attr("style", "margin-top:4px") }) {
-                org.jetbrains.compose.web.dom.H3 { Text(dayTitle(selected, todayEpoch)) }
+                Div({ classes("row") }) {
+                    IconButton("chevron_left", "Dia anterior") { goDay(-1) }
+                    org.jetbrains.compose.web.dom.H3 { Text(dayTitle(selected, todayEpoch)) }
+                    IconButton("chevron_right", "Próximo dia") { goDay(1) }
+                }
                 if (dayTasks.isNotEmpty()) Chip("${dayTasks.count { it.status == "CONCLUIDA" }} de ${dayTasks.size} · ${Queries.minutesLabel(dayTasks.sumOf { it.minutes })}", "outline")
             }
-            if (dayTasks.isEmpty()) Card { Empty("weekend", "Nada planejado neste dia", "Use o tempo livre para revisar, treinar questões ou adiantar o edital.") }
-            else Div({ classes("stack") }) {
-                dayTasks.forEach { task -> androidx.compose.runtime.key(task.id) { TaskRow(task) { completing = task } } }
+            // Só o dia escolhido; no toque, deslizar para os lados troca de dia (a faixa acompanha).
+            androidx.compose.runtime.key(selected) {
+                Div({
+                    classes("week-day-pane", "slide-$slideDir")
+                    ref { el ->
+                        var x0 = 0.0; var y0 = 0.0
+                        val start: (org.w3c.dom.events.Event) -> Unit = { e -> val t = e.asDynamic().changedTouches[0]; x0 = (t.clientX as Number).toDouble(); y0 = (t.clientY as Number).toDouble() }
+                        val end: (org.w3c.dom.events.Event) -> Unit = { e ->
+                            val t = e.asDynamic().changedTouches[0]
+                            val dx = (t.clientX as Number).toDouble() - x0; val dy = (t.clientY as Number).toDouble() - y0
+                            if (kotlin.math.abs(dx) > 60 && kotlin.math.abs(dx) > kotlin.math.abs(dy) * 1.5) goDayNow(if (dx < 0) 1 else -1)
+                        }
+                        el.addEventListener("touchstart", start)
+                        el.addEventListener("touchend", end)
+                        onDispose { el.removeEventListener("touchstart", start); el.removeEventListener("touchend", end) }
+                    }
+                }) {
+                    if (dayTasks.isEmpty()) Card { Empty("weekend", "Nada planejado neste dia", "Use o tempo livre para revisar, treinar questões ou adiantar o edital.") }
+                    else Div({ classes("stack") }) {
+                        dayTasks.forEach { task -> androidx.compose.runtime.key(task.id) { TaskRow(task) { completing = task } } }
+                    }
+                }
             }
         }
         PlanView.OVERVIEW -> Unit

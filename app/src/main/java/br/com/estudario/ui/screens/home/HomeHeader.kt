@@ -91,7 +91,7 @@ fun HomeNoContestState(onAddContest: () -> Unit, modifier: Modifier = Modifier) 
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(EstudarioSpacing.large))
-        Button(kind = br.com.estudario.ui.brand.NoteKind.Primary, glyph = br.com.estudario.ui.brand.Glyph.Plus,
+        Button(kind = br.com.estudario.ui.brand.NoteKind.Add,
             onClick = onAddContest,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),

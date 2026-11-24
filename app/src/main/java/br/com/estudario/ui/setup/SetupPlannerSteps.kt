@@ -3,6 +3,11 @@ package br.com.estudario.ui.setup
 import br.com.estudario.time.monthValue
 import kotlinx.datetime.toKotlinLocalDate
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.liveRegion
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -84,20 +89,29 @@ internal fun SubjectsStep(
     val topicsBySubject = remember(topics) { topics.groupBy { it.subjectId } }
     val ids = remember(subjects) { subjects.mapTo(hashSetOf()) { it.id.toString() } }
     val changed = subjects.count { it.id.toString() in snapshot.subjectPriorities } + snapshot.tunedSubjectCount(ids)
+    // O Folha do rodapé comenta a última mudança ("Combinado: Português ganha mais tempo…").
+    var reaction by remember { mutableStateOf<String?>(null) }
+    val react: (TuningAxis, Int, String) -> Unit = { axis, level, name -> reaction = SubjectTuning.reaction(axis, level, name) }
 
     WizardPage(
         eyebrow = "Suas matérias",
         question = "Ajuste só o que for diferente para você",
-        aside = "Já deixei tudo preenchido com o que o edital indica. Toque nas barrinhas para mudar.",
+        aside = "Já deixei tudo preenchido com o que o edital indica. Toque nas barrinhas para mudar; o \"?\" explica cada uma.",
         icon = Icons.Outlined.Tune,
         showScrollIndicator = true,
         bottom = {
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    if (changed == 0) "Pode seguir sem mexer em nada." else "Ajustes salvos. Dá para mudar depois na aba Plano.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val line = reaction ?: if (changed == 0) "Pode seguir sem mexer em nada." else "Ajustes salvos. Dá para mudar depois na aba Plano."
+                    // A chave faz o Folha falar de novo a cada mudança (a boca segue a frase).
+                    androidx.compose.runtime.key(line) { br.com.estudario.ui.assistant.FolhaTalking(40.dp, line) }
+                    Text(
+                        line,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f).semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite },
+                    )
+                }
                 SetupPrimaryButton("Continuar", onContinue)
             }
         },
@@ -122,13 +136,17 @@ internal fun SubjectsStep(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 LevelMeter(
-                    title = "Peso na prova",
+                    title = TuningAxis.PRIORITY.title,
                     options = ExamPriority.entries,
                     selected = priority,
                     label = { it.label },
-                    color = Color(0xFF2F5BD3),
+                    color = PriorityTone,
                     testTagPrefix = "priority_${subject.id}",
-                ) { chosen -> if (chosen == suggested) onResetPriority(key) else onPriority(key, chosen) }
+                    help = TuningAxis.PRIORITY.help,
+                ) { chosen ->
+                    react(TuningAxis.PRIORITY, chosen.ordinal, subject.name)
+                    if (chosen == suggested) onResetPriority(key) else onPriority(key, chosen)
+                }
                 if (edited) {
                     TextButton(onClick = { onResetPriority(key) }, modifier = Modifier.align(Alignment.End)) {
                         Text("Voltar ao do edital (${suggested.label.lowercase()})", style = MaterialTheme.typography.labelMedium)
@@ -136,32 +154,54 @@ internal fun SubjectsStep(
                 }
                 HorizontalDivider(Modifier.padding(vertical = 2.dp))
                 LevelMeter(
-                    title = "Esforço para você",
+                    title = TuningAxis.EFFORT.title,
                     options = PersonalDifficulty.entries,
                     selected = difficulty,
                     label = { it.label },
-                    color = Color(0xFFFF7A45),
+                    color = EffortTone,
                     testTagPrefix = "difficulty_${subject.id}",
-                ) { onDifficulty(key, it) }
+                    help = TuningAxis.EFFORT.help,
+                ) { react(TuningAxis.EFFORT, it.ordinal, subject.name); onDifficulty(key, it) }
                 HorizontalDivider(Modifier.padding(vertical = 2.dp))
                 LevelMeter(
-                    title = "O quanto você já sabe",
+                    title = TuningAxis.KNOWLEDGE.title,
                     options = InitialKnowledge.entries,
                     selected = knowledge,
                     label = { it.label },
-                    color = Color(0xFF1FB574),
+                    color = KnowledgeTone,
                     testTagPrefix = "knowledge_${subject.id}",
-                ) { onKnowledge(key, it) }
-                // O que essa resposta faz no plano, para a escolha ter peso de verdade.
-                Text(
-                    br.com.estudario.domain.planner.StudyPlanBlueprint.knowledgeEffect(knowledge, difficulty),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                    help = TuningAxis.KNOWLEDGE.help,
+                ) { react(TuningAxis.KNOWLEDGE, it.ordinal, subject.name); onKnowledge(key, it) }
+                // A prévia do que essas três respostas fazem no plano; muda junto com cada toque.
+                val preview = SubjectTuning.planPreview(priority, difficulty, knowledge)
+                androidx.compose.animation.AnimatedContent(
+                    targetState = preview,
+                    transitionSpec = {
+                        (androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInVertically { it / 3 }) togetherWith
+                            androidx.compose.animation.fadeOut()
+                    },
+                    label = "previa-plano",
+                ) { text ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.07f), RoundedCornerShape(14.dp))
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        br.com.estudario.ui.brand.BrandIcon(br.com.estudario.ui.brand.Glyph.Calendar, size = 24.dp)
+                        Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    }
+                }
             }
         }
     }
 }
+
+private val PriorityTone = Color(0xFF2F5BD3)
+private val EffortTone = Color(0xFFFF7A45)
+private val KnowledgeTone = Color(0xFF1FB574)
 
 /** O que cada medidor quer dizer, uma vez só no topo (em vez de repetir em cada matéria). */
 @Composable
@@ -169,21 +209,38 @@ private fun LevelLegend() {
     SetupCard {
         Text("Como ler", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         listOf(
-            Color(0xFF2F5BD3) to "Peso na prova: quanto espaço a matéria ocupa no plano.",
-            Color(0xFFFF7A45) to "Esforço: o quanto ela costuma dar trabalho para você.",
-            Color(0xFF1FB574) to "O quanto já sabe: matérias que você domina vão mais para revisão e questões.",
+            PriorityTone to "Peso na prova: quanto espaço a matéria ocupa no plano.",
+            EffortTone to "Esforço: o quanto ela costuma dar trabalho para você.",
+            KnowledgeTone to "O quanto já sabe: matérias que você domina vão mais para revisão e questões.",
         ).forEach { (color, text) ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Box(Modifier.size(width = 14.dp, height = 10.dp).background(color, RoundedCornerShape(3.dp)))
+                // A mesma escala das barrinhas: do clarinho ao forte.
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
+                    repeat(3) { i ->
+                        Box(Modifier.size(width = 5.dp, height = (6 + i * 3).dp).background(levelTone(color, i * 2, 5), RoundedCornerShape(2.dp)))
+                    }
+                }
                 Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+        Text(
+            "Toque no \"?\" de cada medidor para ver o que ele muda no seu plano.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
+/** A cor da barrinha [index] de [count]: clarinha no nível 1, cheia no último ([SubjectTuning.intensity]). */
+@Composable
+private fun levelTone(color: Color, index: Int, count: Int): Color =
+    androidx.compose.ui.graphics.lerp(MaterialTheme.colorScheme.surface, color, SubjectTuning.intensity(index, count))
+
 /**
- * Medidor de cinco níveis: barrinhas crescentes que ocupam a largura toda (nunca cortam) e o nível
- * escrito ao lado do título. Tocar numa barrinha escolhe aquele nível.
+ * Medidor de cinco níveis: barrinhas crescentes que ocupam a largura toda (nunca cortam), cada uma
+ * mais forte que a anterior, e o nível escrito ao lado do título. Cada barrinha tem 48 dp de toque
+ * (a parte visível é menor, embaixo). Tocar escolhe o nível com um pulinho e um toque no aparelho.
+ * O "?" abre ali mesmo, em uma ou duas frases, o que o medidor muda no plano.
  */
 @Composable
 internal fun <T> LevelMeter(
@@ -193,49 +250,100 @@ internal fun <T> LevelMeter(
     label: (T) -> String,
     color: Color,
     testTagPrefix: String,
+    help: String? = null,
     onSelect: (T) -> Unit,
 ) {
     val index = options.indexOf(selected).coerceAtLeast(0)
-    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    var helpOpen by androidx.compose.runtime.saveable.rememberSaveable(testTagPrefix) { mutableStateOf(false) }
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    // O pulinho da barrinha escolhida: cresce um pouco e volta com mola.
+    val bounce = remember { androidx.compose.animation.core.Animatable(1f) }
+    var bounceIndex by remember { mutableStateOf(-1) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val selectedTone = levelTone(color, index, options.size)
+    Column(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 title,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
+            if (help != null) {
+                br.com.estudario.ui.brand.IconButton(
+                    onClick = { helpOpen = !helpOpen },
+                    kind = br.com.estudario.ui.brand.NoteKind.Help,
+                    modifier = Modifier.semantics { contentDescription = if (helpOpen) "Fechar explicação de $title" else "O que é $title?" },
+                ) { br.com.estudario.ui.brand.BrandIcon(br.com.estudario.ui.brand.Glyph.Help, size = 26.dp) }
+            }
+        }
+        // O nível escolhido, grande e na cor do nível (mais forte quanto mais alto).
+        androidx.compose.animation.AnimatedContent(
+            targetState = label(selected),
+            transitionSpec = { androidx.compose.animation.fadeIn() togetherWith androidx.compose.animation.fadeOut() },
+            label = "nivel-nome",
+        ) { text ->
             Text(
-                label(selected),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                color = color,
-                textAlign = TextAlign.End,
+                text,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.ExtraBold,
+                color = if (index >= options.size - 2) Color.White else color,
                 modifier = Modifier
-                    .background(color.copy(alpha = 0.14f), RoundedCornerShape(50))
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                    .background(selectedTone, RoundedCornerShape(50))
+                    .padding(horizontal = 14.dp, vertical = 5.dp),
+            )
+        }
+        androidx.compose.animation.AnimatedVisibility(visible = helpOpen && help != null) {
+            Text(
+                help.orEmpty(),
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp)
+                    .background(color.copy(alpha = 0.10f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
             )
         }
         Row(
-            Modifier.fillMaxWidth().height(34.dp),
+            Modifier.fillMaxWidth().height(48.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
             options.forEachIndexed { i, option ->
                 val on = i <= index
-                val fill by animateColorAsState(if (on) color else MaterialTheme.colorScheme.surfaceVariant, label = "nivel")
+                val tone = levelTone(color, i, options.size)
+                val fill by animateColorAsState(if (on) tone else MaterialTheme.colorScheme.surfaceVariant, label = "nivel")
                 val shape = RoundedCornerShape(7.dp)
+                val scale = if (i == bounceIndex) bounce.value else 1f
                 Box(
                     Modifier
                         .weight(1f)
-                        .height((14 + i * 5).dp)
-                        .background(fill, shape)
-                        .then(if (i == index) Modifier.border(2.dp, color.copy(alpha = 0.55f), shape) else Modifier)
-                        .clickable(role = Role.RadioButton) { onSelect(option) }
+                        .fillMaxHeight()
+                        .clickable(role = Role.RadioButton) {
+                            if (option != selected) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                            bounceIndex = i
+                            scope.launch {
+                                bounce.snapTo(1.18f)
+                                bounce.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 0.35f, stiffness = 500f))
+                            }
+                            onSelect(option)
+                        }
                         .semantics { contentDescription = "$title: ${label(option)}"; this.selected = i == index }
                         .testTag("${testTagPrefix}_${(option as? Enum<*>)?.name ?: option.toString()}"),
-                )
+                    contentAlignment = Alignment.BottomCenter,
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height((14 + i * 6).dp)
+                            .graphicsLayer {
+                                scaleX = scale; scaleY = scale
+                                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
+                            }
+                            .background(fill, shape)
+                            .then(if (i == index) Modifier.border(2.dp, color, shape) else Modifier),
+                    )
+                }
             }
         }
         Row(Modifier.fillMaxWidth()) {

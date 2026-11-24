@@ -542,7 +542,8 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun goBack() = viewModelScope.launch {
-        val snapshot = state.value.snapshot
+        // Direto das preferências: o estado calculado chega atrasado e voltaria da etapa errada.
+        val snapshot = app.preferences.initialSetup.first()
         val previous = if (snapshot.step == InitialSetupStep.SYLLABUS_REVIEW && snapshot.syllabusMethod == SyllabusMethod.CATALOG) {
             InitialSetupStep.EXAM_DATE
         } else {
@@ -781,11 +782,55 @@ class InitialSetupViewModel(application: Application) : AndroidViewModel(applica
         app.preferences.updateInitialSetup { it.copy(status = InitialSetupStatus.COMPLETED, step = InitialSetupStep.READY) }
     }
 
-    /** Sai do "novo plano" sem mexer no resto: a configuração volta ao status e à etapa de antes. */
-    fun cancelPlanMode(previousStatus: String?, previousStep: String?) = viewModelScope.launch {
+    /**
+     * Sai do "novo plano"/"novo concurso" sem deixar nada pela metade: apaga o que o assistente
+     * gravou desde que abriu (concurso, matérias, tópicos, plano; ver [SetupRollback]), devolve o
+     * concurso principal e o plano ativo de antes e a configuração volta a ser a de antes.
+     * Antes só a etapa voltava, e o edital escolhido ficava salvo em "Meus concursos".
+     */
+    fun cancelPlanMode() = viewModelScope.launch {
+        val prefs = app.getSharedPreferences(PLAN_MODE_PREFS, android.content.Context.MODE_PRIVATE)
+        val previousStatus = prefs.getString(PLAN_MODE_PREVIOUS_STATUS, null)
+        val previousStep = prefs.getString(PLAN_MODE_PREVIOUS_STEP, null)
+        val previousSnapshot = prefs.getString(PLAN_MODE_PREVIOUS_SNAPSHOT, null)
+            ?.let { runCatching { br.com.estudario.domain.setup.InitialSetupSnapshotCodec.decode(it) }.getOrNull() }
+        val baseline = SetupBaseline.decode(prefs.getString(PLAN_MODE_BASELINE, null))
         val status = previousStatus?.let { runCatching { InitialSetupStatus.valueOf(it) }.getOrNull() } ?: InitialSetupStatus.COMPLETED
         val step = previousStep?.let { runCatching { InitialSetupStep.valueOf(it) }.getOrNull() } ?: InitialSetupStep.READY
-        app.preferences.updateInitialSetup { it.copy(status = status, step = step) }
+        // Até o fim mesmo se a tela sair: um cancelamento pela metade deixaria parte do edital.
+        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+            if (baseline != null) runCatching { rollBack(baseline) }
+            _editalAttachment.value = null
+            _attachmentCheck.value = EditalAttachmentCheck.None
+            app.preferences.updateInitialSetup { current ->
+                (previousSnapshot ?: current).copy(status = status, step = step)
+            }
+            prefs.edit().remove(PLAN_MODE_PREVIOUS_STATUS).remove(PLAN_MODE_PREVIOUS_STEP)
+                .remove(PLAN_MODE_PREVIOUS_SNAPSHOT).remove(PLAN_MODE_BASELINE).apply()
+        }
+    }
+
+    private suspend fun rollBack(baseline: SetupBaseline) {
+        val planner = app.database.plannerDao()
+        val plan = SetupRollback.plan(
+            baseline,
+            competitionIds = dao.competitionsOnce().map { it.id },
+            subjects = dao.subjectsOnce().map { it.id to it.competitionId },
+            planIds = planner.plansOnce().map { it.id },
+        )
+        if (plan.isEmpty) return
+        plan.planIds.forEach { id -> runCatching { app.planService.delete(id) } }
+        if (plan.subjectIds.isNotEmpty()) {
+            val subjects = dao.subjectsOnce().associateBy { it.id }
+            plan.subjectIds.forEach { id -> subjects[id]?.let { repository.deleteSubject(it) } }
+        }
+        plan.competitionIds.forEach { id -> repository.removeCompetition(id) }
+        // Montar o plano ativa o novo e desliga o antigo do mesmo concurso: o antigo volta.
+        planner.plansOnce().forEach { p ->
+            if (p.id in baseline.activePlanIds && !p.active && !p.archived) planner.activateOnly(p.competitionId, p.id)
+            if (p.id in baseline.masterPlanIds && !p.masterPlan && !p.archived) planner.markOnlyMaster(p.competitionId, p.id)
+        }
+        baseline.primaryCompetitionId?.let { id -> if (dao.competitionById(id) != null) repository.setPrimary(id) }
     }
 
     fun reportError(message: String) { _operation.value = SetupOperation.Error(message) }

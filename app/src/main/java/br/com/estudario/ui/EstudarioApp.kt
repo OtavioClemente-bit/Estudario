@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -132,12 +133,27 @@ fun EstudarioApp(viewModel: AppViewModel) {
             onboardingConcluido == null || seenTours == null || initialSetup == null || hasExistingWorkspace == null -> Unit
             // Primeira instalação: apresentação e escolha de conta antes de qualquer tela do app.
             onboardingConcluido == false -> OnboardingFlow(viewModel) { viewModel.completeOnboarding() }
-            initialSetup?.status == InitialSetupStatus.IN_PROGRESS ||
-                (initialSetup?.status == InitialSetupStatus.NOT_STARTED && hasExistingWorkspace == false) ->
-                InitialSetupFlow(setupViewModel, viewModel) { }
-            // O tour guiado (replay em Ajustes > Como usar o app) roda dentro da própria navegação
-            // principal, destacando os botões reais - ver MainNavigation.
-            else -> MainNavigation(viewModel)
+            else -> {
+                val inSetup = initialSetup?.status == InitialSetupStatus.IN_PROGRESS ||
+                    (initialSetup?.status == InitialSetupStatus.NOT_STARTED && hasExistingWorkspace == false)
+                // Aberto de dentro do app ("+ Novo", Novo plano, Configurar): o assistente fica POR
+                // CIMA da navegação, que continua viva embaixo. Antes ele a trocava, e ao cancelar ou
+                // voltar a navegação nascia de novo no Início; agora volta para a tela de onde veio
+                // (Meus concursos, Plano...). No primeiro acesso não há app embaixo.
+                var mainAlive by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+                if (!inSetup) SideEffect { mainAlive = true }
+                androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
+                    // O tour guiado (replay em Ajustes > Como usar o app) roda dentro da própria navegação
+                    // principal, destacando os botões reais - ver MainNavigation.
+                    if (!inSetup || mainAlive) androidx.compose.foundation.layout.Box(
+                        Modifier.fillMaxSize().then(if (inSetup) Modifier.clearAndSetSemantics { } else Modifier),
+                    ) { MainNavigation(viewModel) }
+                    // Voltar que o assistente não trata (abertura dele) não pode cair na navegação
+                    // escondida embaixo: vale como "Configurar depois" e mostra a tela de onde veio.
+                    if (inSetup && mainAlive) androidx.activity.compose.BackHandler { setupViewModel.defer() }
+                    if (inSetup) InitialSetupFlow(setupViewModel, viewModel) { }
+                }
+            }
         }
     }
 }
@@ -305,7 +321,8 @@ private fun MainNavigation(viewModel: AppViewModel) {
     val initialSetupState by viewModel.initialSetup.collectAsState()
     LaunchedEffect(currentRoute, activeTour, seenTours, importandoAlgo, initialSetupState?.status) {
         val tour = tourForRoute(currentRoute, setupSkipped = initialSetupState?.status == InitialSetupStatus.DEFERRED) ?: return@LaunchedEffect
-        if (importandoAlgo) return@LaunchedEffect
+        // Assistente aberto por cima da navegação: nenhum guia começa escondido embaixo dele.
+        if (importandoAlgo || initialSetupState?.status == InitialSetupStatus.IN_PROGRESS) return@LaunchedEffect
         // Um só giro de boas-vindas por pessoa, venha ela da configuração completa ou pulada.
         if (tour in WELCOME_TOURS && WELCOME_TOURS.any { seenTours?.contains(it.name) == true }) return@LaunchedEffect
         // O guia de perfil só entra depois do de primeiros passos: dois guias emendados na primeira
