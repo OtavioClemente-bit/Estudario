@@ -142,10 +142,27 @@ for (const id of editais) {
     if (!refaz) continue;
   }
   let e: Json; try { e = ler(`${EDITAIS}/${id}.json`); } catch { continue; }
-  const ds = ((e.disciplinas as Json[]) ?? []).filter((d) => Number(d.questoes) > 0);
-  const soma = ds.reduce((a, d) => a + Number(d.questoes), 0);
+  let ds = ((e.disciplinas as Json[]) ?? []).filter((d) => Number(d.questoes) > 0);
+  let soma = ds.reduce((a, d) => a + Number(d.questoes), 0);
+  let aproximado = false;
+  if ((ds.length < 2 || soma < 20) && args.includes("--aproximado")) {
+    // Sem quadro de questões no edital: tamanho típico da banca, dividido pelos tópicos de cada disciplina.
+    const todas = ((e.disciplinas as Json[]) ?? []).filter((d) => ((d.topicos as Json[]) ?? []).some((t) => t.topico));
+    const b = folderOf(String(e.banca ?? ""));
+    const total = b === "cebraspe" ? 120 : b === "vunesp" ? 80 : ["fgv", "fcc", "cesgranrio"].includes(b ?? "") ? 60 : 50;
+    const tops = todas.map((d) => ((d.topicos as Json[]) ?? []).filter((t) => t.topico).length);
+    const somaT = tops.reduce((a, x) => a + x, 0);
+    if (todas.length >= 2 && somaT > 0) {
+      const cont = tops.map((t) => Math.max(2, Math.round((total * t) / somaT)));
+      let dif = total - cont.reduce((a, x) => a + x, 0);
+      for (let i = 0; dif !== 0 && i < 1000; i++) { const k = i % cont.length; if (dif > 0) { cont[k]++; dif--; } else if (cont[k] > 2) { cont[k]--; dif++; } }
+      e = { ...e, disciplinas: todas.map((d, i) => ({ ...d, questoes: cont[i] })) };
+      ds = e.disciplinas as Json[]; soma = total; aproximado = true;
+    }
+  }
   if (ds.length < 2 || soma < 20) continue;
   const { file, faltam, total, fontes } = montar(id, e);
+  if (aproximado) file.estrutura = String(file.estrutura).replace("na quantidade de questões de cada disciplina da prova", "com quantidade aproximada por disciplina (o edital não traz o quadro de questões) da prova");
   const ok = faltam / total <= MAX_FALTA;
   console.log(`${id}: ${ok ? `${total - faltam}/${total}` : `NÃO gravado (faltam ${faltam} de ${total})`} · ${Object.entries(fontes).map(([k, v]) => `${k} ${v}`).join(", ")}`);
   if (!ok || dry) continue;

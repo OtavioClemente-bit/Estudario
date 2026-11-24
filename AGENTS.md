@@ -30,6 +30,9 @@
    / campo `questoes` das disciplinas). Ordem de escolha por tópico: recorte da banca do edital; recortes
    de outras bancas no mesmo formato (Certo/Errado ou múltipla escolha); questões da própria matéria no
    mesmo formato. Não escreve, não altera nem completa o texto de nenhuma questão; mesma regra dos 5%.
+   Edital sem quadro de questões (autorizado pelo dono em 24/11: "pode ser flexível, o importante é parecer a
+   prova"): o total vem do tamanho típico da banca e a divisão é proporcional aos tópicos de cada disciplina,
+   e a estrutura do simulado diz que a quantidade é aproximada.
 2. **Salve os arquivos em `conteudo/entrada/`** (a matéria e o recorte). Nunca grave em
    `conteudo/materias/`, `conteudo/recortes/` nem `conteudo/editais/`: essas pastas são conferidas e
    publicadas por outro processo.
