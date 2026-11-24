@@ -59,7 +59,8 @@ object SimulationBlueprint {
     const val MAX_PER_ITEM = 10
 
     fun eligible(mode: SimulationMode, topics: List<BlueprintTopic>): List<BlueprintTopic> = when (mode) {
-        SimulationMode.STUDIED -> topics.filter { it.studied || it.hasContent }
+        // Sem nada estudado nem aberto ainda (assinante no primeiro dia), usa o edital todo: o servidor monta com o banco da biblioteca.
+        SimulationMode.STUDIED -> topics.filter { it.studied || it.hasContent }.ifEmpty { topics }
         else -> topics
     }
 
