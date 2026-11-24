@@ -477,7 +477,7 @@ private fun ExamRow(
                 Icon(Icons.Outlined.WorkspacePremium, null, tint = Gx.readable(Gx.gold))
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(SimulationService.examTitle(exam.number), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = Gx.strong)
+                    Text(SimulationService.examTitle(exam.number, exam.structure), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = Gx.strong)
                     Text(
                         listOfNotNull("$count questões", "${BoardStyle.minutesFor(styleOf(exam.format), count)} min", exam.board).joinToString(" · "),
                         style = MaterialTheme.typography.labelMedium, color = Gx.mute,

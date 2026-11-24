@@ -360,7 +360,8 @@ object Simulations {
     const val OFFICIAL_MODE = "OFFICIAL"
 
     /** Nome da prova do edital pelo número: 1 é a prova oficial; os seguintes, o Simuladão do mês. */
-    fun examTitle(number: Int): String = if (number <= 1) "Prova oficial" else "Simuladão $number"
+    /** 24/11: a prova 1 montada com questões da biblioteca (estrutura "Simuladão montado…") não é prova oficial. */
+    fun examTitle(number: Int, structure: String? = null): String = if (number > 1 || structure?.startsWith("Simuladão montado") == true) "Simuladão $number" else "Prova oficial"
 
     /** O id da prova do edital por trás de um simulado (null quando não é Simuladão nem prova oficial). */
     fun examIdOf(data: Snapshot, simulationId: Long): String? {
@@ -415,7 +416,7 @@ object Simulations {
         }
         val count = rows.size
         val row = jsonOf(
-            "id" to id, "competitionId" to competitionId, "mode" to OFFICIAL_MODE, "title" to "${examTitle(official.number)} · $count questões", "board" to board,
+            "id" to id, "competitionId" to competitionId, "mode" to OFFICIAL_MODE, "title" to "${examTitle(official.number, official.structure)} · $count questões", "board" to board,
             "style" to style, "plannedQuestions" to count, "timeLimitMinutes" to BoardStyle.minutesFor(style, count), "status" to "READY",
             // O id da prova do edital, para o ranking (a prova oficial não usa geração nem partes).
             "partsJson" to "[]", "answersJson" to "{}", "flaggedJson" to "[]", "weakSpotsJson" to JsonArray(listOf(JsonPrimitive("exam:${official.id}"))).toString(),

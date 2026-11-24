@@ -24,6 +24,12 @@
    dificuldade de cada posição), sem repetir questão de simulados anteriores do mesmo edital. Não escreve,
    não altera nem completa o texto de nenhuma questão; posição sem questão disponível fica de fora e, se
    faltar mais de 5%, o simulado não é gravado.
+   **Quinta exceção autorizada (24/11/2026):** `scripts/simuladao/montar-primeiro.ts` monta o simulado 1
+   ("Simuladão 1") dos editais que ainda não têm, escolhendo questões já publicadas e conferidas, na
+   quantidade de questões por disciplina da prova real (lida à mão do edital, `conteudo/pesos-provas.json`
+   / campo `questoes` das disciplinas). Ordem de escolha por tópico: recorte da banca do edital; recortes
+   de outras bancas no mesmo formato (Certo/Errado ou múltipla escolha); questões da própria matéria no
+   mesmo formato. Não escreve, não altera nem completa o texto de nenhuma questão; mesma regra dos 5%.
 2. **Salve os arquivos em `conteudo/entrada/`** (a matéria e o recorte). Nunca grave em
    `conteudo/materias/`, `conteudo/recortes/` nem `conteudo/editais/`: essas pastas são conferidas e
    publicadas por outro processo.

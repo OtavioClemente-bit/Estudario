@@ -190,7 +190,7 @@ fun SimulationsScreen() {
                         val minutes = BoardStyle.minutesFor(if (prova.format == "CERTO_ERRADO") "TRUE_FALSE" else "FIVE_OPTIONS", prova.questions.size)
                         Div({ classes("sx-exam") }) {
                             Div({ classes("grow", "sx-exam-info") }) {
-                                B { Text(Simulations.examTitle(prova.number)) }
+                                B { Text(Simulations.examTitle(prova.number, prova.structure)) }
                                 Span({ classes("sx-meta") }) {
                                     Text("${prova.questions.size} questões · $minutes min" + (profile.board?.let { " · $it" } ?: ""))
                                 }

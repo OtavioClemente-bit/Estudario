@@ -409,7 +409,7 @@ class SimulationService(
                 SimulationEntity(
                     competitionId = competitionId,
                     mode = OFFICIAL_MODE,
-                    title = "${examTitle(official.number)} · ${questions.size} questões",
+                    title = "${examTitle(official.number, official.structure)} · ${questions.size} questões",
                     // O id da prova do edital, para o ranking (a prova oficial não usa geração nem partes).
                     weakSpotsJson = JSONArray(listOf("exam:${official.id}")).toString(),
                     board = board,
@@ -799,7 +799,7 @@ class SimulationService(
         const val PLAN_SIMULATION = "PLAN_SIMULATION"
 
         /** "Prova oficial" (a anterior, nº 1) ou "Simuladão 2", "Simuladão 3"... (os do mês, iguais para todos). */
-        fun examTitle(number: Int): String = if (number <= 1) "Prova oficial" else "Simuladão $number"
+        fun examTitle(number: Int, structure: String? = null): String = if (number > 1 || structure?.startsWith("Simuladão montado") == true) "Simuladão $number" else "Prova oficial"
         fun decodeAnswers(json: String): Map<Long, String> = runCatching {
             val value = JSONObject(json)
             value.keys().asSequence().mapNotNull { key -> key.toLongOrNull()?.let { it to value.getString(key) } }.toMap()
