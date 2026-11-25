@@ -599,6 +599,8 @@ async function createTextJob(
     } else if (feature === "SIMULATION_GENERATION" && rawPurpose === "STUDIED_SIMULATION") {
       // 25/11: simulado que a pessoa monta (do que estudou, aleatório, por matérias): só da biblioteca, nunca a IA,
       // e conta no limite do mês do plano (Grátis 1, Essencial 4, Pro 8 em ai_plan_limits).
+      // Aleatório do edital e por matérias (modo FULL) são só do Pro; o app só esconde, aqui é a trava.
+      if ((input as { mode?: string }).mode === "FULL" && rules.tier !== "PRO") return safeError("PLAN_FEATURE_LOCKED", 403);
       studiedSimulation = true;
     } else if (feature === "SIMULATION_GENERATION" && rules.tier === "FREE" && (input as { mode?: string }).mode !== "DIAGNOSTIC") {
       return safeError("PLAN_FEATURE_LOCKED", 403);
