@@ -99,11 +99,13 @@ fun SyncBanner() {
 @Composable
 private fun SyncCard(done: Boolean) {
     val loop = rememberInfiniteTransition(label = "sync")
-    val t by loop.animateFloat(0f, 1f, infiniteRepeatable(tween(1800, easing = LinearEasing)), label = "folhas")
-    val dots by loop.animateFloat(0f, 3f, infiniteRepeatable(tween(1200, easing = LinearEasing)), label = "pontos")
-    val glow by loop.animateFloat(0.35f, 0.9f, infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "brilho")
+    // Os valores do laço são lidos só no desenho (e os pontinhos num texto à parte): o cartão inteiro
+    // e o Folha não recompõem a cada quadro.
+    val tState = loop.animateFloat(0f, 1f, infiniteRepeatable(tween(1800, easing = LinearEasing)), label = "folhas")
+    val dotsState = loop.animateFloat(0f, 3f, infiniteRepeatable(tween(1200, easing = LinearEasing)), label = "pontos")
+    val glowState = loop.animateFloat(0.35f, 0.9f, infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "brilho")
     // a folha chega ao Folha no meio de cada viagem: o "engolir" acompanha
-    val gulp = if (done) 0f else (1f - kotlin.math.abs(((t * 2f) % 1f) - 0.5f) * 4f).coerceIn(0f, 1f)
+    val gulpOf = { val t = tState.value; if (done) 0f else (1f - kotlin.math.abs(((t * 2f) % 1f) - 0.5f) * 4f).coerceIn(0f, 1f) }
     Column(
         Modifier.padding(horizontal = 16.dp).widthIn(max = 380.dp).fillMaxWidth()
             .shadow(18.dp, RoundedCornerShape(24.dp), ambientColor = Ink2, spotColor = Ink2)
@@ -114,19 +116,16 @@ private fun SyncCard(done: Boolean) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(Modifier.fillMaxWidth().height(78.dp), contentAlignment = Alignment.Center) {
-            Canvas(Modifier.fillMaxSize()) { drawRelay(t, glow, done) }
+            Canvas(Modifier.fillMaxSize()) { drawRelay(tState.value, glowState.value, done) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 BrandIcon(Glyph.Phone, Modifier.padding(start = 4.dp), size = 38.dp)
-                Folha(60.dp, mood = if (done) FolhaMood.PROUD else FolhaMood.TALKING, gulp = gulp, enter = false)
+                Folha(60.dp, mood = if (done) FolhaMood.PROUD else FolhaMood.TALKING, gulpOf = gulpOf, enter = false)
                 BrandIcon(Glyph.Laptop, Modifier.padding(end = 4.dp), size = 40.dp)
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (done) BrandIcon(Glyph.Check, size = 20.dp)
-            Text(
-                if (done) " Tudo em dia" else "Sincronizando seus estudos" + ".".repeat(dots.toInt() + 1).padEnd(3, ' '),
-                color = Color.White, fontWeight = FontWeight.Black, fontSize = 15.sp,
-            )
+            SyncTitle(done) { dotsState.value.toInt() }
         }
         Text(
             if (done) "o que você fez no site já está aqui" else "o Folha está trazendo o que você fez no site",
@@ -179,4 +178,14 @@ private fun DrawScope.drawSheet(at: Offset, angle: Float, alpha: Float) {
         }
         drawLine(Color(0xFFFF7A8A).copy(alpha = alpha), Offset(topLeft.x + 4.dp.toPx(), topLeft.y + 1.dp.toPx()), Offset(topLeft.x + 4.dp.toPx(), topLeft.y + h - 1.dp.toPx()), 1.dp.toPx())
     }
+}
+
+/** O título com os pontinhos andando: só este texto recompõe, e só quando o número de pontos muda. */
+@Composable
+private fun SyncTitle(done: Boolean, dots: () -> Int) {
+    val n by remember { androidx.compose.runtime.derivedStateOf { dots() } }
+    Text(
+        if (done) " Tudo em dia" else "Sincronizando seus estudos" + ".".repeat(n + 1).padEnd(3, ' '),
+        color = Color.White, fontWeight = FontWeight.Black, fontSize = 15.sp,
+    )
 }

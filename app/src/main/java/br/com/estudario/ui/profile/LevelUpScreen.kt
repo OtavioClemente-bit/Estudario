@@ -441,8 +441,12 @@ private fun SleepZ(size: androidx.compose.ui.unit.Dp) {
     Box(Modifier.size(size)) {
         Box(Modifier.align(Alignment.TopEnd).padding(end = size * 0.12f, top = size * 0.14f)) {
             listOf(0f, 0.33f, 0.66f).forEachIndexed { i, off ->
-                val p = (z + off) % 1f
-                Text("z", Modifier.offset(x = (i * 12).dp + (10f * p).dp, y = (-i * 16).dp - (14f * p).dp).graphicsLayer { alpha = if (p < 0.3f) p / 0.3f else 1f - p },
+                Text("z", Modifier.graphicsLayer {
+                    // tudo lido dentro da camada: o "z" sobe sem recompor o texto a cada quadro
+                    val p = (z + off) % 1f
+                    translationX = ((i * 12).dp + (10f * p).dp).toPx(); translationY = ((-i * 16).dp - (14f * p).dp).toPx()
+                    alpha = if (p < 0.3f) p / 0.3f else 1f - p
+                },
                     color = Color.White.copy(alpha = 0.7f), fontWeight = FontWeight.Black, fontSize = (16 + i * 6).sp)
             }
         }

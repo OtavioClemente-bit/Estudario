@@ -23,7 +23,8 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
@@ -46,19 +47,23 @@ import kotlinx.coroutines.launch
  * sistema (escala de animação 0) vê os personagens parados.
  */
 internal object TurmaPress {
-    private val slots = HashMap<Any, Rect>()
+    // Guarda só a posição viva (LayoutCoordinates) e mede na hora do toque: medir a cada passada de
+    // layout custava em toda rolagem, para cada personagem da lista.
+    private val slots = HashMap<Any, LayoutCoordinates>()
     var event by mutableStateOf<Pair<Any, Int>?>(null)
         private set
     private var serial = 0
 
-    fun place(key: Any, rect: Rect) { slots[key] = rect }
+    fun place(key: Any, coords: LayoutCoordinates) { slots[key] = coords }
     fun remove(key: Any) { slots.remove(key) }
 
     /** [band]: meia altura extra da linha; [reach]: quanto à direita do personagem o toque ainda conta. */
     fun press(p: Offset, band: Float, reach: Float) {
         var best: Any? = null
         var bestScore = Float.MAX_VALUE
-        for ((key, r) in slots) {
+        for ((key, c) in slots) {
+            if (!c.isAttached) continue
+            val r = c.boundsInWindow()
             if (r.width <= 0f) continue
             val dy = abs(p.y - r.center.y)
             if (dy > max(r.height / 2f + band, band * 1.6f)) continue
@@ -128,7 +133,7 @@ internal fun Modifier.turmaMotion(
     this
         .then(touch)
         .then(if (directTouch) Modifier.semantics { contentDescription = onClickLabel ?: glyph.name } else Modifier)
-        .onGloballyPositioned { if (!directTouch) TurmaPress.place(key, it.boundsInWindow()) }
+        .then(if (directTouch) Modifier else Modifier.onPlaced { TurmaPress.place(key, it) })
         .graphicsLayer {
             val m = motionOf(anim, t.value)
             val side = size.minDimension

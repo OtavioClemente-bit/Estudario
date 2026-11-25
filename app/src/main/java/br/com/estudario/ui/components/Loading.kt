@@ -26,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -91,18 +92,16 @@ fun SkeletonBlock(modifier: Modifier = Modifier, height: Int = 16, cornerRadius:
     )
     val base = MaterialTheme.colorScheme.surfaceVariant
     val highlight = MaterialTheme.colorScheme.surface
-    val start = progress * 900f - 450f
+    val colors = androidx.compose.runtime.remember(base, highlight) { listOf(base, highlight, base) }
+    // O brilho é lido só na hora de desenhar: os esqueletos de uma lista não recompõem a cada quadro.
     Box(
         modifier
             .height(height.dp)
             .clip(RoundedCornerShape(cornerRadius.dp))
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(base, highlight, base),
-                    start = Offset(start, 0f),
-                    end = Offset(start + 450f, 0f),
-                ),
-            ),
+            .drawBehind {
+                val start = progress * 900f - 450f
+                drawRect(Brush.linearGradient(colors = colors, start = Offset(start, 0f), end = Offset(start + 450f, 0f)))
+            },
     )
 }
 

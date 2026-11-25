@@ -50,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -198,14 +199,19 @@ private fun WelcomeHero() {
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
             // O mesmo livro da abertura: monta-se ao chegar e fica flutuando, com os anéis pulsando.
-            val pulse by androidx.compose.animation.core.rememberInfiniteTransition(label = "welcome-rings").animateFloat(
+            val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "welcome-rings").animateFloat(
                 0f, 1f,
                 androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(2400), androidx.compose.animation.core.RepeatMode.Reverse),
                 label = "pulse",
             )
             Box(contentAlignment = Alignment.Center) {
-                Box(Modifier.size(176.dp + 10.dp * pulse).clip(CircleShape).background(Color.White.copy(alpha = 0.05f + 0.03f * pulse)))
-                Box(Modifier.size(140.dp + 6.dp * pulse).clip(CircleShape).background(Color.White.copy(alpha = 0.10f)))
+                // Os anéis pulsam só no desenho, numa caixa de tamanho fixo (o maior anel): antes o tamanho
+                // mudava a cada quadro, recompondo e remedindo a tela toda (e o Folha) junto.
+                Box(Modifier.size(186.dp).drawBehind {
+                    val p = pulse.value
+                    drawCircle(Color.White.copy(alpha = 0.05f + 0.03f * p), radius = (88.dp + 5.dp * p).toPx())
+                    drawCircle(Color.White.copy(alpha = 0.10f), radius = (70.dp + 3.dp * p).toPx())
+                })
                 br.com.estudario.ui.assistant.Folha(150.dp, mood = br.com.estudario.ui.assistant.FolhaMood.WAVE)
             }
             Text(

@@ -327,9 +327,15 @@ fun Folha(
     leaving: Boolean = false,
     /** A tela já tem um balão de conversa com ele: a fala do toque vai para lá (sem balão em cima dele). */
     onQuip: ((String) -> Unit)? = null,
+    /**
+     * Como [gulp], mas lido só na hora de desenhar. Use quando o valor muda a cada quadro (cenas de
+     * processamento): passar o número direto recompunha o Folha e a tela em volta a cada quadro.
+     */
+    gulpOf: (() -> Float)? = null,
 ) {
     val sim = remember { FolhaSim().also { it.enterPending = enter } }
     var frame by remember { mutableLongStateOf(0L) }
+    val fadePaint = remember { androidx.compose.ui.graphics.Paint() }
     sim.small = size < SMALL
     // grande e tocável: fala, pensa, sente carinho e cumprimenta quando você volta
     sim.chatty = onClick != null && size >= 80.dp && style?.noScene != true
@@ -396,10 +402,11 @@ fun Folha(
             .then(pet),
     ) {
         frame.let { }   // redesenha a cada quadro
-        val f = sim.snapshot(gulp, resolveLook(style))
+        val f = sim.snapshot(gulpOf?.invoke() ?: gulp, sim.look(style))
         if (f.fade >= 0.999f && f.rise == 0f) drawFolha(f)
         else translate(0f, -f.rise * this.size.height) {
-            drawContext.canvas.saveLayer(Rect(-this.size.width, -this.size.height, this.size.width * 2, this.size.height * 2), androidx.compose.ui.graphics.Paint().apply { alpha = f.fade })
+            fadePaint.alpha = f.fade
+            drawContext.canvas.saveLayer(Rect(-this.size.width, -this.size.height, this.size.width * 2, this.size.height * 2), fadePaint)
             drawFolha(f)
             drawContext.canvas.restore()
         }
@@ -672,6 +679,15 @@ private fun mouthFor(ch: Char?): Pair<Float, Float> {
 
 /** O estado vivo do Folha: molas, piscadas, olhar, manias, toques e fala. */
 private class FolhaSim {
+    // A roupa resolvida (cores, peças, hora do dia) é refeita no máximo uma vez por segundo, não a cada
+    // quadro: antes cada quadro criava um Calendar, um mapa de peças e um Look novo.
+    private var lookCache: Look? = null; private var lookStyle: FolhaStyle? = null; private var lookAt = 0L
+    fun look(style: FolhaStyle?): Look {
+        val now = android.os.SystemClock.uptimeMillis()
+        val c = lookCache
+        if (c != null && style == lookStyle && now - lookAt < 1000L) return c
+        return resolveLook(style).also { lookCache = it; lookStyle = style; lookAt = now }
+    }
     var small = false
     private var mood = FolhaMood.IDLE
     private var shown = FolhaMood.IDLE

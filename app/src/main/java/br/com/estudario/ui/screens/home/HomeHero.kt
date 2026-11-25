@@ -3,6 +3,7 @@ package br.com.estudario.ui.screens.home
 import br.com.estudario.ui.brand.cutPanel
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.Spacer
@@ -259,15 +260,12 @@ private fun MissionStep(index: Int, item: MissionItemUi, isNow: Boolean, isOpen:
         br.com.estudario.domain.planner.PlanTaskType.FLASHCARDS, br.com.estudario.domain.planner.PlanTaskType.ACTIVE_RECALL -> androidx.compose.ui.graphics.Color(0xFFFFC94D)
         else -> androidx.compose.ui.graphics.Color(0xFFFF8A3D)
     }
-    val pulse by androidx.compose.animation.core.rememberInfiniteTransition(label = "passo").animateFloat(
-        0.35f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1_100), androidx.compose.animation.core.RepeatMode.Reverse), label = "passo-pulso",
-    )
     Row(verticalAlignment = Alignment.Top) {
         // O número do passo: ✓ quando feito, aceso e pulsando quando é a vez.
         Box(
             Modifier.padding(top = 8.dp).size(34.dp).clip(CircleShape)
                 .background(if (item.done) g.mint else if (isNow) color else g.bg2)
-                .border(2.dp, if (isNow) androidx.compose.ui.graphics.Color.White.copy(alpha = pulse) else if (item.done) g.mint else br.com.estudario.ui.profile.Game.tint(0.18f), CircleShape),
+                .then(if (isNow) Modifier.pulsingRing() else Modifier.border(2.dp, if (item.done) g.mint else br.com.estudario.ui.profile.Game.tint(0.18f), CircleShape)),
             contentAlignment = Alignment.Center,
         ) {
             if (item.done) Text("✓", fontWeight = FontWeight.Black, color = androidx.compose.ui.graphics.Color(0xFF14113A))
@@ -432,5 +430,21 @@ private fun missionLine(done: Int, total: Int, next: MissionItemUi?): String {
             "Isso aí! Agora vem ${nextName ?: "o próximo passo"}.",
             "Você está no ritmo: faltam ${total - done}. Um de cada vez.",
         )
+    }
+}
+
+/**
+ * O anel branco que pulsa no passo da vez. Só o passo da vez tem o relógio (antes cada passo da lista
+ * criava o seu), e o brilho é lido na hora de desenhar: o cartão do passo não recompõe a cada quadro.
+ */
+@Composable
+private fun Modifier.pulsingRing(): Modifier {
+    val pulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "passo").animateFloat(
+        0.35f, 1f, androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(1_100), androidx.compose.animation.core.RepeatMode.Reverse), label = "passo-pulso",
+    )
+    return this.drawWithContent {
+        drawContent()
+        val w = 2.dp.toPx()
+        drawCircle(androidx.compose.ui.graphics.Color.White.copy(alpha = pulse.value), radius = size.minDimension / 2f - w / 2f, style = androidx.compose.ui.graphics.drawscope.Stroke(w))
     }
 }

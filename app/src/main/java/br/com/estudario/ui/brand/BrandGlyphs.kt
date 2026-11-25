@@ -67,13 +67,16 @@ private fun DrawScope.drawPrim(p: Turma.Prim, muted: Boolean) {
     translate(0f, p.dy) {
         p.fill?.let { drawPath(p.path, Turma.tone(it, muted), alpha = p.alpha) }
         p.stroke?.let {
-            drawPath(p.path, Turma.tone(it, muted), alpha = p.alpha, style = Stroke(p.width, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            drawPath(p.path, Turma.tone(it, muted), alpha = p.alpha, style = p.strokeStyle)
         }
     }
 }
 
 internal object Turma {
-    class Prim(val path: Path, val fill: Color?, val stroke: Color?, val width: Float, val alpha: Float, val dy: Float)
+    class Prim(val path: Path, val fill: Color?, val stroke: Color?, val width: Float, val alpha: Float, val dy: Float) {
+        /** O traço é criado uma vez (antes, um Stroke novo a cada desenho de cada pedaço de cada ícone). */
+        val strokeStyle = Stroke(width, cap = StrokeCap.Round, join = StrokeJoin.Round)
+    }
     class Art(val anim: String, val body: List<Prim>, val face: List<Prim>, val faceSmall: List<Prim>)
 
     var viewBox = floatArrayOf(-8f, -10f, 116f, 116f)

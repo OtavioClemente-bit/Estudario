@@ -45,6 +45,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -74,7 +75,8 @@ data class FocusTimerActions(
 @Composable
 private fun StatusDot(session: FocusSessionPrefs, color: Color, size: Int = 8) {
     val pulse by rememberInfiniteTransition(label = "focus-dot").animateFloat(0.35f, 1f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "dot")
-    Box(Modifier.size(size.dp).alpha(if (session.paused) 1f else pulse).background(color, if (session.paused) RoundedCornerShape(2.dp) else CircleShape))
+    // o pulso só muda a camada (graphicsLayer): não recompõe a barra do cronômetro a cada quadro
+    Box(Modifier.size(size.dp).graphicsLayer { alpha = if (session.paused) 1f else pulse }.background(color, if (session.paused) RoundedCornerShape(2.dp) else CircleShape))
 }
 
 /**

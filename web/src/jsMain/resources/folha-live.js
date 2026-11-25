@@ -31,7 +31,10 @@
   // Canvas desenhado pelo processador, não pela placa de vídeo. O Chrome passa para a placa os canvas
   // maiores que ~128 px, e em algumas placas/drivers eles saíam como um quadrado preto (o Folha pequeno
   // seguia normal). Pedir "willReadFrequently" no primeiro getContext deixa o canvas na memória comum.
-  const cpuCanvas = () => { const c = document.createElement("canvas"); try { c.getContext("2d", { willReadFrequently: true }); } catch (e) { /* navegador antigo */ } return c; };
+  // Em celular e tablet (toque, sem mouse) o defeito não aparece e o canvas pelo processador era o que mais
+  // pesava: cada quadro rasterizado na CPU e copiado de novo para a tela. Lá ele fica na placa de vídeo.
+  const touchOnly = !!(window.matchMedia && window.matchMedia("(pointer: coarse) and (hover: none)").matches);
+  const cpuCanvas = () => { const c = document.createElement("canvas"); if (!touchOnly) { try { c.getContext("2d", { willReadFrequently: true }); } catch (e) { /* navegador antigo */ } } return c; };
 
   // ------------------------------------------------------------------ armário (FolhaWardrobe.kt) e contexto do dia
   // Capas: degradê (claro, meio, escuro), a sombra de baixo, o metal das cantoneiras e a textura. Os braços
@@ -5145,7 +5148,22 @@
   let rafId = 0;
   // Um Folha que dá erro ao desenhar não pode parar os outros: antes o laço inteiro morria e todos
   // ficavam congelados (ou em branco) até alguém tocar num deles.
-  function tick(now) { rafId = 0; for (const el of live) { try { el._frame(now); } catch (e) { live.delete(el); } } if (live.size) rafId = requestAnimationFrame(tick); }
+  // Aparelho apertado: se os quadros da página vêm demorando (média > 22 ms por ~1 s), todo Folha passa a
+  // desenhar no máximo 30 vezes por segundo (20 se for pequeno), também nos gestos. Um ritmo firme de 30
+  // parece mais liso que 60 engasgando. Volta ao normal quando a média cai abaixo de 15 ms.
+  let tickLast = 0, frameAvg = 16.7, slowSince = 0;
+  const PERF = { tight: false };
+  function tick(now) {
+    rafId = 0;
+    const d = tickLast ? now - tickLast : 16.7; tickLast = now;
+    if (d < 250) {
+      frameAvg += (d - frameAvg) * 0.08;
+      if (frameAvg > 22) { if (!slowSince) slowSince = now; else if (now - slowSince > 1000) PERF.tight = true; }
+      else { slowSince = 0; if (frameAvg < 15) PERF.tight = false; }
+    }
+    for (const el of live) { try { el._frame(now); } catch (e) { live.delete(el); } }
+    if (live.size) rafId = requestAnimationFrame(tick); else tickLast = 0;
+  }
   function wake() { if (!rafId && live.size) rafId = requestAnimationFrame(tick); }
 
   // Reações ao toque (cada toque, uma diferente) e quanto duram.
@@ -5355,6 +5373,8 @@
       if (cs.display === "inline") this.style.display = "inline-block";
       const c = this._canvas.style, M = MARGIN;
       c.position = "absolute"; c.left = c.top = -M + "%"; c.width = c.height = 100 + 2 * M + "%"; c.pointerEvents = "none";
+      // camada própria: redesenhar o Folha não obriga o navegador a repintar a página inteira em volta
+      c.willChange = "transform";
       const dpr = Math.min(window.devicePixelRatio || 1, 2.5), full = size * (1 + 2 * M / 100);
       this._canvas.width = Math.round(full * dpr); this._canvas.height = Math.round(full * dpr); this._px = full * dpr;
     }
@@ -5535,7 +5555,8 @@
     }
     _frame(now) {
       if (!this._visible || !this._canvas) return;
-      const cap = reduceMotion.matches ? 0 : this._fpsCap(now);
+      let cap = reduceMotion.matches ? 0 : this._fpsCap(now);
+      if (PERF.tight && !reduceMotion.matches) cap = cap ? Math.min(cap, 30) : (this._small ? 20 : 30);
       if (cap && this._lastDraw && now - this._lastDraw < 1000 / cap - 4) return;
       this._lastDraw = now;
       const g = this._canvas.getContext("2d");

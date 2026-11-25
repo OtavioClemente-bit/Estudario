@@ -40,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -97,18 +98,22 @@ fun QuestionHud(
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             // a barra: a parte cheia corre por baixo das casas, com o brilho de barra de XP
             val fill by animateFloatAsState(if (total == 0) 0f else results.size / total.toFloat(), tween(550), label = "hud-fill")
-            val blink by rememberInfiniteTransition(label = "hud-now").animateFloat(0.45f, 1f, infiniteRepeatable(tween(550), RepeatMode.Reverse), label = "hud-now-a")
+            // a casa da vez pisca lendo o brilho só no desenho: a barra inteira não recompõe a cada quadro
+            val blink = rememberInfiniteTransition(label = "hud-now").animateFloat(0.45f, 1f, infiniteRepeatable(tween(550), RepeatMode.Reverse), label = "hud-now-a")
             Box(Modifier.weight(1f).height(18.dp).clip(RoundedCornerShape(50)).background(scheme.surfaceVariant)) {
                 Box(Modifier.fillMaxWidth(fill).fillMaxHeight().clip(RoundedCornerShape(50)).background(Brush.horizontalGradient(listOf(Color(0xFF6158F0), Color(0xFF7EE0B8), Now))).background(Color.White.copy(alpha = 0.55f)))
                 Row(Modifier.fillMaxWidth().fillMaxHeight().padding(3.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                     repeat(total) { i ->
                         val cell = when {
                             i < results.size -> if (results[i]) Brush.verticalGradient(listOf(Color(0xFF5BE6B4), OkDark)) else Brush.verticalGradient(listOf(Color(0xFFFF8FA3), NoDark))
-                            i == index -> Brush.verticalGradient(listOf(Now.copy(alpha = blink), Now.copy(alpha = blink * 0.8f)))
+                            i == index -> null
                             else -> Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.18f), Color.White.copy(alpha = 0.12f)))
                         }
                         val pop by animateFloatAsState(if (i < results.size) 1f else 0.85f, spring(dampingRatio = 0.4f, stiffness = 500f), label = "hud-cell")
-                        Box(Modifier.weight(1f).fillMaxHeight().scale(1f, pop).clip(RoundedCornerShape(50)).background(cell))
+                        Box(Modifier.weight(1f).fillMaxHeight().scale(1f, pop).clip(RoundedCornerShape(50)).then(
+                            if (cell != null) Modifier.background(cell)
+                            else Modifier.drawBehind { val b = blink.value; drawRect(Brush.verticalGradient(listOf(Now.copy(alpha = b), Now.copy(alpha = b * 0.8f)))) },
+                        ))
                     }
                 }
             }

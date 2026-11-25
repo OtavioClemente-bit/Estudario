@@ -202,7 +202,8 @@ private fun FloatingGlow() {
 private fun Modifier.floating(phase: Int, amplitude: Dp = 6.dp): Modifier {
     val t = rememberInfiniteTransition(label = "float$phase")
     val y by t.animateFloat(-1f, 1f, infiniteRepeatable(tween(2400 + phase * 300, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "y")
-    return this.offset(y = amplitude * y)
+    // lido na fase de layout (offset com lambda): o cartão flutua sem recompor a cena inteira
+    return this.offset { androidx.compose.ui.unit.IntOffset(0, (amplitude * y).roundToPx()) }
 }
 
 /** Entra na cena (escala e opacidade) quando a página fica ativa, um elemento depois do outro. */

@@ -200,8 +200,8 @@ private fun MedalDetailDialog(item: BadgeProgress, all: List<BadgeProgress>, onP
     val scope = rememberCoroutineScope()
     val spin = remember(b.id) { Animatable(0f) }
     val wave = rememberInfiniteTransition(label = "medalha")
-    val sway by wave.animateFloat(-24f, 24f, infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "balanço")
-    val shine by wave.animateFloat(-0.6f, 1.6f, infiniteRepeatable(tween(3400, easing = LinearEasing)), label = "brilho")
+    val sway = wave.animateFloat(-24f, 24f, infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "balanço")
+    val shine = wave.animateFloat(-0.6f, 1.6f, infiniteRepeatable(tween(3400, easing = LinearEasing)), label = "brilho")
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Box(Modifier.fillMaxSize().clickable(remember { MutableInteractionSource() }, indication = null, onClick = onClose), contentAlignment = Alignment.Center) {
             Column(
@@ -212,9 +212,9 @@ private fun MedalDetailDialog(item: BadgeProgress, all: List<BadgeProgress>, onP
             ) {
                 Box(Modifier.fillMaxWidth()) { IconButton(onClick = onClose, Modifier.align(Alignment.TopEnd)) { Icon(Icons.Outlined.Close, "Fechar") } }
                 // a medalha: balanço + giro do dedo
-                val angle = (if (item.earned) sway else 0f) + spin.value
-                val norm = ((angle % 360f) + 360f) % 360f
-                val back = norm in 90f..270f
+                // O ângulo é lido na camada; a composição só acorda quando a medalha troca de face (frente/verso).
+                fun angleNow() = (if (item.earned) sway.value else 0f) + spin.value
+                val back by remember(item.earned) { androidx.compose.runtime.derivedStateOf { (((angleNow() % 360f) + 360f) % 360f) in 90f..270f } }
                 Box(
                     Modifier.size(220.dp)
                         .pointerInput(b.id) {
@@ -228,9 +228,9 @@ private fun MedalDetailDialog(item: BadgeProgress, all: List<BadgeProgress>, onP
                     contentAlignment = Alignment.Center,
                 ) {
                     if (item.earned) MedalGlow(b.tier)
-                    Box(Modifier.graphicsLayer { rotationY = angle; cameraDistance = 14f * density }, contentAlignment = Alignment.Center) {
+                    Box(Modifier.graphicsLayer { rotationY = angleNow(); cameraDistance = 14f * density }, contentAlignment = Alignment.Center) {
                         MedalArt(if (back) b.copy(id = "verso") else b, item.earned, 190.dp)
-                        if (item.earned && !back) MedalShine(shine, b.tier, Modifier.size(190.dp))
+                        if (item.earned && !back) MedalShine({ shine.value }, b.tier, Modifier.size(190.dp))
                     }
                 }
                 Text(
@@ -309,8 +309,9 @@ internal fun RaysGlow(c: Color) {
 
 /** O brilho passando na diagonal, só dentro da moeda. */
 @Composable
-private fun MedalShine(u: Float, tier: Int, modifier: Modifier) {
+private fun MedalShine(shine: () -> Float, tier: Int, modifier: Modifier) {
     Canvas(modifier) {
+        val u = shine()   // lido no desenho: o brilho corre sem recompor o diálogo
         val r = size.minDimension / 2f * when { tier >= 5 -> 0.5f; tier >= 3 -> 0.6f; else -> 0.76f }
         clipPath(Path().apply { addOval(Rect(center, r)) }) {
             val x = center.x - r * 1.6f + u * r * 3.2f

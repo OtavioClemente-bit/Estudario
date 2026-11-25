@@ -49,6 +49,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
@@ -287,12 +288,17 @@ internal fun NoteSurface(
             } else Modifier)
             .then(if (contentDescription != null) Modifier.semantics { this.contentDescription = contentDescription } else Modifier)
             .clickable(interactionSource = src, indication = null, enabled = enabled, role = Role.Button, onClick = click)
-            .drawBehind {
-                drawNote(
-                    // Sem desenho da ação: folha lisa, sem faixa nem furos (as bolinhas poluíam a tela).
-                    pal = pal, pen = pen, back = back, hole = hole, rail = if (showRail) m.rail.toPx() else 0f, holes = 0,
-                    press = press, fold = fold, sweep = sweep.value, stamp = stamp.value, ruled = false,
-                )
+            // O contorno da folha e o brilho são montados uma vez por tamanho (drawWithCache); a mola do
+            // toque e o carimbo só leem o valor na hora de desenhar, sem recompor o botão nem criar Path novo.
+            .drawWithCache {
+                val shapes = noteShapes(fold)
+                onDrawBehind {
+                    drawNote(
+                        // Sem desenho da ação: folha lisa, sem faixa nem furos (as bolinhas poluíam a tela).
+                        pal = pal, pen = pen, back = back, hole = hole, rail = if (showRail) m.rail.toPx() else 0f, holes = 0,
+                        press = press, fold = fold, sweep = sweep.value, stamp = stamp.value, ruled = false, shapes = shapes,
+                    )
+                }
             },
         propagateMinConstraints = true,
     ) {
@@ -353,10 +359,29 @@ private fun pageShape(w: Float, h: Float, small: Float, big: Float, fold: Float)
     return Path().apply { op(p, cut, PathOperation.Difference) }
 }
 
+/** O que não muda entre quadros do botão (para o mesmo tamanho): os contornos e o brilho de cima. */
+private class NoteShapes(val base: Path, val page: Path, val gloss: Brush, val stroke: Stroke)
+
+private fun androidx.compose.ui.draw.CacheDrawScope.noteShapes(fold: Float, small: Float = 6.dp.toPx(), big: Float = 20.dp.toPx()): NoteShapes? {
+    val w = size.width - BackX.toPx()
+    val h = size.height - BackY.toPx()
+    if (w <= 0f || h <= 0f) return null
+    val bigR = minOf(big, h / 2f)
+    val smallR = minOf(small, h / 2f)
+    val base = pageShape(w, h, smallR, bigR, 0f)
+    val f = 20.dp.toPx() * fold
+    return NoteShapes(
+        base = base,
+        page = if (f > 0.5f) pageShape(w, h, smallR, bigR, f) else base,
+        gloss = Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.24f), Color.Transparent), 0f, h * 0.5f),
+        stroke = Stroke(2.5.dp.toPx(), join = StrokeJoin.Round),
+    )
+}
+
 private fun DrawScope.drawNote(
     pal: NotePalette, pen: Color, back: Color, hole: Color, rail: Float, holes: Int,
     press: Float, fold: Float, sweep: Float, stamp: Float, ruled: Boolean,
-    small: Float = 6.dp.toPx(), big: Float = 20.dp.toPx(),
+    small: Float = 6.dp.toPx(), big: Float = 20.dp.toPx(), shapes: NoteShapes? = null,
 ) {
     val w = size.width - BackX.toPx()
     val h = size.height - BackY.toPx()
@@ -364,8 +389,9 @@ private fun DrawScope.drawNote(
     val stroke = 2.5.dp.toPx()
     val bigR = minOf(big, h / 2f)
     val smallR = minOf(small, h / 2f)
+    val penStroke = shapes?.stroke ?: Stroke(stroke, join = StrokeJoin.Round)
     // 1. a folha de baixo
-    val base = pageShape(w, h, smallR, bigR, 0f)
+    val base = shapes?.base ?: pageShape(w, h, smallR, bigR, 0f)
     // Deslocamento fixo e pequeno, sem girar: girar fazia uma cunha enorme nos botões largos.
     val bx = (4f + (1f - 4f) * press).dp.toPx()
     val by = (4f + (1f - 4f) * press).dp.toPx()
@@ -373,7 +399,7 @@ private fun DrawScope.drawNote(
     translate(bx, by) {
         rotate(br, pivot = Offset(w / 2f, h / 2f)) {
             drawPath(base, back)
-            drawPath(base, pen, style = Stroke(stroke, join = StrokeJoin.Round))
+            drawPath(base, pen, style = penStroke)
         }
     }
     // 2. a folha
@@ -381,7 +407,7 @@ private fun DrawScope.drawNote(
     val dy = 4.dp.toPx() * press
     val f = 20.dp.toPx() * fold
     translate(dx, dy) {
-        val page = pageShape(w, h, smallR, bigR, f)
+        val page = shapes?.page ?: pageShape(w, h, smallR, bigR, f)
         clipPath(page) {
             drawRect(pal.face)
             if (rail > 0f) drawRect(pal.strip, size = Size(rail, h))
@@ -391,7 +417,7 @@ private fun DrawScope.drawNote(
                 val line = 1.dp.toPx()
                 while (y < h) { drawRect(pal.rule, Offset(rail, y), Size(w - rail, line)); y += step }
             }
-            drawRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.24f), Color.Transparent), 0f, h * 0.5f), size = Size(w, h * 0.5f))
+            drawRect(shapes?.gloss ?: Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.24f), Color.Transparent), 0f, h * 0.5f), size = Size(w, h * 0.5f))
             if (sweep >= 0f) {
                 val band = w * 0.28f
                 val x = -band + (w + band * 2f) * sweep
@@ -403,7 +429,7 @@ private fun DrawScope.drawNote(
             }
             if (rail > 0f) drawRect(pal.margin, Offset(rail - 1.5.dp.toPx(), 0f), Size(3.dp.toPx(), h))
         }
-        drawPath(page, pen, style = Stroke(stroke, join = StrokeJoin.Round))
+        drawPath(page, pen, style = penStroke)
         if (f > 0.5f) {
             val flap = Path().apply { moveTo(w - f, h); lineTo(w, h - f); lineTo(w - f, h - f); close() }
             drawPath(flap, pal.under)
