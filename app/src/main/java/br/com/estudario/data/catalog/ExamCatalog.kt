@@ -313,12 +313,18 @@ class ExamCatalogRepository(
      * Edital do catálogo de onde o concurso veio: o id gravado na escolha ([linked]) ou, para
      * concursos montados antes disso, o edital com o mesmo nome ("PF 2025" ou "PF 2025 · Agente").
      */
-    suspend fun catalogIdFor(competitionName: String, linked: String?): String? {
+    suspend fun catalogIdFor(competitionName: String, linked: String?, subjectNames: Set<String> = emptySet()): String? {
         linked?.let { return it }
         val list = runCatching { entries() }.getOrNull() ?: cached() ?: return null
         val name = ExamCatalogSearch.normalize(competitionName)
+        val sameShort = list.filter { ExamCatalogSearch.normalize(it.shortName) == name }
+        // 25/11: "TRT 3ª Região" é o nome curto de ~40 cargos; sem vínculo gravado nenhum simulado aparecia.
+        // Entre os de mesmo nome curto, vale o de mesmas matérias.
         return list.firstOrNull { ExamCatalogSearch.normalize(it.title) == name }?.id
-            ?: list.filter { ExamCatalogSearch.normalize(it.shortName) == name }.singleOrNull()?.id
+            ?: sameShort.singleOrNull()?.id
+            ?: sameShort.filter { it.subjectCount == 0 || it.subjectCount == subjectNames.size }.take(60).firstOrNull { e ->
+                subjectNames.isNotEmpty() && runCatching { subjects(e.id) }.getOrNull()?.mapTo(hashSetOf()) { it.name.lowercase() } == subjectNames
+            }?.id
     }
 
     private fun readCache(): List<ExamCatalogEntry>? = runCatching {

@@ -87,7 +87,14 @@ fun SimulationsScreen() {
     var discarding by remember { mutableStateOf<Simulation?>(null) }
     // As provas do edital (prova oficial + Simuladões do mês); null enquanto busca.
     var exams by remember(competition.id) { mutableStateOf<List<br.com.estudario.web.data.OfficialSimulation>?>(null) }
-    LaunchedEffect(competition.id, competition.name) { exams = br.com.estudario.web.data.Catalog.editalSimulations(competition.name) }
+    LaunchedEffect(competition.id, competition.name) {
+        val data = Store.data
+        exams = br.com.estudario.web.data.Catalog.editalSimulations(
+            competition.name,
+            br.com.estudario.web.data.Catalog.catalogIdOf(data, competition.id),
+            data.subjects.filter { it.competitionId == competition.id }.mapTo(hashSetOf()) { it.name.lowercase() },
+        )
+    }
     var officialError by remember { mutableStateOf<String?>(null) }
     // No Grátis o simulado vem do plano: na aba, montar prova abre a oferta (o histórico continua aberto).
     val free = br.com.estudario.web.data.LibraryGaps.free()

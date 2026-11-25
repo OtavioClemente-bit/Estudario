@@ -122,6 +122,10 @@ object Catalog {
     }
 
     /** A banca do edital do catálogo de onde o concurso veio (achado pelo nome), ou null. */
+    /** O edital do catálogo gravado no concurso (quando ele veio do catálogo). */
+    fun catalogIdOf(data: Snapshot, competitionId: Long): String? =
+        data.array(Keys.COMPETITIONS).mapNotNull { it as? JsonObject }.firstOrNull { (it["id"] as? JsonPrimitive)?.content?.toLongOrNull() == competitionId }?.str("catalogId")
+
     suspend fun boardFor(competitionName: String): String? = runCatching {
         // A banca de um edital antigo (TRT-3 2022 = FUMARC) não é a do próximo concurso: só vale a do
         // catálogo quando o edital é deste ano ou do anterior.
@@ -137,10 +141,17 @@ object Catalog {
      * "PF 2025" ou "PF 2025 · Agente"), em ordem: a prova oficial e depois os Simuladões do mês.
      * Lista vazia sem edital do catálogo, sem conta ou sem prova pronta.
      */
-    suspend fun editalSimulations(competitionName: String): List<OfficialSimulation> = runCatching {
+    suspend fun editalSimulations(competitionName: String, catalogId: String? = null, subjectNames: Set<String> = emptySet()): List<OfficialSimulation> = runCatching {
         val all = entries()
-        val entry = all.firstOrNull { it.title.equals(competitionName, true) }
-            ?: all.filter { it.shortName.equals(competitionName, true) }.singleOrNull()
+        // 25/11: "TRT 3ª Região" é o nome curto de ~40 cargos; com .singleOrNull() nenhum simulado aparecia. Agora:
+        // o edital gravado no concurso (catalogId); senão o título; senão, entre os de mesmo nome curto, o de mesmas matérias.
+        val sameShort = all.filter { it.shortName.equals(competitionName, true) }
+        val entry = catalogId?.let { id -> all.firstOrNull { it.id == id } }
+            ?: all.firstOrNull { it.title.equals(competitionName, true) }
+            ?: sameShort.singleOrNull()
+            ?: sameShort.filter { it.subjectCount == 0 || it.subjectCount == subjectNames.size }.take(60).firstOrNull { e ->
+                subjectNames.isNotEmpty() && runCatching { subjects(e.id) }.getOrNull()?.mapTo(hashSetOf()) { it.name.lowercase() } == subjectNames
+            }
             ?: return emptyList()
         val fields = "id,catalog_id,board,format,structure,number,item_count,questions"
         // As provas só saem com conta (o servidor não entrega sem login).

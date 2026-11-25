@@ -360,7 +360,9 @@ class SimulationService(
         val competition = appDao.competitionsOnce().firstOrNull { it.id == competitionId } ?: return@withContext emptyList()
         val catalog = ExamCatalogProvider.get(context)
         if (!catalog.isConfigured) return@withContext emptyList()
-        val catalogId = catalog.catalogIdFor(competition.name, CatalogLinks.get(context, competitionId)) ?: return@withContext emptyList()
+        val subjectNames = appDao.subjectsOnce().filter { it.competitionId == competitionId }.mapTo(hashSetOf()) { it.name.lowercase() }
+        val catalogId = catalog.catalogIdFor(competition.name, CatalogLinks.get(context, competitionId), subjectNames) ?: return@withContext emptyList()
+        CatalogLinks.save(context, competitionId, catalogId)
         val token = (context.applicationContext as? br.com.estudario.EstudarioApplication)?.supabaseAuthRepository?.accessToken()
         // Tudo fora da linha da tela: achar o edital no catálogo lê a lista dos 4 mil, e cada prova traz centenas de questões.
         runCatching { catalog.editalSimulations(catalogId, token) }.getOrDefault(emptyList())
