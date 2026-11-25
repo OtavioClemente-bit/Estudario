@@ -190,7 +190,7 @@ export interface SyllabusWorkerStore {
   libraryBoardList?(topicId: string): Promise<Array<{ boardNorm: string; questionCount: number }>>;
   recordQuestionDrops?(jobId: string, drops: QuestionDrop[]): Promise<void>;
   /** Plano efetivo da conta e quantas matérias a IA já escreveu para ela neste mês (as da biblioteca não contam). */
-  aiMaterialsThisMonth?(userId: string): Promise<{ tier: string; used: number }>;
+  aiMaterialsThisMonth?(userId: string, feature?: string): Promise<{ tier: string; used: number }>;
   /** Plano efetivo da conta ("FREE" se o pago venceu). Usado na trava que impede o Grátis de chamar a IA. */
   planTierOf?(userId: string): Promise<string>;
   /** Tokens de IA gastos nas últimas 24 horas, somando todas as contas (teto AI_DAILY_TOKEN_BUDGET). */
@@ -1459,14 +1459,14 @@ export class SupabaseSyllabusWorkerStore implements SyllabusWorkerStore {
     if (!response.ok) throw new Error("TOKENS_UNAVAILABLE");
     return Number(await response.json()) || 0;
   }
-  async aiMaterialsThisMonth(userId: string): Promise<{ tier: string; used: number }> {
+  async aiMaterialsThisMonth(userId: string, feature = "CONTENT_GENERATION"): Promise<{ tier: string; used: number }> {
     const user = encodeURIComponent(userId);
     const tier = await this.planTierOf(userId);
     // Início do mês no horário de Brasília (UTC−3).
     const now = new Date(Date.now() - 3 * 3_600_000);
     const since = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1, 3)).toISOString();
     const jobs = await this.rest(
-      `ai_jobs?select=id&user_id=eq.${user}&feature=eq.CONTENT_GENERATION&status=eq.SUCCEEDED` +
+      `ai_jobs?select=id&user_id=eq.${user}&feature=eq.${feature}&status=eq.SUCCEEDED` +
         `&model_version=neq.biblioteca&created_at=gte.${encodeURIComponent(since)}&limit=100`,
     );
     if (!jobs.ok) throw new Error("JOBS_UNAVAILABLE");

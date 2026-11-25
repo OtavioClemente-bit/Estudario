@@ -86,7 +86,15 @@ export const CONTENT_JOB_SPEC: AiJobSpec = {
     // tópico sem matéria pronta falha na hora com "em produção pela nossa equipe" (o app mostra isso para este
     // código), sem chamar a IA; o pedido já ficou registrado como falta da biblioteca.
     if (job.feature === "CONTENT_GENERATION" && Deno.env.get("CONTENT_AI_ENABLED") === "false") return "PLAN_AI_MATERIAL_LIMIT";
-    if (job.feature !== "CONTENT_GENERATION" || !dependencies.jobs.aiMaterialsThisMonth) return null;
+    if (!dependencies.jobs.aiMaterialsThisMonth) return null;
+    // 25/11 (dono): lote extra de questões escrito do zero também tem teto escondido por conta paga (padrão 15/mês).
+    if (job.feature === "QUESTION_BATCH") {
+      const batches = await dependencies.jobs.aiMaterialsThisMonth(job.userId, "QUESTION_BATCH");
+      if (batches.tier === "FREE") return null;
+      const batchCap = Number(Deno.env.get("PAID_AI_BATCHES_MONTHLY_CAP") ?? 15);
+      return batchCap > 0 && batches.used >= batchCap ? "PLAN_AI_MATERIAL_LIMIT" : null;
+    }
+    if (job.feature !== "CONTENT_GENERATION") return null;
     const { tier, used } = await dependencies.jobs.aiMaterialsThisMonth(job.userId);
     if (tier === "FREE") return used >= FREE_AI_MATERIALS ? "PLAN_AI_MATERIAL_LIMIT" : null;
     // 25/11 (dono): teto escondido de matérias escritas na hora por conta paga, para o edital por PDF sem biblioteca

@@ -23,6 +23,7 @@ Todo limite que protege gasto é aplicado no Supabase. O app só exibe o saldo.
 | Edital pelo PDF por mês (`SYLLABUS_GENERATION`) | — | 2 | 4 |
 
 - Matéria escrita na hora tem teto escondido por conta paga: `PAID_AI_MATERIALS_MONTHLY_CAP` (worker, padrão 30/mês).
+  Lote extra de questões escrito do zero: `PAID_AI_BATCHES_MONTHLY_CAP` (padrão 15/mês).
   Passou, o tópico vai para a fila da equipe e o app mostra "em produção" (é a proteção do edital por PDF sem biblioteca).
 - Simulado nunca chama a IA e nunca mistura formato: Certo/Errado só com Certo/Errado; A a E só com múltipla escolha.
 - O ritmo diário por plano está em `ai_refund_plan_day_quota` (banco), `ai-syllabus-jobs` (pedido sem cota) e
