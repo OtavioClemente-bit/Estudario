@@ -687,6 +687,11 @@ async function processResponse(
     response.id,
   );
   await refundCompensation(dependencies, job);
+  // 25/11: a matéria do plano escrita na hora também é "do dia" (o aluno não vê diferença da pronta); o banco
+  // limita a 2/3/4 por dia conforme o plano. O custo fica preso no teto escondido (PAID_AI_MATERIALS_MONTHLY_CAP).
+  if (job.feature === "CONTENT_GENERATION" && (job.requestPayload?.purpose === "PLAN_DAY" || job.requestPayload?.purpose === "ADVANCE")) {
+    await dependencies.jobs.refundPlanDayQuota?.(job.id).catch(() => undefined);
+  }
   await emitTerminalTelemetry(
     dependencies,
     job,

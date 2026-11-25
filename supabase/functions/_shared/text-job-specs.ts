@@ -88,7 +88,11 @@ export const CONTENT_JOB_SPEC: AiJobSpec = {
     if (job.feature === "CONTENT_GENERATION" && Deno.env.get("CONTENT_AI_ENABLED") === "false") return "PLAN_AI_MATERIAL_LIMIT";
     if (job.feature !== "CONTENT_GENERATION" || !dependencies.jobs.aiMaterialsThisMonth) return null;
     const { tier, used } = await dependencies.jobs.aiMaterialsThisMonth(job.userId);
-    return tier === "FREE" && used >= FREE_AI_MATERIALS ? "PLAN_AI_MATERIAL_LIMIT" : null;
+    if (tier === "FREE") return used >= FREE_AI_MATERIALS ? "PLAN_AI_MATERIAL_LIMIT" : null;
+    // 25/11 (dono): teto escondido de matérias escritas na hora por conta paga, para o edital por PDF sem biblioteca
+    // não dar prejuízo. O aluno não vê a diferença: passou do teto, a matéria vai para a fila da equipe ("em produção").
+    const cap = Number(Deno.env.get("PAID_AI_MATERIALS_MONTHLY_CAP") ?? 30);
+    return cap > 0 && used >= cap ? "PLAN_AI_MATERIAL_LIMIT" : null;
   },
   cached: async (job, dependencies) => {
     const store = dependencies.jobs;

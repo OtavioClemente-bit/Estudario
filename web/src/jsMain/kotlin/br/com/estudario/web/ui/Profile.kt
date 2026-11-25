@@ -540,7 +540,7 @@ private fun featureLabel(feature: String) = when (feature) {
     "PLAN_GENERATION" -> "Planos de estudo"
     "CONTENT_GENERATION" -> "Matérias extras (além do plano do dia)"
     "QUESTION_BATCH" -> "Lotes de 10 questões extras"
-    "SAVED_EDITAIS" -> "Editais salvos"
+    "SAVED_EDITAIS" -> "Concursos ao mesmo tempo"
     "AD_REWARD" -> "Bônus por anúncio"
     "SIMULATION_GENERATION" -> "Simulados no estilo da banca"
     else -> feature
@@ -683,19 +683,20 @@ private fun comparisonGroups(info: PlanInfo): List<Pair<String, List<Compare>>> 
     fun perMonth(n: Int) = if (n == 1) "1 por mês" else "$n por mês"
     return listOf(
         "Estudar todo dia" to listOf(
-            Compare("Matéria do plano de hoje", "Teoria, resumo, flashcards e questões do que o seu plano marcou para hoje.") { "Livre" },
+            Compare("Matérias novas por dia no plano", "Teoria, resumo, flashcards e questões do que o seu plano marcou para o dia.") { when (it) { "FREE" -> "2"; "ESSENCIAL" -> "3"; else -> "4" } },
+            Compare("Matérias extras", "Além do plano do dia: qualquer tópico do seu edital, na hora que você quiser.") { if (it == "FREE") "—" else perMonth(quota(it, "CONTENT_GENERATION")) },
+            Compare("Concursos ao mesmo tempo", "Estudar mais de um concurso no seu plano.") { quota(it, "SAVED_EDITAIS").let { n -> if (n >= 1000) "Sem limite" else "$n" } },
             Compare("Adiantar o plano", "Estudar hoje a matéria de amanhã.") { if (it == "FREE") "Com anúncio curto" else "Livre" },
-            Compare("Matérias novas por dia", "Quantas matérias novas o plano traz em cada dia.") { if (it == "FREE") "Até 2" else "Até 4, e mais se quiser" },
-            Compare("Matérias fora do plano", "Qualquer tópico do seu edital, na hora que você quiser.") { if (it == "FREE") "—" else perMonth(quota(it, "CONTENT_GENERATION")) },
         ),
         "Treinar" to listOf(
             Compare("Questões em cada matéria", "Comentadas, no estilo da sua banca.") { "${info.limitOf(it, "CONTENT_GENERATION")?.maxPerRequest ?: if (it == "FREE") 10 else 20}" },
-            Compare("Mais 10 questões", "Para treinar o tópico até ficar firme.") { if (it == "FREE") "3 por mês" else perMonth(quota(it, "QUESTION_BATCH")) },
-            Compare("Simulados da sua banca", "Com cronômetro e nota por matéria, no formato da prova.") { if (it == "FREE") "1 diagnóstico" else perMonth(quota(it, "SIMULATION_GENERATION")) },
+            Compare("Lotes extras de questões", "Mais 10 questões para treinar o tópico até ficar firme.") { perMonth(quota(it, "QUESTION_BATCH").takeIf { n -> n > 0 } ?: 3) },
+            Compare("Simulados do que você estudou", "Com cronômetro e nota por matéria, no formato da sua banca.") { perMonth(quota(it, "SIMULATION_GENERATION").takeIf { n -> n > 0 } ?: 1) },
+            Compare("Simulado aleatório e por matérias", "Todas as matérias do edital misturadas, ou só as que você escolher.") { if (it == "PRO") "Sim" else "—" },
+            Compare("Simulado do edital", "A mesma prova para todos do edital, com ranking, uma nova por mês (depois de 30 dias de estudo).") { if (it == "FREE") "—" else "Todo mês" },
         ),
         "Organizar" to listOf(
             Compare("Edital pelo seu PDF", "Para concurso que não está no nosso catálogo: as matérias e os tópicos saem organizados.") { if (quota(it, "SYLLABUS_GENERATION") == 0) "—" else perMonth(quota(it, "SYLLABUS_GENERATION")) },
-            Compare("Editais salvos", "Concursos que você acompanha ao mesmo tempo.") { quota(it, "SAVED_EDITAIS").let { n -> if (n >= 1000) "Sem limite" else "Até $n" } },
             Compare("Planos de estudo", "Plano montado para a sua rotina e a data da prova.") { if (it == "FREE") "1" else perMonth(quota(it, "PLAN_GENERATION")) },
             Compare("Anúncios", "No Grátis, só quando você escolhe adiantar.") { if (it == "FREE") "Só se você quiser" else "Nenhum" },
         ),
@@ -807,7 +808,7 @@ fun PlanLimitsScreen() {
         }
         current.limitOf(current.tier, "SAVED_EDITAIS")?.let { l ->
             val saved = Store.data.competitions.size
-            UsageCard("bookmarks", "Editais salvos", "$saved", if (l.quota >= 1000) "sem limite" else "de ${l.quota}", if (l.quota >= 1000) null else (l.quota - saved).coerceAtLeast(0).toDouble() / l.quota.coerceAtLeast(1), null)
+            UsageCard("bookmarks", "Concursos ao mesmo tempo", "$saved", if (l.quota >= 1000) "sem limite" else "de ${l.quota}", if (l.quota >= 1000) null else (l.quota - saved).coerceAtLeast(0).toDouble() / l.quota.coerceAtLeast(1), null)
         }
     }
 
@@ -839,8 +840,8 @@ fun PlanLimitsScreen() {
                     Span({ classes("pl-price-note") }) { Text(if (!paid) "Sem cartão, sem prazo" else if (yearly) "${brl(price!!.yearCents)} cobrados uma vez por ano" else "ou ${brl(price!!.yearCents)} por ano") }
                     Div({ classes("pl-highlights") }) {
                         val highlights = when (tier) {
-                            "FREE" -> listOf("Matéria do plano de hoje, todo dia", "Até 2 matérias novas por dia", "Adiantar com anúncio curto", "Simulado diagnóstico")
-                            else -> listOf("Plano de hoje e adiantar à vontade", "${current.limitOf(tier, "CONTENT_GENERATION")?.quota ?: 0} matérias fora do plano por mês", "Qualquer tópico do edital, pronto na hora", "${current.limitOf(tier, "SIMULATION_GENERATION")?.quota ?: 0} simulados por mês, sem anúncios")
+                            "FREE" -> listOf("2 matérias novas por dia no plano", "Revisões, treino e caderno", "3 lotes extras de questões por mês", "1 simulado por mês")
+                            else -> listOf("${if (tier == "PRO") 4 else 3} matérias novas por dia no plano", "${current.limitOf(tier, "CONTENT_GENERATION")?.quota ?: 0} matérias extras por mês", "${if (tier == "PRO") 4 else 2} concursos ao mesmo tempo", "${current.limitOf(tier, "SIMULATION_GENERATION")?.quota ?: 0} simulados por mês e o Simulado do edital")
                         }
                         highlights.forEach { h -> Div({ classes("pl-hl") }) { Icon("check_circle", filled = true); Span { Text(h) } } }
                     }

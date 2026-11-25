@@ -82,6 +82,8 @@ object PlannerSnapshotBuilder {
         val excludedTopicIds: Set<Long> = emptySet(),
         /** Regras do Grátis no plano: até FREE_TOPICS_PER_DAY matérias novas por dia e hoje não muda ao replanejar. */
         val freeRules: Boolean = false,
+        /** 25/11: nos pagos, matérias novas por dia conforme o plano (Essencial 3, Pro 4). */
+        val paidTopicsPerDay: Int = paidPace,
     )
 
     /** O mesmo teto diário do servidor para a matéria do plano no Grátis (free-allowance.ts, planDayPerDay). */
@@ -94,7 +96,13 @@ object PlannerSnapshotBuilder {
      */
     const val PAID_TOPICS_PER_DAY = 4
 
-    fun topicsPerDay(free: Boolean): Int = if (free) FREE_TOPICS_PER_DAY else PAID_TOPICS_PER_DAY
+    /** 25/11: ritmo do plano pago desta conta (Essencial 3, Pro 4), pelo plano que o app/site já guarda (FolhaWardrobe). */
+    val paidPace: Int get() = paceFor(br.com.estudario.domain.FolhaWardrobe.subscriberTier)
+
+    /** Matérias novas por dia de um plano pago pelo nome do plano ("ESSENCIAL" 3, "PRO" e outros 4). */
+    fun paceFor(tier: String?): Int = if (tier == "ESSENCIAL") 3 else PAID_TOPICS_PER_DAY
+
+    fun topicsPerDay(free: Boolean): Int = if (free) FREE_TOPICS_PER_DAY else paidPace
 
     /** Questões que a matéria do Grátis traz ao ser gerada (o teto do Grátis por pedido). */
     const val FREE_NEW_TOPIC_QUESTIONS = 10
@@ -259,7 +267,7 @@ object PlannerSnapshotBuilder {
             // O rodízio já é decidido no blueprint; o que segura o dia é o teto diário escolhido.
             maxFlexibleSharePercent = 100,
             dailySubjectSharePercent = if (activeSubjectCount > 1) config.dailySubjectSharePercent else 100,
-            maxTheoryTopicsPerDay = topicsPerDay(freeRules),
+            maxTheoryTopicsPerDay = if (freeRules) FREE_TOPICS_PER_DAY else paidTopicsPerDay,
             keepTodayTasks = freeRules,
         )
 
@@ -353,7 +361,7 @@ object PlannerSnapshotBuilder {
             remainingPhaseMinutes = remainingTopics * ((config.blockMinutes * pace.theoryFactor).toInt() + config.questionsPerTopic * personalConfig.minutesPerQuestion),
             recurringReservedMinutes = planSubjects.sumOf { it.minimumMaintenanceMinutes },
             // O teto de tópicos novos por dia é o menor entre o do plano (Grátis 2, pagos 4) e o do ritmo.
-            policy = policy.copy(horizonDays = horizonDays, maxTheoryTopicsPerDay = minOf(topicsPerDay(freeRules), blueprint.theoryTopicsPerDay ?: topicsPerDay(freeRules))),
+            policy = policy.copy(horizonDays = horizonDays, maxTheoryTopicsPerDay = minOf(if (freeRules) FREE_TOPICS_PER_DAY else paidTopicsPerDay, blueprint.theoryTopicsPerDay ?: topicsPerDay(freeRules))),
             notes = blueprint.notes,
             questionCapByTopic = questionCap,
             theoryMinutesByTopic = if (pace.theorySamples >= PersonalPace.MIN_THEORY_TOPICS) blueprint.theoryMinutesByTopic else emptyMap(),

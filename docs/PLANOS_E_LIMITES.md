@@ -9,7 +9,26 @@ Todo limite que protege gasto é aplicado no Supabase. O app só exibe o saldo.
   Nulo em plano pago significa concessão manual sem vencimento.
 - `public.ai_plan_limits`: limites por plano e recurso.
 
-Valores conferidos no banco em 14/10/2026 (`ai_plan_limits` e `plan_catalog`):
+## Planos desde 25/11/2026 (decididos com o dono; migração 20261125120000_planos_novembro)
+
+| | Grátis | Essencial R$ 24,90 | Pro R$ 49,90 |
+|---|---|---|---|
+| Matérias novas por dia no plano (prontas ou escritas na hora, o aluno não vê diferença) | 2 | 3 | 4 |
+| Matérias extras por mês (`CONTENT_GENERATION`) | — | 5 | 10 |
+| Concursos ao mesmo tempo (`SAVED_EDITAIS`) | 1 | 2 | 4 |
+| Lotes extras de questões por mês (`QUESTION_BATCH`) | 3 | 10 | 20 |
+| Simulados montados pela pessoa por mês (`SIMULATION_GENERATION`, purpose `STUDIED_SIMULATION`, só biblioteca) | 1 (depois de 5 tópicos em 3 dias) | 4 | 8 (também aleatório e por matérias) |
+| Simulado do plano (purpose `PLAN_SIMULATION`, só biblioteca, sem cota) | 1 a cada 30 dias | no plano | no plano |
+| Simulado do edital (`exam_simulation`, uma prova nova por mês, ranking) | — | depois de 30 dias de estudo | depois de 30 dias de estudo |
+| Edital pelo PDF por mês (`SYLLABUS_GENERATION`) | — | 2 | 4 |
+
+- Matéria escrita na hora tem teto escondido por conta paga: `PAID_AI_MATERIALS_MONTHLY_CAP` (worker, padrão 30/mês).
+  Passou, o tópico vai para a fila da equipe e o app mostra "em produção" (é a proteção do edital por PDF sem biblioteca).
+- Simulado nunca chama a IA e nunca mistura formato: Certo/Errado só com Certo/Errado; A a E só com múltipla escolha.
+- O ritmo diário por plano está em `ai_refund_plan_day_quota` (banco), `ai-syllabus-jobs` (pedido sem cota) e
+  `PlannerSnapshotBuilder.paceFor` (motor do plano). Mudou um, muda os três.
+
+Valores conferidos no banco em 14/10/2026 (`ai_plan_limits` e `plan_catalog`), antes da revisão de 25/11:
 
 | Plano | Preço | Material/mês | Lotes de questões/mês (até 10 cada) | Simulados (até 30 questões) | Edital pelo PDF | Editais salvos | Planos | Anúncio |
 |---|---|---|---|---|---|---|---|---|

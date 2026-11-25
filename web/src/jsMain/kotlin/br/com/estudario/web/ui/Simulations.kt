@@ -82,6 +82,8 @@ fun SimulationsScreen() {
     val finished = list.filter { it.status == "FINISHED" }
     var editingProfile by remember { mutableStateOf(false) }
     var studiedSize by remember { mutableStateOf(20) }
+    var pickSubjects by remember { mutableStateOf(false) }
+    var chosenSubjects by remember { mutableStateOf<Set<Long>>(emptySet()) }
     // O simulado que a pessoa pediu para descartar; o aviso fica no nível da página (fora dos cartões),
     // senão o Modal herda o transform do cartão e aparece transparente no meio da lista.
     var discarding by remember { mutableStateOf<Simulation?>(null) }
@@ -179,17 +181,23 @@ fun SimulationsScreen() {
         Button({ classes("sx-upsell"); attr("type", "button"); onClick { freeOffer = true } }) {
             Span({ classes("sx-upsell-ic") }) { Icon("workspace_premium", filled = true) }
             Div({ classes("grow") }) {
-                B { Text("Simuladão do edital com ranking") }
+                B { Text("Simulado do edital com ranking") }
                 P { Text("A mesma prova para todos do seu edital, uma nova por mês, e veja à frente de quantos você ficou. Também: simulados do que você estudou, quando quiser.") }
                 Span({ classes("sx-upsell-cta") }) { Text("Conhecer os planos"); Icon("arrow_forward") }
             }
         }
     } else {
-        // 3. Simuladão do edital: a prova oficial (nº 1) e um Simuladão novo por mês, igual para todos e com ranking.
+        // 3. Simulado do edital: a prova oficial (nº 1) e um novo por mês, igual para todos e com ranking.
+        // 25/11: libera depois de 30 dias do primeiro estudo do concurso.
+        val daysLeft = Simulations.editalDaysLeft(data, competition.id)
         Div({ classes("gx-panel", "sx-panel") }) {
-            SimSection("SIMULADÃO DO EDITAL", "Provas do edital", "A mesma prova para todos do seu edital, com ranking. Uma nova por mês.")
+            SimSection("SIMULADO DO EDITAL", "Provas do edital", "A mesma prova para todos do seu edital, com ranking. Uma nova por mês.")
             if (exams == null) P({ classes("gx-note") }) { Text("Buscando as provas do edital…") }
-            else if (exams.isNullOrEmpty()) P({ classes("gx-note") }) { Text("Este edital ainda não tem Simuladão pronto. Ele aparece aqui assim que sair.") }
+            else if (exams.isNullOrEmpty()) P({ classes("gx-note") }) { Text("Este edital ainda não tem Simulado do edital pronto. Ele aparece aqui assim que sair.") }
+            else if (daysLeft > 0 && list.none { Simulations.examIdOf(data, it.id) != null }) Div({ classes("sim-lock") }) {
+                Div({ classes("sim-lock-bar"); attr("style", "--c:#FFC94A") }) { Span({ attr("style", "width:${((Simulations.EDITAL_UNLOCK_DAYS - daysLeft) * 100 / Simulations.EDITAL_UNLOCK_DAYS).coerceIn(0, 100)}%") }) }
+                Span { Icon("lock"); Text(" Libera em $daysLeft dia(s): depois de 30 dias estudando este concurso, a prova do mês fica pronta para você.") }
+            }
             else Div({ classes("sx-list") }) {
                 exams.orEmpty().forEach { prova ->
                     androidx.compose.runtime.key(prova.id) {
@@ -229,13 +237,21 @@ fun SimulationsScreen() {
             }
         }
 
-        // 4. Do que você estudou: só o banco e as questões da própria pessoa.
-        val lock = SimulationUnlock.lock(SimulationMode.STUDIED, readiness)
+    }
+    // 4. Do que você estudou (25/11): Grátis 1 por mês depois de 5 tópicos em 3 dias; Essencial 4 e Pro 8 por mês.
+    // Pro também monta aleatório do edital ou só das matérias escolhidas. Tudo só da biblioteca, sem IA.
+    run {
+        val pro = br.com.estudario.web.data.Entitlements.current?.tier == "PRO"
+        val freeLocked = free && (readiness.coveredTopics < 5 || readiness.studyDays < 3)
         Div({ classes("gx-panel", "sx-panel") }) {
-            SimSection("DO QUE VOCÊ ESTUDOU", "Simulado dos seus tópicos", "Questões do banco e as suas, do que você já estudou (no começo, do edital todo). Fica pronto na hora.")
-            if (lock.unlocked) Div({ classes("sx-build") }) {
+            SimSection("DO QUE VOCÊ ESTUDOU", "Simulado dos seus tópicos", if (free) "Questões do banco, só do que você já estudou. No Grátis, 1 por mês." else "Questões do banco e as suas, do que você já estudou. Fica pronto na hora.")
+            if (freeLocked) Div({ classes("sim-lock") }) {
+                val p = ((readiness.coveredTopics.coerceAtMost(5) / 5.0 + readiness.studyDays.coerceAtMost(3) / 3.0) / 2 * 100).toInt()
+                Div({ classes("sim-lock-bar"); attr("style", "--c:#2FD39A") }) { Span({ attr("style", "width:${p}%") }) }
+                Span { Icon("lock"); Text(" Estude 5 tópicos em 3 dias diferentes (${readiness.coveredTopics.coerceAtMost(5)}/5 tópicos · ${readiness.studyDays.coerceAtMost(3)}/3 dias)") }
+            } else Div({ classes("sx-build") }) {
                 FilterChips(listOf(20 to "20 questões", 30 to "30 questões"), studiedSize) { studiedSize = it }
-                Btn("Montar", {
+                Btn("Do que estudei", {
                     try {
                         var id = 0L
                         Store.update { val (next, created) = Simulations.createStudied(it, competition.id, studiedSize); id = created; next }
@@ -243,9 +259,42 @@ fun SimulationsScreen() {
                         Router.go(Route.Simulation(id))
                     } catch (e: Throwable) { officialError = e.message }
                 }, icon = "play_circle", enabled = !Store.demo)
-            } else Div({ classes("sim-lock") }) {
-                Div({ classes("sim-lock-bar"); attr("style", "--c:#2FD39A") }) { Span({ attr("style", "width:${(lock.progress * 100).toInt().coerceIn(0, 100)}%") }) }
-                Span { Icon("lock"); Text(" " + lock.requirement) }
+                if (!free) {
+                    Btn("Aleatório do edital", {
+                        if (!pro) freeOffer = true
+                        else try {
+                            var id = 0L
+                            Store.update { val (next, created) = Simulations.createRandom(it, competition.id, studiedSize); id = created; next }
+                            Simulations.generate(id)
+                            Router.go(Route.Simulation(id))
+                        } catch (e: Throwable) { officialError = e.message }
+                    }, icon = if (pro) "shuffle" else "lock", style = "outline", enabled = !Store.demo)
+                    Btn("Escolher matérias", { if (!pro) freeOffer = true else pickSubjects = true }, icon = if (pro) "checklist" else "lock", style = "outline", enabled = !Store.demo)
+                }
+            }
+            if (!free && !pro) P({ classes("gx-note") }) { Text("Aleatório do edital e por matérias escolhidas: no plano Pro.") }
+        }
+        if (pickSubjects) Modal(onDismiss = { pickSubjects = false }) {
+            val subjects = data.subjects.filter { it.competitionId == competition.id }.sortedBy { it.position }
+            H2 { Text("Escolha as matérias") }
+            P({ classes("small", "muted") }) { Text("As questões são divididas entre as matérias marcadas, para não ficar tudo numa só.") }
+            Div({ classes("stack", "tight") }) {
+                subjects.forEach { sub ->
+                    val on = sub.id in chosenSubjects
+                    Btn(sub.name, { chosenSubjects = if (on) chosenSubjects - sub.id else chosenSubjects + sub.id }, style = if (on) "primary" else "outline", small = true, icon = if (on) "check" else null)
+                }
+            }
+            Div({ classes("row", "end") }) {
+                Btn("Cancelar", { pickSubjects = false }, style = "ghost")
+                Btn("Montar", {
+                    try {
+                        var id = 0L
+                        Store.update { val (next, created) = Simulations.createBySubjects(it, competition.id, studiedSize, chosenSubjects); id = created; next }
+                        pickSubjects = false
+                        Simulations.generate(id)
+                        Router.go(Route.Simulation(id))
+                    } catch (e: Throwable) { officialError = e.message }
+                }, icon = "play_circle", enabled = chosenSubjects.isNotEmpty())
             }
         }
     }

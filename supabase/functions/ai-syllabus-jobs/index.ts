@@ -86,7 +86,7 @@ export interface AiSyllabusJobsDependencies {
   /** Nos pagos: matérias do plano recebidas hoje sem gastar a cota (ai_plan_materials_today). */
   planMaterialsToday?: (userId: string) => Promise<number>;
   /** Simulados do plano (só biblioteca, sem cota) pedidos nos últimos 7 dias. */
-  planSimulationsThisWeek?: (userId: string) => Promise<number>;
+  planSimulationsThisWeek?: (userId: string, days?: number) => Promise<number>;
   /** Editais salvos na conta e o limite do plano (contados no servidor). Ausente = não confere (testes). */
   savedEditais?: (userId: string, tier: string) => Promise<SavedEditais | null>;
 }
@@ -551,6 +551,8 @@ async function createTextJob(
   let freeTag: Record<string, unknown> = {};
   let freeCredit: string | null = null;
   let planSimulation = false;
+  let studiedSimulation = false;
+  let userTier = "FREE";
   if (dependencies.planRules) {
     let rules: PlanRules;
     try {
@@ -558,6 +560,7 @@ async function createTextJob(
     } catch {
       return safeError("AI_JOB_DATA_UNAVAILABLE", 503);
     }
+    userTier = rules.tier;
     if (feature === "CONTENT_GENERATION") {
       // Acima do teto do plano não recusa: entrega o teto (a régua do app antigo ia até o limite antigo).
       const content = input as ContentJobInput;
@@ -587,7 +590,16 @@ async function createTextJob(
       if (!dependencies.planSimulationsThisWeek) return safeError("PLAN_FEATURE_LOCKED", 403);
       const week = await dependencies.planSimulationsThisWeek(user.userId).catch(() => PLAN_SIMULATIONS_PER_WEEK);
       if (week >= PLAN_SIMULATIONS_PER_WEEK) return safeError("PLAN_SIMULATION_LIMIT", 429);
+      // 25/11 (dono): no Grátis, o simulado do plano é 1 a cada 30 dias.
+      if (rules.tier === "FREE") {
+        const month = await dependencies.planSimulationsThisWeek(user.userId, 30).catch(() => 1);
+        if (month >= 1) return safeError("PLAN_SIMULATION_LIMIT", 429);
+      }
       planSimulation = true;
+    } else if (feature === "SIMULATION_GENERATION" && rawPurpose === "STUDIED_SIMULATION") {
+      // 25/11: simulado que a pessoa monta (do que estudou, aleatório, por matérias): só da biblioteca, nunca a IA,
+      // e conta no limite do mês do plano (Grátis 1, Essencial 4, Pro 8 em ai_plan_limits).
+      studiedSimulation = true;
     } else if (feature === "SIMULATION_GENERATION" && rules.tier === "FREE" && (input as { mode?: string }).mode !== "DIAGNOSTIC") {
       return safeError("PLAN_FEATURE_LOCKED", 403);
     }
@@ -643,6 +655,7 @@ async function createTextJob(
   }
   let payload: Record<string, unknown> = planSimulation
     ? { feature, input, purpose: "PLAN_SIMULATION", libraryOnly: true, compensated: true }
+    : studiedSimulation ? { feature, input, purpose: "STUDIED_SIMULATION", libraryOnly: true }
     : { feature, input, ...(compensated ? { compensated: true } : {}), ...freeTag };
   const create = async () => await dependencies.jobs.createOrGet({
     userId: user.userId,
@@ -661,8 +674,10 @@ async function createTextJob(
       // pronto, falha e nada é gasto.
       const planPurpose = freeTag.purpose === "PLAN_DAY" || freeTag.purpose === "ADVANCE";
       if (!(error instanceof JobStoreError) || error.code !== "AI_QUOTA_EXHAUSTED" || !planPurpose || !dependencies.planMaterialsToday) throw error;
-      const today = await dependencies.planMaterialsToday(user.userId).catch(() => PAID_PLAN_PER_DAY);
-      if (today >= PAID_PLAN_PER_DAY) throw error;
+      // 25/11: matérias do plano por dia conforme o plano (Essencial 3, Pro 4), igual ao banco.
+      const perDay = userTier === "ESSENCIAL" ? 3 : PAID_PLAN_PER_DAY;
+      const today = await dependencies.planMaterialsToday(user.userId).catch(() => perDay);
+      if (today >= perDay) throw error;
       payload = { ...payload, libraryOnly: true };
       created = await create();
     }
@@ -909,8 +924,8 @@ function runtimeDependencies(request: Request): AiSyllabusJobsDependencies {
     freeAllowance: new SupabaseFreeAllowance(supabaseUrl, serviceRoleKey),
     planMaterialsToday: (userId) => planMaterialsToday(supabaseUrl, serviceRoleKey, userId),
     savedEditais: savedEditaisChecker(supabaseUrl, serviceRoleKey),
-    planSimulationsThisWeek: async (userId) => {
-      const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
+    planSimulationsThisWeek: async (userId, days = 7) => {
+      const since = new Date(Date.now() - days * 86_400_000).toISOString();
       const response = await fetch(
         `${supabaseUrl}/rest/v1/ai_jobs?select=id&user_id=eq.${encodeURIComponent(userId)}&feature=eq.SIMULATION_GENERATION` +
           `&request_payload->>purpose=eq.PLAN_SIMULATION&created_at=gte.${encodeURIComponent(since)}&limit=50`,

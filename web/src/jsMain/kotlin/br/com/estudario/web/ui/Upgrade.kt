@@ -55,8 +55,9 @@ fun isQuotaMessage(message: String?): Boolean =
 private class OfferPlan(val tier: String, val name: String, val price: String, val glyph: String, val lines: List<Pair<String, String>>)
 
 private val offerPlans = listOf(
-    OfferPlan("essencial", "Essencial", "R$ 24,90", "star", listOf("25" to "matérias extras por mês", "10" to "lotes de questões", "3" to "simulados por mês", "2" to "editais pelo PDF")),
-    OfferPlan("pro", "Pro", "R$ 49,90", "diamond", listOf("40" to "matérias extras por mês", "25" to "lotes de questões", "6" to "simulados por mês", "5" to "editais pelo PDF")),
+    // 25/11 (docs/PLANOS_E_LIMITES.md): mesma tabela da página de planos e do estudario.com.br.
+    OfferPlan("essencial", "Essencial", "R$ 24,90", "star", listOf("3" to "matérias novas por dia no plano", "5" to "matérias extras por mês", "2" to "concursos ao mesmo tempo", "4" to "simulados por mês + Simulado do edital", "10" to "lotes extras de questões", "2" to "editais pelo PDF por mês")),
+    OfferPlan("pro", "Pro", "R$ 49,90", "diamond", listOf("4" to "matérias novas por dia no plano", "10" to "matérias extras por mês", "4" to "concursos ao mesmo tempo", "8" to "simulados por mês, também aleatório e por matérias", "20" to "lotes extras de questões", "4" to "editais pelo PDF por mês")),
 )
 
 /**
@@ -90,7 +91,7 @@ fun UpgradeModal(reason: UpgradeReason, onDismiss: () -> Unit) {
                     }
                 }
             }
-            P({ classes("offer-note") }) { Text("No Grátis continuam a matéria do plano de hoje, as revisões, o treino e o caderno.") }
+            P({ classes("offer-note") }) { Text("No Grátis continuam 2 matérias por dia no plano, as revisões, o treino, o caderno, 3 lotes extras de questões e 1 simulado por mês.") }
             Button({ classes("btn", "k-pro", "offer-cta"); onClick { onDismiss(); Router.go(Route.PlanLimits) } }) { Icon("Gem"); Text("Conhecer os planos") }
             Button({ classes("btn", "small", "k-paper", "offer-later"); onClick { onDismiss() } }) { Text("Agora não") }
             P({ classes("offer-fine") }) { Text(if (WebBilling.SITE_PAYMENT_OPEN) "Assine aqui, no cartão ou no Pix, ou pelo app. Vale no site e no celular. Cancela quando quiser." else "Assinatura pelo app, na Google Play. Vale aqui na mesma conta. Cancela quando quiser.") }

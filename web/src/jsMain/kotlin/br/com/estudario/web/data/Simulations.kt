@@ -64,6 +64,26 @@ object Simulations {
     private fun JsonObject.int(key: String): Int? = (this[key] as? JsonPrimitive)?.intOrNull
     private fun JsonElement?.text(): String = (this as? JsonPrimitive)?.contentOrNull.orEmpty()
 
+    /** 25/11: o Simulado do edital libera depois de 30 dias do primeiro estudo daquele concurso. */
+    const val EDITAL_UNLOCK_DAYS = 30
+
+    /** Primeiro estudo do concurso (sessão de estudo ou questão respondida dos tópicos dele); null se nunca estudou. */
+    fun firstStudyAt(data: Snapshot, competitionId: Long): Long? {
+        val subjects = data.subjects.filter { it.competitionId == competitionId }.mapTo(hashSetOf()) { it.id }
+        val topics = data.topics.filter { it.subjectId in subjects }.mapTo(hashSetOf()) { it.id }
+        val questions = data.questions.filter { it.topicId in topics && it.simulationId == null }.mapTo(hashSetOf()) { it.id }
+        val fromSessions = data.sessions.filter { it.competitionId == competitionId || it.topicId in topics }.minOfOrNull { it.startedAt }
+        val fromAttempts = data.attempts.filter { it.questionId in questions }.minOfOrNull { it.answeredAt }
+        return listOfNotNull(fromSessions, fromAttempts).minOrNull()
+    }
+
+    /** Dias que faltam para liberar o Simulado do edital (0 = liberado). */
+    fun editalDaysLeft(data: Snapshot, competitionId: Long, now: Long = kotlin.js.Date.now().toLong()): Int {
+        val first = firstStudyAt(data, competitionId) ?: return EDITAL_UNLOCK_DAYS
+        val days = ((now - first) / 86_400_000L).toInt()
+        return (EDITAL_UNLOCK_DAYS - days).coerceAtLeast(0)
+    }
+
     /** Tempo que a pessoa realmente usou na prova (o resultado mostrava o limite, 240 min, como se fosse o usado). */
     fun elapsedSeconds(data: Snapshot, id: Long): Long = row(data, id)?.long("elapsedSeconds") ?: 0L
     fun row(data: Snapshot, id: Long): JsonObject? = data.array(Keys.SIMULATIONS).firstOrNull { (it as? JsonObject)?.long("id") == id } as? JsonObject
@@ -183,10 +203,12 @@ object Simulations {
     }
 
     /** Monta a planta e grava o simulado; devolve (foto, id). A geração começa com [generate]. */
-    fun create(data: Snapshot, competitionId: Long, mode: SimulationMode, size: Int, purpose: String? = null, planTaskId: String? = null): Pair<Snapshot, Long> {
+    fun create(data: Snapshot, competitionId: Long, mode: SimulationMode, size: Int, purpose: String? = null, planTaskId: String? = null, subjectIds: Set<Long>? = null): Pair<Snapshot, Long> {
         val competition = data.competitions.firstOrNull { it.id == competitionId } ?: error("Concurso não encontrado.")
         val profile = examProfile(data, competitionId)
-        val leaves = leafTopics(data, competitionId)
+        // 25/11: "por matérias escolhidas" (Pro) monta só com as matérias marcadas.
+        val leaves = leafTopics(data, competitionId).filter { subjectIds == null || it.subjectId in subjectIds }
+        require(leaves.isNotEmpty()) { "Escolha pelo menos uma matéria." }
         val weak = weakSpots(data, leaves.mapTo(hashSetOf()) { it.topicId })
         // O servidor monta o simulado com as questões prontas da biblioteca: a semente (a mesma em
         // todas as partes) e as chaves de tudo o que a pessoa já tem garantem que nada se repete.
@@ -271,7 +293,9 @@ object Simulations {
         val keyed = parts.mapIndexed { index, part -> part.copy(key = "sim-web-$id-${Random.nextBytes(8).joinToString("") { (it.toInt() and 0xff).toString(16) }}-p$index", purpose = purpose, planTaskId = planTaskId) }
         val title = when {
             purpose == PLAN_SIMULATION && mode == SimulationMode.DIAGNOSTIC -> "Diagnóstico do plano"
-            purpose == PLAN_SIMULATION && planTaskId == null -> "Do que você estudou"
+            purpose == STUDIED_SIMULATION && subjectIds != null -> "Matérias escolhidas"
+            purpose == STUDIED_SIMULATION && mode == SimulationMode.FULL -> "Aleatório do edital"
+            purpose == STUDIED_SIMULATION || (purpose == PLAN_SIMULATION && planTaskId == null) -> "Do que você estudou"
             purpose == PLAN_SIMULATION -> "Simulado do plano"
             mode == SimulationMode.DIAGNOSTIC -> "Diagnóstico"
             mode == SimulationMode.STUDIED -> "Simulado do que estudei"
@@ -291,6 +315,8 @@ object Simulations {
 
     /** Simulado do plano: o servidor monta só com a biblioteca, sem IA e sem cota (até 3 partes por semana). */
     const val PLAN_SIMULATION = "PLAN_SIMULATION"
+    /** 25/11: simulado que a pessoa monta (do que estudou, aleatório, por matérias): só biblioteca, conta no limite do mês. */
+    const val STUDIED_SIMULATION = "STUDIED_SIMULATION"
 
     /** Tarefa do plano que o simulado cumpre (null nos simulados da aba). */
     fun planTaskOf(data: Snapshot, simulationId: Long): String? = decodeParts(row(data, simulationId)?.str("partsJson")).firstNotNullOfOrNull { it.planTaskId }
@@ -324,8 +350,11 @@ object Simulations {
         val studied = topics.filter { it.status != "NAO_ESTUDADO" }.mapTo(hashSetOf()) { it.id }
         val inside = data.questions.filter { it.simulationId == simulationId }.mapTo(hashSetOf()) { QuestionKey.of(it.statement) }
         val raw = data.array(Keys.QUESTIONS).mapNotNull { it as? JsonObject }.associateBy { it.long("id") }
+        // 25/11: nunca mistura formato. Prova Certo/Errado só completa com Certo/Errado; A a E só com múltipla escolha.
+        val trueFalse = sim.str("style") == "TRUE_FALSE"
+        val sameFormat = { q: Question -> (q.options.map { it.key }.toSet() == setOf("C", "E")) == trueFalse }
         val pool = data.questions
-            .filter { it.simulationId == null && !it.hidden && it.topicId in topicIds && it.options.size >= 2 && QuestionKey.of(it.statement) !in inside }
+            .filter { it.simulationId == null && !it.hidden && it.topicId in topicIds && it.options.size >= 2 && sameFormat(it) && QuestionKey.of(it.statement) !in inside }
             .sortedWith(
                 compareByDescending<Question> { it.topicId in studied }
                     .thenByDescending { (raw[it.id]?.int("errorCount") ?: 0) > (raw[it.id]?.int("correctCount") ?: 0) }
@@ -354,14 +383,22 @@ object Simulations {
      * questões da própria pessoa, sem cota nem IA), sem tarefa do plano por trás.
      */
     fun createStudied(data: Snapshot, competitionId: Long, size: Int): Pair<Snapshot, Long> =
-        create(data, competitionId, SimulationMode.STUDIED, size, purpose = PLAN_SIMULATION)
+        create(data, competitionId, SimulationMode.STUDIED, size, purpose = STUDIED_SIMULATION)
+
+    /** Pro: todas as matérias do edital misturadas. */
+    fun createRandom(data: Snapshot, competitionId: Long, size: Int): Pair<Snapshot, Long> =
+        create(data, competitionId, SimulationMode.FULL, size, purpose = STUDIED_SIMULATION)
+
+    /** Pro: só as matérias escolhidas, divididas entre elas. */
+    fun createBySubjects(data: Snapshot, competitionId: Long, size: Int, subjectIds: Set<Long>): Pair<Snapshot, Long> =
+        create(data, competitionId, SimulationMode.FULL, size, purpose = STUDIED_SIMULATION, subjectIds = subjectIds)
 
     /** Modo do simulado montado com a prova oficial do edital (fora de SimulationMode: não é gerado). */
     const val OFFICIAL_MODE = "OFFICIAL"
 
     /** Nome da prova do edital pelo número: 1 é a prova oficial; os seguintes, o Simuladão do mês. */
     /** 24/11: a prova 1 montada com questões da biblioteca (estrutura "Simuladão montado…") não é prova oficial. */
-    fun examTitle(number: Int, structure: String? = null): String = if (number > 1 || structure?.startsWith("Simuladão montado") == true) "Simuladão $number" else "Prova oficial"
+    fun examTitle(number: Int, structure: String? = null): String = if (number > 1 || structure?.startsWith("Simuladão montado") == true) "Simulado do edital $number" else "Prova oficial"
 
     /** O id da prova do edital por trás de um simulado (null quando não é Simuladão nem prova oficial). */
     fun examIdOf(data: Snapshot, simulationId: Long): String? {
@@ -489,7 +526,7 @@ object Simulations {
         val parts = decodeParts(sim.str("partsJson"))
         if (parts.any { it.status == "RUNNING" || it.status == "PENDING" }) return
         // Simulado do plano: o que o banco não cobriu vem das questões que a pessoa já fez (nunca sai menor).
-        val plan = parts.any { it.purpose == PLAN_SIMULATION }
+        val plan = parts.any { it.purpose == PLAN_SIMULATION || it.purpose == STUDIED_SIMULATION }
         if (plan) {
             val planned = sim.int("plannedQuestions") ?: 0
             Store.update { fillFromOwn(it, simulationId, planned - it.questions.count { q -> q.simulationId == simulationId }) }
