@@ -5,9 +5,8 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
-plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
-}
+// 25/11/2026: o plugin foojay-resolver (baixar JDK automaticamente) saiu: o build do site no GitHub falhava ao
+// resolvê-lo, e o Java 17 já vem instalado (setup-java no CI, JAVA_HOME aqui).
 
 dependencyResolutionManagement {
     // O módulo web (Kotlin/Wasm) baixa Node.js, Yarn e Binaryen; o plugin do Kotlin registra esses
