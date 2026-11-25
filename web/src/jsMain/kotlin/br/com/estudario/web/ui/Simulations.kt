@@ -223,7 +223,9 @@ fun SimulationsScreen() {
                         val before = ordered.getOrNull(index - 1)?.let { prev -> list.firstOrNull { Simulations.examIdOf(data, it.id) == prev.id } }
                         val open = index == 0 || taken != null || (before?.status == "FINISHED" && (before.scorePercent ?: 0) >= profile.targetPercent)
                         val minutes = BoardStyle.minutesFor(if (prova.format == "CERTO_ERRADO") "TRUE_FALSE" else "FIVE_OPTIONS", prova.questions.size)
-                        Div({ classes("sx-exam") }) {
+                        val state = when { !open -> "locked"; taken?.status == "FINISHED" -> if ((taken.scorePercent ?: 0) >= profile.targetPercent) "passed" else "done"; else -> "open" }
+                        Div({ classes("sx-exam", "sx-step-$state") }) {
+                            Span({ classes("sx-step-n") }) { if (state == "passed") Icon("check", filled = true) else if (state == "locked") Icon("lock") else Text("${index + 1}") }
                             Div({ classes("grow", "sx-exam-info") }) {
                                 B { Text(Simulations.examTitle(prova.number, prova.structure)) }
                                 Span({ classes("sx-meta") }) {
@@ -289,17 +291,25 @@ fun SimulationsScreen() {
             }
             if (!free && !pro) P({ classes("gx-note") }) { Text("Aleatório do edital e por matérias escolhidas: no plano Pro.") }
         }
-        if (pickSubjects) Modal(onDismiss = { pickSubjects = false }) {
+        if (pickSubjects) Modal(onDismiss = { pickSubjects = false }, extraClass = "sx-pick-modal") {
             val subjects = data.subjects.filter { it.competitionId == competition.id }.sortedBy { it.position }
             H2 { Text("Escolha as matérias") }
-            P({ classes("small", "muted") }) { Text("As questões são divididas entre as matérias marcadas, para não ficar tudo numa só.") }
-            Div({ classes("stack", "tight") }) {
-                subjects.forEach { sub ->
-                    val on = sub.id in chosenSubjects
-                    Btn(sub.name, { chosenSubjects = if (on) chosenSubjects - sub.id else chosenSubjects + sub.id }, style = if (on) "primary" else "outline", small = true, icon = if (on) "check" else null)
+            Div({ classes("sx-pick-head") }) {
+                P({ classes("small", "muted") }) { Text("${chosenSubjects.size} de ${subjects.size} marcadas · as $studiedSize questões são divididas entre elas.") }
+                Button({ classes("btn", "ghost", "small"); attr("type", "button"); onClick { chosenSubjects = if (chosenSubjects.size == subjects.size) emptySet() else subjects.mapTo(hashSetOf()) { it.id } } }) {
+                    Text(if (chosenSubjects.size == subjects.size) "Limpar" else "Marcar todas")
                 }
             }
-            Div({ classes("row", "end") }) {
+            Div({ classes("sx-pick-list") }) {
+                subjects.forEach { sub ->
+                    val on = sub.id in chosenSubjects
+                    Button({ classes("sx-pick-chip"); if (on) classes("on"); attr("type", "button"); attr("title", sub.name); onClick { chosenSubjects = if (on) chosenSubjects - sub.id else chosenSubjects + sub.id } }) {
+                        Icon(if (on) "check_circle" else "radio_button_unchecked", filled = on)
+                        Span { Text(sub.name) }
+                    }
+                }
+            }
+            Div({ classes("row", "end", "sx-pick-actions") }) {
                 Btn("Cancelar", { pickSubjects = false }, style = "ghost")
                 Btn("Montar", {
                     try {
