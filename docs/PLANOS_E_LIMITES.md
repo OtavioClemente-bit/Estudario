@@ -19,7 +19,7 @@ Todo limite que protege gasto é aplicado no Supabase. O app só exibe o saldo.
 | Lotes extras de questões por mês (`QUESTION_BATCH`) | 3 | 10 | 20 |
 | Simulados montados pela pessoa por mês (`SIMULATION_GENERATION`, purpose `STUDIED_SIMULATION`, só biblioteca) | 1 (depois de 5 tópicos em 3 dias) | 4 | 8 (também aleatório e por matérias) |
 | Simulado do plano (purpose `PLAN_SIMULATION`, só biblioteca, sem cota) | 1 a cada 30 dias | no plano | no plano |
-| Simulado do edital (`exam_simulation`, uma prova nova por mês, ranking) | — | depois de 30 dias de estudo | depois de 30 dias de estudo |
+| Simulado do edital (`exam_simulation`, até 3 provas, ranking; a próxima abre com a meta na anterior; fora do plano, recomendado para o fim) | — | 3 provas | 3 provas |
 | Edital pelo PDF por mês (`SYLLABUS_GENERATION`) | — | 2 | 4 |
 
 - Matéria escrita na hora tem teto escondido por conta paga: `PAID_AI_MATERIALS_MONTHLY_CAP` (worker, padrão 30/mês).

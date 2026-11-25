@@ -52,7 +52,8 @@ internal fun PlannerTask.toEntity(
     weeklyPlanId = previous?.weeklyPlanId,
     subjectId = subjectId,
     topicId = topicId,
-    subjectNameSnapshot = subjectName,
+    // 26/11: o simulado do plano cobre várias matérias; o nome da 1ª aparecia como "Língua Portuguesa".
+    subjectNameSnapshot = if (type == br.com.estudario.domain.planner.PlanTaskType.SIMULATION) "Simulado" else subjectName,
     topicNameSnapshot = topicName,
     scheduledEpochDay = date.toEpochDay(),
     type = type,

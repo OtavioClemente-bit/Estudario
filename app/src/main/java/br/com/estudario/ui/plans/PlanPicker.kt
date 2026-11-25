@@ -341,7 +341,7 @@ internal fun PlanCompare(plan: AiPlanCatalogEntry, all: List<AiPlanCatalogEntry>
         RuleRow("Matérias novas por dia no plano", when (plan.planTier) { "FREE" -> "2"; "ESSENCIAL" -> "3"; else -> "4" }, tone)
         RuleRow("Revisões, treino e caderno", "livre", tone)
         RuleRow("Adiantar o plano", if (free) "com anúncio curto" else "livre", tone)
-        RuleRow("Simulado do edital", if (free) "nos planos pagos" else "todo mês, com ranking", tone)
+        RuleRow("Simulado do edital", if (free) "nos planos pagos" else "3 provas, com ranking", tone)
         if (plan.planTier == "PRO") RuleRow("Simulado aleatório e por matérias", "sim", tone)
         // Só o que o plano tem: no Grátis, nada de linha dizendo "não tem" (a cota de matérias do
         // Grátis é só o teto interno; as regras dele estão acima).

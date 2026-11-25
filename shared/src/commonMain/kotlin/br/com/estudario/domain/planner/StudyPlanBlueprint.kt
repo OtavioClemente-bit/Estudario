@@ -43,6 +43,8 @@ data class BlueprintTopic(
 )
 
 data class BlueprintInput(
+    /** 26/11: Grátis tem 1 simulado do plano a cada 30 dias (o servidor recusa o 2º). */
+    val freeSimulations: Boolean = false,
     val today: LocalDate,
     val planStart: LocalDate,
     val examDate: LocalDate?,
@@ -625,7 +627,7 @@ object StudyPlanBlueprint {
         // semanas na base, 2 no aprofundamento e 1 por semana na reta final, no dia mais livre.
         if (SIMULATIONS_IN_PLAN && !input.liveSimulation && activeSubjects.isNotEmpty()) {
             val first = input.lastSimulation == null
-            val interval = when (phase.kind) {
+            val interval = if (input.freeSimulations) 30 else when (phase.kind) {
                 PlanPhaseKind.BASE -> 28
                 PlanPhaseKind.APROFUNDAMENTO -> 14
                 PlanPhaseKind.RETA_FINAL -> 7

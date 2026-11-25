@@ -693,7 +693,7 @@ private fun comparisonGroups(info: PlanInfo): List<Pair<String, List<Compare>>> 
             Compare("Lotes extras de questões", "Mais 10 questões para treinar o tópico até ficar firme.") { perMonth(quota(it, "QUESTION_BATCH").takeIf { n -> n > 0 } ?: 3) },
             Compare("Simulados do que você estudou", "Com cronômetro e nota por matéria, no formato da sua banca.") { perMonth(quota(it, "SIMULATION_GENERATION").takeIf { n -> n > 0 } ?: 1) },
             Compare("Simulado aleatório e por matérias", "Todas as matérias do edital misturadas, ou só as que você escolher.") { if (it == "PRO") "Sim" else "—" },
-            Compare("Simulado do edital", "A mesma prova para todos do edital, com ranking, uma nova por mês (depois de 30 dias de estudo).") { if (it == "FREE") "—" else "Todo mês" },
+            Compare("Simulado do edital", "A prova do edital inteiro, igual para todos, com ranking. A próxima libera ao tirar a sua meta na anterior.") { if (it == "FREE") "—" else "3 provas" },
         ),
         "Organizar" to listOf(
             Compare("Edital pelo seu PDF", "Para concurso que não está no nosso catálogo: as matérias e os tópicos saem organizados.") { if (quota(it, "SYLLABUS_GENERATION") == 0) "—" else perMonth(quota(it, "SYLLABUS_GENERATION")) },
@@ -841,7 +841,7 @@ fun PlanLimitsScreen() {
                     Div({ classes("pl-highlights") }) {
                         val highlights = when (tier) {
                             "FREE" -> listOf("2 matérias novas por dia no plano", "Revisões, treino e caderno", "3 lotes extras de questões por mês", "1 simulado por mês")
-                            else -> listOf("${if (tier == "PRO") 4 else 3} matérias novas por dia no plano", "${current.limitOf(tier, "CONTENT_GENERATION")?.quota ?: 0} matérias extras por mês", "${if (tier == "PRO") 4 else 2} concursos ao mesmo tempo", "${current.limitOf(tier, "SIMULATION_GENERATION")?.quota ?: 0} simulados por mês e o Simulado do edital")
+                            else -> listOf("${if (tier == "PRO") 4 else 3} matérias novas por dia no plano", "${current.limitOf(tier, "CONTENT_GENERATION")?.quota ?: 0} matérias extras por mês", "${if (tier == "PRO") 4 else 2} concursos ao mesmo tempo", "${current.limitOf(tier, "SIMULATION_GENERATION")?.quota ?: 0} simulados por mês e 3 Simulados do edital")
                         }
                         highlights.forEach { h -> Div({ classes("pl-hl") }) { Icon("check_circle", filled = true); Span { Text(h) } } }
                     }

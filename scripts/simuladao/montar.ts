@@ -131,6 +131,8 @@ let written = 0;
 for (const edital of editais.sort()) {
   const numbers = files.map((f) => f.match(new RegExp(`^${edital.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.simulado-(\\d+)\\.json$`))?.[1]).filter(Boolean).map(Number);
   const next = Math.max(...numbers) + 1;
+  // 26/11 (dono): no máximo 3 provas por edital (a próxima abre com a meta na anterior); depois disso não monta mais.
+  if (next > 3) continue;
   if (!force && next > 2) {
     const last = Deno.statSync(`${SIMULADOS}/${edital}.simulado-${next - 1}.json`).mtime?.getTime() ?? 0;
     if (Date.now() - last < MIN_DAYS * 86_400_000) { console.log(`${edital}: o último Simuladão tem menos de ${MIN_DAYS} dias, fica para o mês que vem.`); continue; }

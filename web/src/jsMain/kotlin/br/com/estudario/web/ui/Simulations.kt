@@ -188,20 +188,19 @@ fun SimulationsScreen() {
         }
     } else {
         // 3. Simulado do edital: a prova oficial (nº 1) e um novo por mês, igual para todos e com ranking.
-        // 25/11: libera depois de 30 dias do primeiro estudo do concurso.
-        val daysLeft = Simulations.editalDaysLeft(data, competition.id)
         Div({ classes("gx-panel", "sx-panel") }) {
-            SimSection("SIMULADO DO EDITAL", "Provas do edital", "A mesma prova para todos do seu edital, com ranking. Uma nova por mês.")
+            SimSection("SIMULADO DO EDITAL", "Provas do edital", "A mesma prova para todos do seu edital, com ranking. Até 3 provas, nunca com as mesmas questões.")
+            // 26/11 (dono): cobre o edital inteiro, então é para o fim; antes, os simulados do que a pessoa estudou.
+            P({ classes("gx-note") }) { Text("Cobre o edital inteiro: o ideal é fazer perto da prova. Antes disso, os simulados do que você já estudou medem melhor o seu avanço. A próxima prova libera quando você fizer a anterior com nota da sua meta (${profile.targetPercent}%).") }
             if (exams == null) P({ classes("gx-note") }) { Text("Buscando as provas do edital…") }
             else if (exams.isNullOrEmpty()) P({ classes("gx-note") }) { Text("Este edital ainda não tem Simulado do edital pronto. Ele aparece aqui assim que sair.") }
-            else if (daysLeft > 0 && list.none { Simulations.examIdOf(data, it.id) != null }) Div({ classes("sim-lock") }) {
-                Div({ classes("sim-lock-bar"); attr("style", "--c:#FFC94A") }) { Span({ attr("style", "width:${((Simulations.EDITAL_UNLOCK_DAYS - daysLeft) * 100 / Simulations.EDITAL_UNLOCK_DAYS).coerceIn(0, 100)}%") }) }
-                Span { Icon("lock"); Text(" Libera em $daysLeft dia(s): depois de 30 dias estudando este concurso, a prova do mês fica pronta para você.") }
-            }
             else Div({ classes("sx-list") }) {
-                exams.orEmpty().forEach { prova ->
+                val ordered = exams.orEmpty().sortedBy { it.number }.take(3)
+                ordered.forEachIndexed { index, prova ->
                     androidx.compose.runtime.key(prova.id) {
                         val taken = list.firstOrNull { Simulations.examIdOf(data, it.id) == prova.id }
+                        val before = ordered.getOrNull(index - 1)?.let { prev -> list.firstOrNull { Simulations.examIdOf(data, it.id) == prev.id } }
+                        val open = index == 0 || taken != null || (before?.status == "FINISHED" && (before.scorePercent ?: 0) >= profile.targetPercent)
                         val minutes = BoardStyle.minutesFor(if (prova.format == "CERTO_ERRADO") "TRUE_FALSE" else "FIVE_OPTIONS", prova.questions.size)
                         Div({ classes("sx-exam") }) {
                             Div({ classes("grow", "sx-exam-info") }) {
@@ -213,6 +212,7 @@ fun SimulationsScreen() {
                             }
                             Div({ classes("sx-exam-act") }) {
                                 when {
+                                    !open -> Span({ classes("sx-meta") }) { Icon("lock"); Text(" Libera com ${profile.targetPercent}% na prova anterior") }
                                     taken == null -> Btn("Fazer a prova", {
                                         try {
                                             var id = 0L

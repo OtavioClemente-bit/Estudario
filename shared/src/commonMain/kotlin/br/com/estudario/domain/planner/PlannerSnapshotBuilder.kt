@@ -297,6 +297,7 @@ object PlannerSnapshotBuilder {
 
         val blueprint = StudyPlanBlueprint.build(
             BlueprintInput(
+                freeSimulations = freeRules,
                 today = today,
                 planStart = planStart,
                 examDate = examDate,

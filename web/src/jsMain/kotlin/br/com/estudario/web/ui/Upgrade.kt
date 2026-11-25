@@ -56,8 +56,8 @@ private class OfferPlan(val tier: String, val name: String, val price: String, v
 
 private val offerPlans = listOf(
     // 25/11 (docs/PLANOS_E_LIMITES.md): mesma tabela da página de planos e do estudario.com.br.
-    OfferPlan("essencial", "Essencial", "R$ 24,90", "star", listOf("3" to "matérias novas por dia no plano", "5" to "matérias extras por mês", "2" to "concursos ao mesmo tempo", "4" to "simulados por mês + Simulado do edital", "10" to "lotes extras de questões", "2" to "editais pelo PDF por mês")),
-    OfferPlan("pro", "Pro", "R$ 49,90", "diamond", listOf("4" to "matérias novas por dia no plano", "10" to "matérias extras por mês", "4" to "concursos ao mesmo tempo", "8" to "simulados por mês, também aleatório e por matérias", "20" to "lotes extras de questões", "4" to "editais pelo PDF por mês")),
+    OfferPlan("essencial", "Essencial", "R$ 24,90", "star", listOf("3" to "matérias novas por dia no plano", "5" to "matérias extras por mês", "2" to "concursos ao mesmo tempo", "4" to "simulados por mês + 3 Simulados do edital", "10" to "lotes extras de questões", "2" to "editais pelo PDF por mês")),
+    OfferPlan("pro", "Pro", "R$ 49,90", "diamond", listOf("4" to "matérias novas por dia no plano", "10" to "matérias extras por mês", "4" to "concursos ao mesmo tempo", "8" to "simulados por mês + 3 do edital, aleatório e por matérias", "20" to "lotes extras de questões", "4" to "editais pelo PDF por mês")),
 )
 
 /**

@@ -68,7 +68,9 @@ class Snapshot private constructor(val root: JsonObject, parent: Snapshot? = nul
     val focusSessions get() = list(Keys.FOCUS_SESSIONS, FocusSession.serializer())
     val questionSessions get() = list(Keys.QUESTION_SESSIONS, QuestionSession.serializer())
     val plans get() = list(Keys.PLANS, StudyPlan.serializer())
-    val tasks get() = list(Keys.TASKS, PlanTask.serializer())
+    // 26/11: o simulado do plano cobra várias matérias; o subjectName gravado é o da 1ª matéria (só vínculo técnico)
+    // e aparecia como "Língua Portuguesa". Na tela ele é sempre "Simulado", também nas tarefas antigas.
+    val tasks get() = list(Keys.TASKS, PlanTask.serializer()).map { if (it.type == "SIMULATION") it.copy(subjectName = "Simulado") else it }
     val executions get() = list(Keys.EXECUTIONS, TaskExecution.serializer())
     val availability get() = list(Keys.AVAILABILITY, Availability.serializer())
     val planSubjects get() = list(Keys.PLAN_SUBJECTS, PlanSubject.serializer())
