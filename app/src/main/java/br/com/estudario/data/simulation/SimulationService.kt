@@ -188,7 +188,7 @@ class SimulationService(
     // ---------------------------------------------------------------------------------------- criação
 
     /** Monta a planta, grava o simulado e começa a gerar. Devolve o id local. */
-    suspend fun create(competitionId: Long, mode: SimulationMode, size: Int, purpose: String? = null): Long {
+    suspend fun create(competitionId: Long, mode: SimulationMode, size: Int, purpose: String? = null, subjectIds: Set<Long>? = null): Long {
         val competition = appDao.competitionsOnce().firstOrNull { it.id == competitionId }
             ?: throw SimulationException("Concurso não encontrado.")
         val profile = examProfile(competitionId)
@@ -206,10 +206,10 @@ class SimulationService(
             put("seed", "sim-${UUID.randomUUID().toString().take(12)}")
             put("seen", JsonArray(appDao.recentStatements(SEEN_LIMIT).asSequence().map(QuestionKey::of).distinct().map { JsonPrimitive(it) }.toList()))
         }
-        val parts = if (mode == SimulationMode.REMATCH) rematchParts(competitionId, base, board == null) else blueprintParts(competitionId, mode, size, base, board == null)
+        val parts = if (mode == SimulationMode.REMATCH) rematchParts(competitionId, base, board == null) else blueprintParts(competitionId, mode, size, base, board == null, subjectIds)
         if (parts.isEmpty()) throw SimulationException("Ainda não há tópicos suficientes para montar este simulado.")
         val planned = parts.sumOf { questionCountOf(it.input) }
-        val title = if (purpose == PLAN_SIMULATION && mode != SimulationMode.DIAGNOSTIC) "Simulado do plano" else when (mode) {
+        val title = if (purpose == PLAN_SIMULATION && mode != SimulationMode.DIAGNOSTIC) "Simulado do plano" else if (purpose == STUDIED_SIMULATION && subjectIds != null) "Matérias escolhidas" else if (purpose == STUDIED_SIMULATION && mode == SimulationMode.FULL) "Aleatório do edital" else when (mode) {
             SimulationMode.DIAGNOSTIC -> "Diagnóstico"
             SimulationMode.STUDIED -> "Simulado do que estudei"
             SimulationMode.FULL -> "Prova completa"
@@ -239,8 +239,8 @@ class SimulationService(
         (input["items"] as? JsonArray).orEmpty().sumOf { it.jsonObject["count"]?.jsonPrimitive?.intOrNull ?: 0 } +
             (input["rematch"] as? JsonArray).orEmpty().size
 
-    private suspend fun blueprintParts(competitionId: Long, mode: SimulationMode, size: Int, base: JsonObject, detectBoard: Boolean): List<SimulationPart> {
-        val topics = leafTopics(competitionId)
+    private suspend fun blueprintParts(competitionId: Long, mode: SimulationMode, size: Int, base: JsonObject, detectBoard: Boolean, subjectIds: Set<Long>? = null): List<SimulationPart> {
+        val topics = leafTopics(competitionId).filter { subjectIds == null || it.subjectId in subjectIds }
         val blueprint = SimulationBlueprint.build(mode, topics, size)
         val avoid = avoidList(blueprint.parts.flatMap { it.items }.map { it.topicId }.toSet())
         // Tópico dividido entre duas partes: cada parte leva uma fatia diferente das questões dele.
@@ -548,6 +548,17 @@ class SimulationService(
     /** 25/11: "Do que você estudou" montado pela pessoa: só biblioteca, conta no limite do mês (Grátis 1, Essencial 4, Pro 8). */
     suspend fun createStudied(competitionId: Long, size: Int): Long =
         create(competitionId, SimulationMode.STUDIED, size, purpose = STUDIED_SIMULATION)
+
+    /** As matérias do concurso (id e nome), para o Pro escolher. */
+    suspend fun subjectsOf(competitionId: Long): List<Pair<Long, String>> = appDao.subjectsFor(competitionId).map { it.id to it.name }
+
+    /** Pro: aleatório do edital inteiro, só da biblioteca. */
+    suspend fun createRandom(competitionId: Long, size: Int): Long =
+        create(competitionId, SimulationMode.FULL, size, purpose = STUDIED_SIMULATION)
+
+    /** Pro: só as matérias escolhidas, divididas entre elas. */
+    suspend fun createBySubjects(competitionId: Long, size: Int, subjectIds: Set<Long>): Long =
+        create(competitionId, SimulationMode.FULL, size, purpose = STUDIED_SIMULATION, subjectIds = subjectIds)
 
     /**
      * Completa o simulado do plano com questões que a pessoa já tem: primeiro as que ela errou, depois as

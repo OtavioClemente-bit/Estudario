@@ -8,6 +8,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
@@ -120,6 +123,11 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
     var boardDialog by remember { mutableStateOf(false) }
     var targetDialog by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<SimulationEntity?>(null) }
+    var confirmExam by remember { mutableStateOf<OfficialSimulation?>(null) }
+    var pickSubjects by remember { mutableStateOf(false) }
+    var chosen by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var proSize by remember { mutableIntStateOf(20) }
+    val pro = br.com.estudario.domain.FolhaWardrobe.subscriberTier == "PRO"
     val mine = simulations.filter { it.competitionId == competition.id }
     val finished = mine.filter { it.status == "FINISHED" }.sortedByDescending { it.finishedAt ?: it.createdAt }
     LaunchedEffect(competition.id, finished.size) { readiness = service.readiness(competition.id) }
@@ -226,11 +234,20 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
                         Text("Este edital ainda não tem Simulado do edital pronto. Ele aparece aqui assim que sair.", style = MaterialTheme.typography.bodyMedium, color = Gx.mute)
                     }
                 }
-                items(exams, key = { "exam-${it.id}" }) { exam ->
+                if (exams.isNotEmpty()) item {
+                    Text(
+                        "Cobre o edital inteiro: o ideal é fazer perto da prova. A próxima libera quando você fizer a anterior com a sua meta ($target%).",
+                        style = MaterialTheme.typography.bodySmall, color = Gx.soft,
+                    )
+                }
+                val ordered = exams.sortedBy { it.number }.take(3)
+                itemsIndexed(ordered, key = { _, it -> "exam-${it.id}" }) { index, exam ->
                     val mineOfExam = mine.filter { service.examIdOf(it) == exam.id }
                     // a primeira entrega é a que vale no ranking
                     val done = mineOfExam.filter { it.status == "FINISHED" }.minByOrNull { it.finishedAt ?: it.createdAt }
                     val open = mineOfExam.firstOrNull { it.status != "FINISHED" }
+                    val prevDone = ordered.getOrNull(index - 1)?.let { prev -> mine.filter { service.examIdOf(it) == prev.id && it.status == "FINISHED" }.minByOrNull { it.finishedAt ?: it.createdAt } }
+                    val unlocked = index == 0 || done != null || open != null || (prevDone?.scorePercent ?: -1) >= target
                     var ranking by remember(done?.id) { mutableStateOf<ExamRanking?>(null) }
                     if (done != null) LaunchedEffect(done.id) { ranking = runCatching { service.ranking(done.id, submit = false) }.getOrNull() }
                     ExamRow(
@@ -240,15 +257,9 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
                         ranking = ranking,
                         target = target,
                         busy = creating,
-                        onCreate = {
-                            creating = true
-                            message = null
-                            scope.launch {
-                                runCatching { service.createOfficial(competition.id, exam) }
-                                    .onFailure { message = it.message ?: "Não foi possível abrir o Simuladão." }
-                                creating = false
-                            }
-                        },
+                        step = index + 1,
+                        unlocked = unlocked,
+                        onCreate = { confirmExam = exam },
                         onContinue = { sim -> scope.launch { service.start(sim.id); onOpenExam(sim.id) } },
                         onRetry = { sim -> service.retryFailed(sim.id) },
                         onDelete = { sim -> deleting = sim },
@@ -275,6 +286,31 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
                         }
                     }
                 }
+                // Pro: aleatório do edital e por matérias escolhidas (só da biblioteca).
+                item(key = "mode-pro") {
+                    PlainCard(accent = if (pro) Gx.gold else null) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(if (pro) "Monte do seu jeito: o edital todo sorteado ou só as matérias que você escolher." else "Aleatório do edital e por matérias escolhidas: no plano Pro.", style = MaterialTheme.typography.bodySmall, color = Gx.soft)
+                            if (pro) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf(20, 30).forEach { value -> FilterChip(proSize == value, { proSize = value }, { Text("$value questões") }) }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(enabled = !creating, modifier = Modifier.weight(1f), onClick = {
+                                    if (!pro) upgrade = true else {
+                                        creating = true; message = null
+                                        scope.launch {
+                                            runCatching { service.createRandom(competition.id, proSize) }.onFailure { message = it.message ?: "Não foi possível montar o simulado." }
+                                            creating = false
+                                        }
+                                    }
+                                }) { if (!pro) Icon(Icons.Outlined.Lock, null, Modifier.size(16.dp)); Text(" Aleatório", maxLines = 1) }
+                                OutlinedButton(enabled = !creating, modifier = Modifier.weight(1f), onClick = { if (!pro) upgrade = true else pickSubjects = true }) {
+                                    if (!pro) Icon(Icons.Outlined.Lock, null, Modifier.size(16.dp)); Text(" Matérias", maxLines = 1)
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             // 5. Histórico: a evolução e cada prova entregue.
@@ -288,6 +324,59 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
         }
     }
 
+    confirmExam?.let { exam ->
+        AlertDialog(
+            onDismissRequest = { confirmExam = null },
+            title = { Text("Começar a prova do edital?") },
+            text = {
+                Text("Ela cobre o edital inteiro, com ${exam.questions.size} questões. Se você ainda não estudou boa parte das matérias, a nota mostra mais o que falta estudar do que o seu nível.\n\nDepois de começar não dá para desfazer: a primeira entrega é a que vale para o ranking e para liberar a próxima prova.\n\nRecomendado agora: o simulado do que você estudou.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmExam = null
+                    creating = true; message = null
+                    scope.launch {
+                        runCatching { service.createOfficial(competition.id, exam) }.onFailure { message = it.message ?: "Não foi possível abrir a prova." }
+                        creating = false
+                    }
+                }) { Text("Fazer mesmo assim") }
+            },
+            dismissButton = { TextButton(onClick = { confirmExam = null }) { Text("Ver os do que estudei") } },
+        )
+    }
+    if (pickSubjects) {
+        var subjects by remember { mutableStateOf<List<Pair<Long, String>>>(emptyList()) }
+        LaunchedEffect(competition.id) { subjects = service.subjectsOf(competition.id) }
+        AlertDialog(
+            onDismissRequest = { pickSubjects = false },
+            title = { Text("Escolha as matérias") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("${chosen.size} de ${subjects.size} · $proSize questões divididas", style = MaterialTheme.typography.labelMedium, color = Gx.mute, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { chosen = if (chosen.size == subjects.size) emptySet() else subjects.map { it.first }.toSet() }) { Text(if (chosen.size == subjects.size) "Limpar" else "Todas") }
+                    }
+                    androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 380.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(subjects, key = { it.first }) { (id, name) ->
+                            FilterChip(id in chosen, { chosen = if (id in chosen) chosen - id else chosen + id }, { Text(name, style = MaterialTheme.typography.bodySmall) }, modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = chosen.isNotEmpty(), onClick = {
+                    pickSubjects = false
+                    creating = true; message = null
+                    val ids = chosen
+                    scope.launch {
+                        runCatching { service.createBySubjects(competition.id, proSize, ids) }.onFailure { message = it.message ?: "Não foi possível montar o simulado." }
+                        creating = false
+                    }
+                }) { Text("Montar") }
+            },
+            dismissButton = { TextButton(onClick = { pickSubjects = false }) { Text("Cancelar") } },
+        )
+    }
     if (upgrade) br.com.estudario.ui.plans.UpgradeDialog(br.com.estudario.ui.plans.UpgradeReason.SIMULATION, onDismiss = { upgrade = false })
     if (boardDialog) BoardDialog(profile?.board, onDismiss = { boardDialog = false }) { board ->
         boardDialog = false
@@ -488,6 +577,8 @@ private fun ExamRow(
     ranking: ExamRanking?,
     target: Int,
     busy: Boolean,
+    step: Int = 1,
+    unlocked: Boolean = true,
     onCreate: () -> Unit,
     onContinue: (SimulationEntity) -> Unit,
     onRetry: (SimulationEntity) -> Unit,
@@ -495,10 +586,12 @@ private fun ExamRow(
     onResult: (SimulationEntity) -> Unit,
 ) {
     val count = exam.questions.size
-    PlainCard(accent = Gx.gold, onClick = done?.let { { onResult(it) } }) {
+    PlainCard(modifier = if (unlocked) Modifier else Modifier.alpha(0.6f), accent = if (unlocked) Gx.gold else null, onClick = done?.let { { onResult(it) } }) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.WorkspacePremium, null, tint = Gx.readable(Gx.gold))
+                Box(Modifier.size(36.dp).background(if (unlocked) Gx.gold else Gx.mute.copy(alpha = 0.25f), androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
+                    if (unlocked) Text("$step", fontWeight = FontWeight.Black, color = Color(0xFF1A1440)) else Icon(Icons.Outlined.Lock, null, Modifier.size(18.dp), tint = Gx.mute)
+                }
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(SimulationService.examTitle(exam.number, exam.structure), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = Gx.strong)
@@ -537,6 +630,7 @@ private fun ExamRow(
                         else -> LinearProgressIndicator(Modifier.fillMaxWidth())
                     }
                 }
+                !unlocked -> Text("Libera quando você fizer a prova anterior com a sua meta de $target%.", style = MaterialTheme.typography.labelMedium, color = Gx.mute)
                 else -> GxLaunch("Fazer a prova", br.com.estudario.ui.brand.Glyph.Play, enabled = !busy, colors = listOf(Color(0xFFFFE08A), Gx.gold), ink = Color(0xFF1A1440), onClick = onCreate)
             }
         }
