@@ -70,7 +70,7 @@ class Snapshot private constructor(val root: JsonObject, parent: Snapshot? = nul
     val plans get() = list(Keys.PLANS, StudyPlan.serializer())
     // 26/11: o simulado do plano cobra várias matérias; o subjectName gravado é o da 1ª matéria (só vínculo técnico)
     // e aparecia como "Língua Portuguesa". Na tela ele é sempre "Simulado", também nas tarefas antigas.
-    val tasks get() = list(Keys.TASKS, PlanTask.serializer()).map { if (it.type == "SIMULATION") it.copy(subjectName = "Simulado") else it }
+    val tasks get() = list(Keys.TASKS, TaskForDisplay)
     val executions get() = list(Keys.EXECUTIONS, TaskExecution.serializer())
     val availability get() = list(Keys.AVAILABILITY, Availability.serializer())
     val planSubjects get() = list(Keys.PLAN_SUBJECTS, PlanSubject.serializer())
@@ -199,4 +199,10 @@ fun Any?.toJsonElement(): JsonElement = when (this) {
     is Number -> JsonPrimitive(this)
     is Boolean -> JsonPrimitive(this)
     else -> JsonPrimitive(toString())
+}
+
+/** Lê a tarefa já com o nome de tela (o simulado do plano vira "Simulado"); a leitura continua guardada por item. */
+private object TaskForDisplay : kotlinx.serialization.KSerializer<PlanTask> by PlanTask.serializer() {
+    override fun deserialize(decoder: kotlinx.serialization.encoding.Decoder): PlanTask =
+        PlanTask.serializer().deserialize(decoder).let { if (it.type == "SIMULATION") it.copy(subjectName = "Simulado") else it }
 }
