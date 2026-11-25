@@ -4,8 +4,8 @@
 -- na hora por conta paga: PAID_AI_MATERIALS_MONTHLY_CAP (worker, padrão 30).
 -- Lotes extras de questões: 3 / 10 / 20. Simulados montados pela pessoa: 1 / 4 / 8 por mês. Edital por PDF: — / 2 / 4.
 
-update public.ai_plan_limits set quota_limit = 5,  max_per_request = 5  where plan_tier = 'ESSENCIAL' and feature = 'CONTENT_GENERATION';
-update public.ai_plan_limits set quota_limit = 10, max_per_request = 10 where plan_tier = 'PRO'       and feature = 'CONTENT_GENERATION';
+update public.ai_plan_limits set quota_limit = 5  where plan_tier = 'ESSENCIAL' and feature = 'CONTENT_GENERATION'; -- max_per_request = questões por matéria (20), não mexer
+update public.ai_plan_limits set quota_limit = 10 where plan_tier = 'PRO'       and feature = 'CONTENT_GENERATION'; -- max_per_request = questões por matéria (30), não mexer
 update public.ai_plan_limits set quota_limit = 20 where plan_tier = 'PRO' and feature = 'QUESTION_BATCH';
 update public.ai_plan_limits set quota_limit = 4  where plan_tier = 'ESSENCIAL' and feature = 'SIMULATION_GENERATION';
 update public.ai_plan_limits set quota_limit = 8  where plan_tier = 'PRO'       and feature = 'SIMULATION_GENERATION';
