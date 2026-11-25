@@ -98,6 +98,27 @@ fun SimulationsScreen() {
         )
     }
     var officialError by remember { mutableStateOf<String?>(null) }
+    // 26/11 (dono): antes da prova do edital, avisa que cobre o edital todo e que não dá para desfazer.
+    var confirmExam by remember { mutableStateOf<br.com.estudario.web.data.OfficialSimulation?>(null) }
+    confirmExam?.let { prova ->
+        Modal(onDismiss = { confirmExam = null }) {
+            H2 { Text("Começar a prova do edital?") }
+            P { Text("Ela cobre o edital inteiro, com ${prova.questions.size} questões. Se você ainda não estudou boa parte das matérias, a nota vai mostrar mais o que falta estudar do que o seu nível.") }
+            P { Text("Depois de começar não dá para desfazer: a primeira entrega é a que vale para o ranking e para liberar a próxima prova.") }
+            P({ classes("small", "muted") }) { Text("Recomendado agora: o simulado do que você estudou, que cobra só os tópicos já vistos.") }
+            Div({ classes("row", "end") }) {
+                Btn("Ver os simulados dos tópicos", { confirmExam = null }, style = "ghost")
+                Btn("Fazer mesmo assim", {
+                    confirmExam = null
+                    try {
+                        var id = 0L
+                        Store.update { val (next, created) = Simulations.createOfficial(it, competition.id, prova); id = created; next }
+                        Router.go(Route.Simulation(id))
+                    } catch (e: Throwable) { officialError = e.message }
+                }, icon = "play_circle")
+            }
+        }
+    }
     // No Grátis o simulado vem do plano: na aba, montar prova abre a oferta (o histórico continua aberto).
     val free = br.com.estudario.web.data.LibraryGaps.free()
     var freeOffer by remember { mutableStateOf(false) }
@@ -213,13 +234,7 @@ fun SimulationsScreen() {
                             Div({ classes("sx-exam-act") }) {
                                 when {
                                     !open -> Span({ classes("sx-meta") }) { Icon("lock"); Text(" Libera com ${profile.targetPercent}% na prova anterior") }
-                                    taken == null -> Btn("Fazer a prova", {
-                                        try {
-                                            var id = 0L
-                                            Store.update { val (next, created) = Simulations.createOfficial(it, competition.id, prova); id = created; next }
-                                            Router.go(Route.Simulation(id))
-                                        } catch (e: Throwable) { officialError = e.message }
-                                    }, icon = "play_circle", enabled = !Store.demo)
+                                    taken == null -> Btn("Fazer a prova", { confirmExam = prova }, icon = "play_circle", enabled = !Store.demo)
                                     taken.status == "FINISHED" -> {
                                         val score = taken.scorePercent ?: 0
                                         Div({ classes("sx-exam-score") }) {
