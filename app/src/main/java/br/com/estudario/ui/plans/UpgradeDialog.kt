@@ -106,8 +106,9 @@ fun upgradeReasonOf(message: String, questionsOnly: Boolean): UpgradeReason? = w
 private data class OfferPlan(val tier: String, val name: String, val price: String, val lines: List<Pair<String, String>>)
 
 private val offerPlans = listOf(
-    OfferPlan("ESSENCIAL", "Essencial", "R$ 24,90", listOf("✓" to "adiantar o plano livre, sem anúncio", "25" to "matérias fora do plano por mês", "10" to "lotes de questões", "3" to "simulados por mês", "2" to "editais pelo PDF")),
-    OfferPlan("PRO", "Pro", "R$ 49,90", listOf("✓" to "adiantar o plano livre, sem anúncio", "40" to "matérias fora do plano por mês", "25" to "lotes de questões", "6" to "simulados por mês", "5" to "editais pelo PDF")),
+    // 25/11 (docs/PLANOS_E_LIMITES.md): mesma tabela do site.
+    OfferPlan("ESSENCIAL", "Essencial", "R$ 24,90", listOf("3" to "matérias novas por dia no plano", "5" to "matérias extras por mês", "2" to "concursos ao mesmo tempo", "4" to "simulados por mês + Simulado do edital", "10" to "lotes extras de questões", "2" to "editais pelo PDF por mês")),
+    OfferPlan("PRO", "Pro", "R$ 49,90", listOf("4" to "matérias novas por dia no plano", "10" to "matérias extras por mês", "4" to "concursos ao mesmo tempo", "8" to "simulados por mês, também aleatório e por matérias", "20" to "lotes extras de questões", "4" to "editais pelo PDF por mês")),
 )
 
 /**

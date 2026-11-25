@@ -545,6 +545,10 @@ class SimulationService(
     suspend fun createForPlan(competitionId: Long, size: Int, diagnostic: Boolean): Long =
         create(competitionId, if (diagnostic) SimulationMode.DIAGNOSTIC else SimulationMode.STUDIED, size, purpose = PLAN_SIMULATION)
 
+    /** 25/11: "Do que você estudou" montado pela pessoa: só biblioteca, conta no limite do mês (Grátis 1, Essencial 4, Pro 8). */
+    suspend fun createStudied(competitionId: Long, size: Int): Long =
+        create(competitionId, SimulationMode.STUDIED, size, purpose = STUDIED_SIMULATION)
+
     /**
      * Completa o simulado do plano com questões que a pessoa já tem: primeiro as que ela errou, depois as
      * que nunca respondeu e as que não vê há mais tempo; nunca uma que já está no simulado. São cópias
@@ -556,8 +560,10 @@ class SimulationService(
         val topics = appDao.topicsOnce().filter { it.subjectId in subjects }
         val studied = topics.filter { it.status != br.com.estudario.data.local.TopicStatus.NAO_ESTUDADO }.map { it.id }.toSet()
         val inside = dao.questionsFor(simulation.id).mapTo(hashSetOf()) { QuestionKey.of(it.question.statement) }
+        // 25/11: nunca mistura formato (prova Certo/Errado só com Certo/Errado; A a E só com múltipla escolha).
+        val trueFalse = simulation.style == "TRUE_FALSE"
         val pool = topics.flatMap { appDao.reviewQuestionsFor(it.id) }
-            .filter { it.options.size >= 2 && QuestionKey.of(it.question.statement) !in inside }
+            .filter { it.options.size >= 2 && (it.options.map { o -> o.key }.toSet() == setOf("C", "E")) == trueFalse && QuestionKey.of(it.question.statement) !in inside }
             .sortedWith(
                 compareByDescending<br.com.estudario.data.local.QuestionWithOptions> { it.question.topicId in studied }
                     .thenByDescending { it.question.errorCount > it.question.correctCount }
@@ -585,7 +591,7 @@ class SimulationService(
         val parts = decodeParts(simulation.partsJson)
         if (parts.any { it.status == "RUNNING" || it.status == "PENDING" }) return
         // Simulado do plano: o que o banco não cobriu vem das questões que a pessoa já fez (nunca sai menor).
-        val plan = parts.any { it.purpose == PLAN_SIMULATION }
+        val plan = parts.any { it.purpose == PLAN_SIMULATION || it.purpose == STUDIED_SIMULATION }
         if (plan) fillFromOwn(simulation, simulation.plannedQuestions - dao.questionsFor(simulationId).size)
         val stored = dao.questionsFor(simulationId).size
         val status = when {
@@ -799,9 +805,10 @@ class SimulationService(
         const val SEEN_LIMIT = 6_000
         /** Motivo do pedido do simulado do plano: só banco, sem cota (supabase ai-syllabus-jobs). */
         const val PLAN_SIMULATION = "PLAN_SIMULATION"
+        const val STUDIED_SIMULATION = "STUDIED_SIMULATION"
 
         /** "Prova oficial" (a anterior, nº 1) ou "Simuladão 2", "Simuladão 3"... (os do mês, iguais para todos). */
-        fun examTitle(number: Int, structure: String? = null): String = if (number > 1 || structure?.startsWith("Simuladão montado") == true) "Simuladão $number" else "Prova oficial"
+        fun examTitle(number: Int, structure: String? = null): String = if (number > 1 || structure?.startsWith("Simuladão montado") == true) "Simulado do edital $number" else "Prova oficial"
         fun decodeAnswers(json: String): Map<Long, String> = runCatching {
             val value = JSONObject(json)
             value.keys().asSequence().mapNotNull { key -> key.toLongOrNull()?.let { it to value.getString(key) } }.toMap()

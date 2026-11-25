@@ -189,17 +189,41 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
                     )
                 }
                 item { UpgradeCard { upgrade = true } }
+                // 25/11: no Grátis, 1 simulado do que estudou por mês, depois de 5 tópicos em 3 dias (o servidor conta o mês).
+                readiness?.let { r ->
+                    item { SectionTitle("Do que você estudou") }
+                    item(key = "mode-studied-free") {
+                        val ok = r.coveredTopics >= 5 && r.studyDays >= 3
+                        StudiedCard(
+                            lock = br.com.estudario.domain.simulation.SimulationLock(
+                                ok,
+                                ((r.coveredTopics.coerceAtMost(5) / 5f) + (r.studyDays.coerceAtMost(3) / 3f)) / 2f,
+                                "Estude 5 tópicos em 3 dias diferentes (${r.coveredTopics.coerceAtMost(5)}/5 tópicos · ${r.studyDays.coerceAtMost(3)}/3 dias). No Grátis, 1 por mês.",
+                            ),
+                            busy = creating || active.any { it.status == "GENERATING" },
+                            style = profile?.style ?: "FIVE_OPTIONS",
+                        ) { size ->
+                            creating = true
+                            message = null
+                            scope.launch {
+                                runCatching { service.createStudied(competition.id, size) }
+                                    .onFailure { message = it.message ?: "Não foi possível montar o simulado." }
+                                creating = false
+                            }
+                        }
+                    }
+                }
             } else {
                 // 3. Simuladão do edital: provas prontas, iguais para todos, com ranking.
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        SectionTitle("Simuladão do edital")
+                        SectionTitle("Simulado do edital")
                         Text("A mesma prova para todos do seu edital, com ranking. Uma nova por mês.", style = MaterialTheme.typography.bodySmall, color = Gx.mute)
                     }
                 }
                 if (exams.isEmpty()) item {
                     PlainCard {
-                        Text("Este edital ainda não tem Simuladão pronto. Ele aparece aqui assim que sair.", style = MaterialTheme.typography.bodyMedium, color = Gx.mute)
+                        Text("Este edital ainda não tem Simulado do edital pronto. Ele aparece aqui assim que sair.", style = MaterialTheme.typography.bodyMedium, color = Gx.mute)
                     }
                 }
                 items(exams, key = { "exam-${it.id}" }) { exam ->
@@ -245,7 +269,7 @@ fun SimulationsScreen(viewModel: AppViewModel, onOpenExam: (Long) -> Unit, onOpe
                         creating = true
                         message = null
                         scope.launch {
-                            runCatching { service.createForPlan(competition.id, size, diagnostic = false) }
+                            runCatching { service.createStudied(competition.id, size) }
                                 .onFailure { message = it.message ?: "Não foi possível montar o simulado." }
                             creating = false
                         }
@@ -555,7 +579,7 @@ private fun UpgradeCard(onClick: () -> Unit) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             GxKicker("Com a assinatura", Gx.readable(Gx.gold))
             Text("Treine com provas do seu edital", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = Gx.strong)
-            UpgradeLine("Simuladão do edital", "A mesma prova para todos, com ranking. Uma nova por mês.")
+            UpgradeLine("Simulado do edital", "A mesma prova para todos, com ranking. Uma nova por mês.")
             UpgradeLine("Do que você estudou", "Um simulado de 20 ou 30 questões sobre o que você já viu.")
             GxLaunch("Conhecer os planos", br.com.estudario.ui.brand.Glyph.Play, colors = listOf(Color(0xFFFFE08A), Gx.gold), ink = Color(0xFF1A1440), onClick = onClick)
         }

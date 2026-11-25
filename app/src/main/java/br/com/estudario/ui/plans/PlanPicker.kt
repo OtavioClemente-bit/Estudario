@@ -320,9 +320,10 @@ internal fun PlanCompare(plan: AiPlanCatalogEntry, all: List<AiPlanCatalogEntry>
     val look = tierLook(plan.planTier)
     val free = plan.planTier == "FREE"
     val rows = listOf(
-        "CONTENT_GENERATION" to "Matérias fora do plano",
-        "QUESTION_BATCH" to "Lotes de questões",
-        "SIMULATION_GENERATION" to "Simulados",
+        "CONTENT_GENERATION" to "Matérias extras por mês",
+        "SAVED_EDITAIS" to "Concursos ao mesmo tempo",
+        "QUESTION_BATCH" to "Lotes extras de questões",
+        "SIMULATION_GENERATION" to "Simulados por mês",
         "SYLLABUS_GENERATION" to "Edital pelo PDF",
     )
     val tone by animateColorAsState(look.color, tween(450), label = "tone")
@@ -336,10 +337,12 @@ internal fun PlanCompare(plan: AiPlanCatalogEntry, all: List<AiPlanCatalogEntry>
     ) {
         FolhaTalking(56.dp, look.folha)
         // Em todos: a matéria do plano de hoje não gasta nada. No Grátis, as regras dele em texto.
-        RuleRow("Matéria do plano de hoje", "livre", tone)
+        // 25/11 (docs/PLANOS_E_LIMITES.md): ritmo do plano por dia 2/3/4; Simulado do edital nos pagos.
+        RuleRow("Matérias novas por dia no plano", when (plan.planTier) { "FREE" -> "2"; "ESSENCIAL" -> "3"; else -> "4" }, tone)
+        RuleRow("Revisões, treino e caderno", "livre", tone)
         RuleRow("Adiantar o plano", if (free) "com anúncio curto" else "livre", tone)
-        RuleRow("Matérias novas por dia", if (free) "até 2" else "até 4, e mais se quiser", tone)
-        RuleRow("Matérias fora do plano", if (free) "nos planos pagos" else "pelo saldo do mês", tone)
+        RuleRow("Simulado do edital", if (free) "nos planos pagos" else "todo mês, com ranking", tone)
+        if (plan.planTier == "PRO") RuleRow("Simulado aleatório e por matérias", "sim", tone)
         // Só o que o plano tem: no Grátis, nada de linha dizendo "não tem" (a cota de matérias do
         // Grátis é só o teto interno; as regras dele estão acima).
         rows.filter { (feature, _) -> (plan.limits.firstOrNull { it.feature == feature }?.quotaLimit ?: 0) > 0 && !(free && feature == "CONTENT_GENERATION") }.forEach { (feature, label) ->
