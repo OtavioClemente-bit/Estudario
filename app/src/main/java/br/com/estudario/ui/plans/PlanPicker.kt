@@ -347,10 +347,11 @@ internal fun PlanCompare(plan: AiPlanCatalogEntry, all: List<AiPlanCatalogEntry>
         // Grátis é só o teto interno; as regras dele estão acima).
         rows.filter { (feature, _) -> (plan.limits.firstOrNull { it.feature == feature }?.quotaLimit ?: 0) > 0 && !(free && feature == "CONTENT_GENERATION") }.forEach { (feature, label) ->
             val limit = plan.limits.firstOrNull { it.feature == feature }
-            val max = all.mapNotNull { p -> p.limits.firstOrNull { it.feature == feature }?.quotaLimit }.maxOrNull()?.coerceAtLeast(1) ?: 1
+            // 26/11: a barra mede contra o Pro (o topo); o teto interno do Grátis (120 matérias) não entra. O Pro fica sempre cheio.
+            val max = all.filter { it.planTier == "PRO" }.mapNotNull { p -> p.limits.firstOrNull { it.feature == feature }?.quotaLimit }.maxOrNull()?.coerceAtLeast(1) ?: 1
             val value = limit?.quotaLimit ?: 0
             val shown by animateIntAsState(value, tween(650, easing = FastOutSlowInEasing), label = "count")
-            val fill by animateFloatAsState(value.toFloat() / max, spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessLow), label = "bar")
+            val fill by animateFloatAsState((value.toFloat() / max).coerceAtMost(1f), spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessLow), label = "bar")
             val unit = when (limit?.periodKind) { null -> ""; "LIFETIME" -> "no total"; "DAILY" -> "por dia"; else -> "por mês" }
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.Bottom) {
