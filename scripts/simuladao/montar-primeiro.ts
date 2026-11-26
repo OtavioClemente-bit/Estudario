@@ -7,6 +7,12 @@
 // disciplina. Não escreve, não altera nem completa o texto de nenhuma questão; faltando mais de 5%, não grava.
 //
 //   deno run --allow-read --allow-write=conteudo/simulados scripts/simuladao/montar-primeiro.ts [--edital <id>] [--limite N] [--seco]
+//
+// Auditoria de 26/11 (regras.ts): só entra questão com as alternativas exatas do formato (A–E ou C/E);
+// nenhum enunciado repetido de outra prova do mesmo edital nem dentro da prova; tópico de área básica
+// (português, matemática, informática, idioma) só numa disciplina que fale dela; edital sem quadro em
+// conteudo/pesos-provas.json é dividido pelos tópicos com teto de 40% por disciplina.
+import { alternativasCertas, dividir, editaisComQuadro, topicoCabe, Usadas } from "./regras.ts";
 const existsSync = (p: string) => { try { Deno.statSync(p); return true; } catch { return false; } };
 type Json = Record<string, unknown>;
 type Option = { key: string; text: string; correct?: boolean };
@@ -14,7 +20,7 @@ type Cand = { q: Json; fonte: string; materia: string; rank: number };
 
 const ROOT = new URL("../../", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
 const EDITAIS = `${ROOT}conteudo/editais`, SIMULADOS = `${ROOT}conteudo/simulados`, RECORTES = `${ROOT}conteudo/recortes`, MATERIAS = `${ROOT}conteudo/materias`;
-const args = Deno.args;
+const args = import.meta.main ? Deno.args : [];
 const only = args.includes("--edital") ? args[args.indexOf("--edital") + 1] : null;
 const limite = args.includes("--limite") ? Number(args[args.indexOf("--limite") + 1]) : Infinity;
 const dry = args.includes("--seco");
@@ -25,7 +31,6 @@ const slug = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCa
 const bancaFolders = [...Deno.readDirSync(RECORTES)].filter((e) => e.isDirectory).map((e) => e.name);
 const folderOf = (banca: string) => { const s = slug(banca); return bancaFolders.find((f) => f === s) ?? bancaFolders.find((f) => s.startsWith(f) || f.startsWith(s.split("-")[0])) ?? null; };
 function seedOf(text: string): number { let h = 2166136261; for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619); return h >>> 0; }
-function questionKey(text: string): string { const l = text.toLowerCase().normalize("NFD").replace(/[^a-z0-9]/g, ""); return String(seedOf(l)); }
 const formatOf = (q: Json) => (q.format === "CERTO_ERRADO" || q.format === "TRUE_FALSE" ? "CERTO_ERRADO" : "MULTIPLE_CHOICE");
 const valid = (q: Json) => Array.isArray(q.options) && (q.options as Option[]).filter((o) => o.correct).length === 1 && String(q.statement ?? "").length >= 20;
 // Questão que só faz sentido dentro da matéria ("o decreto estudado", "neste capítulo") fica fora de prova solta.
@@ -64,16 +69,41 @@ function candidatosSemCache(materia: string, banca: string | null, formato: stri
   if (banca) for (const q of questoes(`${RECORTES}/${banca}/${materia}.json`)) out.push({ q, fonte: `recorte ${banca}`, materia, rank: 0 });
   for (const f of bancaFolders) if (f !== banca) for (const q of questoes(`${RECORTES}/${f}/${materia}.json`)) out.push({ q, fonte: `recorte ${f}`, materia, rank: 1 });
   for (const q of questoes(materiaPath(materia))) out.push({ q, fonte: "matéria", materia, rank: 2 });
-  return out.filter((c) => formatOf(c.q) === formato && valid(c.q) && !fora(c.q));
+  return out.filter((c) => formatOf(c.q) === formato && valid(c.q) && alternativasCertas(c.q, formato) && !fora(c.q));
 }
 
 // Mistura de dificuldade de uma prova: 30% fácil, 50% média, 20% difícil (posição i de n).
 const alvoDificuldade = (i: number, n: number) => { const r = (i + 0.5) / n; return r < 0.3 ? "FACIL" : r < 0.8 ? "MEDIA" : "DIFICIL"; };
 
-function montar(id: string, e: Json): { file: Json; faltam: number; total: number; fontes: Record<string, number> } {
+const QUADRO = editaisComQuadro(ROOT);
+const tamanhoTipico = (b: string | null) => b === "cebraspe" ? 120 : b === "vunesp" ? 80 : ["fgv", "fcc", "cesgranrio"].includes(b ?? "") ? 60 : 50;
+const topicosQueCabem = (d: Json) => ((d.topicos as Json[]) ?? []).filter((t) => t.topico && topicoCabe(String(d.nome), String(t.texto ?? ""), String(t.topico)));
+
+/**
+ * Prepara o edital para montar: com quadro da prova real (pesos-provas.json) usa as quantidades do edital;
+ * sem quadro, divide o tamanho da prova (o que o edital já somava, ou o típico da banca) pelos tópicos com
+ * questão disponível, com teto de 40% por disciplina. Devolve null se não dá para montar.
+ */
+export function prepararEdital(id: string, e: Json): { e: Json; aproximado: boolean } | null {
   const banca = folderOf(String(e.banca ?? ""));
   const formato = banca === "cebraspe" ? "CERTO_ERRADO" : "MULTIPLE_CHOICE";
-  const usadas = new Set<string>();
+  const ds = ((e.disciplinas as Json[]) ?? []).filter((d) => Number(d.questoes) > 0);
+  const soma = ds.reduce((a, d) => a + Number(d.questoes), 0);
+  if (QUADRO.has(id) && soma >= 20) return { e, aproximado: false };
+  const todas = (e.disciplinas as Json[]) ?? [];
+  const pesos = todas.map((d) => topicosQueCabem(d).filter((t) => candidatos(String(t.topico), banca, formato).length > 0).length);
+  if (pesos.filter((p) => p > 0).length < 2) return null;
+  const total = soma >= 20 ? soma : tamanhoTipico(banca);
+  const cont = dividir(total, pesos);
+  return { e: { ...e, disciplinas: todas.map((d, i) => ({ ...d, questoes: cont[i] })).filter((d) => d.questoes > 0) }, aproximado: true };
+}
+export const textoAproximado = (estrutura: string) => estrutura.replace("na quantidade de questões de cada disciplina da prova", "com quantidade aproximada por disciplina (o edital não traz o quadro de questões) da prova");
+
+export function montar(id: string, e: Json, numero = 1, excluir?: Usadas): { file: Json; faltam: number; total: number; fontes: Record<string, number> } {
+  const banca = folderOf(String(e.banca ?? ""));
+  const formato = banca === "cebraspe" ? "CERTO_ERRADO" : "MULTIPLE_CHOICE";
+  // Enunciados das outras provas do edital (e os desta, conforme entram): nada se repete.
+  const usadas = excluir ?? new Usadas();
   const textos: Set<string>[] = [];
   const contaResp: Record<string, number> = {};
   let longas = 0, absolutos = 0;
@@ -86,7 +116,7 @@ function montar(id: string, e: Json): { file: Json; faltam: number; total: numbe
     if (n <= 0) continue;
     total += n;
     partes.push(`${d.nome} ${n}`);
-    const topicos = ((d.topicos as Json[]) ?? []).filter((t) => t.topico).map((t) => ({ materia: String(t.topico), texto: String(t.texto ?? "") }));
+    const topicos = topicosQueCabem(d).map((t) => ({ materia: String(t.topico), texto: String(t.texto ?? "") }));
     // Espalha as n questões pelos tópicos da disciplina, em rodízio (cada tópico do edital entra antes de repetir).
     for (let i = 0; i < n; i++) {
       const dif = alvoDificuldade(i, n);
@@ -94,7 +124,7 @@ function montar(id: string, e: Json): { file: Json; faltam: number; total: numbe
       for (let k = 0; k < Math.max(1, topicos.length) && !escolhida; k++) {
         const t = topicos[(i + k) % Math.max(1, topicos.length)];
         if (!t) break;
-        const pool = candidatos(t.materia, banca, formato).filter((c) => !usadas.has(questionKey(String(c.q.statement))) && !parecida(c.q, textos));
+        const pool = candidatos(t.materia, banca, formato).filter((c) => !usadas.has(c.q) && !parecida(c.q, textos));
         if (!pool.length) continue;
         // Equilíbrio de prova (conferência de 24/11): Certo/Errado perto de meio a meio, letra da certa espalhada,
         // a certa não pode ser quase sempre a mais longa. Só escolhe entre questões prontas; nada é reescrito.
@@ -107,11 +137,11 @@ function montar(id: string, e: Json): { file: Json; faltam: number; total: numbe
         const nota = (c: Cand) => c.rank * 4 + desequilibrio(c) * 2 + (absoluto(c.q) && absolutos / (out.length || 1) > 0.15 ? 2 : 0) + (c.q.difficulty === dif ? 0 : 1);
         const melhor = Math.min(...pool.map(nota));
         const faixa = pool.filter((c) => nota(c) === melhor);
-        escolhida = faixa[seedOf(`${id}|1|${d.nome}|${i}`) % faixa.length];
+        escolhida = faixa[seedOf(`${id}|${numero}|${d.nome}|${i}`) % faixa.length];
       }
       if (!escolhida) { faltam++; continue; }
       const q = escolhida.q;
-      usadas.add(questionKey(String(q.statement)));
+      usadas.add(q);
       textos.push(palavras(String(q.statement)));
       const rk = (q.options as Option[]).find((o) => o.correct)!.key;
       contaResp[rk] = (contaResp[rk] ?? 0) + 1;
@@ -127,9 +157,10 @@ function montar(id: string, e: Json): { file: Json; faltam: number; total: numbe
     }
   }
   const estrutura = `Simuladão montado com questões revisadas da biblioteca, na quantidade de questões de cada disciplina da prova ${String(e.concurso ?? id)} (${total} ${formato === "CERTO_ERRADO" ? "itens Certo/Errado" : "questões de múltipla escolha"}): ${partes.join(", ")}`;
-  return { file: { edital: id, banca: e.banca, estrutura, numero: 1, montado: true, questions: out }, faltam, total, fontes };
+  return { file: { edital: id, banca: e.banca, estrutura, numero, montado: true, questions: out }, faltam, total, fontes };
 }
 
+if (import.meta.main) {
 const comSimulado = new Set([...Deno.readDirSync(SIMULADOS)].map((f) => f.name.replace(/\.simulado-\d+\.json$/, "")));
 let gravados = 0;
 const editais = [...Deno.readDirSync(EDITAIS)].map((f) => f.name.replace(/\.json$/, "")).filter((id) => !only || id === only).sort();
@@ -141,32 +172,17 @@ for (const id of editais) {
     if (args.includes("--refazer")) { try { refaz = ler(`${SIMULADOS}/${id}.simulado-1.json`).montado === true && !existsSync(`${SIMULADOS}/${id}.simulado-2.json`); } catch { /* sem */ } }
     if (!refaz) continue;
   }
-  let e: Json; try { e = ler(`${EDITAIS}/${id}.json`); } catch { continue; }
-  let ds = ((e.disciplinas as Json[]) ?? []).filter((d) => Number(d.questoes) > 0);
-  let soma = ds.reduce((a, d) => a + Number(d.questoes), 0);
-  let aproximado = false;
-  if ((ds.length < 2 || soma < 20) && args.includes("--aproximado")) {
-    // Sem quadro de questões no edital: tamanho típico da banca, dividido pelos tópicos de cada disciplina.
-    const todas = ((e.disciplinas as Json[]) ?? []).filter((d) => ((d.topicos as Json[]) ?? []).some((t) => t.topico));
-    const b = folderOf(String(e.banca ?? ""));
-    const total = b === "cebraspe" ? 120 : b === "vunesp" ? 80 : ["fgv", "fcc", "cesgranrio"].includes(b ?? "") ? 60 : 50;
-    const tops = todas.map((d) => ((d.topicos as Json[]) ?? []).filter((t) => t.topico).length);
-    const somaT = tops.reduce((a, x) => a + x, 0);
-    if (todas.length >= 2 && somaT > 0) {
-      const cont = tops.map((t) => Math.max(2, Math.round((total * t) / somaT)));
-      let dif = total - cont.reduce((a, x) => a + x, 0);
-      for (let i = 0; dif !== 0 && i < 1000; i++) { const k = i % cont.length; if (dif > 0) { cont[k]++; dif--; } else if (cont[k] > 2) { cont[k]--; dif++; } }
-      e = { ...e, disciplinas: todas.map((d, i) => ({ ...d, questoes: cont[i] })) };
-      ds = e.disciplinas as Json[]; soma = total; aproximado = true;
-    }
-  }
-  if (ds.length < 2 || soma < 20) continue;
-  const { file, faltam, total, fontes } = montar(id, e);
-  if (aproximado) file.estrutura = String(file.estrutura).replace("na quantidade de questões de cada disciplina da prova", "com quantidade aproximada por disciplina (o edital não traz o quadro de questões) da prova");
-  const ok = faltam / total <= MAX_FALTA;
+  let e0: Json; try { e0 = ler(`${EDITAIS}/${id}.json`); } catch { continue; }
+  // Sem quadro da prova real em pesos-provas.json: quantidade aproximada (24/11), dividida pelos tópicos com teto de 40%.
+  const prep = prepararEdital(id, e0);
+  if (!prep) continue;
+  const { file, faltam, total, fontes } = montar(id, prep.e);
+  if (prep.aproximado) file.estrutura = textoAproximado(String(file.estrutura));
+  const ok = total >= 20 && faltam / total <= MAX_FALTA;
   console.log(`${id}: ${ok ? `${total - faltam}/${total}` : `NÃO gravado (faltam ${faltam} de ${total})`} · ${Object.entries(fontes).map(([k, v]) => `${k} ${v}`).join(", ")}`);
   if (!ok || dry) continue;
   Deno.writeTextFileSync(`${SIMULADOS}/${id}.simulado-1.json`, JSON.stringify(file, null, 2) + "\n");
   gravados++;
 }
 console.log(`\n${gravados} Simuladão 1 gravado(s).`);
+}

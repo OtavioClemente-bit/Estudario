@@ -17,20 +17,16 @@ type Option = { key: string; text: string; correct: boolean };
 type Slot = { n: number; disciplina: string; materia?: string; format: string; difficulty?: string };
 type Candidate = { q: Json; banca: string; materia: string };
 
-const args = Deno.args;
+// Auditoria de 26/11 (regras.ts): só questão com as alternativas exatas do formato (A–E ou C/E, uma certa);
+// nenhum enunciado de nenhuma outra prova do mesmo edital (qualquer número) nem repetido na prova; no máximo 3 provas.
+import { alternativasCertas, MAX_PROVAS, Usadas } from "./regras.ts";
+
+const args = import.meta.main ? Deno.args : [];
 const only = args.includes("--edital") ? args[args.indexOf("--edital") + 1] : null;
 const dry = args.includes("--seco");
 // Um por mês: edital cujo último Simuladão tem menos de 25 dias fica para depois (--forcar ignora).
 const force = args.includes("--forcar");
 const MIN_DAYS = 25;
-
-/** A mesma chave de enunciado do app, do site e do servidor (QuestionKey / questionKey). */
-function questionKey(statement: string): string {
-  const letters = statement.toLowerCase().replace(/[^\p{L}\p{Nd}]/gu, "").slice(0, 160);
-  let hash = 2166136261;
-  for (let i = 0; i < letters.length; i++) hash = Math.imul(hash ^ letters.charCodeAt(i), 16777619);
-  return (hash >>> 0).toString(16).padStart(8, "0");
-}
 
 /** Número determinístico a partir de um texto (a mesma entrada dá sempre o mesmo simulado). */
 function seedOf(text: string): number {
@@ -67,10 +63,12 @@ function candidates(materia: string, banca: string | null): Candidate[] {
 // Os recortes chamam o Certo ou Errado de TRUE_FALSE; os simulados, de CERTO_ERRADO (as alternativas são as mesmas, C e E).
 const formatOf = (q: Json) => (q.format === "CERTO_ERRADO" || q.format === "TRUE_FALSE" ? "CERTO_ERRADO" : "MULTIPLE_CHOICE");
 
-function build(edital: string, first: Json, previous: Json[], number: number): { file: Json; missing: number; total: number } {
+/** Monta a prova `number` na estrutura de `first`; `others` são TODAS as outras provas do edital (nenhum enunciado delas entra). */
+export function build(edital: string, first: Json, others: Json[], number: number): { file: Json; missing: number; total: number } {
   const banca = folderOf(String(first.banca ?? ""));
-  const used = new Set<string>();
-  for (const sim of [first, ...previous]) for (const q of (sim.questions as Json[])) used.add(questionKey(String(q.statement ?? "")));
+  const used = new Usadas();
+  for (const sim of [first, ...others]) for (const q of (sim.questions as Json[])) used.add(q);
+  const ok = (c: Candidate, format: string) => formatOf(c.q) === format && alternativasCertas(c.q, format) && String(c.q.statement ?? "").trim().length >= 20 && !used.has(c.q);
   const slots = (first.questions as Json[]).map((q, i) => ({
     n: Number(q.n ?? i + 1), disciplina: String(q.disciplina ?? ""), materia: q.materia ? String(q.materia) : undefined,
     format: formatOf(q), difficulty: q.difficulty ? String(q.difficulty) : undefined,
@@ -81,18 +79,13 @@ function build(edital: string, first: Json, previous: Json[], number: number): {
   let missing = 0;
   for (const slot of slots) {
     if (!slot.materia) { missing++; continue; }
-    let pool = candidates(slot.materia, banca)
-      .filter((c) => formatOf(c.q) === slot.format)
-      .filter((c) => Array.isArray(c.q.options) && (c.q.options as Option[]).some((o) => o.correct))
-      .filter((c) => !used.has(questionKey(String(c.q.statement ?? ""))));
+    let pool = candidates(slot.materia, banca).filter((c) => ok(c, slot.format));
     // Sem questão da matéria exata: outra matéria da mesma disciplina desta prova (como faria quem monta
     // a prova à mão). Ainda sem nada, a posição fica de fora.
     if (pool.length === 0) {
       for (const other of sameDiscipline.get(slot.disciplina) ?? []) {
         if (other === slot.materia) continue;
-        pool = candidates(other, banca).filter((c) => formatOf(c.q) === slot.format)
-          .filter((c) => Array.isArray(c.q.options) && (c.q.options as Option[]).some((o) => o.correct))
-          .filter((c) => !used.has(questionKey(String(c.q.statement ?? ""))));
+        pool = candidates(other, banca).filter((c) => ok(c, slot.format));
         if (pool.length > 0) break;
       }
     }
@@ -103,7 +96,7 @@ function build(edital: string, first: Json, previous: Json[], number: number): {
     const tier = pool.filter((c) => rank(c) === best);
     const chosen = tier[seedOf(`${edital}|${number}|${slot.n}`) % tier.length];
     const pick = chosen.q;
-    used.add(questionKey(String(pick.statement)));
+    used.add(pick);
     out.push({
       n: out.length + 1,
       disciplina: slot.disciplina,
@@ -125,6 +118,7 @@ function build(edital: string, first: Json, previous: Json[], number: number): {
   };
 }
 
+if (import.meta.main) {
 const files = [...Deno.readDirSync(SIMULADOS)].map((e) => e.name);
 const editais = files.map((f) => f.match(/^(.+)\.simulado-1\.json$/)?.[1]).filter((e): e is string => !!e).filter((e) => !only || e === only);
 let written = 0;
@@ -132,7 +126,7 @@ for (const edital of editais.sort()) {
   const numbers = files.map((f) => f.match(new RegExp(`^${edital.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.simulado-(\\d+)\\.json$`))?.[1]).filter(Boolean).map(Number);
   const next = Math.max(...numbers) + 1;
   // 26/11 (dono): no máximo 3 provas por edital (a próxima abre com a meta na anterior); depois disso não monta mais.
-  if (next > 3) continue;
+  if (next > MAX_PROVAS) continue;
   if (!force && next > 2) {
     const last = Deno.statSync(`${SIMULADOS}/${edital}.simulado-${next - 1}.json`).mtime?.getTime() ?? 0;
     if (Date.now() - last < MIN_DAYS * 86_400_000) { console.log(`${edital}: o último Simuladão tem menos de ${MIN_DAYS} dias, fica para o mês que vem.`); continue; }
@@ -149,3 +143,4 @@ for (const edital of editais.sort()) {
   written++;
 }
 console.log(`\n${written} Simuladão(ões) gravado(s) em ${SIMULADOS}.`);
+}

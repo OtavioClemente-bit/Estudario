@@ -511,7 +511,8 @@ else {
       difficulty: ["FACIL", "MEDIA", "DIFICIL"].includes(String(q.difficulty)) ? q.difficulty : "MEDIA",
       statement: q.textoBase ? `${q.textoBase}\n\n${q.statement}` : String(q.statement),
       options: (q.options as Json[]).map((o) => ({ key: String(o.key), text: String(o.text), correct: o.correct === true })),
-      explanation: String(q.explanation ?? ""),
+      // Marcador vazio "Pegadinha: —" no fim da explicação é só sobra de exibição (o site já o esconde): sai aqui.
+      explanation: String(q.explanation ?? "").replace(/\s*Pegadinha:\s*[—–-]?\s*$/u, ""),
       trap: q.pegadinha ? String(q.pegadinha) : null,
     }));
     const formats = new Set(questions.map((q) => q.format));
@@ -524,7 +525,8 @@ else {
       structure: sim.estrutura ? String(sim.estrutura).slice(0, 1000) : null,
       item_count: questions.length,
       questions,
-      status: "PUBLISHED",
+      // "status": "DRAFT" no arquivo tira a prova do ar sem apagar (ex.: 4ª/5ª prova de um edital, auditoria de 26/11).
+      status: sim.status === "DRAFT" ? "DRAFT" : "PUBLISHED",
       updated_at: new Date().toISOString(),
     });
   }
