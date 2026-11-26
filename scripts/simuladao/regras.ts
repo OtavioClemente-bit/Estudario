@@ -37,13 +37,14 @@ export class Usadas {
 }
 
 /** A questão tem exatamente as alternativas do formato da prova: A–E (5) ou C/E (2), com uma certa só. */
-export function alternativasCertas(q: Json, formato: string): boolean {
+export function alternativasCertas(q: Json, formato: string, n = 5): boolean {
   const o = q.options as Option[] | undefined;
   if (!Array.isArray(o)) return false;
   if (o.filter((x) => x.correct === true).length !== 1) return false;
   if (o.some((x) => !String(x.text ?? "").trim())) return false;
   const keys = o.map((x) => String(x.key).toUpperCase()).join("");
-  return formato === "CERTO_ERRADO" ? keys === "CE" : keys === "ABCDE";
+  // Prova real A–D (EEAR, PMMG, IBGP, SEDUC-CE...): n = 4, vindo da prova 1 escrita à mão.
+  return formato === "CERTO_ERRADO" ? keys === "CE" : keys === "ABCDE".slice(0, n);
 }
 
 // Aderência do tópico à disciplina: matéria de área "básica" (português, matemática/RLM, informática,
@@ -51,13 +52,16 @@ export function alternativasCertas(q: Json, formato: string): boolean {
 // Pega casos como função afim dentro de "Técnicas de Gestão Ambiental" (auditoria de 26/11).
 const AREAS: Record<string, { areas: string[]; re: RegExp }> = {
   pt: { areas: ["portugues", "lingua-portuguesa", "redacao-oficial", "linguistica"], re: /portugu|l[ií]ngua|linguage|reda[cç]|gram[aá]t|texto|textua|comunica|letras|literat|ortogra|leitura|escrit/i },
-  mat: { areas: ["matematica", "matematica-financeira", "matematica-grandezas", "raciocinio-logico", "estatistica", "estatistica-e-probabilidade"], re: /matem|racioc|l[oó]gic|quantitat|estat[ií]st|probabil|financ|c[aá]lcul|exat|n[uú]mer|aritm|geometr|[aá]lgebra|fun[cç][aã]o|porcent|propor|medida|grandeza|contab|econom|f[ií]sica|engenhar|dosage|juros|equa[cç]/i },
-  inf: { areas: ["informatica"], re: /inform[aá]t|tecnolog|comput|\bti\b|sistema|dados|digital|software|rede|seguran[cç]a da informa|internet|planilh|editor|office|windows|linux|program/i },
+  mat: { areas: ["matematica", "matematica-financeira", "matematica-grandezas", "raciocinio-logico", "estatistica", "estatistica-e-probabilidade"], re: /matem|racioc|l[oó]gic|quantitat|estat[ií]st|probabil|financ|c[aá]lcul|exat|n[uú]mer|aritm|geometr|[aá]lgebra|fun[cç][aã]o|porcent|propor|medida|grandeza|contab|econom|f[ií]sica|engenhar|dosage|juros|equa[cç]|dados|invest|finan[cç]|indicador|pesquis|avalia[cç]|censo|atuar|risco|an[aá]lise|banc[aá]ri/i },
+  inf: { areas: ["informatica"], re: /inform[aá]t|tecnolog|comput|\bti\b|sistema|dados|digital|software|rede|seguran[cç]a da informa|internet|planilh|editor|office|windows|linux|program|aprendizado|intelig|ciber|desenvolv|neg[oó]cio|infraestr|nuvem|cloud|seguran[cç]a|privacidade|devops|web|[aá]gil|scrum|requisit|arquitet|banco de|governan|inova|servi[cç]os|suporte|automa|contrata[cç][oõ]es de ti|tic\b/i },
   lang: { areas: ["ingles", "ingles-tecnico", "lingua-inglesa", "lingua-espanhola", "lingua-estrangeira", "lingua-francesa", "lingua-alema", "lingua-japonesa"], re: /ingl|espanh|estrangeir|idioma|l[ií]ngua|franc[eê]s|alem[aã]|japon|english|spanish/i },
 };
-const GERAL = /b[aá]sic|gerais|geral\b|espec[ií]fic|cargo|profiss|complementar|m[uú]ltipl|diversos|parte \w+$/i;
+const GERAL = /b[aá]sic|gerais|geral\b|espec[ií]fic|cargo|profiss|complementar|m[uú]ltipl|diversos|parte \w+$|atualidad|realidade|t[oó]picos|avan[cç]ad|t[eé]cnic|mercado|comportament/i;
 export function topicoCabe(disciplina: string, textoTopico: string, materia: string): boolean {
   const area = materia.split(".")[0];
+  // Português numa disciplina de língua estrangeira (e vice-versa) nunca cabe (amostra de 26/11: ortografia em "Língua Inglesa").
+  if (AREAS.pt.areas.includes(area) && /ingl|espanh|estrangeir|franc[eê]s|alem[aã]|english|spanish/i.test(disciplina) && !/portugu/i.test(disciplina)) return false;
+  if (AREAS.lang.areas.includes(area) && /portugu/i.test(disciplina) && !/estrangeir|ingl|espanh/i.test(disciplina)) return false;
   for (const g of Object.values(AREAS)) {
     if (!g.areas.includes(area)) continue;
     return g.re.test(disciplina) || g.re.test(textoTopico) || GERAL.test(disciplina);

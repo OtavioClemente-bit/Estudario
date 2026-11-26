@@ -22,9 +22,18 @@ type Json = Record<string, unknown>;
 const SIM = "conteudo/simulados", ED = "conteudo/editais";
 const dry = Deno.args.includes("--seco");
 const only = Deno.args.includes("--edital") ? Deno.args[Deno.args.indexOf("--edital") + 1] : null;
-const MAX_FALTA = 0.05;
+// --folga 0.10: aceita até 10% a menos (o tamanho vira aproximado e a estrutura diz isso); --ids <arquivo>: só estas provas.
+const MAX_FALTA = Deno.args.includes("--folga") ? Number(Deno.args[Deno.args.indexOf("--folga") + 1]) : 0.05;
+const SO = Deno.args.includes("--ids") ? new Set(JSON.parse(Deno.readTextFileSync(Deno.args[Deno.args.indexOf("--ids") + 1])) as string[]) : null;
+const faltaTopicos: Record<string, string[]> = {};
 const ler = (p: string) => JSON.parse(Deno.readTextFileSync(p).replace(/^﻿/, "")) as Json;
-const gravar = (p: string, j: Json) => { if (!dry) Deno.writeTextFileSync(p, JSON.stringify(j, null, 2) + "\n"); };
+// Windows às vezes trava o arquivo (indexador/editor aberto): tenta de novo algumas vezes.
+const gravar = (p: string, j: Json) => {
+  if (dry) return;
+  for (let t = 0; ; t++) {
+    try { Deno.writeTextFileSync(p, JSON.stringify(j, null, 2) + "\n"); return; } catch (e) { if (t >= 20) throw e; const fim = Date.now() + 500; while (Date.now() < fim) { /* espera */ } }
+  }
+};
 const QUADRO = editaisComQuadro("");
 
 // 1. Provas que alguém já fez: nunca mudam.
@@ -72,7 +81,10 @@ const conta = (k: string) => (rel.motivos[k] = (rel.motivos[k] ?? 0) + 1);
 function defeitos(p: Prova, anteriores: Usadas, edital: Json | null, base: Prova | null): string[] {
   const d: string[] = [];
   const qs = p.j.questions as Json[];
-  if (qs.some((q) => !alternativasCertas(q, formatoDe(q)))) d.push("alternativas");
+  // Prova real A–D (a 1 escrita à mão toda com 4 alternativas): as outras do edital seguem 4.
+  const bq = (base?.j.questions as Json[] | undefined) ?? [];
+  const nAlt = base && escrita(base) && bq.some((q) => formatoDe(q) === "MULTIPLE_CHOICE") && bq.filter((q) => formatoDe(q) === "MULTIPLE_CHOICE").every((q) => (q.options as Json[]).length === 4) ? 4 : 5;
+  if (qs.some((q) => !alternativasCertas(q, formatoDe(q), nAlt))) d.push("alternativas");
   const vistas = new Set<string>();
   for (const q of qs) { const k = normKey(q.textoBase ? `${q.textoBase}\n\n${q.statement}` : q.statement); if (vistas.has(k)) { d.push("repetida na prova"); break; } vistas.add(k); }
   if (qs.some((q) => anteriores.has(q))) d.push("repetida no edital");
@@ -106,6 +118,7 @@ function defeitos(p: Prova, anteriores: Usadas, edital: Json | null, base: Prova
 
 for (const [cat, lista0] of [...porCat].sort((a, b) => a[0].localeCompare(b[0]))) {
   if (only && cat !== only) continue;
+  if (SO && !lista0.some((p) => SO.has(p.id))) continue;
   // --parte i/n: só a i-ésima fatia dos editais (cada processo com memória limpa; o cache de recortes cresce muito).
   if (parte && (indiceCat++ % parte[1]) !== parte[0] - 1) continue;
   if (++feitosCat % 250 === 0) console.log(`… ${feitosCat}/${porCat.size} editais, ${rel.refeitas.length} refeitas`);
@@ -139,7 +152,7 @@ for (const [cat, lista0] of [...porCat].sort((a, b) => a[0].localeCompare(b[0]))
     if (escrita(p)) { rel.escritas.push(`${p.id} (${marcadas.get(p)?.join(", ")})`); return false; }
     return true;
   };
-  const refazer = new Set([...marcadas.keys()].filter(podeRefazer));
+  const refazer = new Set([...marcadas.keys()].filter((p) => (!SO || SO.has(p.id)) && podeRefazer(p)));
   // Prova 1 refeita muda a estrutura: as 2 e 3 (não feitas, montadas) vão junto.
   if (base && refazer.has(base)) for (const p of lista) if (p !== base && !feitas.has(p.id) && !escrita(p) && !cebraspeAE(p)) refazer.add(p);
   if (!refazer.size) continue;
@@ -152,16 +165,17 @@ for (const [cat, lista0] of [...porCat].sort((a, b) => a[0].localeCompare(b[0]))
       if (prep) {
         const r = montar(cat, prep.e, 1, outras(p));
         if (prep.aproximado) r.file.estrutura = textoAproximado(String(r.file.estrutura));
-        novo = r.file; faltam = r.faltam; total = r.total;
+        novo = r.file; faltam = r.faltam; total = r.total; if (r.faltaTopicos.length) faltaTopicos[p.id] = r.faltaTopicos;
       }
     } else if (base) {
       // Depois de refeita a 1 (ou com a 1 escrita à mão), a 2 e a 3 seguem a estrutura dela; nada das outras provas entra.
       const others = lista.filter((x) => x !== p && x !== base).map((x) => x.j);
       const r = build(cat, base.j, others, p.numero);
-      novo = r.file; faltam = r.missing; total = r.total;
+      novo = r.file; faltam = r.missing; total = r.total; if (r.faltaTopicos.length) faltaTopicos[p.id] = r.faltaTopicos;
     }
     if (!novo || total < 20 || faltam / total > MAX_FALTA) { rel.naoDeu.push(`${p.id} (${marcadas.get(p)?.join(", ") ?? "acompanha a 1"}; ${novo ? `faltam ${faltam} de ${total}` : "sem edital/estrutura"})`); continue; }
     novo.edital = cat; novo.numero = p.numero;
+    if (faltam / total > 0.05) novo.estrutura = `${String(novo.estrutura ?? "")} (tamanho aproximado: ${total - faltam} de ${total} questões; faltam questões prontas em alguns tópicos)`.slice(0, 1000);
     p.j = novo; gravar(p.path, novo); rel.refeitas.push(p.id);
   }
 }
@@ -169,4 +183,5 @@ for (const [cat, lista0] of [...porCat].sort((a, b) => a[0].localeCompare(b[0]))
 console.log(`Refeitas: ${rel.refeitas.length} · tiradas do ar (DRAFT): ${rel.tiradas.length} · com defeito mas já feitas: ${rel.feitas.length} · escritas à mão (ficam): ${rel.escritas.length} · Cebraspe A–E (ficam): ${rel.cebraspeAE.length} · não deu para refazer: ${rel.naoDeu.length}`);
 console.log("Motivos (provas refeitas):", JSON.stringify(rel.motivos));
 Deno.mkdirSync("work/auditoria-simulados-2026-11-26", { recursive: true });
+if (Object.keys(faltaTopicos).length) Deno.writeTextFileSync(`work/auditoria-simulados-2026-11-26/faltam-topicos-provas${dry ? "-seco" : ""}.json`, JSON.stringify(faltaTopicos, null, 1));
 Deno.writeTextFileSync(`work/auditoria-simulados-2026-11-26/conserto${dry ? "-seco" : ""}${parte ? `-${parte[0]}de${parte[1]}` : ""}.json`, JSON.stringify(rel, null, 1));

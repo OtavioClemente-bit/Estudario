@@ -99,7 +99,7 @@ export function prepararEdital(id: string, e: Json): { e: Json; aproximado: bool
 }
 export const textoAproximado = (estrutura: string) => estrutura.replace("na quantidade de questões de cada disciplina da prova", "com quantidade aproximada por disciplina (o edital não traz o quadro de questões) da prova");
 
-export function montar(id: string, e: Json, numero = 1, excluir?: Usadas): { file: Json; faltam: number; total: number; fontes: Record<string, number> } {
+export function montar(id: string, e: Json, numero = 1, excluir?: Usadas): { file: Json; faltam: number; total: number; fontes: Record<string, number>; faltaTopicos: string[] } {
   const banca = folderOf(String(e.banca ?? ""));
   const formato = banca === "cebraspe" ? "CERTO_ERRADO" : "MULTIPLE_CHOICE";
   // Enunciados das outras provas do edital (e os desta, conforme entram): nada se repete.
@@ -108,6 +108,7 @@ export function montar(id: string, e: Json, numero = 1, excluir?: Usadas): { fil
   const contaResp: Record<string, number> = {};
   let longas = 0, absolutos = 0;
   const out: Json[] = [];
+  const faltaTopicos = new Set<string>(); // "disciplina|matéria" sem questão sobrando (vai para a fila do gerador)
   const fontes: Record<string, number> = {};
   let faltam = 0, total = 0;
   const partes: string[] = [];
@@ -139,7 +140,7 @@ export function montar(id: string, e: Json, numero = 1, excluir?: Usadas): { fil
         const faixa = pool.filter((c) => nota(c) === melhor);
         escolhida = faixa[seedOf(`${id}|${numero}|${d.nome}|${i}`) % faixa.length];
       }
-      if (!escolhida) { faltam++; continue; }
+      if (!escolhida) { faltam++; for (const t of topicos) faltaTopicos.add(`${d.nome}|${t.materia}`); continue; }
       const q = escolhida.q;
       usadas.add(q);
       textos.push(palavras(String(q.statement)));
@@ -157,7 +158,7 @@ export function montar(id: string, e: Json, numero = 1, excluir?: Usadas): { fil
     }
   }
   const estrutura = `Simuladão montado com questões revisadas da biblioteca, na quantidade de questões de cada disciplina da prova ${String(e.concurso ?? id)} (${total} ${formato === "CERTO_ERRADO" ? "itens Certo/Errado" : "questões de múltipla escolha"}): ${partes.join(", ")}`;
-  return { file: { edital: id, banca: e.banca, estrutura, numero, montado: true, questions: out }, faltam, total, fontes };
+  return { file: { edital: id, banca: e.banca, estrutura, numero, montado: true, questions: out }, faltam, total, fontes, faltaTopicos: [...faltaTopicos] };
 }
 
 if (import.meta.main) {

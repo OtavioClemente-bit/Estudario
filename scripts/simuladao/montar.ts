@@ -64,16 +64,19 @@ function candidates(materia: string, banca: string | null): Candidate[] {
 const formatOf = (q: Json) => (q.format === "CERTO_ERRADO" || q.format === "TRUE_FALSE" ? "CERTO_ERRADO" : "MULTIPLE_CHOICE");
 
 /** Monta a prova `number` na estrutura de `first`; `others` são TODAS as outras provas do edital (nenhum enunciado delas entra). */
-export function build(edital: string, first: Json, others: Json[], number: number): { file: Json; missing: number; total: number } {
+export function build(edital: string, first: Json, others: Json[], number: number): { file: Json; missing: number; total: number; faltaTopicos: string[] } {
   const banca = folderOf(String(first.banca ?? ""));
   const used = new Usadas();
   for (const sim of [first, ...others]) for (const q of (sim.questions as Json[])) used.add(q);
-  const ok = (c: Candidate, format: string) => formatOf(c.q) === format && alternativasCertas(c.q, format) && String(c.q.statement ?? "").trim().length >= 20 && !used.has(c.q);
+  // Nº de alternativas da prova 1 (A–E, ou A–D quando a prova real é assim).
+  const nAlt = (first.questions as Json[]).filter((q) => formatOf(q) === "MULTIPLE_CHOICE").every((q) => (q.options as Option[]).length === 4) && (first.questions as Json[]).some((q) => formatOf(q) === "MULTIPLE_CHOICE") ? 4 : 5;
+  const ok = (c: Candidate, format: string) => formatOf(c.q) === format && alternativasCertas(c.q, format, nAlt) && String(c.q.statement ?? "").trim().length >= 20 && !used.has(c.q);
   const slots = (first.questions as Json[]).map((q, i) => ({
     n: Number(q.n ?? i + 1), disciplina: String(q.disciplina ?? ""), materia: q.materia ? String(q.materia) : undefined,
     format: formatOf(q), difficulty: q.difficulty ? String(q.difficulty) : undefined,
   } as Slot));
   const out: Json[] = [];
+  const faltaTopicos = new Set<string>();
   const sameDiscipline = new Map<string, string[]>();
   for (const s of slots) if (s.materia) sameDiscipline.set(s.disciplina, [...new Set([...(sameDiscipline.get(s.disciplina) ?? []), s.materia])]);
   let missing = 0;
@@ -89,7 +92,7 @@ export function build(edital: string, first: Json, others: Json[], number: numbe
         if (pool.length > 0) break;
       }
     }
-    if (pool.length === 0) { missing++; continue; }
+    if (pool.length === 0) { missing++; faltaTopicos.add(`${slot.disciplina}|${slot.materia}`); continue; }
     // A banca do edital e a mesma dificuldade primeiro; entre as iguais, escolha fixa pela semente.
     const rank = (c: Candidate) => (c.banca === banca ? 0 : 2) + (c.q.difficulty === slot.difficulty ? 0 : 1);
     const best = Math.min(...pool.map(rank));
@@ -115,6 +118,7 @@ export function build(edital: string, first: Json, others: Json[], number: numbe
     file: { edital, banca: first.banca, estrutura: first.estrutura, numero: number, questions: out },
     missing,
     total: slots.length,
+    faltaTopicos: [...faltaTopicos],
   };
 }
 
