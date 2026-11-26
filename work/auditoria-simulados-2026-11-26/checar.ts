@@ -5,7 +5,9 @@ for(let o=0;;o+=50){const r=await fetch(`${U}/rest/v1/exam_simulation?select=id,
 const norm=(s:string)=>(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g," ").trim();
 const pesos=JSON.parse(await Deno.readTextFile("conteudo/pesos-provas.json"));const peso=new Map<string,number>();
 // 26/11: o total conta também os blocos ("blocos": [{questoes}]) e as matérias em objeto ({questoes, nota}); antes só somava os números soltos.
-for(const p of pesos){const t=(Object.values(p.materias||{}).reduce((a:any,b:any)=>a+(typeof b==="number"?b:(+b?.questoes||0)),0) as number)+((p.blocos||[]).reduce((a:number,b:any)=>a+(+b.questoes||0),0));for(const e of p.editais||[])peso.set(e,t);}
+// 26/11 (2): o total real vem das disciplinas do próprio edital (conteudo/editais/<id>.json, campo questoes), como em consertar.ts;
+// a soma do quadro inteiro contava apelidos (TRT-3: Português 3x) e matérias de todas as áreas juntas (CGU 2021, SEF-MG).
+for(const p of pesos){for(const e of p.editais||[]){try{const ed=JSON.parse(await Deno.readTextFile(`conteudo/editais/${e}.json`));const t=(ed.disciplinas||[]).reduce((a:number,x:any)=>a+(+x.questoes||0),0);if(t>=20)peso.set(e,t);}catch{}}}
 const c:Record<string,string[]>={};const add=(k:string,id:string)=>{(c[k]??=[]).push(id)};
 const byCat=new Map<string,any[]>();const boards:Record<string,number>={};let totalQ=0;
 for(const s of rows){(byCat.get(s.catalog_id)??byCat.set(s.catalog_id,[]).get(s.catalog_id)!).push(s);boards[s.board]=(boards[s.board]||0)+1;
