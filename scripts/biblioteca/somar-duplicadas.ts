@@ -65,7 +65,9 @@ for (const id of [...new Set(duplicadas)]) {
     });
   };
   ajustarSecoes();
-  m.aliases = [...new Set([...(velha.aliases ?? []), ...(nova.aliases ?? [])])];
+  // Apelido da nova que já é de outra matéria publicada derrubava a publicação (27/11): fica de fora.
+  const deOutra = (a: string) => { const d = porApelido.get(normalizeAlias(a)); return d !== undefined && d !== alvo; };
+  m.aliases = [...new Set([...(velha.aliases ?? []), ...(nova.aliases ?? []).filter((a: string) => !deOutra(a))])];
   m.version = (Number(velha.version) || 1) + 1;
   let ok = true;
   try { validateLibraryMaterial(m); } catch (e) { ok = false; relatorio.push(`✗ ${alvo.replace(ROOT, "")}: ${((e as J).problems ?? [String(e)]).slice(0, 2).join(" | ")}`); }
