@@ -1,0 +1,2674 @@
+{
+  "id": "informatica.mapstruct-java-mapeamento-objetos",
+  "subject": "Informática",
+  "title": "MapStruct: mapeamento de objetos Java",
+  "version": 2,
+  "status": "PUBLISHED",
+  "aliases": [
+    "MapStruct para mapear objetos Java",
+    "Mapeamento de objetos com MapStruct",
+    "Mapeamento entre beans Java usando MapStruct",
+    "MapStruct annotation processor Java",
+    "MapStruct geração de mapper na compilação",
+    "MapStruct e DTOs em aplicações Java",
+    "MapStruct conversão de entidades para DTOs",
+    "MapStruct configuração de mapeadores Java",
+    "MapStruct com Maven e processador Java",
+    "MapStruct com Spring e injeção de dependências"
+  ],
+  "scope": {
+    "covers": "MapStruct como processador de anotações Java; configuração de dependências e geração em compilação; declaração e obtenção de mappers; mapeamento implícito e explícito de propriedades, campos aninhados, constantes, expressões, valores padrão e propriedades ignoradas; conversões de tipos, métodos personalizados e qualificadores; mapeamento de coleções, enums e objetos nulos; atualização de objetos existentes; integração com Spring e CDI; validação de propriedades não mapeadas e erros comuns.",
+    "excludes": "Mapeamento objeto-relacional de JPA, serialização JSON, ferramentas de transformação de dados em tempo de execução, detalhes de versões além dos comportamentos gerais documentados e implementação interna do compilador Java."
+  },
+  "theoryTitle": "MapStruct: mapeamento tipado gerado na compilação",
+  "chapters": [
+    {
+      "title": "1. O que o MapStruct faz e quando gera código",
+      "markdown": "### O problema que este assunto resolve\n\nEm um sistema Java, a mesma informação costuma aparecer em formatos diferentes. O cadastro interno de uma pessoa pode guardar `nomeCompleto`, identificador e endereço; uma resposta de uma interface de programação de aplicações (API), isto é, o ponto pelo qual outro sistema conversa com o serviço, pode expor apenas `nome` e cidade. Sem uma ferramenta, cada fluxo repete a leitura de propriedades e a atribuição dos valores. Uma cópia manual esquecida pode deixar a resposta incompleta; uma cópia feita no sentido errado pode misturar dados.\n\nO MapStruct resolve essa tarefa mecânica gerando código Java de conversão. O desenvolvedor descreve os métodos em um mapper, ou mapeador, e o processador de anotações (ferramenta que lê marcas especiais no código e produz outros arquivos durante a compilação) cria a implementação. Compilação é a etapa que verifica e prepara o código antes de executá-lo. O resultado é uma classe comum com chamadas de métodos, em vez de uma busca dinâmica por propriedades em cada conversão.\n\n### Objetos, propriedades e DTOs\n\nUm objeto de origem é aquele do qual os dados serão lidos; o destino é o objeto que receberá esses dados. Uma propriedade Java é um dado acessado por convenções de nomes, geralmente por métodos como `getNome()` e `setNome(...)`. Um bean é um objeto Java cujas propriedades seguem essas convenções. DTO vem de *Data Transfer Object*, objeto de transferência de dados: serve para transportar um conjunto adequado de informações entre partes do sistema, por exemplo da camada de serviço para a API.\n\nEsses tipos podem representar a mesma pessoa com formas diferentes. A entidade `Cliente` pode ter `nomeCompleto`, enquanto `ClienteDto` oferece `nome`. A entidade também pode conter campos internos que não devem sair na resposta. O trabalho do mapper é selecionar e converter os dados necessários; ele não transforma automaticamente o objeto em JSON, não consulta banco de dados e não substitui as regras de negócio.\n\n### Declaração e código gerado\n\nUm mapper pode ser uma interface ou uma classe abstrata marcada com `@Mapper`. A anotação informa ao MapStruct que deve gerar uma implementação. A interface pode declarar, por exemplo, `ClienteDto paraDto(Cliente origem)`. O método descreve o tipo de entrada e o tipo de saída; a implementação concreta é criada pelo processador.\n\nQuando uma propriedade legível da origem e uma propriedade gravável no destino têm nomes iguais e tipos compatíveis, o MapStruct pode ligá-las por convenção. Para os demais casos, a declaração recebe configuração específica, tratada no próximo capítulo. O código produzido normalmente instancia o destino, lê propriedades com métodos Java e chama setters. Se houver um objeto aninhado que também possa ser mapeado, pode chamar outro método gerado.\n\nEsse desenho permite inspecionar a implementação gerada e entender o que ocorrerá. Também permite detectar certos erros antes de executar o programa: se o destino exige uma propriedade que não pode ser mapeada, ou se não há conversão aplicável entre dois tipos, o processamento pode emitir aviso ou erro segundo a configuração. Isso reduz defeitos silenciosos, embora não prove que a regra escolhida representa corretamente a intenção do negócio.\n\n### O que acontece na configuração\n\nNo ecossistema Maven, o artefato `org.mapstruct:mapstruct` oferece anotações e tipos usados no código-fonte. O artefato `org.mapstruct:mapstruct-processor` contém o processador que lê essas anotações e gera a implementação. Um artefato é uma dependência identificada e disponibilizada para o projeto. O compilador precisa executar o processador; apenas adicionar as anotações pode fazer o código reconhecer `@Mapper`, mas não garante que a classe concreta seja produzida.\n\n| Peça | Função | Se faltar |\n| --- | --- | --- |\n| `mapstruct` | Disponibiliza anotações como `@Mapper` e `@Mapping` | O código não consegue declarar os mapeamentos com os tipos esperados |\n| `mapstruct-processor` | Analisa as declarações e produz implementações | A implementação não é gerada na compilação |\n| Interface ou classe abstrata | Declara métodos e opções do mapper | Não há contrato de conversão para o processador implementar |\n| Classe gerada | Executa as leituras, conversões e atribuições | O restante da aplicação não tem a implementação concreta a usar |\n\n### Exemplo passo a passo: o cadastro de Ana\n\nAna preenche um cadastro com nome completo, e-mail e endereço. O sistema mantém a entidade `Cliente`, mas a resposta pública precisa de um `ClienteDto` com nome, e-mail e cidade. Primeiro, a equipe identifica a origem (`Cliente`) e o destino (`ClienteDto`). Depois, declara um método `paraDto(Cliente origem)` em `ClienteMapper` e marca o tipo com `@Mapper`. Propriedades de mesmo nome e tipo compatível podem ser copiadas pela convenção; a diferença entre `nomeCompleto` e `nome` será declarada explicitamente.\n\nNa compilação, o processador encontra o mapper, verifica as propriedades e escreve a implementação. Quando a aplicação chama `paraDto(clienteDaAna)`, o método gerado lê os valores de Ana e preenche o novo DTO. Se a geração não ocorrer, a equipe verifica se o processador está habilitado. Se ocorrer, mas o mapeamento não for correto para a regra de exposição, a equipe corrige a declaração; a geração automática não decide sozinha quais dados devem ser públicos.\n\n### MapStruct em relação a outras abordagens\n\n| Abordagem | Quando as decisões acontecem | O que o desenvolvedor mantém |\n| --- | --- | --- |\n| Atribuições escritas à mão | Ao escrever e compilar o código | Cada leitura, conversão e atribuição |\n| MapStruct | Principalmente na compilação | Declarações e regras especiais; o processador gera as atribuições |\n| Mapeamento por reflexão em execução | Durante cada chamada de conversão | Configuração interpretada em execução |\n\nReflexão é um mecanismo Java para inspecionar tipos e membros dinamicamente. O código gerado pelo MapStruct usa chamadas Java diretas para realizar o mapeamento, sem depender de reflexão como mecanismo normal de conversão. A consequência importante para a prova é que a implementação existe antes da execução e erros de tipos ou de configuração podem ser percebidos na compilação.\n\n### Pegadinha\n\nNão confunda a anotação `@Mapper` com a classe implementadora. A anotação declara a intenção; o processador precisa rodar para gerar a implementação. Também é incorreto dizer que o MapStruct procura nomes de campos com reflexão a cada chamada. E a checagem de compilação não garante a correção semântica: se dois campos forem compatíveis mas representarem conceitos diferentes, ainda cabe ao desenvolvedor configurar e revisar o mapeamento.\n\n### Resumo para a prova\n\n- MapStruct é um processador de anotações Java que gera código de mapeamento durante a compilação.\n- O mapper declara métodos; a implementação concreta é gerada pelo processador.\n- O código gerado usa chamadas Java comuns, em vez de reflexão em cada conversão.\n- `mapstruct` disponibiliza anotações; `mapstruct-processor` gera implementações e precisa estar habilitado.\n- A geração pode revelar incompatibilidades cedo, mas não substitui a decisão humana sobre quais dados devem ser transferidos.\n"
+    },
+    {
+      "title": "2. Declarar mapeamentos de propriedades",
+      "markdown": "### O problema que este assunto resolve\n\nAs convenções resolvem cópias simples: se origem e destino têm uma propriedade com o mesmo nome e tipos compatíveis, MapStruct pode ligar uma à outra. Sistemas reais, porém, têm nomes diferentes, dados aninhados, campos que devem ser ignorados ou valores que precisam de uma regra. As anotações permitem escrever essas decisões perto do método de conversão, mantendo explícito de onde cada valor vem e para onde vai.\n\n### Termos e direção do mapeamento\n\n`@Mapper` marca uma interface ou classe abstrata que terá uma implementação gerada. `@Mapping` configura uma propriedade de destino em um método de mapeamento. Em `@Mapping(source = \"nomeCompleto\", target = \"nome\")`, `source` significa origem e identifica o dado lido; `target` significa alvo e identifica o dado preenchido. Essa direção é importante: primeiro se pergunta “qual campo do objeto de origem contém o valor?”, depois “qual propriedade do destino deve recebê-lo?”.\n\nAs propriedades normalmente são identificadas pelos nomes JavaBeans, isto é, pelas convenções de acesso como `getNomeCompleto()` e `setNome(...)`, e não pelos nomes dos próprios métodos com `get` e `set`. Uma declaração para `nomeCompleto` não deve usar `getNomeCompleto` como caminho.\n\n### Mesmo nome, nomes diferentes e caminhos aninhados\n\nSe `Cliente.nome` e `ClienteDto.nome` forem compatíveis, MapStruct pode mapear a propriedade implicitamente. Se a entidade usar `nomeCompleto` e o DTO usar `nome`, a regra pode ser expressa como `@Mapping(source = \"nomeCompleto\", target = \"nome\")`. Se a origem tiver um endereço e o destino quiser apenas a cidade, pode-se indicar um caminho como `endereco.cidade`.\n\nUm caminho aninhado é uma sequência de propriedades: `endereco` leva ao objeto de endereço e `cidade` seleciona a propriedade interna. O processador verifica se esses nomes existem e se a combinação pode ser mapeada. Assim, um erro de digitação tende a aparecer durante a compilação, antes que uma execução produza um resultado incompleto. Com mais de um parâmetro de origem, o caminho pode começar pelo nome do parâmetro, como `pedido.numero` ou `cliente.nome`, para eliminar a ambiguidade.\n\nUma propriedade de destino sem configuração explícita ainda pode ser preenchida por convenção. Já repetir uma configuração para o mesmo destino cria conflito e não é uma forma de combinar duas fontes. Se duas fontes precisam contribuir, é necessário estruturar um método apropriado e definir de modo inequívoco qual valor alimenta cada destino.\n\n### Ignorar, fixar ou calcular um valor\n\nHá quatro intenções que parecem semelhantes, mas não são iguais. `ignore = true` deixa uma propriedade de destino fora daquele mapeamento. `constant` atribui sempre um literal declarado na configuração, independentemente do valor de origem. `expression` incorpora uma expressão Java que calcula o valor. `defaultValue` oferece um literal de reserva quando a propriedade mapeada da origem está nula; `defaultExpression` permite calcular essa alternativa com Java quando a origem está nula.\n\n| Intenção | Configuração | Depende do valor da origem? |\n| --- | --- | --- |\n| Não preencher o destino por este método | `ignore = true` | Não |\n| Atribuir sempre um literal | `constant` | Não |\n| Calcular o valor em uma expressão Java | `expression` | Conforme a expressão escrita |\n| Usar literal como alternativa se a origem for nula | `defaultValue` | Sim |\n| Calcular alternativa se a origem for nula | `defaultExpression` | Sim |\n\nUma expressão não é automaticamente uma regra de fallback. O trecho Java que ela contém precisa fazer sentido para o tipo do destino e para o código gerado; se depender de tipos adicionais, imports podem ser configurados no mapper. Já um valor padrão só é usado na condição própria de nulidade, não substitui o valor quando a origem tem conteúdo.\n\nMapStruct também oferece opções de formatação para algumas conversões, como `dateFormat` em mapeamentos entre texto e data e `numberFormat` em mapeamentos entre texto e número. Uma máscara de data ou número não é o nome de uma propriedade: ela orienta como converter o valor. O formato adequado depende da conversão e das APIs de formatação usadas pelo MapStruct.\n\n### Exemplo passo a passo: a resposta de Ana\n\nAna tem um cadastro interno com `nomeCompleto`, `endereco.cidade` e `documentoInterno`. O destino público, `ClienteDto`, expõe `nome`, `cidade` e `situacao`. A equipe decide que `nome` virá de `nomeCompleto`, e `cidade` virá do caminho `endereco.cidade`. As duas decisões podem ser declaradas com `@Mapping`, especificando a propriedade de destino e a origem correspondente.\n\nO campo `documentoInterno` não deve ir para o DTO. A equipe confirma que o destino não exige esse dado e deixa a propriedade fora do mapeamento apropriado, em vez de copiá-la por acidente. Para `situacao`, o sistema deve sempre marcar o novo DTO como `\"CONSULTA\"`; isso é um literal constante, não um padrão para origem nula. Se, em outro campo, a origem puder não ter apelido e o contrato exigir `\"Sem apelido\"`, aí a equipe escolhe `defaultValue`. Se precisar montar um texto derivado, pode usar `expression`, cuidando do tipo produzido.\n\nNo fim, a compilação verifica se as propriedades e conversões configuradas existem. Ao testar mentalmente o caso de Ana, a equipe pergunta: qual valor sai de cada caminho? Qual campo fica de fora? Qual regra só se aplica quando a origem é nula? Essas perguntas evitam trocar a direção do mapeamento ou usar constante onde deveria haver fallback.\n\n### Comparação dos recursos de `@Mapping`\n\n| Recurso | Situação típica | Exemplo de leitura |\n| --- | --- | --- |\n| `source` + `target` | Renomear ou escolher um caminho | `nomeCompleto` alimenta `nome` |\n| `ignore` | O destino não será preenchido por esse método | Campo reservado para outra etapa |\n| `constant` | O destino recebe sempre o mesmo literal | Situação fixa em todas as conversões |\n| `expression` | O destino depende de cálculo Java | Montar um texto a partir de valores |\n| `defaultValue` | Existe literal alternativo para origem nula | Apelido ausente vira texto padrão |\n| `defaultExpression` | O fallback precisa ser calculado em Java | Gerar alternativa quando a origem é nula |\n\n### Pegadinha\n\nA banca pode inverter `source` e `target`: `source` é a propriedade lida; `target` é a propriedade preenchida. Outra troca frequente é afirmar que `constant` só vale quando a origem está nula; isso descreve a finalidade de `defaultValue` ou `defaultExpression`, conforme o tipo do fallback. Também não confunda `ignore = true` com preencher o destino com nulo: ignorar significa não mapear aquela propriedade por aquela regra.\n\n### Resumo para a prova\n\n- Propriedades compatíveis de mesmo nome podem ser mapeadas por convenção; nomes diferentes pedem `@Mapping`.\n- `source` indica a origem lida; `target`, o destino preenchido. Caminhos podem acessar propriedades aninhadas.\n- `ignore` exclui uma propriedade daquele mapeamento; `constant` fornece um literal incondicional.\n- `expression` executa uma expressão Java no código gerado; `defaultValue` e `defaultExpression` são alternativas para origem nula.\n- Formatos como `dateFormat` e `numberFormat` tratam a apresentação/conversão de certos tipos, não a seleção da propriedade.\n"
+    },
+    {
+      "title": "3. Conversões, métodos auxiliares e coleções",
+      "markdown": "### O problema que este assunto resolve\n\nCopiar um texto para outro texto é simples; converter um número para texto, transformar um objeto interno em um resumo ou passar por uma lista de objetos exige decisões adicionais. O MapStruct procura conversões que conhece e métodos de mapeamento disponíveis. Quando as opções não bastam ou há mais de uma alternativa, o desenvolvedor pode fornecer um método auxiliar e orientar qual deve ser usado.\n\n### Conversões entre tipos\n\nUma conversão implícita é aquela que o MapStruct reconhece e pode selecionar sem que o método de mapeamento declare manualmente cada passo. A documentação contempla conversões usuais entre tipos compatíveis, além de chamadas a outros mapeamentos quando há uma forma adequada de produzir o tipo do destino. A seleção depende dos tipos de origem e destino e dos métodos disponíveis; não se deve supor que qualquer par de classes possa ser convertido automaticamente.\n\nUma conversão numérica pode perder informação. Por exemplo, converter um número de maior capacidade para um tipo inteiro menor pode descartar parte do valor se ele não couber. `typeConversionPolicy` regula como conversões estreitadoras são reportadas. Reportar uma conversão não equivale necessariamente a rejeitar toda conversão; a equipe deve entender a política efetiva e o risco para os dados.\n\n### Métodos auxiliares, `uses` e qualificadores\n\nUm método auxiliar é um método Java escrito para realizar uma conversão ou regra específica que o código gerado poderá chamar. Ele pode estar no próprio mapper ou em outra classe disponibilizada por `uses`, opção de `@Mapper`. Assim, uma regra de transformação de código em descrição pode ser mantida em um método legível, enquanto o método principal continua declarando a conversão entre objetos.\n\nSe mais de um método puder converter o mesmo tipo de entrada para o mesmo tipo de saída, há ambiguidade: o processador não deve escolher arbitrariamente a regra de negócio. Um qualificador é uma marca que ajuda a selecionar a conversão pretendida. É possível usar nomes com `@Named` e `qualifiedByName`, ou qualificadores baseados em anotações com `qualifiedBy`. O ponto essencial é que o método qualificado precisa ser compatível com a origem e com o destino do mapeamento.\n\n| Situação | Recurso | Efeito esperado |\n| --- | --- | --- |\n| Conversão comum já reconhecida | Conversão implícita | O código gerado aplica a conversão disponível |\n| Regra específica escrita pelo projeto | Método auxiliar | O código gerado pode chamar a lógica declarada |\n| Auxiliar está em outra classe | `uses` | A classe auxiliar fica disponível ao mapper |\n| Há vários métodos candidatos | Qualificador | A declaração restringe a seleção ao método marcado |\n\n### Coleções e mapas\n\nUma coleção é um contêiner de elementos, como uma lista ou um conjunto. Quando o destino é uma coleção de outro tipo de elemento, MapStruct precisa saber mapear um elemento da origem para um elemento do destino. Se essa conversão estiver disponível, o código gerado percorre os elementos, aplica a conversão e reúne os resultados no tipo de coleção de destino compatível.\n\nIsso separa duas tarefas: transformar cada item e percorrer o contêiner. Uma lista de `Pedido` não vira uma lista de `PedidoDto` apenas porque ambas são listas; precisa haver um mapeamento aplicável de `Pedido` para `PedidoDto`. O MapStruct gera a iteração, mas não inventa as regras para os campos de cada pedido. Em mapas, a estrutura possui chaves e valores, e as conversões aplicáveis a ambos os lados precisam ser consideradas.\n\nA estratégia de coleção pode influenciar como os valores são propagados, em especial quando o destino já oferece formas diferentes de escrita. O atributo `collectionMappingStrategy` trata dessa escolha. Ele não substitui o mapeamento dos elementos e não é o controle geral de nulidade de objetos.\n\n### Enums e correspondência de valores\n\nEnum é um tipo Java que restringe os valores possíveis a um conjunto nomeado, como `PENDENTE`, `PAGO` e `CANCELADO`. Valores correspondentes podem ser associados por nome; nomes diferentes pedem configuração explícita de mapeamento de enum.\n\nUma conversão de enum não é a mesma coisa que transformar qualquer objeto em texto. A origem precisa ser examinada como um conjunto de valores finito. Se um valor de origem não tiver correspondência adequada, o resultado depende da configuração e pode ser relatado durante a compilação. A equipe deve decidir como tratar valores de negócio diferentes, em vez de presumir que uma conversão genérica resolve o caso.\n\n### Exemplo passo a passo: os pedidos de Ana\n\nAna consulta três pedidos. O serviço guarda uma `List<Pedido>`, mas a API precisa devolver `List<PedidoResumoDto>`. Primeiro, o mapper declara a conversão de um `Pedido` para `PedidoResumoDto`, incluindo nomes diferentes com `@Mapping` se necessário. Em seguida, declara um método que recebe uma lista de pedidos e retorna a lista de resumos.\n\nNa compilação, MapStruct identifica a conversão dos elementos e gera o percurso da coleção. Quando Ana faz a consulta, o método percorre a lista na ordem recebida e chama a conversão de cada pedido, reunindo os DTOs. Se um campo do resumo exigir uma conversão especial, como um código numérico para uma descrição, a equipe cria um método auxiliar. Se houver dois auxiliares com a mesma assinatura de conversão mas significados diferentes, marca a regra desejada com qualificador.\n\nDepois, a equipe observa os tipos: se `Pedido.status` e `PedidoResumoDto.status` forem enums compatíveis, os valores correspondentes podem ser associados. Se um enum usa `PAGO` e o outro usa `QUITADO`, deve haver uma regra explícita. Se um valor não puder ser convertido, a compilação ajuda a localizar a falta; não é seguro mascará-la como se qualquer status tivesse tradução automática.\n\n### Escolher entre conversão automática e regra própria\n\n| Pergunta | Se a resposta for sim | Caminho provável |\n| --- | --- | --- |\n| Os tipos são compatíveis e a conversão tem significado direto? | A conversão pode ser reconhecida pelo processador | Mapeamento implícito |\n| Existe regra de negócio própria e reutilizável? | A conversão deve ficar explícita | Método auxiliar |\n| Há várias regras válidas para o mesmo par de tipos? | A escolha precisa ser inequívoca | Qualificador |\n| Só o contêiner muda, mas cada elemento tem conversão? | A iteração é mecânica | Método de coleção gerado |\n\n### Pegadinha\n\n`uses` não é uma opção de injeção de dependência do contêiner por si só: disponibiliza outros mappers ou classes auxiliares ao mapper gerado. `qualifiedByName` não cria uma conversão; seleciona um método marcado. E MapStruct gerar a iteração de uma lista não significa que consegue converter qualquer tipo de elemento sem regra aplicável. Em conversões numéricas estreitadoras, não presuma que o risco será bloqueado automaticamente: examine a política de reporte.\n\n### Resumo para a prova\n\n- O MapStruct usa conversões conhecidas e métodos de mapeamento compatíveis; não converte qualquer tipo arbitrário.\n- `uses` disponibiliza colaboradores; qualificadores resolvem escolhas entre métodos candidatos.\n- Para coleções, o processador gera o percurso, mas cada elemento precisa ter mapeamento aplicável.\n- `collectionMappingStrategy` trata da propagação de coleções, não da conversão dos elementos nem de qualquer nulidade.\n- Enums podem ser associados por nomes ou por configuração; correspondências diferentes pedem regra explícita.\n- `typeConversionPolicy` permite controlar o reporte de conversões numéricas que podem perder informação.\n"
+    },
+    {
+      "title": "4. Nulos, atualização e controle do mapper",
+      "markdown": "### O problema que este assunto resolve\n\nUma conversão pode criar um objeto novo ou preencher um objeto que já existe. Na atualização, um campo nulo pode significar “apague o valor antigo” ou “não recebi informação para esse campo”. Essas interpretações não são equivalentes. O MapStruct oferece mecanismos separados para atualizar uma instância, definir o que ocorre com argumentos nulos e controlar como propriedades sem correspondência são reportadas.\n\n### Criar destino ou atualizar um destino\n\nEm um mapeamento de criação, o método recebe a origem e devolve um objeto de destino que será criado pelo código gerado. Em um mapeamento de atualização, o método também recebe uma instância existente do destino. `@MappingTarget` marca o parâmetro que será preenchido. O método pode retornar essa mesma instância ou não, conforme a declaração; o ponto é que o objeto-alvo foi fornecido por quem chamou o método.\n\nEssa distinção é útil quando o sistema carrega um objeto existente e quer aplicar nele dados de uma requisição. Sem `@MappingTarget`, a intenção usual é produzir um novo resultado; com a anotação, o método mapeia sobre o alvo indicado. O tipo do parâmetro marcado precisa representar o objeto que receberá as propriedades.\n\n### Três situações de nulidade\n\nUma pergunta sobre “nulo” não basta para identificar a configuração. É preciso observar em que nível o valor está nulo:\n\n| O que está nulo? | Situação | Controle relacionado |\n| --- | --- | --- |\n| O argumento inteiro recebido pelo método | Por exemplo, a referência `Cliente` é nula | `NullValueMappingStrategy` |\n| Uma propriedade da origem durante atualização | Por exemplo, `email` está nulo e o alvo já contém valor | `NullValuePropertyMappingStrategy` |\n| Uma propriedade que precisa de verificação antes de ser lida | Controle da checagem de propriedades nulas | `nullValueCheckStrategy` |\n\n`NullValueMappingStrategy` trata o resultado do método quando o argumento de origem como um todo é nulo; há opções relacionadas a métodos para coleções e mapas. `NullValuePropertyMappingStrategy` trata propriedades nulas ou ausentes em mapeamentos de atualização. Por exemplo, uma equipe pode optar por manter o e-mail antigo de Ana quando a nova requisição não trouxe e-mail, em vez de apagá-lo. Essa política precisa combinar com o significado dos dados da aplicação.\n\nNão se deve confundir essas estratégias com `defaultValue` ou `defaultExpression`: estes definem alternativa para uma propriedade configurada quando a origem é nula. Uma estratégia decide como o mapeamento lida com a nulidade; um valor padrão fornece conteúdo alternativo.\n\n### Exemplo passo a passo: atualizar o cadastro de Ana\n\nAna já tem cadastro salvo com nome, e-mail e telefone. Uma requisição de edição atualiza o telefone, mas deixa o e-mail nulo. Primeiro, o serviço carrega o cadastro atual. Depois, chama um método de atualização que recebe a requisição como origem e o cadastro como destino marcado com `@MappingTarget`. O código gerado aplica os campos conforme as regras declaradas.\n\nSe a regra do produto for “nulo significa campo não enviado”, a configuração de propriedade nula pode preservar o e-mail que já estava salvo. Se a regra for “nulo significa apagar”, a atualização precisa refletir isso. MapStruct não conhece o significado da requisição de Ana; o desenvolvedor escolhe a estratégia que representa o contrato. Se o próprio objeto da requisição for nulo, trata-se de outra situação: o argumento inteiro está ausente, e a estratégia de resultado nulo do método é a relevante.\n\nAo revisar a declaração, a equipe verifica ainda o destino. Um mapper de criação pode construir um DTO novo; o método de atualização usa a instância que o serviço entregou. Essa diferença evita trocar silenciosamente um objeto gerenciado ou perder valores não enviados.\n\n### Propriedades de origem e de destino sem mapeamento\n\n`unmappedTargetPolicy` controla o reporte de propriedades do destino que ficaram sem valor mapeado. A política pode ignorar, emitir aviso ou produzir erro, conforme a configuração. `unmappedSourcePolicy` trata propriedades da origem que não foram utilizadas. Os nomes indicam lados diferentes: `target` é o alvo; `source` é a fonte.\n\nNa configuração padrão documentada, `unmappedTargetPolicy` usa `WARN`, enquanto `unmappedSourcePolicy` usa `IGNORE`. Uma configuração específica no mapper ou no mapeamento do bean pode prevalecer sobre a opção global, portanto a pergunta de prova deve ser lida junto com o nível configurado. Uma configuração compartilhada com `@MapperConfig` permite centralizar opções para vários mappers; o mapper individual pode referenciar esse tipo pela opção `config`.\n\n| Política | Examina | Exemplo de problema |\n| --- | --- | --- |\n| `unmappedTargetPolicy` | Propriedade do destino sem origem mapeada | O DTO exige `telefone`, mas nenhuma regra o preenche |\n| `unmappedSourcePolicy` | Propriedade da origem que não foi usada | A entidade tem `observacaoInterna` que o destino não recebe |\n\nEssas políticas ajudam a perceber alterações de modelo. Se alguém adiciona um campo ao DTO, o aviso ou erro pode levar a equipe a decidir se deve mapeá-lo ou ignorá-lo. Já uma propriedade de origem não usada pode ser intencional, especialmente quando o destino expõe apenas parte dos dados.\n\n### Integração com contêineres e obtenção do mapper\n\nUm contêiner de injeção de dependências é uma ferramenta que cria e fornece componentes à aplicação. `componentModel` define como o mapper gerado se integra a esse ambiente. No modelo padrão, o mapper pode ser obtido pela fábrica `Mappers.getMapper(...)`. Com o modelo Spring, o mapper gerado integra-se como bean do Spring; modelos de CDI também são suportados. CDI significa *Contexts and Dependency Injection*, especificação de injeção de dependências para aplicações Java.\n\nQuando um mapper usa outro mapper, a estratégia de injeção define como o colaborador é fornecido em modelos que usam contêiner, podendo incluir injeção por construtor. `uses` lista os colaboradores de mapeamento; `componentModel` define o modelo de integração; `injectionStrategy` trata da forma de injetar dependências. São opções relacionadas à montagem do componente, mas não intercambiáveis.\n\n### Comparação dos controles\n\n| Recurso | Pergunta que responde |\n| --- | --- |\n| `@MappingTarget` | Qual instância existente deve ser atualizada? |\n| `NullValueMappingStrategy` | O que o método faz se o argumento inteiro for nulo? |\n| `NullValuePropertyMappingStrategy` | Como tratar propriedade nula/ausente durante atualização? |\n| `unmappedTargetPolicy` | Como reportar destino sem mapeamento? |\n| `unmappedSourcePolicy` | Como reportar origem não utilizada? |\n| `componentModel` | Como a implementação gerada se integra ao contêiner? |\n| `injectionStrategy` | Como dependências do mapper são injetadas? |\n\n### Pegadinha\n\nA banca pode trocar nulidade do argumento inteiro pela nulidade de uma propriedade: são controles distintos. Também pode inverter `unmappedTargetPolicy` e `unmappedSourcePolicy`; alvo sem preenchimento é `target`, origem não utilizada é `source`. Por fim, `uses` não escolhe Spring ou CDI, e `componentModel` não lista conversores auxiliares. Identifique primeiro a situação concreta descrita e só então escolha o atributo.\n\n### Resumo para a prova\n\n- `@MappingTarget` identifica uma instância de destino já existente que será atualizada.\n- Nulidade do argumento do método e nulidade de propriedade em atualização são situações diferentes.\n- `NullValueMappingStrategy` trata o argumento inteiro; `NullValuePropertyMappingStrategy` trata propriedades nulas/ausentes em atualização.\n- `unmappedTargetPolicy` examina destinos sem mapeamento; `unmappedSourcePolicy` examina fontes não usadas.\n- `@MapperConfig` compartilha configurações; `componentModel` integra o mapper ao contêiner; `injectionStrategy` escolhe a forma de injeção.\n"
+    }
+  ],
+  "summary": "MapStruct é um processador de anotações Java que gera implementações de interfaces de mapeamento durante a compilação. Mapeia implicitamente propriedades compatíveis de mesmo nome; `@Mapping(source, target)` trata diferenças de nome, caminhos, constantes, expressões, valores padrão ou propriedades ignoradas. Métodos auxiliares, `uses` e qualificadores resolvem conversões e ambiguidades. O processador gera mapeamento de coleções com base nas conversões dos elementos. `@MappingTarget` atualiza instância existente. Estratégias específicas controlam argumentos e propriedades nulos. `componentModel` integra mappers com contêineres como Spring ou CDI. A configuração de propriedades não mapeadas e de conversões estreitadoras ajuda a detectar problemas na compilação.",
+  "flashcards": [
+    {
+      "front": "O que é MapStruct?",
+      "back": "Um processador de anotações Java que gera código de mapeamento tipado na compilação."
+    },
+    {
+      "front": "Qual anotação marca um tipo como mapper?",
+      "back": "`@Mapper`, em uma interface ou classe abstrata."
+    },
+    {
+      "front": "Quando a implementação do mapper é criada?",
+      "back": "Durante o processamento de anotações na compilação."
+    },
+    {
+      "front": "O código gerado depende de reflexão para mapear propriedades?",
+      "back": "Não. Usa chamadas Java comuns, como getters e setters."
+    },
+    {
+      "front": "O que fornece o artefato `mapstruct`?",
+      "back": "As anotações e tipos necessários para declarar mapeamentos."
+    },
+    {
+      "front": "O que fornece `mapstruct-processor`?",
+      "back": "O processador que lê as anotações e gera implementações."
+    },
+    {
+      "front": "Como mapear nomes diferentes?",
+      "back": "Usar `@Mapping(source = \"origem\", target = \"destino\")`."
+    },
+    {
+      "front": "O que `target` indica em `@Mapping`?",
+      "back": "A propriedade de destino que será configurada."
+    },
+    {
+      "front": "O que `source` indica em `@Mapping`?",
+      "back": "A propriedade ou caminho da origem a ser lido."
+    },
+    {
+      "front": "Quando propriedades iguais podem ser mapeadas implicitamente?",
+      "back": "Quando têm nomes iguais e tipos que o MapStruct consegue mapear."
+    },
+    {
+      "front": "Para que serve `constant`?",
+      "back": "Atribuir ao destino um valor literal independente da origem."
+    },
+    {
+      "front": "Quando se aplica `defaultValue`?",
+      "back": "Quando a propriedade de origem está nula."
+    },
+    {
+      "front": "Para que serve `ignore = true`?",
+      "back": "Excluir a propriedade de destino do mapeamento configurado."
+    },
+    {
+      "front": "Para que serve `uses`?",
+      "back": "Disponibilizar outros mappers ou métodos auxiliares ao mapper gerado."
+    },
+    {
+      "front": "O que um qualificador resolve?",
+      "back": "Seleciona um método de conversão entre candidatos elegíveis."
+    },
+    {
+      "front": "Como são mapeadas coleções de elementos?",
+      "back": "O código gerado percorre a coleção e aplica o mapeamento do elemento."
+    },
+    {
+      "front": "Qual anotação identifica o destino de uma atualização?",
+      "back": "`@MappingTarget`."
+    },
+    {
+      "front": "O que controla `NullValuePropertyMappingStrategy`?",
+      "back": "O tratamento de propriedades de origem nulas ou ausentes em atualizações."
+    },
+    {
+      "front": "O que controla `NullValueMappingStrategy`?",
+      "back": "O resultado quando o argumento de origem do método de mapeamento é nulo."
+    },
+    {
+      "front": "O que configura `componentModel`?",
+      "back": "O modelo de componente/injeção da implementação gerada, como Spring ou CDI."
+    },
+    {
+      "front": "O que informa `unmappedTargetPolicy`?",
+      "back": "Como tratar propriedades do tipo de destino que ficaram sem mapeamento."
+    },
+    {
+      "front": "Como se obtém um mapper no modelo padrão?",
+      "back": "Com a fábrica `Mappers.getMapper(Mapper.class)`."
+    }
+  ],
+  "tips": [
+    "Leia `source` como de onde vem o dado e `target` como onde ele será gravado.",
+    "Separe configuração de anotação (`mapstruct`) de geração de código (`mapstruct-processor`).",
+    "Para uma propriedade renomeada, procure o `@Mapping` no método de conversão.",
+    "Diferencie valor constante de valor padrão condicionado a origem nula.",
+    "Em atualização, localize o parâmetro com `@MappingTarget` e verifique a estratégia de nulos.",
+    "Quando a pergunta disser integração com Spring, procure `componentModel`, não `uses`."
+  ],
+  "traps": [
+    "Achar que MapStruct mapeia por reflexão durante a execução; ele gera código na compilação.",
+    "Trocar `source` por `target` ao explicar uma renomeação.",
+    "Tratar `constant` como valor usado apenas se a origem for nula.",
+    "Confundir `uses`, que registra colaboradores, com `componentModel`, que seleciona integração de componentes.",
+    "Supor que atualizar um destino existente é idêntico a criar um objeto novo.",
+    "Confundir nulo no argumento inteiro com nulo em uma propriedade dentro do bean."
+  ],
+  "activeRecall": [
+    "Explique o caminho entre uma interface `@Mapper` e a classe concreta chamada pela aplicação.",
+    "Escreva a configuração para copiar `nomeCompleto` para `nome`.",
+    "Compare `constant`, `defaultValue` e `expression` em uma frase cada.",
+    "Descreva como o MapStruct transforma uma lista quando existe mapeamento de elemento.",
+    "Diga como configurar a atualização de um objeto já existente.",
+    "Explique duas formas de disponibilizar um mapper ao código da aplicação.",
+    "Diferencie política para propriedade de destino sem mapeamento e para propriedade de origem não usada.",
+    "Indique que tipo de problema um qualificador resolve quando existem vários conversores possíveis."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "MapStruct usa reflexão em tempo de execução",
+      "summary": "A implementação é gerada pelo processador de anotações durante a compilação e executa chamadas Java diretas."
+    },
+    {
+      "key": "e2",
+      "title": "Inversão de origem e destino",
+      "summary": "`source` aponta para o dado lido e `target` para a propriedade preenchida."
+    },
+    {
+      "key": "e3",
+      "title": "Confusão entre literal e fallback",
+      "summary": "`constant` atribui um literal independentemente da origem; `defaultValue` é usado quando a origem mapeada é nula."
+    },
+    {
+      "key": "e4",
+      "title": "Confusão entre nulos de argumento e propriedade",
+      "summary": "Estratégias para o parâmetro inteiro nulo e para propriedades nulas em atualização controlam situações diferentes."
+    },
+    {
+      "key": "e5",
+      "title": "Configuração de dependências incompleta",
+      "summary": "As anotações e o processador têm artefatos distintos; a compilação precisa executar o processador para gerar a implementação."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "MapStruct gera implementações de mappers durante a compilação por processamento de anotações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A interface anotada declara os métodos, e o processador de anotações gera a classe de implementação durante a compilação. Essa geração antecede a execução da aplicação.",
+      "section": "1. O que o MapStruct faz e quando gera código",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "MapStruct precisa usar reflexão a cada chamada para descobrir quais getters e setters correspondem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A documentação descreve implementação gerada com chamadas Java comuns. O processador resolve o mapeamento durante a compilação, em vez de fazer descoberta reflexiva a cada chamada.",
+      "section": "1. O que o MapStruct faz e quando gera código",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual anotação assinala uma interface ou classe abstrata para geração de implementação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`@MappingTarget`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`@Mapper`",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`@GeneratedOnly`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`@BeanMappingSource`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`@ComponentScanMapper`",
+          "correct": false
+        }
+      ],
+      "explanation": "`@Mapper` marca o tipo como mapper e ativa a geração de uma implementação. `@MappingTarget` identifica o objeto que será atualizado em um método específico; as demais opções não são a anotação que declara o mapper.",
+      "section": "1. O que o MapStruct faz e quando gera código",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual artefato contém o processador que gera as implementações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`org.mapstruct:mapstruct-model`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`org.mapstruct:mapstruct-processor`",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`org.mapstruct:mapstruct-runtime`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`org.mapstruct:mapstruct-reflection`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`org.mapstruct:mapstruct-spring-only`",
+          "correct": false
+        }
+      ],
+      "explanation": "O artefato `mapstruct-processor` fornece o processador de anotações que gera as classes. O artefato `mapstruct` contém anotações e tipos declarativos usados nos mappers.",
+      "section": "1. O que o MapStruct faz e quando gera código",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ter as anotações no classpath garante por si só que a implementação do mapper será gerada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O artefato de anotações e o processador têm funções distintas. O projeto precisa configurar o processamento para que o compilador execute o processador e produza a implementação.",
+      "section": "1. O que o MapStruct faz e quando gera código",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma interface declara `Dto converter(Entidade origem)`. As duas classes têm a propriedade `codigo` com tipos compatíveis. Qual resultado é esperado sem configuração específica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A propriedade homônima pode ser mapeada implicitamente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A propriedade só é mapeada se houver `@MappingTarget`.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O MapStruct rejeita sempre propriedades sem anotação individual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A propriedade é mapeada apenas se houver reflexão em execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A propriedade de origem é ignorada por ser homônima.",
+          "correct": false
+        }
+      ],
+      "explanation": "Propriedades de mesmo nome e tipos compatíveis podem ser mapeadas implicitamente. `@MappingTarget` se destina a identificar um alvo existente para atualização, não é requisito para copiar propriedade homônima.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em `@Mapping(source = \"nomeCompleto\", target = \"nome\")`, o valor de `source` nomeia a propriedade que será preenchida no destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `source` nomeia a propriedade de origem lida; `target` nomeia a propriedade de destino preenchida. No exemplo, `nomeCompleto` fornece o valor para `nome`.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe de origem expõe `emailPrincipal`, e o DTO de destino expõe `email`. Qual configuração declara essa correspondência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`@Mapping(source = \"emailPrincipal\", target = \"email\")`",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`@Mapping(source = \"email\", target = \"emailPrincipal\")`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`@Mapper(source = \"emailPrincipal\", target = \"email\")`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`@Mapping(uses = \"emailPrincipal\", ignore = \"email\")`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`@Mapping(target = \"emailPrincipal\", constant = \"email\")`",
+          "correct": false
+        }
+      ],
+      "explanation": "A origem é `emailPrincipal` e o alvo do DTO é `email`; por isso `source` recebe o primeiro nome e `target` o segundo. A anotação `@Mapper` marca o tipo, não configura essa propriedade individual.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A propriedade `endereco.cidade` pode ser referenciada como caminho aninhado em uma configuração de mapeamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação admite caminhos de propriedades aninhadas. O caminho precisa corresponder às propriedades acessíveis da origem; um nome inválido é detectado durante o processamento/compilação.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso fornece um literal fixo à propriedade de destino, independentemente do valor de origem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`defaultValue`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`constant`",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`qualifiedByName`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`nullValuePropertyMappingStrategy`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`unmappedSourcePolicy`",
+          "correct": false
+        }
+      ],
+      "explanation": "`constant` atribui um valor literal ao alvo. `defaultValue` também é textual, mas atua como fallback quando a propriedade de origem mapeada está nula.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`defaultValue` serve para preencher o destino quando a propriedade de origem está nula.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A configuração especifica um valor padrão para o caso em que a propriedade mapeada da origem é nula. Para valor sempre fixo, independentemente da origem, usa-se `constant`.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual configuração exclui deliberadamente uma propriedade do mapeamento do destino?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`@Mapping(target = \"auditoria\", ignore = true)`",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`@Mapping(source = \"auditoria\", constant = \"true\")`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`@Mapper(uses = Auditoria.class)`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`@MappingTarget(\"auditoria\")`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`@BeanMapping(ignoreByDefault = false)`",
+          "correct": false
+        }
+      ],
+      "explanation": "`ignore = true` indica que a propriedade de destino nomeada não deve ser mapeada por aquela configuração. Isso não equivale a copiar uma constante nem a registrar um mapper auxiliar.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na configuração `expression = \"java(origem.getNome().length())\"`, o MapStruct aceita uma expressão Java para calcular o valor do destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `expression` permite incorporar expressão Java ao código gerado. A expressão deve ser válida no contexto da implementação gerada e, como código Java, pode falhar na compilação se estiver incorreta.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma expressão Java configurada como mapeamento é interpretada como uma consulta SQL executada pelo MapStruct.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A expressão é Java e integra o código de implementação gerado. MapStruct não a converte em SQL nem executa consulta ao banco como parte do mapeamento de beans.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe tem dois métodos auxiliares compatíveis para converter um mesmo tipo e precisa indicar qual deles deve ser usado. Qual recurso ajuda a resolver a seleção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Qualificadores como `qualifiedBy` ou `qualifiedByName`",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`@MappingTarget` no parâmetro de origem",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`unmappedTargetPolicy = IGNORE`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`constant` com o nome do método",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`componentModel = \"default\"` em cada propriedade",
+          "correct": false
+        }
+      ],
+      "explanation": "Qualificadores restringem a busca do método de mapeamento aplicável. `@MappingTarget` indica alvo de atualização, e políticas de propriedades não mapeadas não escolhem método de conversão.",
+      "section": "3. Conversões, métodos auxiliares e coleções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A opção `uses` pode disponibilizar ao mapper tipos auxiliares escritos manualmente ou outros mappers gerados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `uses` informa tipos de mapper auxiliares ao mapper principal; eles podem ser classes escritas à mão ou mappers gerados. A documentação também alerta para não formar ciclos entre mappers gerados.",
+      "section": "3. Conversões, métodos auxiliares e coleções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que ocorre ao mapear uma lista quando há um método aplicável para converter cada elemento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O código gerado percorre a lista e aplica o mapeamento aos elementos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A lista é serializada em JSON e reconstruída por reflexão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O processador ignora elementos e copia só o primeiro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A conversão depende obrigatoriamente de consulta SQL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A coleção só pode ser convertida com expressão Java manual.",
+          "correct": false
+        }
+      ],
+      "explanation": "MapStruct gera o percurso da coleção e aplica aos elementos o método de mapeamento compatível. Não exige serialização, banco de dados nem expressão manual quando já há conversão de elemento adequada.",
+      "section": "3. Conversões, métodos auxiliares e coleções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um campo numérico for convertido de `long` para `int`, a conversão pode perder informação e merece tratamento pela política de conversões estreitadoras.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `int` tem faixa menor que `long`, portanto valores podem não caber no destino. MapStruct oferece `typeConversionPolicy` para controlar como conversões estreitadoras são reportadas.",
+      "section": "3. Conversões, métodos auxiliares e coleções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente o mapeamento de enums?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Valores homônimos podem ser associados, e configurações explícitas tratam nomes distintos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todo enum é convertido para qualquer classe sem método auxiliar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "MapStruct proíbe mapear enum para enum.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Enums só podem ser copiados quando as classes têm o mesmo pacote.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O mapeamento de enum ocorre exclusivamente por consulta ao banco.",
+          "correct": false
+        }
+      ],
+      "explanation": "O MapStruct oferece mapeamento de valores enum e configurações para associar valores com nomes diferentes. Compatibilidade de nomes é uma convenção útil, mas não elimina recursos para casos divergentes.",
+      "section": "3. Conversões, métodos auxiliares e coleções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A anotação `@MappingTarget` identifica o parâmetro que será atualizado por um método de mapeamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Em métodos de atualização, o parâmetro anotado com `@MappingTarget` representa a instância de destino já existente que receberá os valores mapeados.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método de atualização com `@MappingTarget` sempre cria outra instância nova e ignora o objeto recebido como destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `@MappingTarget` identifica justamente o alvo existente a ser atualizado. O padrão se diferencia de um método que apenas cria e retorna um novo objeto de destino.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual estratégia trata propriedades da origem nulas ou ausentes em métodos de atualização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`NullValuePropertyMappingStrategy`",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`NullValueMappingStrategy` exclusivamente para parâmetros",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`unmappedSourcePolicy`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`InjectionStrategy`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`CollectionMappingStrategy`",
+          "correct": false
+        }
+      ],
+      "explanation": "`NullValuePropertyMappingStrategy` define como tratar uma propriedade nula ou não presente, especialmente em atualização. `NullValueMappingStrategy` controla o resultado quando o argumento de origem do método como um todo é nulo.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`NullValueMappingStrategy` regula o resultado quando o argumento de origem do método de mapeamento é nulo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A estratégia trata o argumento nulo recebido pelo método. Ela não deve ser confundida com a estratégia para uma propriedade individual nula durante a atualização de bean.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pedido de atualização traz `telefone = null`, e a regra desejada é manter no destino o telefone atual. Em qual configuração se deve procurar o comportamento de propriedade nula?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Na estratégia de propriedade nula aplicável ao mapeamento de atualização.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "No `componentModel`, que define o valor a preservar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "No `uses`, que instrui o mapper a manter todas as propriedades.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "No `dateFormat`, que preserva campos textuais nulos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "No `unmappedSourcePolicy`, que substitui valores nulos por valores antigos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A regra diz respeito a uma propriedade nula durante atualização, portanto deve ser resolvida pela estratégia de propriedade nula. Modelo de componente, colaboradores e formato de data têm outras finalidades.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O padrão documentado de `unmappedTargetPolicy` é `WARN`, enquanto `unmappedSourcePolicy` tem padrão `IGNORE`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A API documenta `WARN` como padrão para alvo não mapeado e `IGNORE` para origem não utilizada. Esses padrões podem ser alterados na configuração do mapper ou por configuração central.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que o atributo `unmappedTargetPolicy` configura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como reportar propriedades de destino que não foram mapeadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Como injetar o mapper no contêiner Spring.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Como converter uma coleção para array.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como escolher o objeto de origem de uma expressão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como definir o conteúdo de um valor constante.",
+          "correct": false
+        }
+      ],
+      "explanation": "A política regula o reporte de propriedades de destino sem mapeamento. Injeção, conversão de coleção e valores constantes são controlados por outros mecanismos.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo padrão de componente, a documentação aponta `Mappers.getMapper(...)` como forma usual de obter uma instância do mapper.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O modelo padrão não integra o mapper a um contêiner de DI; a fábrica `Mappers` permite obter a implementação gerada. Em modelos como Spring, o contêiner fornece o bean.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual configuração permite que a implementação gerada seja um bean do Spring?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`@Mapper(componentModel = \"spring\")`",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`@Mapping(source = \"spring\")`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`@Mapper(uses = Spring.class)`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`@MappingTarget(componentModel = \"spring\")`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`@Mapper(nullValueMappingStrategy = \"spring\")`",
+          "correct": false
+        }
+      ],
+      "explanation": "`componentModel` seleciona a integração da implementação. O valor `spring` gera componente adequado ao contêiner Spring, que pode ser injetado conforme a configuração do projeto.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A opção `uses` seleciona diretamente o modelo de componente Spring para a implementação gerada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `uses` declara tipos auxiliares que o mapper pode chamar. O modelo de componente é controlado por `componentModel`, que pode indicar Spring ou CDI.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A API do MapStruct prevê `InjectionStrategy` para escolher, entre outras opções, injeção por construtor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A anotação `@Mapper` aceita `injectionStrategy`, e a documentação exemplifica a estratégia de construtor para mappers colaboradores em um modelo de componente como Spring.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre o MapStruct é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele pode acusar na compilação que não encontrou método ou conversão de tipo adequada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ele só detecta incompatibilidades depois que o primeiro usuário acessa a API.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele transforma automaticamente qualquer classe Java em qualquer tipo sem regra.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ele exige que todos os mapeamentos sejam escritos manualmente em SQL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele substitui o compilador Java por um mecanismo de execução dinâmico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma vantagem do processador é relatar no build mapeamentos incorretos, inclusive quando falta método de mapeamento ou conversão apropriada. Isso decorre da geração e verificação na compilação.",
+      "section": "1. O que o MapStruct faz e quando gera código",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em `@Mapping(target = \"nome\", source = \"nomeCompleto\")`, o destino recebe o valor obtido da propriedade `nomeCompleto` da origem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `source` indica a propriedade de origem que será lida e `target` a propriedade do objeto de destino que receberá o valor. A ordem dos atributos na anotação não altera seus papéis.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma propriedade configurada com `ignore = true` recebe automaticamente o valor que estiver na origem com nome semelhante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `ignore = true` exclui o alvo do mapeamento configurado. Não determina uma cópia alternativa nem implica busca por propriedades de nome parecido.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A propriedade de destino `situacao` deve sempre receber o texto `PENDENTE`, qualquer que seja a origem. Qual definição expressa esse requisito?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`@Mapping(target = \"situacao\", constant = \"PENDENTE\")`",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`@Mapping(target = \"situacao\", defaultValue = \"PENDENTE\")`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`@Mapping(target = \"situacao\", ignore = true)`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`@Mapping(source = \"situacao\", target = \"PENDENTE\")`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`@Mapper(uses = Situacao.class)`",
+          "correct": false
+        }
+      ],
+      "explanation": "O enunciado apresenta um valor fixo em todas as situações; para esse requisito, `constant` é a configuração adequada. `defaultValue` seria aplicado apenas quando a propriedade de origem fosse nula.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O atributo `dateFormat` pode configurar formato em mapeamento entre `String` e `Date`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A API documenta `dateFormat` como formato usado em conversões entre `String` e `Date`, processado segundo a convenção de formatação indicada pela ferramenta.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para formatar uma conversão entre `Number` e `String`, qual atributo de `@Mapping` é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`dateFormat`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`numberFormat`",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`mappingTargetFormat`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`enumFormat`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`componentModel`",
+          "correct": false
+        }
+      ],
+      "explanation": "`numberFormat` define o padrão de formatação para conversão entre `Number` e `String`. `dateFormat` atende a conversões envolvendo datas, enquanto `componentModel` trata da integração do componente.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma expressão de mapeamento que não compila pode ser aceita mesmo assim, pois o MapStruct a executa por interpretação em tempo de execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A expressão Java é incorporada à implementação gerada e passa pelo compilador. Uma chamada inválida ou incompatível tende a ser apontada durante a compilação, não interpretada dinamicamente pelo MapStruct.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um mapper tem dois métodos de conversão de `String` para `Categoria`, ambos elegíveis. Qual opção pode desambiguar o método que deve ser chamado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`unmappedSourcePolicy`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`qualifiedByName` associado a um método marcado com `@Named`",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`NullValueMappingStrategy`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`collectionMappingStrategy`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`MappingTarget` no tipo de retorno",
+          "correct": false
+        }
+      ],
+      "explanation": "`qualifiedByName` limita a seleção a métodos anotados com o nome de qualificador indicado. As demais opções regulam relatório, nulidade, coleções ou destino de atualização, e não a seleção do conversor.",
+      "section": "3. Conversões, métodos auxiliares e coleções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método auxiliar pode ser implementado manualmente e disponibilizado por `uses` ao código de mapper gerado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `uses` aceita tipos auxiliares escritos à mão ou outros mappers. O processador pode chamar métodos aplicáveis desses tipos ao gerar o mapper principal.",
+      "section": "3. Conversões, métodos auxiliares e coleções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coleção de origem pode ser mapeada para outra coleção quando existe uma forma adequada de mapear seus elementos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. MapStruct gera o código de iteração da coleção e usa o mapeamento aplicável a cada elemento. O formato concreto de destino depende dos tipos e da estratégia de coleção.",
+      "section": "3. Conversões, métodos auxiliares e coleções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um campo `long` pode conter valor maior que a faixa de `int`; qual ajuste permite controlar o reporte de conversões desse tipo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`typeConversionPolicy`",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`componentModel`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`unmappedSourcePolicy`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`collectionMappingStrategy`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`injectionStrategy`",
+          "correct": false
+        }
+      ],
+      "explanation": "`typeConversionPolicy` determina como conversões potencialmente com perda, como estreitar de `long` para `int`, são reportadas. As outras opções cuidam de integração, propriedades não mapeadas ou coleções.",
+      "section": "3. Conversões, métodos auxiliares e coleções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma estratégia para parâmetro de origem nulo responde necessariamente a todas as questões sobre uma propriedade interna nula em atualização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Nulidade do argumento completo e nulidade de propriedade são situações diferentes. Para atualização, há configuração própria para propriedades nulas ou ausentes; a estratégia do argumento controla a entrada inteira do método.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao selecionar `componentModel = \"spring\"`, o código gerado pode ser registrado como componente Spring e obtido por injeção do contêiner.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O modelo Spring adapta a implementação gerada para ser bean do Spring. Assim o contêiner pode fornecê-la por injeção, respeitada a configuração do projeto.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer descobrir se propriedades de origem ficaram sem uso. Qual política é voltada a esse diagnóstico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`unmappedSourcePolicy`",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`unmappedTargetPolicy`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`NullValuePropertyMappingStrategy`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`InjectionStrategy`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`numberFormat`",
+          "correct": false
+        }
+      ],
+      "explanation": "`unmappedSourcePolicy` controla o reporte de propriedades da origem que não são usadas. `unmappedTargetPolicy` volta-se a propriedades do destino sem correspondência.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um mapper com `componentModel = \"spring\"` e `uses = Conversor.class` configura, respectivamente, a integração do componente e um colaborador de mapeamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `componentModel` escolhe o modelo de componente gerado, enquanto `uses` lista tipos auxiliares que o mapper pode utilizar. São configurações com responsabilidades diferentes.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na documentação do MapStruct, o padrão de `unmappedTargetPolicy` é `IGNORE` e o padrão de `unmappedSourcePolicy` é `WARN`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os padrões documentados são o inverso: `WARN` para alvo não mapeado e `IGNORE` para origem não utilizada. Políticas explícitas podem modificar os padrões.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma propriedade homônima existe nas classes de origem e destino, mas a classe de destino não tem forma de escrita acessível e não é um tipo imutável reconhecido. Qual consequência é plausível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A geração pode falhar porque não há forma aplicável de construir/preencher o destino.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "MapStruct ignora sempre a ausência de acesso ao destino e escreve por reflexão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O processador converte o destino em interface sem avisar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A propriedade passa a ser automaticamente uma constante nula.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A classe de origem é alterada pelo processador para adicionar setter.",
+          "correct": false
+        }
+      ],
+      "explanation": "A implementação gerada precisa de uma forma válida de construir e preencher o tipo de destino, como construtor, builder ou acesso de escrita apropriado. MapStruct não altera a classe de origem nem usa reflexão para contornar qualquer ausência de acesso.",
+      "section": "1. O que o MapStruct faz e quando gera código",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O mesmo alvo pode ser configurado repetidamente em várias anotações `@Mapping` do mesmo método sem conflito.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A API de `@Mapping` informa que a mesma propriedade de destino não deve ser mapeada mais de uma vez. Configurações conflitantes precisam ser resolvidas para que haja uma origem/regra inequívoca.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação associa um nome de origem diferente ao nome da propriedade do DTO?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`@Mapper(source = \"codigo\", target = \"id\")`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`@Mapping(source = \"codigo\", target = \"id\")`",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`@MappingTarget(source = \"codigo\", target = \"id\")`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`@Mapping(source = \"id\", target = \"codigo\")`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`@Mapper(uses = Codigo.class)`",
+          "correct": false
+        }
+      ],
+      "explanation": "`@Mapping` configura uma propriedade e recebe a origem em `source` e o destino em `target`. `@Mapper` marca o tipo de mapper e `@MappingTarget` identifica uma instância de destino existente.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual modelo de componente permite ao contêiner CDI fornecer o mapper gerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`componentModel = \"default\"`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`componentModel = \"cdi\"`",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`uses = CDI.class`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`injectionStrategy = \"cdi\"`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`qualifiedByName = \"cdi\"`",
+          "correct": false
+        }
+      ],
+      "explanation": "O modelo `cdi` faz a implementação gerada integrar-se como bean CDI, recuperável por injeção. `uses` lista colaboradores e não escolhe o modelo de componente.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual atributo escolhe o tipo que será usado quando mais de um método de mapeamento puder produzir o resultado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`nullValueCheckStrategy`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`mappingControl`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`resultType`",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`unmappedSourcePolicy`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`numberFormat`",
+          "correct": false
+        }
+      ],
+      "explanation": "O atributo `resultType` ajuda a selecionar o tipo de resultado quando há mais de um método aplicável. As outras opções tratam de verificações de nulo, reporte de origem não usada ou formatação.",
+      "section": "3. Conversões, métodos auxiliares e coleções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em mapeamento de `Map`, a ferramenta pode converter tanto as chaves quanto os valores quando existem mapeamentos aplicáveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O MapStruct documenta mapeamento de mapas e permite tratar conversões de chave e valor conforme os tipos e métodos disponíveis.",
+      "section": "3. Conversões, métodos auxiliares e coleções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual atributo escolhe a estratégia de injeção dos mappers auxiliares na implementação gerada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`uses`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`injectionStrategy`",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`componentModel`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`implementationName`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`mappingInheritanceStrategy`",
+          "correct": false
+        }
+      ],
+      "explanation": "`injectionStrategy` seleciona a forma de injeção, como construtor ou campo. `componentModel` informa o modelo do contêiner, enquanto `uses` declara quais tipos auxiliares serão utilizados.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual configuração aponta propriedades de origem que não foram usadas no mapeamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`unmappedTargetPolicy`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`unmappedTargetPolicy` para campos do alvo",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`typeConversionPolicy`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`unmappedSourcePolicy`",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`nullValueMappingStrategy`",
+          "correct": false
+        }
+      ],
+      "explanation": "`unmappedSourcePolicy` é a política de reporte para propriedades da origem que não foram consumidas. `unmappedTargetPolicy` examina o caso oposto, propriedades do destino sem mapeamento.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma expressão `java(...)` em `@Mapping` pode usar um tipo pelo nome simples se esse tipo estiver incluído nos imports da configuração do mapper.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A anotação `@Mapper` aceita imports adicionais, que se tornam importações na classe gerada e podem ser referenciadas por expressões de mapeamento pelo nome simples.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um mapeamento tem elementos que não devem ser aceitos por uma interface estrita. Qual política faz propriedades de destino não mapeadas virarem erro de compilação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`unmappedTargetPolicy = ReportingPolicy.WARN`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`unmappedSourcePolicy = ReportingPolicy.ERROR`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`unmappedTargetPolicy = ReportingPolicy.ERROR`",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`unmappedSourcePolicy = ReportingPolicy.IGNORE`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`typeConversionPolicy = ReportingPolicy.IGNORE`",
+          "correct": false
+        }
+      ],
+      "explanation": "A política de alvo controla propriedades de destino sem mapeamento e pode ser configurada como `ERROR` para tratar o caso como erro. `WARN` emite aviso, enquanto as outras opções controlam origens não usadas ou conversões.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O nome de implementação padrão gerado para um mapper pode ser alterado por qual atributo de `@Mapper`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`implementationPackage`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`implementationName`",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`componentModel`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`injectionStrategy`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`mappingInheritanceStrategy`",
+          "correct": false
+        }
+      ],
+      "explanation": "`implementationName` configura o nome da classe de implementação gerada. `implementationPackage` configura o pacote, enquanto as demais opções tratam de integração e estratégia.",
+      "section": "1. O que o MapStruct faz e quando gera código",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A anotação `@Mapper` pode receber uma configuração central por meio de seu atributo `config`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `config` aponta para um tipo anotado com `@MapperConfig`, que serve como modelo de configuração compartilhada para mappers.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como se configura uma constante literal para uma propriedade de destino?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarando `defaultExpression` sem uma propriedade de origem",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usando `defaultValue` para todas as chamadas",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usando `constant` em `@Mapping` para fornecer o literal",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Marcando a propriedade com `@MappingTarget`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Declarando a classe do destino em `uses`",
+          "correct": false
+        }
+      ],
+      "explanation": "O atributo `constant` define o valor literal fornecido à propriedade de destino. `defaultExpression` e `defaultValue` são condicionados à ausência ou nulidade da propriedade de origem.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual anotação configura um valor de destino com expressão Java apenas quando a propriedade de origem está nula?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`constant`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`defaultExpression`",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`expression`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`qualifiedByName`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`dateFormat`",
+          "correct": false
+        }
+      ],
+      "explanation": "`defaultExpression` calcula o valor alternativo por expressão Java quando a propriedade de origem é nula. `expression` não é, por si só, uma regra condicional de fallback.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção permite configurar o pacote da implementação gerada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`componentModel`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`implementationName`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`implementationPackage`",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`unmappedTargetPolicy`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`uses`",
+          "correct": false
+        }
+      ],
+      "explanation": "`implementationPackage` define o pacote de destino da implementação gerada. `implementationName` altera o nome da classe, não o pacote.",
+      "section": "1. O que o MapStruct faz e quando gera código",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O atributo `imports` de `@Mapper` pode disponibilizar tipos para uso por nome simples em expressões do código gerado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A anotação `@Mapper` admite imports adicionais para a classe gerada. Isso permite que expressões se refiram a tipos importados pelo nome simples.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção determina como se propagam propriedades tipadas como coleções ao copiar ou atualizar beans?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`uses`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`injectionStrategy`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`collectionMappingStrategy`",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`NullValueMappingStrategy`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`MappingTarget`",
+          "correct": false
+        }
+      ],
+      "explanation": "`collectionMappingStrategy` configura como valores de propriedades de coleção são propagados, incluindo métodos de acesso disponíveis no alvo. As estratégias de nulo e de injeção regulam situações diferentes.",
+      "section": "3. Conversões, métodos auxiliares e coleções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso configura a política para propriedades de destino que não receberam valor mapeado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`unmappedSourcePolicy`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`NullValueMappingStrategy`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`unmappedTargetPolicy`",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`typeConversionPolicy`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`nullValuePropertyMappingStrategy`",
+          "correct": false
+        }
+      ],
+      "explanation": "`unmappedTargetPolicy` trata propriedades do destino que ficaram sem mapeamento. A política de origem não utilizada é `unmappedSourcePolicy`.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que tipo pode ser informado em `@Mapper(config = ...)` para compartilhar opções entre vários mappers?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma classe anotada com `@MappingTarget`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma classe anotada com `@MapperConfig`",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Uma entidade anotada com `@Entity`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um objeto `Mappers` instanciado em execução",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um enum de valores de origem",
+          "correct": false
+        }
+      ],
+      "explanation": "`@MapperConfig` define opções compartilhadas para mappers, e o atributo `config` referencia essa classe. `@MappingTarget` tem função de atualização de objeto e não é configuração central.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O método de mapeamento recebe `Pedido` e `Cliente`, e o destino deve combinar dados dos dois parâmetros. Como referenciar uma propriedade de origem sem ambiguidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar apenas o nome do alvo em `constant`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar `source = \"pedido.numero\"` ou `source = \"cliente.nome\"`",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Declarar sempre um `@MappingTarget` para cada parâmetro",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Omitir `source`, pois parâmetros múltiplos são proibidos",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter os dois objetos em JSON antes do mapper",
+          "correct": false
+        }
+      ],
+      "explanation": "Em mapeamentos com múltiplos parâmetros, a origem pode ser qualificada pelo nome do parâmetro e pelo caminho da propriedade. Isso identifica de qual bean vem cada dado.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção define o nome da implementação gerada pelo MapStruct?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`implementationPackage`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`componentModel`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`implementationName`",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`uses`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`injectionStrategy`",
+          "correct": false
+        }
+      ],
+      "explanation": "`implementationName` escolhe o nome da classe gerada. Para configurar o pacote de destino da implementação, usa-se `implementationPackage`.",
+      "section": "1. O que o MapStruct faz e quando gera código",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um tipo pode ser marcado como mapper usando uma classe abstrata, além de uma interface.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação de `@Mapper` permite marcar interface ou classe abstrata para que o processador gere a implementação correspondente.",
+      "section": "1. O que o MapStruct faz e quando gera código",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como declarar uma conversão explícita de `Pessoa.nomeCompleto` para `PessoaDto.nome`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`@Mapping(target = \"nomeCompleto\", source = \"nome\")`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`@Mapper(source = \"nomeCompleto\", target = \"nome\")`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`@Mapping(target = \"nome\", source = \"nomeCompleto\")`",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`@MappingTarget(target = \"nome\", source = \"nomeCompleto\")`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`@Mapping(constant = \"nomeCompleto\", target = \"nome\")`",
+          "correct": false
+        }
+      ],
+      "explanation": "O alvo é `nome` no DTO e a fonte é `nomeCompleto` na entidade. A anotação de propriedade é `@Mapping`; `@Mapper` marca o mapper e `@MappingTarget` identifica uma instância para atualização.",
+      "section": "2. Declarar mapeamentos de propriedades",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma lista pode ser mapeada se cada elemento for mapeável, ainda que o código que percorre a lista seja gerado pelo MapStruct.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O processador gera a iteração de coleção e chama o mapeamento dos elementos. A disponibilidade de conversão apropriada entre os tipos de elemento é o ponto determinante.",
+      "section": "3. Conversões, métodos auxiliares e coleções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção controla o tipo usado para instanciar um objeto de destino em certos mapeamentos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`unmappedSourcePolicy`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`nullValueCheckStrategy`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`implementationName`",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`resultType` aplicado no mapeamento",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`numberFormat`",
+          "correct": false
+        }
+      ],
+      "explanation": "`resultType` ajuda a determinar qual tipo de resultado deve ser produzido em situações com múltiplas possibilidades de método ou tipo concreto. As outras opções citadas atendem a finalidades diferentes.",
+      "section": "3. Conversões, métodos auxiliares e coleções",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A estratégia de injeção pode ser configurada como injeção por construtor para colaboradores do mapper.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A configuração `injectionStrategy` permite selecionar construtor ou campo. A documentação apresenta construtor como estratégia para injetar outro mapper usado pelo principal.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que recurso indica, em uma classe abstrata de mapper, uma instância de destino existente que deverá receber os campos mapeados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`@MapperConfig`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`@ObjectFactory`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`@MappingTarget` no parâmetro do destino",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`@ObjectFactory` no tipo de origem",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`@Named` no campo de destino",
+          "correct": false
+        }
+      ],
+      "explanation": "`@MappingTarget` marca o parâmetro que é a instância de destino existente. `@ObjectFactory` pode fornecer a construção de objetos, mas não substitui a anotação de atualização.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`unmappedTargetPolicy` examina propriedades de origem que não foram usadas, enquanto `unmappedSourcePolicy` examina propriedades do alvo sem valor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os papéis são o inverso: `unmappedTargetPolicy` trata propriedades de destino sem mapeamento e `unmappedSourcePolicy` trata propriedades da origem que não foram usadas.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conceito permite que MapStruct reporte uma propriedade-alvo sem mapeamento durante a compilação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`unmappedSourcePolicy`",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`typeConversionPolicy`",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`unmappedTargetPolicy` configurado no mapper",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`NullValuePropertyMappingStrategy`",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`componentModel`",
+          "correct": false
+        }
+      ],
+      "explanation": "A política do alvo controla o reporte de propriedades de destino não mapeadas e pode ser configurada para produzir aviso ou erro. Estratégias de nulo e de componente não desempenham esse papel.",
+      "section": "4. Nulos, atualização e controle do mapper",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "MapStruct Reference Guide",
+      "publisher": "MapStruct",
+      "reference": "Introdução, configuração, mappers, conversões, coleções, valores nulos e integração com contêineres",
+      "url": "https://mapstruct.org/documentation/stable/reference/html/",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MapStruct API: `@Mapping`",
+      "publisher": "MapStruct",
+      "reference": "Atributos source, target, constant, expression, defaultValue, ignore, formatos e qualificadores",
+      "url": "https://mapstruct.org/documentation/stable/api/org/mapstruct/Mapping.html",
+      "accessedAt": "2026-10-30"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "MapStruct API: `@Mapper`",
+      "publisher": "MapStruct",
+      "reference": "Configuração de uses, componentModel, políticas de propriedades e injeção",
+      "url": "https://mapstruct.org/documentation/stable/api/org/mapstruct/Mapper.html",
+      "accessedAt": "2026-10-30"
+    }
+  ]
+}

@@ -1,0 +1,1883 @@
+{
+  "id": "informatica.linguagem-ruby-sintaxe-recursos",
+  "subject": "Informática",
+  "title": "Ruby: blocos e iteradores",
+  "version": 2,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Ruby: blocos e iteradores",
+    "Blocos de código na linguagem Ruby",
+    "Iteradores da linguagem Ruby",
+    "Blocos Ruby com do e end",
+    "Sintaxe de blocos e iteradores Ruby",
+    "Uso de yield em métodos Ruby",
+    "Enumeradores e Enumerable em Ruby",
+    "Procs e lambdas na linguagem Ruby"
+  ],
+  "scope": {
+    "covers": "Blocos Ruby delimitados por chaves ou do/end, parâmetros, escopo local, passagem de bloco, yield e block_given?, conversão de bloco em Proc com &, Procs e lambdas, diferenças de aridade e return/break/next, iteradores each, map, select, reject, find, reduce/inject, each_with_index e each_with_object, Enumerable, Enumerator e iteração interna e externa, encadeamento e efeitos colaterais.",
+    "excludes": "Sintaxe geral da linguagem fora dos blocos e iteradores, concorrência, metaprogramação avançada, frameworks Ruby e detalhes dependentes de versões específicas não necessários para compreender os mecanismos descritos."
+  },
+  "theoryTitle": "Blocos, Procs e iteração em Ruby",
+  "chapters": [
+    {
+      "title": "1. Bloco: código passado a um método",
+      "markdown": "### O problema que este assunto resolve\n\nImagine que Lia tenha uma lista de pedidos e precise verificar cada um, mas cada programa queira fazer algo diferente: imprimir, calcular um total ou guardar os aprovados. Um método iterador resolve a repetição; o **bloco** deixa o chamador fornecer a ação específica. Assim, o método cuida de percorrer os dados e o bloco diz o que fazer com cada item.\n\nEm Ruby, o bloco aparece junto da chamada do método e pode ser delimitado por chaves ou por `do` e `end`:\n\n```ruby\n[2, 4, 6].each { |numero| puts numero * 2 }\n\n[2, 4, 6].each do |numero|\n  puts numero * 2\nend\n```\n\nPasso a passo: `each` pega o primeiro número, entrega o valor `2` a `numero` e executa `puts numero * 2`; depois faz o mesmo com `4` e `6`. As duas formas de delimitar o bloco executam essa mesma tarefa. Em geral, chaves deixam uma expressão curta compacta, enquanto `do/end` torna um trecho longo mais legível. A diferença não é uma regra universal sobre o que o bloco pode fazer.\n\n### Como o bloco recebe valores\n\nOs nomes entre barras verticais são **parâmetros do bloco**: variáveis que recebem os valores enviados pelo método. Um array costuma fornecer um item por vez. Um hash (estrutura que associa chaves a valores) percorre pares, que podem ser recebidos separadamente:\n\n```ruby\nestoque = { cafe: 3, cha: 5 }\nestoque.each do |produto, quantidade|\n  puts \"#{produto}: #{quantidade}\"\nend\n```\n\nLia percorre primeiro o par `:cafe` e `3`, depois `:cha` e `5`. Os parâmetros locais do bloco servem àquela passagem. O modo de recebimento também depende do que o iterador envia; leia a documentação ou o contrato do método antes de supor que haverá dois valores.\n\nUma **expressão** é um trecho de código que produz um valor. O valor da última expressão executada é o resultado do bloco. Isso não determina sozinho o retorno do método: é o método que escolhe o que fazer com os resultados. `each` usa o bloco para seus efeitos, mas retorna o próprio objeto percorrido; `map` reúne os resultados em um novo array. Essa distinção explica por que o mesmo bloco pode participar de métodos com resultados diferentes.\n\n### Escopo e contexto capturado\n\nUma variável local criada antes do bloco continua visível dentro dele. Um **escopo** é a região do programa em que um nome de variável pode ser usado. Quando o bloco conserva acesso às variáveis visíveis no lugar em que foi criado, dizemos que forma uma **closure** (função junto do contexto que ela captura).\n\n```ruby\ntotal = 0\n[4, 7, 9].each do |valor|\n  total = total + valor\nend\nputs total # => 20\n```\n\nLia começa com `total` igual a zero. Na primeira passagem soma quatro; na segunda, sete; na terceira, nove. Depois do bloco, a mesma variável contém vinte. Essa captura é útil para acumular dados, mas também significa que executar o bloco pode alterar estado externo. Se a intenção é criar um resultado novo, prefira uma operação cujo retorno expresse esse resultado, em vez de depender de alteração escondida.\n\nA palavra “local” não significa que a variável só possa ser usada na linha em que foi escrita: importa a região léxica (a estrutura do código) que a define. O parâmetro `valor` é fornecido para cada execução do bloco, enquanto `total` já existia no contexto externo. Não confunda a reutilização de uma variável capturada com a criação de uma variável independente a cada passagem.\n\n### Comparando as formas de escrita\n\n| Forma | O que faz | Quando costuma ajudar |\n| --- | --- | --- |\n| `{ ... }` | Delimita o bloco da chamada | Ação curta e direta |\n| `do ... end` | Também delimita o bloco da chamada | Ação longa ou com várias linhas |\n| `|item|` | Declara parâmetro que recebe valor do método | Quando o bloco precisa usar o item atual |\n\nO bloco é associado a uma chamada de método. Ele não é automaticamente um objeto que se possa armazenar em uma variável e invocar mais tarde. Para guardar ou repassar esse código como valor, Ruby oferece `Proc`, assunto tratado adiante. Também não presuma que todo bloco será executado: o método chamado decide se e quando o executa.\n\n**Pegadinha:** a banca pode dizer que chaves e `do/end` criam tipos diferentes de bloco, ou que o bloco sempre determina o retorno do iterador. As duas afirmações estão erradas: ambas as formas passam um bloco, e o método decide como usa o resultado. Outra armadilha é afirmar que a variável externa deixa de existir ao entrar no bloco; uma variável visível antes dele pode ser lida e alterada dentro dele.\n\n**Resumo para a prova**\n\n- Bloco é código associado à chamada de um método; o método decide se e quando o executa.\n- Chaves e `do/end` são formas alternativas de delimitação, com estilos de uso comuns diferentes.\n- Parâmetros entre barras verticais recebem valores enviados pelo método.\n- O resultado do bloco não define por si só o retorno do método: `each` e `map`, por exemplo, têm contratos distintos.\n- Uma variável local visível antes do bloco pode ser capturada, lida e alterada por ele."
+    },
+    {
+      "title": "2. Métodos que recebem e executam blocos",
+      "markdown": "### O problema que este assunto resolve\n\nUm método pode receber uma ação do chamador e decidir exatamente em que momento executá-la. Pense em Caio, que escreve um método para cumprimentar pessoas: o método monta o fluxo; o bloco recebido escolhe como transformar o nome em mensagem. Ruby oferece yield para executar o bloco associado à chamada sem precisar nomeá-lo como variável.\n\n~~~ruby\ndef saudar(nome)\n  yield nome\nend\n\nmensagem = saudar('Lia') { |pessoa| \"Olá, #{pessoa}!\" }\nputs mensagem # => Olá, Lia!\n~~~\n\nCaio chama saudar com o nome Lia e fornece um bloco. Dentro do método, yield nome executa esse bloco e envia Lia ao parâmetro pessoa. A última expressão do bloco é a string de saudação; como yield produz esse resultado e não há outra expressão depois dele, o método também devolve essa string. O método pode executar o mesmo bloco mais de uma vez, passar argumentos diferentes ou nem executá-lo, conforme sua lógica.\n\n### Bloco opcional e block_given?\n\nSe o método executa yield mas o chamador não forneceu bloco, Ruby sinaliza LocalJumpError (erro de fluxo de execução sem o bloco esperado). Quando o bloco é opcional, block_given? verifica se a chamada atual o trouxe.\n\n~~~ruby\ndef rotular(nome)\n  if block_given?\n    yield nome\n  else\n    nome\n  end\nend\n\nrotular('Lia') { |pessoa| \"Cliente: #{pessoa}\" } # => Cliente: Lia\nrotular('Lia')                                     # => Lia\n~~~\n\nNo primeiro caso, Caio oferece o bloco e o método o executa. No segundo, a condição é falsa e o método devolve o nome sem tentar executar código inexistente. A verificação não executa o bloco; apenas responde se há um bloco disponível naquela chamada. Uma questão pode separar essas duas ações para testar se você entendeu que o método é responsável por decidir quando chamar yield.\n\n### Capturar o bloco como objeto\n\nÀs vezes não basta executar o bloco no ponto atual: o método precisa guardá-lo, chamá-lo sob condição ou entregá-lo a outro método. Na definição, um último parâmetro com & captura o bloco em um objeto Proc (código executável tratado como valor). O nome do parâmetro, como acao, passa a poder ser usado no corpo do método.\n\n~~~ruby\ndef executar_duas_vezes(&acao)\n  return :sem_acao unless acao\n  primeiro = acao.call\n  segundo = acao.call\n  [primeiro, segundo]\nend\n\nexecutar_duas_vezes { 'feito' } # => [\"feito\", \"feito\"]\n~~~\n\nCaio passa um bloco que devolve a palavra feito. O parâmetro acao contém um Proc; call executa o Proc cada vez. O método guarda os dois resultados em um array. Sem bloco, acao vale nil (ausência de valor), por isso o método retorna antes de chamar call. Capturar não significa executar: a execução só ocorre nas linhas com acao.call.\n\nQuando só se quer executar o bloco no fluxo normal, yield é direto e não exige nomear um Proc. Quando é preciso tratar o bloco como objeto — por exemplo, guardá-lo ou testar sua existência por meio do parâmetro — &acao é apropriado. block_given? costuma ser usado com yield; o teste acao é natural após a captura explícita.\n\n### O sinal & em dois lugares\n\nO mesmo sinal tem funções relacionadas, mas invertidas, conforme o lugar em que aparece. Na definição do método, &acao converte o bloco recebido em Proc. Na chamada, &objeto converte um Proc ou outro objeto que ofereça to_proc em bloco. to_proc é o método de conversão para uma representação executável como bloco.\n\n~~~ruby\nnomes = ['lia', 'caio']\nnomes.map(&:upcase) # => [\"LIA\", \"CAIO\"]\n~~~\n\nPasso a passo: :upcase é um símbolo que identifica o método upcase; o sinal & na chamada pede sua conversão em bloco; map fornece cada nome a esse bloco; o resultado é um array com as versões em maiúsculas. O símbolo não é, sozinho, um bloco, e & não significa a mesma coisa em toda posição sintática.\n\n| Escrita | Lugar | Efeito |\n| --- | --- | --- |\n| def executar(&acao) | Definição | Captura o bloco recebido como Proc |\n| metodo(&acao) | Chamada | Converte Proc ou objeto com to_proc em bloco |\n| yield valor | Corpo do método | Executa o bloco associado, enviando valor |\n\nO argumento escrito após yield é entregue aos parâmetros do bloco. Se o bloco tiver vários parâmetros, confira quantos valores o método envia e como o método os fornece. O uso de & na chamada também não cria um novo bloco por magia: ele usa o protocolo to_proc do objeto passado.\n\n**Pegadinha:** yield não cria nem captura um bloco; ele executa o bloco associado. E & não tem efeito único: na declaração captura, na chamada converte para bloco. Também é erro afirmar que declarar &acao executa automaticamente o Proc; é necessário chamar acao.call ou usar outra forma explícita de execução.\n\n**Resumo para a prova**\n\n- yield executa o bloco associado à chamada e pode enviar argumentos.\n- Sem bloco, yield pode causar LocalJumpError; block_given? permite verificar a presença antes.\n- &acao na definição captura o bloco como Proc; capturar não é executar.\n- acao.call chama o Proc; seu retorno é o valor produzido por aquela execução.\n- &objeto na chamada converte objeto com to_proc, como símbolo, em bloco.\n- A posição do sinal & determina sua função."
+    },
+    {
+      "title": "3. Iteradores e operações de Enumerable",
+      "markdown": "### O problema que este assunto resolve\n\nUma equipe tem uma lista de entregas e precisa responder perguntas diferentes: quais itens existem, quais devem ser transformados, quais atendem a uma condição e qual é o total. Em Ruby, os iteradores percorrem elementos e aplicam um bloco; cada método define o que fazer com os resultados. O módulo Enumerable reúne operações desse tipo para objetos que sabem percorrer seus elementos por meio de each.\n\n### Percorrer ou transformar: each e map\n\neach visita cada item e é adequado quando o objetivo é realizar uma ação, como imprimir ou registrar informação. Ele normalmente devolve o próprio objeto percorrido; não cria uma lista com os valores finais produzidos pelo bloco. map (também chamado collect) aplica o bloco a todos os elementos e devolve um novo array com os resultados.\n\n~~~ruby\nnumeros = [2, 4, 6]\nnumeros.each { |n| puts n * 10 }\ndobrados = numeros.map { |n| n * 2 }\n# dobrados => [4, 8, 12]\n~~~\n\nLia acompanha cada etapa. each primeiro recebe 2 e imprime 20, depois imprime 40 e 60; a finalidade é o efeito de imprimir. Em seguida, map recebe 2, calcula 4 e guarda esse resultado na primeira posição do novo array; repete com 4 e 6. O array original continua sendo [2, 4, 6]. Se a questão pergunta pelo retorno de cada método, não confunda os resultados individuais do bloco com o retorno global do iterador.\n\n### Filtrar ou localizar: select, reject e find\n\nUm **predicado** é uma condição avaliada para cada elemento, normalmente expressa como verdadeiro ou falso. select (também chamado filter) conserva todos os elementos para os quais o predicado resulta verdadeiro. reject faz o complemento: conserva os que resultam falso. find localiza apenas o primeiro elemento que satisfaz a condição; se nenhum satisfaz, retorna nil (ausência de valor).\n\n~~~ruby\nidades = [14, 19, 22, 17]\nmaiores = idades.select { |idade| idade >= 18 } # => [19, 22]\nmenores = idades.reject { |idade| idade >= 18 } # => [14, 17]\nprimeiro = idades.find { |idade| idade >= 18 }  # => 19\n~~~\n\nLia quer separar maiores de idade. select testa 14, 19, 22 e 17, guardando os dois valores aprovados. reject percorre a mesma lista e guarda os dois reprovados pelo mesmo teste. find para no primeiro aprovado, 19; não entrega todos os aprovados. Portanto, select/reject respondem com coleções, enquanto find responde com um elemento ou nil.\n\n| Necessidade | Método | Resultado típico |\n| --- | --- | --- |\n| Executar uma ação em cada item | each | O receptor original |\n| Produzir um resultado para cada item | map / collect | Novo array de resultados |\n| Manter os aprovados pelo predicado | select / filter | Coleção filtrada |\n| Manter os reprovados pelo predicado | reject | Coleção complementar |\n| Obter o primeiro aprovado | find | Um item ou nil |\n\n### Resumir uma coleção: reduce e inject\n\nÀs vezes, não queremos uma resposta por item, mas um único resultado construído aos poucos. reduce (também chamado inject) mantém um **acumulador**, isto é, o valor parcial atualizado a cada passo. Com um valor inicial explícito, esse valor é o primeiro acumulador. Sem ele, o primeiro elemento da coleção ocupa esse papel, e a combinação começa no elemento seguinte.\n\n~~~ruby\nvalores = [3, 5, 2]\nsoma = valores.reduce(0) { |acumulador, n| acumulador + n }\n# soma => 10\n~~~\n\nLia começa com acumulador igual a zero. Recebe o primeiro valor 3 e calcula 0 + 3, obtendo 3; em seguida calcula 3 + 5, obtendo 8; por fim calcula 8 + 2, obtendo 10. Cada resultado parcial vira o acumulador da etapa seguinte. Sem o zero inicial, o primeiro elemento 3 começaria a redução. Um valor inicial é especialmente útil quando a coleção pode estar vazia ou quando o tipo do resultado deve ser definido desde o início.\n\n### Índice e objeto de trabalho\n\neach_with_index envia ao bloco o elemento e sua posição, normalmente iniciada em zero. É útil quando Lia precisa mostrar a ordem dos itens sem manter um contador externo. each_with_object(objeto) envia cada elemento junto com o mesmo objeto de trabalho e devolve esse objeto inicial; costuma servir para preencher um hash ou outra estrutura.\n\n~~~ruby\nnomes = ['Lia', 'Caio']\nnomes.each_with_index { |nome, indice| puts \"#{indice}: #{nome}\" }\n\nquantidades = [2, 3, 4]\ntotais = quantidades.each_with_object([]) { |n, saida| saida << n * 10 }\n# totais => [20, 30, 40]\n~~~\n\nNa primeira chamada, o índice acompanha cada nome. Na segunda, a lista vazia é criada antes do percurso; em cada passagem, o bloco calcula dez vezes a quantidade e acrescenta o resultado ao mesmo array saida. O método devolve esse array inicial já preenchido, e não o valor da última expressão do bloco.\n\n### O papel de Enumerable\n\nEnumerable é um **módulo** (conjunto reutilizável de métodos) que fornece operações como map, select e find a uma classe que inclua esse módulo e implemente each de maneira coerente. Em outras palavras, Enumerable não inventa a fonte dos itens. A classe define como cada item será oferecido; as operações reutilizáveis usam esse percurso.\n\nUm hash percorre associações entre chave e valor, enquanto um array percorre itens em sequência. A forma dos argumentos recebidos pelo bloco depende do objeto e do método. Ao usar Enumerable em uma classe própria, um each que não fornece cada elemento corretamente fará com que as operações derivadas também não representem o conteúdo esperado.\n\n**Pegadinha:** trocar os nomes dos métodos pelos seus resultados é erro frequente: map não filtra, select não transforma todos os itens e find não devolve todas as correspondências. Também se cobra que each devolve o array produzido pelo bloco; em regra, each retorna o receptor. Na redução, não ignore o valor inicial nem o papel do primeiro elemento quando ele está ausente.\n\n**Resumo para a prova**\n\n- each percorre para executar ações e normalmente retorna o receptor; map reúne um resultado por item em novo array.\n- select conserva correspondências; reject conserva não correspondências; find devolve a primeira correspondência ou nil.\n- reduce/inject combina itens em um acumulador; valor inicial explícito altera o ponto de partida.\n- each_with_index fornece item e índice; each_with_object fornece item e objeto de trabalho, retornando esse objeto.\n- Enumerable oferece operações construídas sobre each; uma classe precisa implementar um percurso coerente.\n- Sempre determine se a questão pergunta pelo resultado do bloco, pelo retorno do iterador ou por uma coleção final."
+    },
+    {
+      "title": "4. Enumerator e formas de percorrer",
+      "markdown": "### O problema que este assunto resolve\n\nÀs vezes, quem chama um iterador ainda não sabe quando quer percorrer os dados. Talvez queira conectar outra operação, pausar depois de um item ou pedir valores um por um. Ruby usa Enumerator para representar esse percurso sem exigir que ele seja consumido imediatamente. Um enumerador é um objeto que pode fornecer valores por meio de um iterador.\n\n### Chamada sem bloco e execução adiada\n\nMuitos iteradores, como each e map, quando chamados sem bloco devolvem um Enumerator. Isso permite que a chamada seja configurada agora e percorrida depois.\n\n~~~ruby\nlista = [10, 20, 30]\npercurso = lista.each\n~~~\n\nLia cria percurso, mas ainda não forneceu bloco nem consumiu valores. Portanto, essa linha não equivale a ter impresso cada número; ela guarda uma representação da iteração. Um método como to_enum (também conhecido como enum_for) pode criar um Enumerator para um método que percorre dados. O comportamento específico depende do método, então a palavra “frequentemente” é mais precisa do que dizer que todo método sem bloco necessariamente retorna um enumerador.\n\nSe o método for chamado mais tarde com bloco, o iterador conduz a execução. Também é possível encadear enumeradores: por exemplo, cada pode ser combinado com with_index para associar índice e item sem escrever um contador manual. O resultado da chamada intermediária é um percurso configurado, pronto para receber uma ação ou fornecer elementos.\n\n### Iteração interna e externa\n\nNa **iteração interna**, o método controla o avanço e invoca o bloco para cada item. O chamador entrega o bloco e deixa o iterador conduzir a sequência. Na **iteração externa**, o consumidor controla o avanço: pede um próximo valor, processa-o e decide quando pedir outro.\n\n~~~ruby\nenumerador = [10, 20].each\nprimeiro = enumerador.next # => 10\nsegundo = enumerador.next # => 20\n~~~\n\nLia solicita o primeiro elemento e recebe 10. Só quando solicita de novo é que recebe 20. Assim, o consumidor pode alternar leitura e processamento, ou até interromper depois de um valor. Isso contrasta com each { |item| ... }, em que o método percorre a coleção e chama o bloco sucessivamente.\n\nQuando todos os valores foram entregues, pedir mais um com next sinaliza o fim por meio de StopIteration (exceção que indica que não há próximo valor). O fim não é um elemento nil adicional: é o esgotamento do percurso. Cada enumerador mantém seu próprio estado de avanço, por isso um próximo pedido depende do que já foi consumido naquele objeto.\n\n| Aspecto | Iteração interna | Iteração externa |\n| --- | --- | --- |\n| Quem avança | O método iterador | O consumidor do Enumerator |\n| Como recebe a ação | Bloco associado à chamada | Pedidos de valores como next |\n| Controle de ritmo | O iterador percorre continuamente | O consumidor decide quando pedir o próximo |\n| Sinal de fim | O método termina o percurso | next após o esgotamento sinaliza StopIteration |\n\n### Encadeamento e consumo\n\nOperações podem ser encadeadas para deixar claras as etapas de processamento. Imagine que Caio tenha valores de vendas e queira manter apenas os positivos, depois dobrá-los:\n\n~~~ruby\nvendas = [-2, 3, 5]\nresultado = vendas.select { |valor| valor > 0 }.map { |valor| valor * 2 }\n# resultado => [6, 10]\n~~~\n\nPrimeiro select percorre a lista e conserva 3 e 5. Depois map recebe apenas esses valores e produz 6 e 10. Esse encadeamento costuma materializar uma coleção intermediária (criar uma lista com o resultado da primeira etapa). Para fluxos grandes, um encadeamento lazy (preguiçoso, que adia operações até que valores sejam pedidos) pode evitar trabalho antecipado e estruturas intermediárias. A avaliação só acontece quando o resultado é consumido. Lazy altera o momento de execução, não o significado lógico de filtrar e transformar.\n\nUm Enumerator também pode ser devolvido quando uma operação como select ou map é chamada sem bloco. Isso permite acrescentar etapas ou fornecer o bloco mais tarde. Porém, não infira que a chamada nunca executa trabalho algum: avalie qual objeto está sendo percorrido, se houve bloco e se há consumo do enumerador.\n\n### Passo a passo: pausar entre itens\n\nCaio recebe registros de temperatura e precisa validar cada linha antes de pedir a próxima. Ele cria um enumerador, usa next para obter uma leitura, confere o valor e só então solicita a seguinte. A cada chamada, o estado do enumerador avança. Se a sequência termina, StopIteration informa que não há outra leitura. Com iteração interna, o método chamaria o bloco logo para cada registro; com a externa, Caio decide quando ocorre cada avanço. Esse controle pode ser útil quando a próxima ação depende do valor que acabou de chegar.\n\n**Pegadinha:** chamar each sem bloco não significa sempre “executar e terminar o percurso”; com frequência o resultado é Enumerator. Outra troca comum é afirmar que next caracteriza iteração interna: na forma apresentada, next é usado pelo consumidor na iteração externa. Por fim, pedir além do fim não retorna um novo elemento vazio: ocorre StopIteration.\n\n**Resumo para a prova**\n\n- Enumerator representa um percurso consumível e muitos iteradores o devolvem quando não recebem bloco.\n- Na iteração interna, o método avança e chama o bloco; na externa, o consumidor pede valores, como com next.\n- O enumerador mantém estado; pedidos sucessivos avançam a sequência.\n- StopIteration indica que next foi usado depois de esgotados os valores.\n- Encadeamento separa etapas; lazy adia o trabalho até o consumo e pode evitar intermediários.\n- Verifique se o código cria um percurso, o consome ou executa um bloco imediatamente."
+    },
+    {
+      "title": "5. Proc, lambda e controle do fluxo no bloco",
+      "markdown": "### O problema que este assunto resolve\n\nUm bloco pode ser útil em vários momentos, mas a chamada que o recebeu termina. Se o programa precisa guardar uma ação, enviá-la para outro método ou executá-la depois, Ruby permite transformar o código em um objeto Proc. A lambda também é um Proc, mas segue regras mais parecidas com as de um método. Saber distinguir essas formas evita erros de argumentos e retornos que encerram uma região inesperada.\n\n### Guardar e chamar código com Proc\n\nProc é um objeto que encapsula código executável. Pode ser criado com proc { ... }, Proc.new { ... } ou com a forma de lambda; a sintaxe curta -> também cria lambda. Como objeto, pode ser atribuído a uma variável e chamado com call.\n\n~~~ruby\nmultiplicar = proc { |numero| numero * 3 }\nresultado = multiplicar.call(4)\n# resultado => 12\n~~~\n\nPasso a passo: Lia cria o Proc e o guarda em multiplicar. A criação, por si, apenas armazena a ação. Ao chamar call com 4, o valor chega ao parâmetro numero; o bloco calcula 12 e esse é o resultado da chamada. Proc também é uma closure (função que conserva acesso a variáveis do contexto em que nasceu), portanto pode ler variáveis externas que ainda estejam capturadas.\n\n### Proc comum e lambda: argumentos\n\nA **aridade** descreve a quantidade de argumentos esperada por uma chamada. Uma lambda verifica a quantidade de argumentos de forma estrita, como um método: se faltam argumentos obrigatórios ou há incompatibilidade, gera ArgumentError (erro de quantidade de argumentos). Um Proc comum é mais permissivo: um argumento ausente pode virar nil, e argumentos excedentes podem ser ignorados.\n\n~~~ruby\ncomum = proc { |a, b| [a, b] }\nestrita = ->(a, b) { [a, b] }\n\ncomum.call(5)       # => [5, nil]\nestrita.call(5)     # gera ArgumentError\n~~~\n\nLia chama os dois objetos com apenas um argumento embora ambos declarem dois parâmetros. O Proc comum continua e o segundo parâmetro fica nil; a lambda recusa a chamada. A quantidade de parâmetros opcionais e a forma de chamada podem alterar detalhes, mas a oposição cobrada é essa: lambda aplica verificação estrita, Proc comum é mais flexível. lambda? permite consultar se o objeto Proc tem semântica de lambda.\n\n| Característica | Proc comum | Lambda |\n| --- | --- | --- |\n| Quantidade de argumentos | Mais permissiva | Verificada estritamente |\n| return | Pode sair do método que criou o Proc | Encerra a lambda |\n| Papel prático | Bloco armazenável com comportamento flexível | Função armazenável com fronteira local |\n\n### O alcance de next, break e return\n\nEssas palavras controlam o fluxo, mas não significam a mesma coisa. Em um bloco passado a um iterador, next encerra o processamento do item atual e continua na próxima passagem. Se usado com valor, fornece o resultado daquele bloco. break termina a iteração que recebeu o bloco; pode fornecer o resultado da expressão iteradora. return sai do método envolvente em que o bloco foi definido.\n\n~~~ruby\nvalores = [1, 2, 3]\ndobrados = valores.map do |n|\n  next 0 if n == 2\n  n * 2\nend\n# dobrados => [2, 0, 6]\n~~~\n\nCaio percorre 1, 2 e 3. Para 1, o bloco calcula 2. Para 2, next 0 termina somente a passagem atual e fornece 0 para aquela posição. A execução continua com 3, que vira 6. O resultado é um valor por item; next não abandonou map.\n\nSe Caio trocasse next por break ao encontrar 2, a iteração seria encerrada naquele ponto e o próprio break poderia fornecer o valor final da expressão iteradora. return tem outro alcance: dentro de um bloco comum definido em um método, tenta sair daquele método, não apenas daquela passagem. Portanto, uma linha de return pode impedir que o restante do método rode.\n\n### Fronteira de lambda e Proc comum\n\nEm uma lambda, return encerra a própria lambda, e não o método que a criou. Isso torna a lambda uma fronteira de retorno local, parecida com uma chamada de método. Um Proc comum conserva o retorno não local: return procura sair do método envolvente onde foi definido. Se esse método já terminou quando o Proc for chamado, pode ocorrer LocalJumpError (erro por tentativa de salto sem contexto ativo).\n\nbreak também depende do contexto em que o Proc foi associado. Em blocos passados diretamente a iteradores, encerra a iteração que recebeu o bloco; em Procs armazenados e chamados depois, o contexto original pode não estar disponível. A lambda tem comportamento mais local para esses controles. Quando a intenção é encapsular uma operação para chamada independente, lambda costuma evitar a surpresa de um retorno para fora do objeto executado.\n\n| Comando no bloco | Efeito típico no iterador |\n| --- | --- |\n| next | Termina a passagem atual e segue para o próximo item |\n| break | Interrompe a iteração associada |\n| return em bloco comum | Sai do método envolvente que definiu o bloco |\n| return em lambda | Sai da própria lambda |\n\nO exemplo deve ser lido em contexto: comandos de fluxo de controle dependem de como o bloco foi criado e chamado. Não transforme a tabela em regra de que qualquer Proc pode ser chamado em qualquer momento sem efeito de contexto. A documentação do método e a forma de criação importam, especialmente para break e return em blocos não locais.\n\n**Pegadinha:** a banca pode atribuir a lambda a tolerância de argumentos do Proc comum, ou afirmar que return sempre encerra somente o bloco atual. Lambda exige aridade compatível e tem retorno local; Proc comum pode permitir argumentos ausentes e seu return pode abandonar o método que o criou. Também não troque next por break: o primeiro avança depois de terminar o item atual, o segundo termina a iteração.\n\n**Resumo para a prova**\n\n- Proc transforma código em objeto que pode ser guardado e chamado com call.\n- Lambda é Proc com checagem estrita de argumentos e fronteira de retorno local.\n- Proc comum é mais permissivo com argumentos; parâmetros ausentes podem receber nil.\n- next termina a passagem atual; break encerra a iteração associada; return sai do método envolvente em bloco comum.\n- return em lambda encerra a própria lambda; Proc comum pode precisar do método de origem ainda ativo.\n- Analise como o bloco foi criado e chamado antes de concluir o alcance de break e return."
+    }
+  ],
+  "summary": "Em Ruby, blocos permitem que métodos controlem uma repetição enquanto o chamador fornece a ação. `yield` executa o bloco; `&` pode capturá-lo como Proc ou passá-lo como bloco. Iteradores como `each`, `map`, `select`, `find` e `reduce` têm contratos e retornos distintos. Classes com `each` podem usar Enumerable. Chamadas sem bloco frequentemente produzem Enumerator, que suporta iteração interna e externa. Proc guarda código como objeto; lambda tem aridade estrita e fluxo de retorno local. `next`, `break` e `return` afetam escopos diferentes.",
+  "flashcards": [
+    {
+      "front": "O que é um bloco em Ruby?",
+      "back": "Código associado à chamada de um método, normalmente delimitado por chaves ou do/end."
+    },
+    {
+      "front": "Como duas formas comuns delimitam blocos Ruby?",
+      "back": "Chaves { } e do ... end; ambas passam um bloco ao método."
+    },
+    {
+      "front": "Como o método executa o bloco implicitamente?",
+      "back": "Com yield, podendo enviar argumentos depois da palavra."
+    },
+    {
+      "front": "O que faz block_given??",
+      "back": "Verifica se a chamada atual forneceu bloco."
+    },
+    {
+      "front": "Qual erro pode ocorrer ao executar yield sem bloco?",
+      "back": "LocalJumpError."
+    },
+    {
+      "front": "Como capturar o bloco recebido como parâmetro?",
+      "back": "Declarando um parâmetro final com &; ele recebe um Proc ou nil."
+    },
+    {
+      "front": "Como chamar um Proc?",
+      "back": "Usando call, por exemplo acao.call(valor)."
+    },
+    {
+      "front": "Que papel tem & na chamada de método?",
+      "back": "Converte um objeto com to_proc, como um Proc ou símbolo, em bloco."
+    },
+    {
+      "front": "O que faz map?",
+      "back": "Aplica o bloco a cada item e retorna um novo array de resultados."
+    },
+    {
+      "front": "O que retorna each?",
+      "back": "Normalmente retorna o próprio receptor; ignora os resultados por item do bloco."
+    },
+    {
+      "front": "Que diferença há entre select e reject?",
+      "back": "select mantém itens cujo predicado é verdadeiro; reject mantém os demais."
+    },
+    {
+      "front": "O que retorna find?",
+      "back": "O primeiro elemento que satisfaz a condição, ou nil se nenhum satisfizer."
+    },
+    {
+      "front": "Para que serve reduce/inject?",
+      "back": "Combina elementos num acumulador, opcionalmente iniciado por valor explícito."
+    },
+    {
+      "front": "O que acrescenta each_with_index?",
+      "back": "Envia ao bloco o elemento e seu índice."
+    },
+    {
+      "front": "O que faz each_with_object(obj)?",
+      "back": "Percorre os elementos com um objeto de trabalho e retorna esse objeto inicial."
+    },
+    {
+      "front": "Qual requisito uma classe deve cumprir para usar Enumerable?",
+      "back": "Implementar um each coerente que forneça seus elementos."
+    },
+    {
+      "front": "O que pode retornar um iterador chamado sem bloco?",
+      "back": "Um Enumerator que representa a iteração pendente."
+    },
+    {
+      "front": "Como a iteração externa pede valores?",
+      "back": "Por métodos como next no Enumerator."
+    },
+    {
+      "front": "Como a iteração interna funciona?",
+      "back": "O iterador dirige o percurso e invoca o bloco do consumidor."
+    },
+    {
+      "front": "Qual exceção indica fim ao pedir além da sequência externa?",
+      "back": "StopIteration."
+    },
+    {
+      "front": "O que é um Proc?",
+      "back": "Objeto que encapsula código e pode ser guardado, passado e chamado."
+    },
+    {
+      "front": "Como a sintaxe -> cria uma função em Ruby?",
+      "back": "Cria uma lambda, por exemplo ->(x) { x * 2 }."
+    },
+    {
+      "front": "Como lambda trata quantidade incompatível de argumentos?",
+      "back": "Gera ArgumentError, seguindo verificação semelhante à de métodos."
+    },
+    {
+      "front": "Como Proc comum trata argumentos ausentes?",
+      "back": "Preenche os parâmetros ausentes com nil."
+    },
+    {
+      "front": "O que significa closure para Proc?",
+      "back": "O objeto conserva acesso a variáveis do contexto em que foi criado."
+    }
+  ],
+  "tips": [
+    "Antes de escolher um iterador, identifique o resultado necessário: efeito colateral, transformação, filtro, busca ou redução.",
+    "Em `each`, a última expressão do bloco não substitui o retorno do iterador: each devolve o receptor.",
+    "Prefira `yield` quando o método só executa o bloco; capture com `&` quando precisa guardá-lo ou repassá-lo.",
+    "Ao usar `reduce`, escreva o valor inicial explicitamente quando o conjunto puder estar vazio ou o tipo do acumulador diferir dos elementos.",
+    "Use nomes explícitos nos parâmetros de blocos longos para deixar claro o papel de cada argumento.",
+    "Ao analisar `break`, `next` e `return`, localize primeiro qual método ou bloco está sendo encerrado."
+  ],
+  "traps": [
+    "Achar que chaves e do/end selecionam iteradores diferentes; a diferença é de delimitação e estilo.",
+    "Supor que `each` coleta os valores retornados pelo bloco; essa é a função típica de `map`.",
+    "Confundir `select` com `reject`; um conserva a condição verdadeira e o outro a condição falsa.",
+    "Achar que `&` faz a mesma coisa na definição e na chamada; de um lado captura bloco, de outro converte objeto em bloco.",
+    "Tratar Proc comum e lambda como equivalentes quanto a aridade e retorno; as regras divergem.",
+    "Supor que `next`, `break` e `return` encerram o mesmo escopo; cada um tem alcance próprio."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique como um método recebe e executa um bloco com yield.",
+      "answer": "O chamador associa um bloco à chamada; dentro do método, yield o executa e os valores escritos depois de yield são enviados aos parâmetros do bloco."
+    },
+    {
+      "question": "Quando block_given? é útil?",
+      "answer": "Quando o bloco é opcional e o método precisa evitar yield sem bloco ou escolher uma alternativa quando ele não foi fornecido."
+    },
+    {
+      "question": "Compare each e map pelo retorno.",
+      "answer": "each executa uma ação e normalmente retorna o receptor; map retorna uma nova coleção com o resultado do bloco aplicado a cada elemento."
+    },
+    {
+      "question": "Compare select e find.",
+      "answer": "select retorna todos os elementos que satisfazem o predicado; find retorna somente o primeiro, ou nil se não houver."
+    },
+    {
+      "question": "Descreva o papel do acumulador em reduce.",
+      "answer": "O bloco recebe o acumulador e o elemento atual e produz o novo acumulador; um argumento inicial define o estado antes do primeiro elemento."
+    },
+    {
+      "question": "Como Enumerable se relaciona com each?",
+      "answer": "A classe fornece each; Enumerable aproveita esse percurso para oferecer operações como map, select e reduce."
+    },
+    {
+      "question": "O que permite um Enumerator?",
+      "answer": "Representar uma sequência de iteração e consumi-la por bloco ou passo a passo em modo externo."
+    },
+    {
+      "question": "Diferencie Proc comum de lambda em dois aspectos.",
+      "answer": "Lambda valida estritamente a aridade e mantém return/break locais; Proc comum é permissivo com argumentos e seu fluxo pode afetar o contexto que o envolveu."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Retorno de each confundido com map",
+      "summary": "each normalmente retorna o receptor e descarta os resultados do bloco; map constrói uma nova coleção desses resultados."
+    },
+    {
+      "key": "e2",
+      "title": "Predicados de filtragem trocados",
+      "summary": "select conserva itens verdadeiros; reject conserva os que falham; find devolve só a primeira correspondência."
+    },
+    {
+      "key": "e3",
+      "title": "Captura e passagem de bloco confundidas",
+      "summary": "& na definição captura bloco como Proc; & na chamada converte objeto com to_proc em bloco."
+    },
+    {
+      "key": "e4",
+      "title": "Enumerator tratado como resultado já calculado",
+      "summary": "Sem bloco, vários iteradores retornam Enumerator e adiam o consumo; next percorre externamente e pode terminar com StopIteration."
+    },
+    {
+      "key": "e5",
+      "title": "Escopo de controle ou aridade atribuídos incorretamente",
+      "summary": "Lambda valida argumentos e tem return/break locais; Proc comum é permissivo e seu controle pode afetar o método envolvente."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em Ruby, qual forma executa o bloco associado a uma chamada dentro do corpo do método?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "yield, que invoca o bloco e pode encaminhar argumentos para seus parâmetros.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "redo, que cria um objeto de bloco e o armazena para outra chamada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "super, que sempre executa o bloco recebido pelo método atual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "return, que procura um bloco pendente e o invoca uma vez.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ensure, que converte o bloco associado em uma variável local.",
+          "correct": false
+        }
+      ],
+      "explanation": "yield invoca o bloco fornecido na chamada; os argumentos que o seguem são recebidos pelos parâmetros do bloco. Os demais comandos têm funções distintas de controle ou herança.",
+      "section": "2. Métodos que recebem e executam blocos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa compara corretamente each e map para um array?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "each transforma e devolve novo array; map só percorre e devolve o array original.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "each e map sempre retornam o mesmo receptor, embora aceitem blocos de funções diferentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "each devolve o último resultado; map interrompe no primeiro resultado verdadeiro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "each filtra os falsos; map filtra os verdadeiros e preserva seus objetos originais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "each percorre e normalmente devolve o receptor; map devolve resultados em novo array.",
+          "correct": true
+        }
+      ],
+      "explanation": "each é usado para percorrer e normalmente retorna o próprio objeto; map coleta o resultado do bloco para cada elemento numa nova coleção.",
+      "section": "3. Iteradores e operações de Enumerable",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual expressão seleciona todos os números pares de `valores` sem alterá-los?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "valores.map { |n| n.even? }",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "valores.find { |n| n.even? }",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "valores.reject { |n| n.even? }",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "valores.select { |n| n.even? }",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "valores.reduce { |n| n.even? }",
+          "correct": false
+        }
+      ],
+      "explanation": "select conserva todos os elementos para os quais o bloco resulta verdadeiro. map produziria booleanos, find só a primeira correspondência e reject o complemento.",
+      "section": "3. Iteradores e operações de Enumerable",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que `find` retorna quando o bloco não encontra elemento que satisfaça sua condição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O array original, pois a busca preserva a coleção percorrida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um Enumerator pronto para fornecer todos os elementos depois.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "nil, pois não existe primeiro elemento que satisfaça o predicado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "false, pois a condição foi falsa em todos os elementos examinados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma lista vazia, pois find sempre representa o resultado como coleção.",
+          "correct": false
+        }
+      ],
+      "explanation": "find retorna o primeiro elemento correspondente e retorna nil quando não encontra nenhum. Não produz uma coleção de resultados.",
+      "section": "3. Iteradores e operações de Enumerable",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe Ruby deseja obter as operações de Enumerable. Qual é o requisito central?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir map manualmente e fazer com que ele retorne sempre um Enumerator.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Armazenar seus objetos num array global acessível a todos os iteradores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Implementar somente size, pois Enumerable deduz os elementos pela quantidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Definir to_a e incluir Enumerable para que ele reconstrua a ordem original.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Implementar each de modo coerente para fornecer os elementos percorridos.",
+          "correct": true
+        }
+      ],
+      "explanation": "Enumerable oferece operações baseadas na enumeração que a classe define por each. A implementação precisa entregar corretamente os elementos do objeto.",
+      "section": "3. Iteradores e operações de Enumerable",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao chamar `itens.each` sem bloco, o que Ruby pode devolver para permitir configurar a iteração depois?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um Proc já executado, contendo os valores produzidos durante o percurso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma cópia profunda de itens com seus elementos congelados para leitura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "nil, pois métodos iteradores não têm retorno sem bloco associado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um array vazio que será preenchido quando o método for chamado novamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um Enumerator que representa a iteração e pode receber um bloco depois.",
+          "correct": true
+        }
+      ],
+      "explanation": "Vários iteradores que aceitam bloco retornam Enumerator quando ele não é fornecido, permitindo adiar ou compor a iteração.",
+      "section": "4. Enumerator e formas de percorrer",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso verifica se a chamada atual forneceu um bloco antes que o método execute yield?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "block_given?, que permite tratar o bloco como opcional.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Proc.new?, que testa se o chamador conhece a classe Proc.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Enumerator?, que confirma que o receptor implementa each.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "yield?, que retorna falso quando a chamada não contém bloco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "respond_to?(:call), que consulta o bloco implícito da chamada.",
+          "correct": false
+        }
+      ],
+      "explanation": "block_given? testa a presença do bloco associado à chamada. Não é necessário criar um Proc só para fazer essa verificação.",
+      "section": "2. Métodos que recebem e executam blocos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção cria uma lambda que recebe um argumento `x` e devolve seu dobro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Proc.new(x) { x * 2 }",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "yield(x) { x * 2 }",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "proc { |x| x * 2 }",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "->(x) { x * 2 }",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Enumerator.new(x) { x * 2 }",
+          "correct": false
+        }
+      ],
+      "explanation": "A sintaxe de seta `->(x) { ... }` cria lambda com parâmetro explícito. `proc { ... }` cria um Proc comum, com semântica diferente.",
+      "section": "5. Proc, lambda e controle do fluxo no bloco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um programa quer transformar cada símbolo em sua forma textual usando a conversão de símbolo para bloco. Qual expressão atende ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "simbolos.each(:to_s)",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "simbolos.map(&:to_s)",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "simbolos.select(&:to_s)",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "simbolos.reduce(&:to_s)",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "simbolos.find(&:to_s)",
+          "correct": false
+        }
+      ],
+      "explanation": "O símbolo implementa to_proc; `&:to_s` o converte em bloco que chama to_s para cada elemento. map reúne os resultados transformados.",
+      "section": "2. Métodos que recebem e executam blocos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dado `a = [1, 2, 3]`, qual resultado produz `a.reduce(10) { |s, n| s + n }`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "6, porque o argumento explícito é ignorado e a soma começa no primeiro item.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "[11, 13, 16], porque reduce guarda todos os acumuladores intermediários.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "16, porque 10 inicia o acumulador e cada elemento é somado a ele.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "10, porque o valor inicial encerra a redução antes do percurso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "nil, pois reduce não retorna valor quando recebe argumento inicial.",
+          "correct": false
+        }
+      ],
+      "explanation": "O valor explícito 10 inicia o acumulador: depois de 1, 2 e 3, o resultado final é 16. reduce retorna o acumulado final, não a lista dos estados intermediários.",
+      "section": "3. Iteradores e operações de Enumerable",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a consequência usual de chamar uma lambda com quantidade incompatível de argumentos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A lambda converte automaticamente os argumentos excedentes num array final.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A lambda substitui argumentos faltantes por nil e continua silenciosamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A lambda ignora a quantidade recebida e usa só o primeiro argumento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A lambda retorna um Enumerator que aguarda os argumentos restantes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A chamada gera ArgumentError por incompatibilidade de aridade.",
+          "correct": true
+        }
+      ],
+      "explanation": "Lambdas verificam os argumentos de forma semelhante a métodos; uma quantidade incompatível provoca ArgumentError. Proc comum tem regras mais permissivas.",
+      "section": "5. Proc, lambda e controle do fluxo no bloco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde ao papel de each_with_index?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Passa cada elemento e seu índice ao bloco durante o percurso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ordena os elementos e passa ao bloco sua posição após a ordenação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Filtra elementos cujo índice seja verdadeiro e devolve um hash de posições.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substitui cada elemento pelo índice e devolve a coleção original alterada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Inicia o contador em um e retorna apenas o último índice visitado.",
+          "correct": false
+        }
+      ],
+      "explanation": "each_with_index associa o índice de cada elemento aos valores enviados ao bloco. Ele não ordena nem transforma por si só a coleção.",
+      "section": "3. Iteradores e operações de Enumerable",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comando encerra a iteração em curso e pode fornecer o valor final da expressão iteradora?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "next, que encerra o método iterador e descarta todo o resultado já calculado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "redo, que retorna do método envolvente sem executar outra iteração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "return, que encerra apenas o bloco e inicia o próximo elemento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "break, que interrompe o iterador que recebeu o bloco.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "retry, que termina a sequência e devolve o último elemento encontrado.",
+          "correct": false
+        }
+      ],
+      "explanation": "break encerra a iteração associada ao bloco; pode receber valor que será resultado da expressão iteradora. next afeta a passagem atual, não toda a iteração.",
+      "section": "5. Proc, lambda e controle do fluxo no bloco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição diferencia corretamente a iteração externa da interna em Ruby?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A externa sempre usa map; a interna é restrita aos objetos da classe Array.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A externa pede valores ao Enumerator; na interna, o iterador conduz o percurso e chama o bloco.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A externa ocorre quando um método recebe bloco; a interna nunca aceita blocos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A externa copia os valores; a interna altera obrigatoriamente os elementos originais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A externa só percorre hashes; a interna percorre exclusivamente sequências numéricas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Enumerator permite que o consumidor solicite valores na iteração externa; na interna, o método iterador dirige o percurso e invoca o bloco recebido.",
+      "section": "4. Enumerator e formas de percorrer",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em `lista.each_with_object({}) { |item, h| h[item] = true }`, qual é o resultado usual da expressão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A lista original, pois cada método cujo nome começa com each retorna o receptor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um array dos booleanos produzidos em cada passagem do bloco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O hash inicialmente fornecido, preenchido pelo bloco durante a iteração.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O primeiro item da lista que não estava previamente no hash.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um Enumerator que aguarda outro bloco para finalizar as atribuições.",
+          "correct": false
+        }
+      ],
+      "explanation": "each_with_object passa o objeto inicial a cada chamada e retorna esse mesmo objeto, permitindo preenchê-lo ao longo do percurso.",
+      "section": "3. Iteradores e operações de Enumerable",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um bloco captura uma variável local externa e altera seu valor a cada repetição. O que ocorre com essa variável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O bloco acessa uma cópia independente e as alterações nunca são visíveis fora dele.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A variável deixa de existir assim que o iterador chama o bloco pela primeira vez.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ruby cria uma variável de instância com o mesmo nome para cada elemento percorrido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O iterador transfere a variável para um Proc e impede outras leituras do método.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O bloco pode ler e alterar a variável capturada no contexto em que foi criado.",
+          "correct": true
+        }
+      ],
+      "explanation": "Blocos são closures e conservam acesso às variáveis locais visíveis no contexto de criação. Alterações feitas no objeto/variável capturado podem ser observadas fora do bloco.",
+      "section": "1. Bloco: código passado a um método",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve um Proc comum criado com `proc { |x, y| [x, y] }` chamado com um único argumento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A chamada necessariamente lança ArgumentError, como toda função Ruby faz.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O Proc comum pode preencher o parâmetro ausente com nil.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O Proc ignora o primeiro argumento e usa nil nos dois parâmetros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ruby converte o Proc automaticamente em Enumerator até receber o segundo valor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O Proc exige que os argumentos sejam enviados dentro de um hash nomeado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Proc não lambda é permissivo: argumentos faltantes são preenchidos com nil, então a chamada recebe x e y sem exigir que ambos sejam enviados. Lambdas, em contraste, verificam estritamente a aridade e sinalizam incompatibilidade.",
+      "section": "5. Proc, lambda e controle do fluxo no bloco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um bloco de `map`, qual é o efeito de `next valor`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sai do método em que o bloco foi definido e não visita mais elementos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Interrompe a enumeração e faz map devolver o receptor sem transformação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reinicia o bloco atual desde a primeira instrução para o mesmo elemento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Encerra a passagem atual, fornecendo valor como resultado do bloco nessa passagem.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Levanta StopIteration e encerra qualquer Enumerator da aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "next encerra a execução do bloco para o elemento atual; o valor informado passa a ser o resultado daquela chamada do bloco, como item produzido por map. O iterador continua com o próximo elemento, ao contrário de break, que interrompe o percurso.",
+      "section": "5. Proc, lambda e controle do fluxo no bloco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que faz `to_enum(:each)` quando chamado sobre um objeto iterável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cria um Enumerator associado ao método each, que pode ser consumido depois.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executa cada elemento imediatamente e devolve uma cópia congelada do objeto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converte o objeto em Proc para ser chamado com cada valor da sequência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Inclui Enumerable automaticamente na classe e define os métodos que faltavam.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transforma o iterador em lambda com aridade igual ao comprimento da sequência.",
+          "correct": false
+        }
+      ],
+      "explanation": "to_enum cria um objeto Enumerator ligado ao método de iteração indicado, aqui each. O chamador pode consumi-lo depois com um bloco ou pela interface externa, sem que a conversão transforme o receptor em Proc ou altere a classe.",
+      "section": "4. Enumerator e formas de percorrer",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num hash, como o bloco pode receber chave e valor durante `hash.each`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Com um único parâmetro que Ruby divide sempre em duas variáveis globais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Com três parâmetros obrigatórios: posição, chave e valor de cada par.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Com parâmetros do bloco como `|chave, valor|`, recebendo os componentes do par.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Somente capturando o hash como Proc e chamando-o com `yield` manualmente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A chave é recebida por yield e o valor precisa ser lido por uma variável de instância.",
+          "correct": false
+        }
+      ],
+      "explanation": "Hash#each enumera cada par chave-valor e o bloco pode nomear seus componentes como dois parâmetros. Isso permite usar a chave e o valor da passagem atual diretamente, sem acessar variáveis globais ou chamar yield por conta própria.",
+      "section": "3. Iteradores e operações de Enumerable",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sequência externa de Enumerator foi consumida até o fim. O que sinaliza um pedido next além do último valor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ArgumentError, porque next só pode ser chamado quando um bloco explícito está associado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "IndexError, pois o contador de posições ultrapassou o comprimento do objeto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "LocalJumpError, porque toda iteração externa depende de yield ativo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "nil para sempre, mantendo o Enumerator aberto para valores futuros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "StopIteration, que sinaliza o esgotamento da sequência iterada.",
+          "correct": true
+        }
+      ],
+      "explanation": "Na interface externa, Enumerator#next levanta StopIteration quando não há mais valores disponíveis. O sinal permite que o consumidor encerre o laço de leitura em vez de esperar indefinidamente outro elemento.",
+      "section": "4. Enumerator e formas de percorrer",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método recebe um bloco e precisa armazená-lo em uma variável chamada acao. Qual definição expressa essa captura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "def executar(yield acao); end",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "def executar(Proc.new acao); end",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "def executar(&acao); end",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "def executar(acao &); end",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "def executar(block_given? acao); end",
+          "correct": false
+        }
+      ],
+      "explanation": "Um parâmetro final prefixado por & captura o bloco recebido como objeto Proc, que pode ser armazenado e chamado explicitamente.",
+      "section": "2. Métodos que recebem e executam blocos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma classe que inclui Enumerable ainda precisa implementar each?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque Enumerable usa cada classe para descobrir seus elementos por meio desse percurso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Porque each é usado apenas para serializar a coleção e não para percorrê-la.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque Enumerable só fornece conversões de tipo e exige map como método básico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque cada classe deve implementar separadamente todos os métodos de busca e ordenação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque o módulo inclui automaticamente um each que deve ser substituído para compilar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Enumerable implementa operações em termos do protocolo de enumeração da classe; each fornece a fonte e a ordem dos elementos.",
+      "section": "3. Iteradores e operações de Enumerable",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num bloco associado a um iterador, qual afirmação distingue return de next?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "return avança uma passagem; next sai do método que criou o bloco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ambos encerram apenas o elemento atual e sempre devolvem o mesmo valor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "return reinicia a passagem atual; next descarta o bloco e preserva o método.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "return normalmente sai do método envolvente; next termina a execução do bloco atual.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "return só funciona com Array; next só funciona com Hash e Enumerator.",
+          "correct": false
+        }
+      ],
+      "explanation": "return em bloco comum pode sair do método em que o bloco foi definido. next encerra apenas a execução corrente do bloco e permite continuar o percurso.",
+      "section": "5. Proc, lambda e controle do fluxo no bloco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sequência deve ser percorrida elemento a elemento, permitindo ao consumidor decidir quando pedir o próximo. Qual abordagem combina com isso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Chamar map com um bloco vazio para obter uma coleção percorrida externamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar um Enumerator e solicitar valores por next na iteração externa.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar select sem bloco, que solicita cada resultado ao consumidor interativamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar each_with_object, que pausa automaticamente depois de cada elemento entregue.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter a coleção em lambda, porque lambdas fornecem next para seus argumentos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Enumerator suporta iteração externa: o consumidor solicita cada valor, por exemplo com next, e controla o momento da solicitação.",
+      "section": "4. Enumerator e formas de percorrer",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a relação entre Proc e closure em Ruby?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Proc pode encapsular código e conservar acesso às variáveis do contexto de criação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Proc copia apenas constantes, sem manter acesso a parâmetros ou variáveis locais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Closure significa que Proc executa automaticamente ao sair do método de origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Proc perde todas as referências externas assim que é passado como argumento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Closure é um modo do Enumerator que permite reiniciar arrays modificados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Proc é closure: além do código, mantém acesso ao contexto léxico em que foi criado, inclusive variáveis visíveis naquele escopo.",
+      "section": "5. Proc, lambda e controle do fluxo no bloco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em `valores.each { |n| n * 2 }`, o array retornado por cada execução do bloco é reunido automaticamente em uma nova lista?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. each ignora os resultados individuais do bloco e normalmente retorna o receptor. map é o iterador que reúne esses resultados numa nova coleção.",
+      "section": "3. Iteradores e operações de Enumerable",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As chaves e do/end são delimitadores alternativos de blocos em Ruby; o contrato do método chamado continua determinando como o resultado do bloco é usado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Ambas as formas delimitam blocos; a diferença de forma não transforma, por si, each em map ou altera o contrato do método.",
+      "section": "1. Bloco: código passado a um método",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando um método chama yield sem ter recebido bloco, Ruby simplesmente ignora a chamada e devolve nil.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. yield sem bloco associado pode gerar LocalJumpError. Um método que aceita ausência de bloco pode verificá-la com block_given?.",
+      "section": "2. Métodos que recebem e executam blocos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "select conserva os elementos cujo bloco resulta em valor verdadeiro, enquanto reject conserva os que não satisfazem esse predicado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Os dois métodos filtram a coleção por lados complementares do mesmo predicado: select mantém correspondências, reject as descarta.",
+      "section": "3. Iteradores e operações de Enumerable",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "find devolve uma nova lista com todos os elementos que satisfazem sua condição de busca.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. find devolve apenas a primeira correspondência ou nil; select retorna uma coleção com todas as correspondências.",
+      "section": "3. Iteradores e operações de Enumerable",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe que inclui Enumerable deve fornecer each para que as operações do módulo possam percorrer seus elementos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Enumerable constrói operações como map e select sobre each, que deve percorrer e fornecer os elementos da classe. Sem esse método coerente, o módulo não tem uma sequência para processar.",
+      "section": "3. Iteradores e operações de Enumerable",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma lambda criada com -> pode ser chamada com número de argumentos incompatível e normalmente recebe nil nos parâmetros faltantes como um Proc comum.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Lambda verifica a aridade e gera ArgumentError quando a quantidade de argumentos não corresponde à assinatura. Proc comum é mais permissivo: parâmetros ausentes podem receber nil e argumentos excedentes podem ser descartados. Por exemplo, um Proc com x e y chamado com apenas 3 pode produzir [3, nil], enquanto lambda equivalente rejeita a chamada. Assim, a diferença afeta diretamente chamadas reais.",
+      "section": "5. Proc, lambda e controle do fluxo no bloco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma variável local visível antes de um bloco pode ser lida ou alterada dentro dele, pois o bloco conserva acesso ao contexto em que foi criado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Blocos são closures e mantêm acesso às variáveis locais visíveis no contexto em que foram criados. Se o bloco altera uma variável externa, o método chamador pode observar o novo valor após a iteração.",
+      "section": "1. Bloco: código passado a um método",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na forma `def executar(&acao)`, o parâmetro acao representa o bloco capturado como Proc, que pode ser chamado explicitamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. & captura o bloco como Proc e permite que o método o trate como objeto: pode guardá-lo, repassá-lo ou invocá-lo com call. A declaração do parâmetro não executa o bloco. O corpo pode decidir chamá-lo sob uma condição ou encaminhá-lo a outro iterador, enquanto yield é adequado quando só é preciso executá-lo diretamente.",
+      "section": "2. Métodos que recebem e executam blocos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na chamada `nomes.map(&:upcase)`, o símbolo upcase é convertido em bloco por meio do protocolo to_proc.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Símbolos implementam to_proc; o operador & na chamada converte o símbolo em bloco. map então chama o método indicado para cada nome e reúne as strings resultantes em outro array.",
+      "section": "2. Métodos que recebem e executam blocos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "reduce com argumento inicial 0 começa o acumulador em zero antes de combinar o primeiro elemento percorrido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O argumento explícito inicial define o valor inicial do acumulador e o bloco o combina sucessivamente com os elementos.",
+      "section": "3. Iteradores e operações de Enumerable",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "each_with_object retorna o último resultado produzido pelo bloco, mesmo quando recebeu um objeto inicial para acumular dados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. each_with_object retorna o objeto inicial, que é passado ao bloco em cada etapa e pode ser alterado durante a iteração.",
+      "section": "3. Iteradores e operações de Enumerable",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O método each_with_index envia ao bloco elemento e índice, normalmente começando a contagem em zero.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. each_with_index envia o elemento atual e sua posição ao bloco, começando a contagem em zero. Por exemplo, o primeiro item do percurso costuma receber índice 0 e o seguinte índice 1.",
+      "section": "3. Iteradores e operações de Enumerable",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na iteração externa, o Enumerator conduz o bloco automaticamente e o consumidor não controla quando cada valor é solicitado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Na iteração externa, o consumidor solicita valores ao Enumerator, por exemplo com next, e pode decidir quando avançar. Na interna, o método iterador conduz o percurso e chama o bloco para cada elemento. A distinção é justamente quem dirige o avanço: o consumidor no modo externo ou o iterador no modo interno.",
+      "section": "4. Enumerator e formas de percorrer",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Pedir next a um Enumerator depois de esgotada sua sequência sinaliza o término com StopIteration.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. StopIteration sinaliza que a enumeração externa terminou e não há próximo valor. O código consumidor pode tratar esse término para sair do percurso, em vez de interpretar o fim como mais um elemento da sequência.",
+      "section": "4. Enumerator e formas de percorrer",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dentro de um bloco comum, next encerra necessariamente toda a chamada do iterador e impede as próximas passagens.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. next encerra o bloco do elemento atual e passa ao seguinte; em map, o valor informado pode compor aquela posição. break, em contraste, encerra o iterador que recebeu o bloco e finaliza o percurso. Assim, next permite pular o restante do processamento atual sem abandonar as demais passagens, enquanto break interrompe toda a iteração.",
+      "section": "5. Proc, lambda e controle do fluxo no bloco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em lambda, return encerra a própria lambda, enquanto return em Proc comum pode sair do método envolvente em que o bloco foi definido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A semântica de lambda é local, semelhante a método: return encerra a lambda e o fluxo pode prosseguir após sua chamada. Proc comum mantém a semântica não local do return e pode gerar LocalJumpError se o método de origem já não estiver ativo.",
+      "section": "5. Proc, lambda e controle do fluxo no bloco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando break num bloco iterador encerra somente a passagem atual, enquanto next encerra toda a enumeração e retorna dela.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os efeitos foram invertidos: next encerra a passagem atual e continua; break abandona a iteração associada ao bloco.",
+      "section": "5. Proc, lambda e controle do fluxo no bloco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma lambda chamada com dois parâmetros obrigatórios e apenas um argumento gera ArgumentError, em vez de preencher automaticamente a ausência com nil.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Lambdas aplicam verificação estrita de aridade como métodos; Proc comum é mais permissivo ao lidar com argumento faltante.",
+      "section": "5. Proc, lambda e controle do fluxo no bloco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada externa de Enumerator que chega ao fim levanta StopIteration, que marca o esgotamento da sequência disponível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A interface externa usa StopIteration para sinalizar que não há mais valores. Um consumidor pode tratar esse término para encerrar seu próprio percurso.",
+      "section": "4. Enumerator e formas de percorrer",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Todo método iterador chamado sem bloco retorna imediatamente a coleção já transformada; Enumerator só aparece quando solicitado explicitamente por classe própria.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Vários iteradores de biblioteca retornam automaticamente Enumerator quando o bloco não é fornecido, adiando a iteração ou permitindo compô-la.",
+      "section": "4. Enumerator e formas de percorrer",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Proc é uma closure e pode continuar acessando variáveis visíveis no contexto em que foi criado, mesmo após ser atribuído a outra variável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O Proc encapsula o código junto de seu contexto léxico, por isso mantém acesso às variáveis externas capturadas enquanto o objeto existir. A atribuição a outro nome não remove esse contexto nem transforma o Proc em bloco sem estado.",
+      "section": "5. Proc, lambda e controle do fluxo no bloco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um método que declara `&bloco`, Ruby chama automaticamente o Proc capturado antes de executar a primeira linha do método.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A declaração captura o bloco como objeto Proc, mas não o executa automaticamente. O método precisa chamá-lo explicitamente, por exemplo com call.",
+      "section": "2. Métodos que recebem e executam blocos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Ruby Syntax — Methods",
+      "publisher": "Ruby Documentation",
+      "reference": "Sintaxe de métodos e argumentos de bloco; uso de yield e conversão de bloco em Proc",
+      "url": "https://docs.ruby-lang.org/en/master/syntax/methods_rdoc.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Ruby Syntax",
+      "publisher": "Ruby Documentation",
+      "reference": "Índice oficial de sintaxe e tópicos de controle e chamada de métodos",
+      "url": "https://docs.ruby-lang.org/en/master/syntax_rdoc.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "class Proc",
+      "publisher": "Ruby Documentation",
+      "reference": "Criação de Proc e lambda, closures, aridade, conversão por to_proc e semântica de controle",
+      "url": "https://docs.ruby-lang.org/en/master/Proc.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "class Enumerator",
+      "publisher": "Ruby Documentation",
+      "reference": "Iteração interna e externa, retorno de Enumerator sem bloco, métodos de enumeração",
+      "url": "https://docs.ruby-lang.org/en/master/Enumerator.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "module Enumerable",
+      "publisher": "Ruby Documentation",
+      "reference": "Operações baseadas em each, transformação, filtro, busca, redução e enumeração",
+      "url": "https://docs.ruby-lang.org/en/master/Enumerable.html",
+      "accessedAt": "2026-11-06"
+    }
+  ]
+}

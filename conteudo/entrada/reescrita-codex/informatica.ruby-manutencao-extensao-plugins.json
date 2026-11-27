@@ -1,0 +1,2074 @@
+{
+  "id": "informatica.ruby-manutencao-extensao-plugins",
+  "subject": "Informática",
+  "title": "Noções de Ruby aplicadas à manutenção e extensão de plugins",
+  "version": 2,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Noções de Ruby aplicadas à manutenção e extensão de plugins",
+    "Ruby para manutenção de plugins",
+    "Ruby para extensão de plugins",
+    "Manutenção de plugins em Ruby",
+    "Extensão de plugins escritos em Ruby",
+    "Linguagem Ruby em plugins de software",
+    "Programação Ruby para plugins",
+    "Módulos e classes Ruby em plugins",
+    "Mixins Ruby para plugins reutilizáveis",
+    "Carregamento de arquivos Ruby em plugins",
+    "Gems Ruby e dependências de plugins",
+    "Métodos e constantes Ruby em plugins"
+  ],
+  "scope": {
+    "covers": "Fundamentos de Ruby úteis para ler, corrigir e ampliar plugins: objetos, classes, módulos e namespaces; métodos, visibilidade, mixins e busca de métodos; blocos, iteradores, coleções, hashes e símbolos; carregamento de arquivos por require, require_relative e load; exceções; organização em gem, dependências e testes; extensão compatível, diagnóstico e cuidados com monkey patching.",
+    "excludes": "Sintaxe avançada de metaprogramação, desenvolvimento de extensões nativas em C, administração de servidores Ruby, frameworks específicos e APIs particulares de qualquer plugin ou plataforma."
+  },
+  "theoryTitle": "Ruby no ciclo de manutenção de plugins",
+  "chapters": [
+    {
+      "title": "1. Ler a estrutura de um plugin Ruby",
+      "markdown": "Um programa grande pode aceitar extensões sem que cada extensão precise alterar o núcleo do programa. O problema de manutenção começa quando alguém precisa descobrir onde a extensão é carregada, quais arquivos fazem parte dela e quais nomes pertencem ao programa principal. Ruby oferece classes e módulos para organizar essa divisão.\n\n### Comece pelo caminho de entrada\n\nUm **plugin** é um componente de código carregável que acrescenta uma função a uma aplicação hospedeira, também chamada de host. O arquivo pelo qual o host começa a carregar o componente é o **ponto de entrada**. Em projetos Ruby, uma convenção comum é colocar código em `lib/` e ter um arquivo principal como `lib/agenda_plugin.rb`. Essa convenção ajuda a localizar o código, mas não garante que qualquer aplicação carregue o arquivo automaticamente: é preciso seguir a configuração e o carregador usados pelo projeto.\n\nRuby é uma linguagem orientada a objetos: números, textos, listas, classes e módulos são valores representados por **objetos**, isto é, entidades que têm comportamento e podem receber chamadas de métodos. Uma chamada como `nome.upcase` pede ao objeto `nome` que execute o método `upcase`. Entender quem é o objeto receptor ajuda a interpretar o código antes de alterá-lo.\n\nUma **gema** (em inglês, *gem*) é um pacote distribuível de código Ruby acompanhado de metadados, como nome e dependências. Uma gema pode conter um plugin, mas os termos não são sinônimos: plugin descreve a função de extensão, e gema descreve uma forma de empacotar e distribuir código.\n\n### Classes, módulos e nomes\n\nUma **classe** é uma definição a partir da qual se criam instâncias. Por exemplo, `class Relatorio; end` permite criar um objeto com `Relatorio.new`. Uma **instância** é um objeto criado a partir de uma classe. A classe costuma reunir comportamento que todas as suas instâncias compartilham.\n\nUm **módulo** agrupa constantes e métodos. Ele pode servir como **namespace**, ou seja, como espaço de nomes que mostra a que componente um nome pertence e reduz colisões. Assim, `AgendaPlugin::Renderer` identifica a constante `Renderer` dentro do módulo `AgendaPlugin`; o operador `::` qualifica o caminho do nome. O módulo também pode ser usado para compartilhar métodos entre classes, assunto desenvolvido no próximo capítulo.\n\n| Construção | Para que serve | O que não significa |\n| --- | --- | --- |\n| `class Relatorio` | Define um tipo que pode produzir instâncias | Não cria por si só um relatório pronto |\n| `module AgendaPlugin` | Agrupa nomes e pode oferecer comportamento compartilhado | Não é uma classe instanciável por `new` |\n| `AgendaPlugin::Renderer` | Localiza uma constante dentro do namespace | Não indica herança |\n| `class Pdf < Relatorio` | Declara que `Pdf` herda de `Relatorio` | Não é o mesmo que incluir um módulo |\n\nNomes de constantes começam com letra maiúscula, enquanto nomes de variáveis locais começam com minúscula ou sublinhado. `@estado` indica uma variável de instância, associada a um objeto. `@@estado` é uma variável de classe compartilhada dentro de uma hierarquia e pode produzir efeitos inesperados quando várias classes participam; por isso, não deve ser escolhida sem entender quem compartilha o valor.\n\n### Como compor sem espalhar efeitos\n\nA aplicação pode oferecer pontos de extensão próprios, chamados **hooks**: locais documentados nos quais um plugin registra uma ação ou fornece uma implementação. Usar esses pontos tende a manter a extensão concentrada. Em contraste, reabrir uma classe global ou de terceiro para acrescentar métodos altera o comportamento visto por qualquer parte do processo Ruby que use essa classe.\n\n| Forma | Uso normal | Alcance típico |\n| --- | --- | --- |\n| Definir nomes no módulo do plugin | Organizar código próprio | Concentrado no namespace |\n| Herança com `<` | Especializar outra classe | Relaciona a subclasse à classe-base |\n| `include Modulo` | Incorporar métodos de instância de um módulo | Afeta a classe que o inclui e sua busca de métodos |\n| `extend Modulo` | Tornar métodos do módulo disponíveis no objeto receptor | Afeta aquele receptor como métodos dele |\n| Reabrir classe de terceiros | Modificar comportamento existente | Pode atingir muitos componentes no mesmo processo |\n\n**Exemplo passo a passo.** Ana mantém uma extensão de agenda e precisa criar um renderizador de texto. Primeiro, ela localiza `lib/agenda_plugin.rb`, o ponto de entrada. Depois verifica se esse arquivo carrega `renderer.rb`, em vez de presumir que todos os arquivos de `lib/` serão carregados sozinhos. Em seguida, encontra `module AgendaPlugin` e define ali `class Renderer`; assim, o nome completo fica `AgendaPlugin::Renderer`. Por fim, ela consulta os hooks do host para registrar o renderizador. Ana não reabre `String` nem altera uma classe global, porque isso mudaria o comportamento de código alheio à extensão.\n\n### **Pegadinha:** classe, módulo e herança não são intercambiáveis\n\nUma afirmação pode dizer que `include` cria uma subclasse ou que todo módulo pode ser instanciado como uma classe. Ambas confundem mecanismos diferentes. Herança de classe usa `<`; `include` incorpora comportamento de módulo à busca de métodos da classe. Também não basta encontrar uma pasta `lib/` para concluir que um arquivo será carregado: é necessário seguir o ponto de entrada e as chamadas de carregamento.\n\n### **Resumo para a prova**\n\nLocalize o arquivo de entrada e acompanhe o carregamento real. Classe define um tipo que pode gerar instâncias; módulo agrupa nomes e pode servir como namespace ou mixin. `::` qualifica uma constante, `<` declara herança, `include` mistura métodos de instância e `extend` adiciona métodos ao receptor. Prefira o namespace e os hooks documentados do plugin para evitar alterações globais."
+    },
+    {
+      "title": "2. Métodos, mixins e comportamento existente",
+      "markdown": "Uma extensão costuma precisar acrescentar uma etapa a uma função já existente. Para fazer isso com segurança, quem mantém o código precisa descobrir qual método será chamado, onde ele foi definido e qual implementação Ruby encontra primeiro.\n\n### De onde vem um método\n\nUm **método** é uma operação definida para ser chamada por um objeto. Em `relatorio.render`, `relatorio` é o receptor e `render` é o nome do método. Ruby procura uma implementação seguindo a cadeia de ancestrais, isto é, a sequência de módulos e classes ligada ao receptor: os módulos colocados antes com `prepend`, a classe, módulos incorporados, superclasses e o restante da cadeia. A ordem importa quando mais de um lugar define o mesmo nome.\n\nUm **mixin** (módulo de mistura) é um módulo usado para compartilhar métodos entre classes sem criar uma relação de herança entre elas. Dentro de `module Auditavel; def salvar; ...; end; end`, `salvar` é um método de instância do módulo. Se uma classe executar `include Auditavel`, suas instâncias podem usar esse método. Já `def self.validar` define um método chamado no próprio módulo, por exemplo `Auditavel.validar`.\n\n`include` insere métodos de instância do módulo na busca associada à classe. `prepend` coloca o módulo antes da classe nessa busca, permitindo interceptar a chamada. `super` significa continuar a procura pela implementação seguinte de mesmo nome, repassando argumentos conforme a forma usada. Se Ruby não encontra um método, pode chamar `method_missing`, o método de tratamento de chamadas desconhecidas. Sem uma implementação personalizada, a chamada costuma terminar em `NoMethodError`, a exceção que indica método inexistente para aquele receptor.\n\n| Mecanismo | Posição ou alvo | Resultado usual |\n| --- | --- | --- |\n| `include Registro` | Módulo incorporado à classe | Instâncias podem receber métodos do módulo |\n| `prepend Registro` | Módulo antes da classe | Módulo pode interceptar e depois chamar `super` |\n| `extend Registro` | Objeto receptor | O objeto passa a responder aos métodos do módulo |\n| `class Especial < Base` | Classe-base na cadeia de herança | Instâncias da subclasse herdam comportamento da base |\n\n### Visibilidade organiza a interface\n\nA **visibilidade** informa quais formas normais de chamada são permitidas para um método. Métodos são públicos por padrão. `private` marca operações internas que não se pretendem chamadas com receptor explícito comum; `protected` permite acesso em contextos mais restritos entre objetos relacionados. Essas palavras ajudam a expressar o contrato de uso, mas não devem ser confundidas com criptografia ou uma fronteira absoluta de segurança.\n\nUm **monkey patch** é a alteração ou reabertura de uma classe ou módulo já existente, muitas vezes pertencente à linguagem, ao host ou a uma biblioteca de terceiro. Como Ruby compartilha essas definições no processo, o patch pode afetar componentes que não conhecem o plugin. Antes de escolher esse caminho, procure hooks públicos documentados, que são pontos previstos pelo host para extensão.\n\nSe for preciso envolver um método, um módulo próprio com `prepend` pode fazer trabalho antes ou depois e chamar `super` para preservar a implementação seguinte. Isso depende de compatibilidade: a quantidade e o tipo de argumentos, o valor retornado e os efeitos da chamada original precisam continuar corretos. Uma alteração de assinatura no host pode fazer um wrapper antigo falhar.\n\n### Exemplo concreto de busca e delegação\n\nAna precisa registrar cada salvamento sem substituir a rotina que grava o relatório. Ela encontra a classe `Relatorio`, que define `salvar`, e prepara um módulo `RegistrarSalvamento`. Passo a passo: primeiro confirma que o host permite essa extensão e qual assinatura usa; depois coloca o módulo com `prepend`; dentro de `salvar`, registra o evento; em seguida chama `super` com os mesmos argumentos e o bloco recebido; por fim, verifica se o retorno continua sendo o retorno da implementação original. Se omitir `super`, a gravação original pode nunca acontecer. Se engolir o retorno, quem chamou pode receber um valor incompatível.\n\nUma forma esquemática é `def salvar(*args, **kwargs, &bloco); registrar; super; end`. Os parâmetros com `*` e `**` capturam, respectivamente, argumentos posicionais e nomeados; `&bloco` captura o bloco recebido para encaminhamento. A forma concreta deve respeitar a versão de Ruby e a assinatura real do host.\n\n### **Pegadinha:** não escolha pelo arquivo carregado por último\n\nA implementação encontrada depende da cadeia de busca, não de uma regra geral de que “o último arquivo vence”. Em especial, `prepend` pode ser chamado antes da classe e `super` segue a próxima implementação. Incluir um módulo tampouco equivale a herdar de uma classe. Em questão sobre método homônimo, desenhe a cadeia e siga a ordem até achar a primeira definição.\n\n### **Resumo para a prova**\n\n`include` mistura métodos de instância; `prepend` põe o módulo antes da classe; `extend` adiciona métodos ao objeto receptor; herança usa `<`. A cadeia de ancestrais determina qual definição é encontrada. `super` continua a busca. Visibilidade descreve o uso esperado, não segurança absoluta. Prefira hooks documentados e, ao envolver método do host, preserve argumentos, retorno e efeitos."
+    },
+    {
+      "title": "3. Blocos, coleções e dados de configuração",
+      "markdown": "Um plugin recebe opções do host e precisa percorrer, filtrar ou transformar dados sem mudar algo que outros componentes ainda usam. Para revisar esse código, é essencial saber o que cada coleção guarda, o valor produzido por cada operação e se a operação altera o objeto original.\n\n### Coleções e blocos\n\n`Array` (lista) é uma coleção ordenada, acessada por posições numéricas. `Hash` (dicionário) guarda pares de chave e valor: uma chave, como `:timeout`, aponta para um valor, como `10`. A ordem dos elementos de um array é parte do seu uso; um hash serve principalmente para consultar um valor por chave.\n\nUm **símbolo** (*Symbol*) é um identificador escrito, por exemplo, como `:timeout`. Ele não é igual a uma string com os mesmos caracteres, como `\"timeout\"`: em um hash, `opcoes[:timeout]` e `opcoes[\"timeout\"]` consultam chaves distintas. A forma abreviada `{ timeout: 5 }` cria a chave símbolo `:timeout`. Em uma extensão, converter chaves sem verificar o contrato do host pode fazer uma opção parecer ausente.\n\nUm **bloco** é um trecho de código associado a uma chamada. Em `itens.each { |item| mostrar(item) }`, o trecho entre chaves é executado para os elementos. O nome entre barras verticais representa o elemento recebido naquela execução. Métodos iteradores recebem esse trecho e definem como usá-lo.\n\n| Método | O que faz com o bloco | Resultado típico |\n| --- | --- | --- |\n| `each` | Executa o bloco para cada elemento | A própria coleção, útil para efeitos como imprimir ou registrar |\n| `map` | Calcula um resultado para cada elemento | Nova coleção com os resultados |\n| `select` | Mantém elementos cujo bloco retorna valor verdadeiro | Nova coleção filtrada |\n| `sort` | Ordena os elementos | Nova coleção ordenada |\n| `sort!` | Ordena o próprio objeto quando possível | Coleção original alterada |\n\nO ponto de exclamação no nome de um método costuma sinalizar uma variante que altera o objeto ou tem efeito mais forte, mas a convenção não substitui a documentação: confirme o comportamento daquele método. A forma `&:to_s` converte uma chamada de método simples em bloco; por exemplo, `itens.map(&:to_s)` pede a conversão de cada elemento para texto e reúne os resultados.\n\n### Ausência, falso e padrão\n\n`nil` é o valor usado em Ruby para representar ausência de valor. `false` é um valor booleano falso. Eles não são iguais. Em expressões condicionais, `nil` e `false` são os valores falsos; os demais objetos são considerados verdadeiros. Por isso, chamar um valor de **truthy** significa dizer que Ruby o trata como verdadeiro em uma condição, não que ele seja necessariamente o booleano `true`.\n\nA expressão `opcao || padrao` escolhe `padrao` tanto se `opcao` for `nil` quanto se for `false`. Se `false` for uma escolha válida, isso pode esconder uma configuração intencional. `Hash#fetch` consulta uma chave e permite informar o que fazer quando ela não existe, por argumento ou bloco, sem inserir automaticamente um valor no hash. Uma chave presente com valor `nil` continua sendo diferente de uma chave ausente.\n\n| Situação | Consulta comum `hash[chave]` | `hash.fetch(chave) { padrão }` |\n| --- | --- | --- |\n| Chave presente com valor | Retorna o valor | Retorna o valor |\n| Chave ausente | Retorna `nil` | Executa o bloco e retorna o padrão |\n| Chave presente com `nil` | Retorna `nil` | Retorna `nil`, pois a chave existe |\n\nO operador de navegação segura `&.` evita chamar um método quando o receptor é `nil`; nesse caso, a expressão resulta em `nil`. Ele não verifica se o objeto tem o tipo esperado e não captura falhas de outros métodos. Para um bloco opcional, `block_given?` informa se a chamada atual recebeu bloco; `yield` executa o bloco. Chamar `yield` sem que um bloco tenha sido fornecido pode causar erro.\n\n### Exemplo passo a passo com opções\n\nAna recebe do host uma lista de extensões e um hash de opções. Ela quer manter só as extensões habilitadas e usar um limite padrão quando `:timeout` não foi informado. Primeiro, verifica que o host entrega a chave como símbolo; não troca `:timeout` por `\"timeout\"`. Depois usa `opcoes.fetch(:timeout) { 10 }`, preservando o valor `false` ou `nil` se a chave realmente estiver presente, conforme a regra do componente. Em seguida calcula `habilitadas = extensoes.select { |extensao| extensao.enabled? }`. `select` produz outra lista e usa o retorno de `enabled?` para decidir inclusão; não apaga elementos do array recebido. Finalmente, Ana testa a lista vazia e as opções ausente, `nil` e `false`, pois esses casos podem ter significados diferentes para o host.\n\n### **Pegadinha:** transformação não é necessariamente mutação\n\nA banca pode dizer que `map` altera cada item do array original, que `each` necessariamente devolve os resultados do bloco ou que símbolo e string com o mesmo texto são chaves iguais. São confusões. Leia o método usado, confira se há uma variante mutável e examine o tipo da chave. Também não trate `opcao || padrao` como equivalente universal a `fetch`: com `false`, os resultados podem divergir.\n\n### **Resumo para a prova**\n\nArray guarda sequência ordenada; Hash relaciona chaves e valores; símbolo e string são chaves diferentes. `each` percorre, `map` transforma e `select` filtra, em geral produzindo nova coleção. `nil` representa ausência, `false` é falso explícito, e ambos acionam o padrão de `||`. `fetch` permite tratar chave ausente sem confundi-la automaticamente com chave presente cujo valor é `nil`. Blocos são passados a métodos; `yield` os executa e `block_given?` verifica se há bloco."
+    },
+    {
+      "title": "4. Carregamento, dependências, erros e testes",
+      "markdown": "Um plugin pode funcionar na máquina de quem o desenvolve e falhar quando o host tenta carregá-lo. Isso costuma acontecer porque o arquivo não foi encontrado, uma dependência não está instalada, uma exceção foi escondida ou o teste cobriu só uma parte isolada. A manutenção exige rastrear o carregamento e tornar a falha observável.\n\n### Como os arquivos são carregados\n\n`require` procura um recurso nos caminhos de busca do Ruby e, após carregá-lo com sucesso, evita carregar de novo a mesma feature reconhecida. Uma *feature* é, nesse contexto, um arquivo ou recurso identificado pelo nome usado no carregamento. `require_relative` procura o caminho relativo ao arquivo que contém a chamada, o que ajuda o plugin a encontrar um auxiliar ao lado do próprio código, independentemente do diretório em que o processo foi iniciado. `load` executa o arquivo indicado toda vez que a chamada ocorre; ele não oferece a mesma proteção de carregamento único de `require`.\n\n| Comando | Como resolve o caminho | Efeito em chamadas repetidas |\n| --- | --- | --- |\n| `require 'agenda_plugin'` | Usa os caminhos de busca do Ruby | Evita novo carregamento após sucesso da mesma feature |\n| `require_relative 'helpers'` | Parte do arquivo que contém a chamada | Evita novo carregamento após sucesso da mesma feature |\n| `load 'config.rb'` | Usa o caminho informado conforme a chamada | Executa novamente o arquivo em cada chamada |\n\n### Empacotamento e dependências\n\n**RubyGems** é o sistema de empacotamento e distribuição de bibliotecas Ruby. Uma gema descreve seu conteúdo e requisitos em um arquivo `.gemspec`, abreviação de especificação da gema. Essa especificação pode registrar nome, versão, arquivos incluídos e dependências. O `Gemfile` declara o conjunto de gems que um projeto deseja usar. **Bundler** é a ferramenta que resolve e instala essas dependências em conjunto. O `Gemfile.lock` registra a resolução selecionada, incluindo versões, para que o projeto use uma combinação reproduzível. O lockfile não contém a implementação do plugin: registra a seleção de dependências.\n\nUma dependência de execução é necessária quando o consumidor usa o plugin. Uma dependência de desenvolvimento serve a tarefas como testes, análise ou empacotamento e não deve ser imposta ao consumidor se ele não precisa dela para executar o plugin. O arquivo de entrada deve carregar as partes necessárias de modo explícito. A mera existência de um arquivo em `lib/` não o carrega automaticamente.\n\n### Tratar falhas sem apagá-las\n\nUma **exceção** é um objeto que sinaliza uma condição de falha durante a execução. `begin` delimita as operações monitoradas; `rescue` trata tipos de exceção que o código sabe resolver; `ensure` executa ações de limpeza ao sair do trecho, tenha ocorrido falha ou não. `raise` lança ou propaga uma exceção. Uma boa limpeza pode fechar arquivo ou liberar recurso, mas `ensure` não transforma a operação em sucesso.\n\nO tratamento deve ser específico o bastante para recuperar somente o caso previsto. Capturar a classe base ampla `Exception` ou resgatar qualquer falha para devolver um valor aparentemente válido pode ocultar erros de programação e deixar estado incompleto. Se o plugin não consegue resolver a falha, deve mantê-la visível, em vez de comunicar sucesso falso.\n\n### Diagnóstico e tipos de teste\n\nA **pilha de chamadas** (ou *stack trace*) mostra a sequência de chamadas que levou à falha. Para investigar, anote a classe e a mensagem da exceção, localize a primeira linha do código do plugin na pilha e tente reproduzir com as mesmas dependências e opções. Depois reduza o caso: verifique se o caminho resolve, se a dependência está declarada, se o host chama o hook esperado e se uma exceção foi tratada no nível correto.\n\nUm teste unitário verifica uma unidade pequena em isolamento, como a função que interpreta uma opção. Um teste de integração verifica componentes em conjunto, por exemplo a extensão carregada pelo host real ou por um substituto controlado. O teste deve cobrir o contrato afetado: o que o plugin recebe, que efeito produz e o que devolve.\n\n### Exemplo passo a passo de uma falha de carregamento\n\nAna instala uma atualização do plugin e recebe uma mensagem de arquivo auxiliar ausente. Primeiro lê a classe e a mensagem, sem esconder a exceção com um `rescue` genérico. Depois identifica `require_relative 'helpers'` dentro de `lib/agenda_plugin.rb` e confere se `lib/helpers.rb` existe no pacote instalado. Em seguida verifica se a gemspec inclui esse arquivo. Se o arquivo está presente, examina o caminho e o ponto de entrada; se está ausente, corrige a lista empacotada. Ana reproduz a instalação do pacote, executa um teste unitário do carregamento e um teste de integração com o host. Ela não conclui que a correção funcionou só porque o arquivo existe no diretório de desenvolvimento.\n\n### **Pegadinha:** `ensure` não significa sucesso\n\nA banca pode afirmar que `ensure` só executa quando não há erro ou que `load` carrega uma vez como `require`. `ensure` serve à limpeza, inclusive durante uma falha; a exceção pode continuar propagada depois dele. `load` reexecuta o arquivo. Outra confusão é tratar o `Gemfile.lock` como código ou manifesto completo do plugin: ele registra versões resolvidas das dependências.\n\n### **Resumo para a prova**\n\n`require` carrega pela busca e evita recarga após sucesso; `require_relative` resolve a partir do arquivo chamador; `load` executa novamente a cada chamada. Gemspec descreve o pacote; Gemfile declara dependências e Gemfile.lock registra a resolução do Bundler. `rescue` trata falhas selecionadas e `ensure` executa limpeza; nenhum deles deve esconder falhas não tratadas. Diagnostique pela mensagem, classe e pilha, e valide com testes unitários e de integração que cubram o contrato real do host."
+    }
+  ],
+  "summary": "Ruby é uma linguagem orientada a objetos em que classes e módulos organizam comportamento. Para manter plugins, localize o ponto de entrada e siga os carregamentos: `require` carrega um recurso uma vez, `require_relative` resolve a partir do arquivo chamador e `load` executa novamente. Módulos servem como namespaces e mixins; `include` incorpora métodos de instância à cadeia de busca, `prepend` os coloca antes da classe e `super` chama a implementação seguinte. Hashes podem usar símbolos ou strings, que são chaves distintas; `each` percorre, `map` transforma e `select` filtra. `&.` só evita a chamada quando o receptor é nil. `begin/rescue/ensure` controla exceções e limpeza, mas resgates amplos podem esconder falhas. RubyGems empacota bibliotecas em gems; gemspec descreve pacote e dependências, e Bundler registra resolução no Gemfile.lock. Em extensão, prefira hooks documentados, preserve contratos e dependências, evite monkey patches globais e valide a alteração com testes unitários e de integração.",
+  "flashcards": [
+    {
+      "front": "Para que serve um módulo em Ruby?",
+      "back": "Agrupa constantes e métodos; pode atuar como namespace ou ser incluído como mixin."
+    },
+    {
+      "front": "O que cria class MinhaClasse?",
+      "back": "Uma classe que pode ser instanciada com MinhaClasse.new, salvo alterações no método de criação."
+    },
+    {
+      "front": "O que significa AgendaPlugin::Renderer?",
+      "back": "A constante Renderer qualificada dentro do namespace AgendaPlugin."
+    },
+    {
+      "front": "O que faz include Modulo?",
+      "back": "Inclui os métodos de instância do módulo na cadeia de ancestrais do receptor."
+    },
+    {
+      "front": "Como include difere de herança?",
+      "back": "include mistura métodos de módulo; herança de classe é declarada com <."
+    },
+    {
+      "front": "O que faz prepend?",
+      "back": "Insere o módulo antes da classe na cadeia de busca de métodos."
+    },
+    {
+      "front": "O que faz super em um método sobrescrito?",
+      "back": "Encaminha a chamada à próxima implementação de mesmo nome na busca."
+    },
+    {
+      "front": "Como se declara um método de módulo?",
+      "back": "Uma forma explícita é def Modulo.metodo; ele pode ser chamado pelo próprio módulo."
+    },
+    {
+      "front": "Qual visibilidade é padrão para métodos Ruby?",
+      "back": "Pública, até uma declaração de visibilidade mudar o contexto."
+    },
+    {
+      "front": "O que é monkey patch?",
+      "back": "Reabrir ou alterar classe/módulo existente para modificar seu comportamento."
+    },
+    {
+      "front": "O que faz require?",
+      "back": "Carrega recurso encontrado no caminho de busca e evita carregá-lo de novo após sucesso."
+    },
+    {
+      "front": "Como require_relative determina o caminho?",
+      "back": "Relativamente ao arquivo que chamou require_relative."
+    },
+    {
+      "front": "Como load difere de require?",
+      "back": "load executa o arquivo indicado novamente a cada chamada; require evita recarregamento após sucesso."
+    },
+    {
+      "front": "O que é um Hash?",
+      "back": "Coleção de pares chave-valor; símbolos e strings são chaves diferentes."
+    },
+    {
+      "front": "Qual é a chave de { modo: 'texto' }?",
+      "back": "O símbolo :modo, não a string 'modo'."
+    },
+    {
+      "front": "O que map costuma retornar?",
+      "back": "Um novo array com o resultado do bloco aplicado a cada elemento."
+    },
+    {
+      "front": "O que select faz?",
+      "back": "Retorna os elementos para os quais o bloco produz valor verdadeiro."
+    },
+    {
+      "front": "Qual a finalidade de ensure?",
+      "back": "Executar limpeza ou finalização independentemente do sucesso ou da exceção no begin."
+    },
+    {
+      "front": "Para que serve a gemspec?",
+      "back": "Descrever nome, versão, arquivos, metadados e dependências da gem."
+    },
+    {
+      "front": "Qual é a função do Gemfile.lock?",
+      "back": "Registrar versões resolvidas das dependências para tornar a instalação reproduzível."
+    }
+  ],
+  "tips": [
+    "Siga a cadeia de require desde o arquivo de entrada até cada implementação antes de editar o plugin.",
+    "Diferencie namespace, mixin e herança: módulo pode organizar nomes ou compartilhar métodos; < declara herança.",
+    "Ao estender comportamento com prepend, confira se super preserva contrato, argumentos e retorno do método original.",
+    "Verifique tipo e grafia das chaves de Hash: :nome e \"nome\" não são intercambiáveis.",
+    "Em um rescue, trate apenas falhas que o código sabe recuperar; ensure é apropriado para liberação e limpeza.",
+    "Reproduza a falha com Gemfile.lock e configuração do projeto e cubra a correção com teste adequado."
+  ],
+  "traps": [
+    "Afirmar que include cria uma subclasse. Ele incorpora métodos de módulo à cadeia de ancestrais.",
+    "Tratar require, require_relative e load como equivalentes. Eles diferem no modo de resolver caminho e recarregar arquivo.",
+    "Dizer que o símbolo :chave e a string \"chave\" acessam o mesmo par de Hash. São chaves distintas.",
+    "Afirmar que ensure só executa depois de sucesso. Ele também é executado durante o tratamento de falha.",
+    "Supor que &. captura qualquer erro. Ele apenas pula uma chamada quando o receptor é nil.",
+    "Reabrir uma classe global para corrigir um caso localizado. A mudança pode atingir todo o processo e colidir com dependências."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como você localizaria o ponto de entrada de um plugin Ruby e descobriria o que ele carrega?",
+      "answer": "Inspecionaria estrutura e documentação do pacote, identificaria o arquivo inicial e seguiria require/require_relative até as definições relevantes, anotando dependências e hooks usados pelo host."
+    },
+    {
+      "question": "Diferencie namespace, mixin e herança em Ruby.",
+      "answer": "Namespace qualifica nomes; mixin compartilha métodos de módulo pela inclusão ou prepend; herança liga uma classe a uma superclasse por <."
+    },
+    {
+      "question": "O que acontece com a busca quando um módulo é incluído numa classe?",
+      "answer": "Seus métodos de instância aparecem na cadeia de ancestrais e podem ser encontrados na busca de métodos do objeto."
+    },
+    {
+      "question": "Como preservar uma implementação existente ao interceptar um método?",
+      "answer": "Usar ponto de extensão apropriado; com prepend, implementar o método e chamar super conforme contrato, encaminhando argumentos e bloco necessários."
+    },
+    {
+      "question": "Explique a diferença entre require e load.",
+      "answer": "require carrega feature e evita novo carregamento após sucesso; load executa o arquivo indicado novamente a cada chamada."
+    },
+    {
+      "question": "Por que :active e 'active' podem produzir comportamentos diferentes num Hash?",
+      "answer": "Um é Symbol e outro String; Ruby os trata como chaves distintas, logo a leitura sob a chave errada não encontra o valor."
+    },
+    {
+      "question": "Qual é a função de rescue e ensure?",
+      "answer": "rescue trata exceções selecionadas; ensure executa finalização independentemente de sucesso ou falha no trecho protegido."
+    },
+    {
+      "question": "Como reduzir o risco de publicar um plugin que só funciona na máquina do autor?",
+      "answer": "Declarar dependências de runtime na gemspec, versionar a resolução com lockfile quando aplicável e executar testes unitários e de integração em ambiente controlado."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Composição confundida com herança",
+      "summary": "Módulo pode ser namespace ou mixin; include e prepend alteram a cadeia de métodos, mas não criam subclasse."
+    },
+    {
+      "key": "e2",
+      "title": "Carregamento de arquivo confundido",
+      "summary": "require evita novo carregamento após sucesso, require_relative ancora o caminho no arquivo chamador e load reexecuta o arquivo."
+    },
+    {
+      "key": "e3",
+      "title": "Contrato e escopo da extensão ignorados",
+      "summary": "Monkey patch pode alterar classes globais; hooks documentados e delegação compatível com super reduzem quebras, mas ainda exigem testes."
+    },
+    {
+      "key": "e4",
+      "title": "Configuração, falha e dependência mascaradas",
+      "summary": "Símbolo e string são chaves distintas; rescue amplo esconde erros; dependência de execução deve ser declarada para o consumidor do pacote."
+    },
+    {
+      "key": "e5",
+      "title": "Coleção e valor de retorno interpretados incorretamente",
+      "summary": "each percorre, map transforma e select filtra; &. pula uma chamada para receptor nil, sem validar outras condições."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um mantenedor precisa agrupar constantes e classes próprias do plugin para reduzir colisões com o programa anfitrião. Qual recurso de Ruby atende diretamente a essa necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um módulo usado como namespace para qualificar os nomes do plugin.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma variável global compartilhada por todas as bibliotecas carregadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um bloco passado ao método principal durante a inicialização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma instância criada para cada constante do espaço global.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma exceção usada para reservar nomes em tempo de execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Módulos podem atuar como namespaces, permitindo nomes qualificados como AgendaPlugin::Renderer. Variáveis globais aumentariam o risco de colisão; blocos, instâncias e exceções não são mecanismos de namespace.",
+      "section": "1. Ler a estrutura de um plugin Ruby",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Ruby, incluir um módulo numa classe faz a classe tornar-se subclasse daquele módulo, com instâncias próprias do módulo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Módulos não são superclasses; include adiciona métodos de instância do módulo à cadeia de ancestrais da classe. Herança entre classes é expressa com o operador <.",
+      "section": "1. Ler a estrutura de um plugin Ruby",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe `Relatorio` declara `def formatar`; qual chamada cria um objeto dessa classe?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Relatorio.formatar.new, que converte o método em instância.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "new Relatorio, que chama primeiro o método de módulo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Relatorio.new, que solicita a criação de uma instância.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Relatorio::formatar, que constrói o objeto pelo namespace.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "formatar(Relatorio), que instancia a classe por argumento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Class.new cria a instância da classe, chamando o mecanismo de inicialização quando definido. Os outros formatos não são a sintaxe normal para instanciar uma classe Ruby.",
+      "section": "1. Ler a estrutura de um plugin Ruby",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma constante definida em `module AgendaPlugin` pode ser referenciada, fora do módulo, pelo nome qualificado `AgendaPlugin::CONSTANTE`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O operador de resolução de constante `::` qualifica o nome pelo namespace; o módulo organiza o nome, sem criar uma instância da constante.",
+      "section": "1. Ler a estrutura de um plugin Ruby",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente a diferença entre `class MinhaClasse` e `module MinhaExtensao`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambos definem apenas variáveis locais, sem nomes persistentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma classe pode ser instanciada; um módulo organiza nomes e pode ser mixin.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um módulo aceita herança direta com `<`; uma classe não aceita.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma classe só contém constantes; um módulo só contém variáveis.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um módulo sempre é carregado automaticamente pelo interpretador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Classes podem gerar instâncias e módulos oferecem namespace e composição de comportamento. As demais opções atribuem sintaxe ou efeitos que Ruby não estabelece.",
+      "section": "1. Ler a estrutura de um plugin Ruby",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A expressão `class Plugin < BasePlugin` indica que Plugin declara herança de BasePlugin.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Em uma declaração de classe, `< BasePlugin` indica a superclasse. A classe herda comportamento pela cadeia de classes, diferente de incorporar um módulo com include.",
+      "section": "1. Ler a estrutura de um plugin Ruby",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alteração usa um módulo como mixin de métodos de instância em uma classe de plugin?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`require Auditoria` no corpo da classe sem carregar arquivo existente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`extend Auditoria` em todo objeto futuro da classe automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`class Auditoria` dentro da classe para copiar métodos ao pai.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`include Auditoria` na definição da classe que precisa dos métodos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`rescue Auditoria` para converter os métodos em funções públicas.",
+          "correct": false
+        }
+      ],
+      "explanation": "include é a forma usual de misturar métodos de instância de um módulo na cadeia de métodos da classe. require carrega arquivos; extend atua no receptor específico e não equivale ao uso descrito.",
+      "section": "1. Ler a estrutura de um plugin Ruby",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um módulo pode ser reaberto em outro trecho para adicionar métodos, embora alterar módulos de terceiros possa causar conflitos e erros difíceis de rastrear.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Ruby permite reabrir módulos e classes. A documentação recomenda cautela com definições que não pertencem ao projeto, pois nomes podem colidir e mudar o comportamento compartilhado.",
+      "section": "1. Ler a estrutura de um plugin Ruby",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O padrão `AgendaPlugin::Renderer` é útil porque deixa claro a qual agrupamento pertence a constante Renderer.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O nome qualificado mostra o namespace e reduz ambiguidades com constantes de outros pacotes. O operador não cria por si só a constante nem carrega o arquivo.",
+      "section": "1. Ler a estrutura de um plugin Ruby",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na busca de métodos, qual mecanismo coloca os métodos do módulo antes dos métodos definidos na própria classe receptora?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`include`, que sempre posiciona o módulo antes da classe.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`extend`, que reordena todas as superclasses do receptor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`prepend`, que insere o módulo antes da classe na cadeia.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "`require`, que move as definições para o início da busca.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`private`, que antecipa a busca pelo método privado.",
+          "correct": false
+        }
+      ],
+      "explanation": "prepend posiciona o módulo antes da classe na cadeia de busca, permitindo interceptar métodos e eventualmente delegar à implementação seguinte com super. include tem posição diferente.",
+      "section": "2. Métodos, mixins e comportamento existente",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao executar super dentro de um método sobrescrito, Ruby chama a próxima implementação de mesmo nome na cadeia de busca.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. super permite delegar à implementação seguinte na cadeia. A preservação de argumentos depende da forma usada e do contrato, por isso deve ser conferida ao manter um plugin.",
+      "section": "2. Métodos, mixins e comportamento existente",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe de plugin inclui um módulo `M` que define `nome`; qual alternativa expressa uma chamada possível ao método de instância incluído?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`M.nome`, sem método de módulo declarado em M.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`ClassePlugin.nome`, mesmo sem método de classe.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`include.nome`, como uma chamada direta ao keyword.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`ClassePlugin.new.nome`, numa instância da classe que inclui M.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "`nome::ClassePlugin`, usando resolução reversa de método.",
+          "correct": false
+        }
+      ],
+      "explanation": "Métodos de instância de M passam a estar disponíveis a instâncias da classe que inclui o módulo, salvo problemas de visibilidade ou argumentos. M.nome exigiria método de módulo.",
+      "section": "2. Métodos, mixins e comportamento existente",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Métodos Ruby são públicos por padrão, salvo quando a visibilidade é alterada com declarações como private ou protected.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A visibilidade padrão é pública. private e protected podem restringir as formas de chamada; isso organiza a interface, mas não substitui controle de segurança externo.",
+      "section": "2. Métodos, mixins e comportamento existente",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método privado de instância costuma representar uma operação interna que não integra a interface pública pretendida do objeto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A visibilidade comunica e limita formas usuais de chamada. Um método privado não se torna inacessível por mecanismo de segurança absoluta, mas não é parte normal da interface pública.",
+      "section": "2. Métodos, mixins e comportamento existente",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um desenvolvedor quer adicionar registro antes da implementação original de salvar e pretende que a implementação existente também rode. Qual desenho pode atender, se o contrato for compatível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir módulo com prepend e chamar super após registrar a operação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Definir método global salvar e remover a classe original do host.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar rescue no ponto de entrada e evitar qualquer chamada ao método.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Renomear a superclasse para que Ruby descubra o novo método.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Carregar o arquivo duas vezes para executar a implementação antiga.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um módulo prepended pode interceptar o método e super delega à implementação seguinte. A compatibilidade de parâmetros, retorno e efeitos precisa ser verificada; as demais alternativas não preservam corretamente o método original.",
+      "section": "2. Métodos, mixins e comportamento existente",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Reabrir uma classe central de terceiro para alterar um método é sempre local ao plugin que realizou a alteração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A alteração da classe existente vale para o processo Ruby e pode afetar outros consumidores da mesma classe, inclusive dependências carregadas depois. É preferível usar extensões documentadas e escopo controlado.",
+      "section": "2. Métodos, mixins e comportamento existente",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o módulo prepended redefine um método e não chama super, a implementação seguinte não será chamada automaticamente como parte daquela execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A busca encontra a implementação do módulo; a continuação ocorre quando o código chama super. O simples fato de haver uma implementação posterior não faz Ruby executá-la em sequência.",
+      "section": "2. Métodos, mixins e comportamento existente",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição de `extend Modulo` é mais precisa em relação a um objeto receptor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Inclui métodos de instância em todas as subclasses da classe atual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Torna métodos do módulo disponíveis como métodos do receptor.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Transforma o módulo em superclasse do receptor de forma permanente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Carrega o arquivo Ruby nomeado Modulo pelo diretório local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Define todos os métodos do módulo como privados no processo.",
+          "correct": false
+        }
+      ],
+      "explanation": "extend mistura métodos do módulo no receptor, comumente para disponibilizá-los como métodos singleton daquele objeto. Não é herança nem mecanismo de carregamento de arquivo.",
+      "section": "2. Métodos, mixins e comportamento existente",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mudança de versão do host pode alterar a assinatura de um método interceptado, exigindo revisar os argumentos encaminhados por super.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A extensão depende do contrato do método hospedeiro. Se parâmetros posicionais, nomeados ou bloco mudarem, uma interceptação pode deixar de encaminhar a chamada adequadamente e causar incompatibilidade.",
+      "section": "2. Métodos, mixins e comportamento existente",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Considere `config = { modo: 'texto' }`. Qual expressão acessa o valor armazenado pela chave criada nessa sintaxe?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`config['modo']`, porque símbolo e string são convertidos na leitura.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`config[:modo]`, usando o símbolo empregado pela sintaxe abreviada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`config.modo`, pois toda chave de Hash vira método de acesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`config[modo]`, que consulta uma variável local do mesmo nome.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`config::modo`, que resolve qualquer chave como constante.",
+          "correct": false
+        }
+      ],
+      "explanation": "A sintaxe `modo:` cria uma chave símbolo `:modo`. A string 'modo' é uma chave distinta; Hash não converte automaticamente suas chaves em métodos ou constantes.",
+      "section": "3. Blocos, coleções e dados de configuração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No uso habitual, map aplica o bloco a cada elemento e retorna uma coleção com os valores produzidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. map transforma cada elemento e retorna os resultados numa nova coleção, normalmente um Array. Não deve ser confundido com each, usado para percorrer sem expressar transformação como resultado principal.",
+      "section": "3. Blocos, coleções e dados de configuração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual método seleciona elementos de um array cujo bloco retorna valor verdadeiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`select`, que produz uma coleção com os itens aprovados pelo bloco.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`map`, que descarta os itens cujo valor não seja uma string.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`each`, que remove automaticamente os itens falsos do array.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`require`, que filtra recursos pelo caminho de busca Ruby.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`ensure`, que coleta elementos depois do encerramento do bloco.",
+          "correct": false
+        }
+      ],
+      "explanation": "select mantém os elementos para os quais o bloco resulta em valor verdadeiro e retorna a seleção. map transforma, each percorre e require/ensure têm outras funções.",
+      "section": "3. Blocos, coleções e dados de configuração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Ruby, nil e false são valores distintos, embora ambos sejam falsy em condições comuns.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. nil representa ausência de valor e false representa o valor booleano falso. Ambos são falsy, mas testes de igualdade, retorno e presença podem distingui-los.",
+      "section": "3. Blocos, coleções e dados de configuração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um plugin usa `opcao || padrao` para preencher configuração. Se opcao for false, o resultado será o valor false, pois só nil dispara o padrão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O operador || usa o lado direito quando o lado esquerdo é falsy, o que inclui nil e false. Se a distinção entre ausência e false for importante, deve-se usar lógica que teste a presença de modo explícito.",
+      "section": "3. Blocos, coleções e dados de configuração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o efeito de `usuario&.nome` quando usuario é nil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Lança NameError e interrompe qualquer bloco externo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cria um usuário vazio e chama nome nesse objeto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Retorna nil sem enviar a chamada nome ao receptor nulo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Resgata todas as exceções de nome e retorna false.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converte nil numa string vazia antes da chamada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O operador de navegação segura pula a chamada seguinte quando o receptor é nil e retorna nil. Ele não cria objeto, não converte tipo e não captura exceções de outros receptores.",
+      "section": "3. Blocos, coleções e dados de configuração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O operador &. valida que todo objeto não nulo possui o método solicitado e converte uma chamada inválida em nil.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. &. só evita a chamada quando o receptor é nil. Se o receptor for outro objeto sem o método, a chamada ainda pode gerar NoMethodError; não é validação de interface.",
+      "section": "3. Blocos, coleções e dados de configuração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O método each é mais apropriado que map quando o código quer percorrer elementos para produzir efeitos laterais e não precisa da coleção transformada como resultado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. each comunica iteração e costuma ser usado para efeitos como registrar ou enviar cada item. map expressa transformação e retorna uma coleção de resultados.",
+      "section": "3. Blocos, coleções e dados de configuração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual linha coleta os nomes das extensões sem alterar intencionalmente o array original?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`extensoes.each { |e| e.nome }`, atribuindo o array original.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`extensoes.map { |e| e.nome }`, guardando o array retornado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "`extensoes.select { |e| e.nome }`, que converte cada objeto em nome.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`extensoes.require { |e| e.nome }`, que carrega as extensões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`extensoes.ensure { |e| e.nome }`, que cria uma lista de nomes.",
+          "correct": false
+        }
+      ],
+      "explanation": "map aplica o bloco a cada elemento e retorna os resultados, que podem ser atribuídos a outro array. select manteria objetos segundo uma condição; each não representa a transformação como resultado principal.",
+      "section": "3. Blocos, coleções e dados de configuração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Com a sintaxe abreviada `{ formato: 'html' }`, a chave do Hash é o símbolo `:formato`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Chaves com rótulo e dois-pontos nessa sintaxe são símbolos. A consulta com a string 'formato' não acessa automaticamente o mesmo par.",
+      "section": "3. Blocos, coleções e dados de configuração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um bloco pode ser passado a um método para que esse método o execute durante uma iteração ou outra operação definida por ele.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Blocos permitem entregar comportamento ao método chamado; métodos iteradores como each, map e select executam o bloco conforme suas próprias regras.",
+      "section": "3. Blocos, coleções e dados de configuração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde a require_relative em um arquivo `lib/plugin.rb`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Busca o arquivo apenas no diretório de trabalho do terminal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executa sempre o arquivo novamente, mesmo que já carregado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Carrega o recurso usando caminho relativo ao arquivo chamador.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ativa todas as gems registradas no Gemfile.lock imediatamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Inclui o arquivo como módulo sem executar suas instruções.",
+          "correct": false
+        }
+      ],
+      "explanation": "require_relative ancora o caminho no arquivo que faz a chamada, facilitando referências internas do plugin que não dependem do diretório corrente do processo.",
+      "section": "4. Carregamento, dependências, erros e testes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O comando require é comumente usado para carregar uma biblioteca sem executá-la de novo após o carregamento bem-sucedido da mesma feature.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. require mantém registro de recursos carregados e evita novo carregamento da mesma feature após sucesso, ao contrário de load, que executa novamente o arquivo indicado.",
+      "section": "4. Carregamento, dependências, erros e testes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ferramenta ou arquivo descreve metadados como nome, versão, arquivos e dependências de uma gem Ruby?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um bloco ensure anexado ao método principal da biblioteca.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A gemspec, por meio de uma especificação da gem.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um módulo Kernel incluído automaticamente na aplicação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O arquivo de lock do interpretador, sem metadados do pacote.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma variável de instância no objeto carregador do plugin.",
+          "correct": false
+        }
+      ],
+      "explanation": "A gemspec descreve o pacote RubyGems, incluindo atributos como nome, versão, arquivos e dependências. ensure, Kernel e variáveis não substituem a especificação do pacote.",
+      "section": "4. Carregamento, dependências, erros e testes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Gemfile.lock registra a resolução das dependências para ajudar a reproduzir versões no projeto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O lockfile registra as versões concretas resolvidas para as dependências e reduz diferenças entre instalações. Ele não contém a implementação completa do plugin.",
+      "section": "4. Carregamento, dependências, erros e testes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência descreve melhor o tratamento de uma falha que deve ser registrada e propagada sem ser mascarada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Resgatar toda exceção, descartar a causa original e continuar como se a operação tivesse sido concluída com sucesso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Capturar a exceção apropriada, registrar contexto e relançar quando não houver recuperação segura.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Usar ensure para converter qualquer exceção em valor falso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover a pilha de chamadas e continuar como se a operação concluísse.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mover todo código para load para que erros sejam repetidos automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando o plugin não consegue recuperar com segurança, deve preservar a falha e contexto em vez de afirmar sucesso. Um rescue amplo que suprime erros cria estado inconsistente e dificulta diagnóstico.",
+      "section": "4. Carregamento, dependências, erros e testes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O bloco ensure pode ser usado para liberar um recurso mesmo quando uma exceção ocorreu no bloco begin.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. ensure executa a finalização independentemente de sucesso ou falha, sendo útil para fechar ou liberar recursos. Ele não significa que a operação principal foi bem-sucedida.",
+      "section": "4. Carregamento, dependências, erros e testes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um rescue sem classe de exceção declarada captura qualquer objeto que possa ser levantado por Ruby, inclusive exceções fatais fora da hierarquia comum.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O rescue implícito trata exceções derivadas de StandardError, não absolutamente toda a hierarquia de Exception. Capturar classes mais amplas exige decisão explícita e pode encobrir falhas graves.",
+      "section": "4. Carregamento, dependências, erros e testes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma dependência necessária para o plugin funcionar quando instalado pelo consumidor deve ser declarada como dependência de execução no pacote.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Dependências usadas durante a execução devem ser informadas ao gerenciador de gems para que o consumidor possa instalá-las e ativá-las. Dependências apenas de desenvolvimento não garantem sua presença no ambiente de uso.",
+      "section": "4. Carregamento, dependências, erros e testes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática ajuda a distinguir falha no código Ruby do plugin de incompatibilidade na integração com o host?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar somente a análise visual do arquivo e remover testes lentos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Repetir o carregamento por load até o erro desaparecer sozinho.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Testar apenas a versão local mais recente das dependências.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Combinar testes unitários isolados com testes de integração no contrato do host.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Resgatar qualquer exceção antes que o teste consiga observá-la.",
+          "correct": false
+        }
+      ],
+      "explanation": "Testes unitários isolam lógica própria; testes de integração verificam contratos, carregamento e interação com o host. Juntos apontam se o problema está na unidade ou na integração, sem mascarar exceções.",
+      "section": "4. Carregamento, dependências, erros e testes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`load 'arquivo.rb'` tem a mesma garantia de carregamento único que require e por isso nunca reexecuta as instruções do arquivo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. load executa o arquivo indicado a cada chamada. require é o mecanismo que evita novo carregamento de uma feature já carregada com sucesso.",
+      "section": "4. Carregamento, dependências, erros e testes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Ruby, require_relative usa como base o diretório corrente do terminal, independentemente do arquivo que faz a chamada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. require_relative resolve o caminho a partir do arquivo chamador. Essa propriedade evita depender do diretório corrente quando o plugin é iniciado por outro processo ou diretório.",
+      "section": "4. Carregamento, dependências, erros e testes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao corrigir um plugin, adicionar um teste de regressão que reproduz o defeito ajuda a verificar que a alteração resolveu o caso e protege contra retorno do erro.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um teste que falha antes da correção e passa depois documenta o comportamento esperado e alerta se uma mudança futura reintroduzir o defeito.",
+      "section": "4. Carregamento, dependências, erros e testes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na gemspec, arquivos e dependências podem ser descritos para orientar empacotamento e instalação da biblioteca.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não; gemspec serve somente para guardar comentários do autor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim; mas ela lista apenas a licença, sem arquivos nem dependências da gem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não; todos os dados do pacote ficam no código compilado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sim; mas apenas quando a gem não contém arquivos em lib/.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim; ela informa metadados, arquivos e dependências da gem.",
+          "correct": true
+        }
+      ],
+      "explanation": "A gemspec descreve o pacote RubyGems, incluindo nome, versão, arquivos e requisitos de dependência. Ela orienta construção e instalação e não é restrita a comentários ou a gems sem lib/.",
+      "section": "4. Carregamento, dependências, erros e testes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Módulos podem ser aninhados para qualificar constantes, mas declarar `module A::B` exige que A já esteja definido.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não; a forma compacta cria automaticamente qualquer namespace ausente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim; se o namespace externo faltar, essa forma pode gerar NameError.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não; Ruby não permite módulos aninhados nem nomes qualificados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sim; mas apenas quando B herda diretamente da classe A.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim; os módulos externos precisam existir antes da declaração compacta.",
+          "correct": true
+        }
+      ],
+      "explanation": "A documentação Ruby distingue aninhamento léxico e declaração compacta com ::. Na forma A::B, os módulos externos precisam existir; caso contrário pode ocorrer NameError.",
+      "section": "1. Ler a estrutura de um plugin Ruby",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma classe pode incluir vários módulos para compor capacidades, e a ordem de inclusão pode influenciar qual método homônimo será encontrado primeiro.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não; Ruby limita cada classe a um único módulo incluído.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim; módulos participam da cadeia e sua ordem importa na busca.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não; incluir módulos converte cada um em superclasse direta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sim; métodos homônimos seguem a ordem da cadeia de ancestrais.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Não; métodos de módulos só podem ser chamados estaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma classe pode compor comportamento com módulos. A ordem da cadeia de ancestrais afeta a primeira implementação encontrada para um método, razão para evitar nomes conflitantes e verificar ancestors.",
+      "section": "2. Métodos, mixins e comportamento existente",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A visibilidade private organiza a interface pública pretendida, mas não deve ser tratada como mecanismo completo de segurança.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim; ela organiza o uso esperado, sem criar uma fronteira absoluta.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Não; private criptografa os dados de instância em memória.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sim; impede que qualquer código Ruby inspecione o método.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não; private torna o método global para todas as classes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim; private bloqueia a execução até dentro da classe declarante.",
+          "correct": false
+        }
+      ],
+      "explanation": "A visibilidade expressa interface e restringe formas normais de chamada, mas não deve ser confundida com controle de acesso de segurança. Código Ruby pode usar recursos de reflexão ou chamadas explícitas para contornar convenções.",
+      "section": "2. Métodos, mixins e comportamento existente",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um hash `opcoes` pode não conter a chave `:timeout`, qual chamada consulta a chave e trata a ausência executando um bloco que informa o valor padrão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`opcoes.require(:timeout, 10)`, carregando configuração faltante.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "`opcoes.fetch(10, :timeout)`, com os argumentos em ordem invertida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`opcoes.map(:timeout, 10)`, transformando a chave em padrão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`opcoes.ensure(:timeout, 10)`, garantindo a presença do par.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`opcoes.fetch(:timeout) { 10 }`, tratando a ausência com bloco.",
+          "correct": true
+        }
+      ],
+      "explanation": "Hash#fetch retorna o valor da chave e aceita um padrão ou bloco para o caso de ausência. Não insere automaticamente o par no hash, permitindo tratar configuração faltante sem mutação implícita.",
+      "section": "3. Blocos, coleções e dados de configuração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um bloco pode ser recebido como argumento com `&bloco` e depois encaminhado a outra chamada compatível.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não; blocos Ruby não podem ser capturados por métodos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim; o parâmetro pode representar e encaminhar o bloco recebido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não; `&` converte qualquer bloco em variável global do processo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sim; desde que o método não receba argumentos posicionais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim; `&bloco` captura o bloco e `&bloco` pode repassá-lo.",
+          "correct": true
+        }
+      ],
+      "explanation": "O parâmetro com & captura um bloco como Proc e pode ser passado a outra chamada com & quando apropriado. Métodos Ruby podem combinar argumentos e bloco; assinatura e compatibilidade do receptor devem ser observadas.",
+      "section": "3. Blocos, coleções e dados de configuração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao adicionar uma opção de plugin, trocar automaticamente todas as chaves de símbolo por strings pode quebrar consumidores que consultam a chave original.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não; Hash iguala símbolos e strings pelo texto em qualquer consulta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim; são tipos de chave distintos e a conversão muda consultas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não; apenas os valores de Hash possuem tipo em Ruby.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sim; mas somente se o hash tiver mais de uma entrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim; Symbol e String são chaves diferentes no Hash.",
+          "correct": true
+        }
+      ],
+      "explanation": "Símbolo e string são chaves diferentes em Hash. Converter as chaves pode quebrar código consumidor que consulta :opcao quando o pacote passou a armazenar 'opcao', ou vice-versa.",
+      "section": "3. Blocos, coleções e dados de configuração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A expressão `block_given?` pode ser usada dentro de um método para verificar se a chamada recebeu bloco.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não; ela verifica se uma gem do mesmo nome está instalada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim; retorna informação sobre a presença de bloco na chamada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não; somente ensure pode consultar blocos recebidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sim; e executa automaticamente o bloco com argumentos padrão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim; ela informa se há bloco, sem executá-lo por si só.",
+          "correct": true
+        }
+      ],
+      "explanation": "Kernel#block_given? informa se um bloco foi fornecido à chamada corrente. A verificação não executa o bloco; o método pode então usar yield ou encaminhá-lo conforme seu contrato.",
+      "section": "3. Blocos, coleções e dados de configuração",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Antes de substituir um método do host, qual prática reduz o risco de alterar comportamento não documentado do plugin?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reabrir Object para que toda classe receba a nova implementação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar a cadeia de busca e duplicar toda a classe hospedeira.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Procurar hooks públicos documentados e testar o contrato integrado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Capturar todas as exceções do host antes de chamar o método.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o Gemfile.lock para substituir a API por uma constante.",
+          "correct": false
+        }
+      ],
+      "explanation": "Hooks documentados representam pontos de extensão previstos pelo host, e testes de integração verificam o contrato. Reabrir Object ou suprimir falhas espalha efeitos e reduz diagnósticos.",
+      "section": "2. Métodos, mixins e comportamento existente",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que ocorre quando `require_relative 'helpers'` aparece em `lib/plugin.rb` e existe `lib/helpers.rb`?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O caminho parte da pasta lib, onde está o arquivo chamador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O recurso é resolvido a partir do arquivo que contém a chamada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ruby procura apenas no diretório corrente do processo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O caminho é relativo ao arquivo chamador e pode localizar lib/helpers.rb.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O arquivo é incluído como módulo, sem executar suas definições.",
+          "correct": false
+        }
+      ],
+      "explanation": "A resolução relativa parte do arquivo que contém require_relative. Assim, de lib/plugin.rb, o caminho helpers pode apontar para lib/helpers.rb sem depender do diretório de execução do processo.",
+      "section": "4. Carregamento, dependências, erros e testes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma extensão armazena uma opção padrão no hash e precisa evitar alterar o objeto de configuração recebido do host. Qual abordagem é mais segura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Duplicar ou mesclar a configuração de forma controlada antes de acrescentar padrões.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Adicionar chaves diretamente ao hash do host em todo carregamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter o hash inteiro em variável global compartilhada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir a configuração por nil quando a chave estiver ausente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar load para reconstruir a configuração a cada leitura.",
+          "correct": false
+        }
+      ],
+      "explanation": "Copiar ou mesclar deliberadamente permite aplicar padrões sem mutar inadvertidamente o objeto pertencente ao host. Mutação compartilhada pode afetar outros plugins e tornar a ordem de carregamento relevante.",
+      "section": "3. Blocos, coleções e dados de configuração",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um mantenedor deseja tratar apenas uma falha de leitura esperada e deixar erros de programação visíveis. Qual desenho é mais apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Resgatar Exception sem filtro e retornar sempre um objeto vazio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ignorar toda mensagem de erro e continuar a inicialização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Resgatar a classe pertinente e propagar falhas que não pode tratar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar ensure como conversor de erro para retorno de sucesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Resgatar a falha esperada e não esconder exceções alheias ao caso.",
+          "correct": true
+        }
+      ],
+      "explanation": "Resgatar a classe esperada mantém o tratamento específico; falhas não recuperáveis devem continuar observáveis. Um resgate amplo que devolve sucesso pode deixar o plugin em estado inconsistente.",
+      "section": "4. Carregamento, dependências, erros e testes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma nova versão do plugin usa uma gem apenas na suíte de testes, nunca durante a execução pelos consumidores. Onde essa necessidade costuma ser declarada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Como dependência de runtime obrigatória para todo consumidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Como dependência de desenvolvimento, separada das dependências de execução.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Como constante global no arquivo de entrada do plugin.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Como método privado definido no módulo Kernel.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Como arquivo de migração carregado pelo interpretador Ruby.",
+          "correct": false
+        }
+      ],
+      "explanation": "Dependências necessárias somente para construir, testar ou desenvolver o pacote devem ser separadas das dependências de execução, que precisam estar disponíveis aos consumidores do plugin.",
+      "section": "4. Carregamento, dependências, erros e testes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Ruby 3.4 — Modules and Classes",
+      "publisher": "Ruby Documentation",
+      "reference": "Módulos como namespaces e mixins; reabertura, nesting e escopo de constantes",
+      "url": "https://docs.ruby-lang.org/en/3.4/syntax/modules_and_classes_rdoc.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Ruby 3.4 — Calling Methods",
+      "publisher": "Ruby Documentation",
+      "reference": "Chamadas, receptor, argumentos e operador de navegação segura",
+      "url": "https://docs.ruby-lang.org/en/3.4/syntax/calling_methods_rdoc.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Ruby 3.4 — Kernel",
+      "publisher": "Ruby Documentation",
+      "reference": "Métodos de carregamento, exceções e execução disponíveis por Kernel",
+      "url": "https://docs.ruby-lang.org/en/3.4/Kernel.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Ruby 3.4 — Module",
+      "publisher": "Ruby Documentation",
+      "reference": "Módulos, métodos de instância, visibilidade, include e module_function",
+      "url": "https://docs.ruby-lang.org/en/3.4/Module.html",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RubyGems Guides — Make your own gem",
+      "publisher": "RubyGems",
+      "reference": "Estrutura de gem, arquivo de entrada, dependências, testes e publicação",
+      "url": "https://guides.rubygems.org/make-your-own-gem/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RubyGems Guides — Specification Reference",
+      "publisher": "RubyGems",
+      "reference": "Atributos da gemspec e declaração de dependências",
+      "url": "https://guides.rubygems.org/specification-reference/",
+      "accessedAt": "2026-11-02"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Ruby — Official Ruby FAQ: Loading files",
+      "publisher": "Ruby",
+      "reference": "Diferença entre load e require; require evita carregar feature mais de uma vez",
+      "url": "https://www.ruby-lang.org/en/documentation/faq/6/",
+      "accessedAt": "2026-11-02"
+    }
+  ]
+}

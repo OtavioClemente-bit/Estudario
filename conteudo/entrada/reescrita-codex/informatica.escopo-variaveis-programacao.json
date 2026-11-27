@@ -1,0 +1,2531 @@
+{
+  "id": "informatica.escopo-variaveis-programacao",
+  "subject": "Informática",
+  "title": "Escopo de variáveis em programação",
+  "version": 2,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Escopo de Variáveis",
+    "Escopo de variáveis em programação",
+    "Visibilidade de variáveis na programação",
+    "Escopo léxico de nomes e variáveis",
+    "Escopo global local e de bloco",
+    "Variáveis locais e globais",
+    "Escopo de função e de bloco",
+    "Resolução de nomes em programas",
+    "Cadeia de escopos e variáveis",
+    "Escopo de variáveis em JavaScript",
+    "Escopo de variáveis em Python",
+    "Escopo de variáveis em Java"
+  ],
+  "scope": {
+    "covers": "Conceito de escopo e visibilidade de nomes; escopo global, de módulo, de função e de bloco; escopo léxico, encadeamento e sombreamento; diferenças concretas entre var, let e const em JavaScript; resolução de nomes, atribuição local, global e nonlocal em Python; variáveis locais, parâmetros, campos de instância e campos estáticos em Java; duração e acessibilidade dos vínculos, erros comuns e leitura de trechos curtos.",
+    "excludes": "Tipos e estruturas de dados em profundidade, gerenciamento de memória, regras completas de closures e concorrência, detalhes de compiladores e especificações completas de JavaScript, Python ou Java."
+  },
+  "theoryTitle": "Onde uma variável pode ser usada",
+  "chapters": [
+    {
+      "title": "1. Escopo, visibilidade e resolução de nomes",
+      "markdown": "### O problema que este assunto resolve\n\nImagine que Ana está conferindo um programa de estoque e encontra `total` em três linhas. Para saber se cada linha consulta o mesmo dado, ela precisa responder duas perguntas: onde esse nome foi declarado e quais declarações podem ser alcançadas naquele ponto? **Escopo** é a região do código em que um nome pode ser associado à declaração correspondente. Ele evita que toda variável do programa fique disponível em qualquer lugar, reduz colisões de nomes e permite separar tarefas.\n\n### Vocabulário para ler um trecho\n\nUm **identificador** é o nome escrito no código, como `total` ou `calcular`. Uma **declaração** introduz esse nome e informa à linguagem que ele representa uma variável, função ou outro elemento. Um **vínculo** (em inglês, *binding*) é a associação entre o nome e aquilo que foi declarado. **Visibilidade** é a possibilidade de usar essa associação em uma posição específica do programa. **Resolução de nomes** é a regra usada para descobrir a qual declaração um uso se refere quando existem declarações acessíveis com o mesmo nome.\n\nEssas ideias não descrevem o valor guardado. Atribuir `total = 12` muda o valor do vínculo que aquela linha resolveu; não muda, por si só, em que regiões o nome é visível. Também não descrevem quanto tempo o dado permanece na memória. **Duração de vida** é o período em que um objeto ou valor permanece existente durante a execução; escopo é uma regra de acesso no código. As duas coisas podem se relacionar, mas não são sinônimos.\n\n### A cadeia de escopos\n\nEm muitas linguagens, uma função ou bloco pode estar dentro de outro. O conjunto de regiões que envolvem uma declaração forma uma cadeia de ambientes. Ao encontrar um uso de nome, a linguagem aplica sua regra de resolução: em escopo léxico, examina a estrutura em que a função foi escrita, começando pelo ambiente mais próximo e seguindo para os ambientes externos permitidos. **Escopo léxico** quer dizer que a posição textual da declaração e os blocos que a contêm orientam a busca. A chamada que levou a função a executar não substitui essa estrutura.\n\nA relação é assimétrica: uma função interna pode, conforme as regras da linguagem, consultar uma declaração externa que a envolve. A função externa não ganha acesso automático às declarações que existem somente dentro da função interna. Estar “no mesmo arquivo” também não basta: é preciso considerar o tipo de escopo e a linguagem.\n\n### Exemplo passo a passo: qual `saldo` foi usado?\n\nConsidere este pseudocódigo, em que as chaves indicam blocos aninhados:\n\n```text\nsaldo = 100\nfunção conferir() {\n    saldo = 40\n    bloco {\n        saldo = 7\n        mostrar(saldo)\n    }\n    mostrar(saldo)\n}\nmostrar(saldo)\n```\n\nAna acompanha as linhas na ordem. Primeiro, existe uma declaração externa com valor 100. Ao entrar em `conferir`, ela encontra uma segunda declaração chamada `saldo`, dentro da função; dentro da função, esse nome mais próximo é o que as linhas internas consultam. Ao entrar no bloco, há uma terceira declaração local. Assim, a primeira chamada de `mostrar` dentro do bloco usa o vínculo de valor 7. Fechado o bloco, a declaração dele deixa de ser candidata; a chamada seguinte dentro da função usa o vínculo da função, de valor 40. Depois da função, a última chamada usa o vínculo externo, de valor 100. O exemplo ilustra a busca por regiões, mas cada linguagem tem regras próprias sobre declarações e atribuições: não se deve tratar este pseudocódigo como sintaxe executável.\n\n### Sombreamento e atualização são coisas diferentes\n\n**Sombreamento** ocorre quando uma declaração mais interna tem o mesmo nome de uma externa e passa a ser a declaração mais próxima para os usos naquela região. O vínculo externo continua existindo; apenas fica encoberto enquanto a execução está no escopo interno. Já uma **atribuição** atualiza o valor do vínculo que a resolução encontrou. O nome repetido não informa sozinho se houve uma nova declaração ou se o valor de uma declaração existente foi alterado.\n\n| Situação | O que muda? | O que não se conclui automaticamente? |\n| --- | --- | --- |\n| Nova declaração interna com o mesmo nome | O uso interno pode resolver para outro vínculo | Que o valor externo foi apagado |\n| Atribuição a um nome já resolvido | O estado do vínculo designado | Que nasceu um novo escopo |\n| Fim de um bloco | A região em que declarações locais podem ser usadas | Que todo objeto relacionado foi destruído naquele instante |\n\nAs linguagens também limitam quando a declaração repetida é permitida. Em JavaScript, por exemplo, um `let` em bloco aninhado pode sombrear outro `let` externo; duas declarações lexicais com o mesmo nome no mesmo escopo não são aceitas. Para decidir, identifique primeiro a linguagem e depois a relação entre os blocos.\n\n### Pegadinha:\n\nA banca pode mostrar o mesmo identificador em duas regiões e afirmar que todas as ocorrências representam a mesma variável. Grafia igual não prova identidade: pode haver sombreamento. Também pode tentar induzir a conclusão de que alterar o nome interno altera o externo. Acompanhe cada declaração e cada uso pela cadeia de escopos. Em escopo léxico, não use a ordem das chamadas como critério para localizar o nome.\n\n### Resumo para a prova\n\nEscopo indica onde um nome pode ser usado; resolução de nomes identifica a declaração correspondente. Valor é o estado atual do vínculo, e duração de vida é o período de existência do dado: são conceitos diferentes. Em escopo léxico, a estrutura textual orienta a busca pelos ambientes próximos e externos. Uma declaração interna pode sombrear a externa sem apagá-la; uma atribuição, por sua vez, muda o vínculo que o nome resolveu. Confirme sempre a linguagem e a regra de redeclaração aplicável."
+    },
+    {
+      "title": "2. Escopos global, de módulo, função e bloco",
+      "markdown": "### O problema que este assunto resolve\n\nUma equipe pode dividir um programa em arquivos, funções e pequenos blocos. Se um nome criado para uma tarefa temporária escapasse de sua região, outra parte poderia usá-lo por engano ou declarar outro nome incompatível. Os níveis de escopo organizam esse alcance. A palavra **global** costuma indicar um ambiente amplo, mas o significado exato muda entre linguagens e até entre formas de executar a mesma linguagem.\n\n### Quatro regiões que aparecem com frequência\n\n**Escopo global** é o ambiente mais amplo oferecido por um programa ou contexto de execução. Não significa necessariamente que o nome esteja disponível em todos os arquivos, processos ou computadores. **Escopo de módulo** é a região associada a um módulo, isto é, uma unidade de código que pode organizar declarações e oferecer mecanismos de importação. **Escopo de função** é a região de um corpo de função ou método; **parâmetro** é o nome local que recebe um argumento quando a função é chamada. Um **bloco** é uma parte agrupada da sintaxe, muitas vezes marcada por chaves, mas a existência de chaves não garante que cada linguagem dê a esse trecho escopo próprio.\n\n### O mesmo desenho, regras diferentes\n\nEm JavaScript, `let` e `const` criam vínculos com escopo de bloco. `var` segue a função mais próxima, e um bloco simples não o limita. Uma declaração no nível superior de um módulo pertence ao escopo do módulo; não se deve concluir que seja automaticamente uma propriedade do objeto global. Em um script clássico, algumas regras de `var` no nível superior são diferentes, por isso o modo de execução importa.\n\nEm Python, uma atribuição em um corpo de `if` ou `for` não cria um escopo de bloco independente. Se ela aparece dentro de uma função, as regras de nomes locais da função se aplicam. O próprio módulo também possui seu namespace. Em Java, variáveis locais e parâmetros são limitados pelo método e pelos blocos em que foram declarados; campos são membros da classe ou do objeto e têm regras de acesso próprias.\n\n| Forma examinada | Alcance principal | Ponto de atenção |\n| --- | --- | --- |\n| JavaScript: `let` ou `const` | Bloco mais próximo que contém a declaração | O uso antes da declaração tem regra própria, vista no capítulo seguinte |\n| JavaScript: `var` | Função mais próxima; sem função, depende de script ou módulo | Bloco `if` ou `for` simples não o confina |\n| Python: atribuição em função | Bloco da função, conforme as regras de vinculação de nomes | `if` e `for` não criam escopo local separado |\n| Java: variável local | Bloco válido dentro do método | Não é campo e precisa estar inicializada antes da leitura |\n\n### Exemplo passo a passo: contador dentro de um laço\n\nRui está examinando um contador usado apenas para listar itens. Ele vê um laço escrito dentro de um bloco e pergunta se `contador` ainda poderá ser consultado depois da chave de fechamento. Primeiro, anota a linguagem e a forma da declaração. Se o código for JavaScript e declarar `let contador`, o nome está limitado ao bloco do laço; depois do bloco, esse identificador não está disponível naquela região externa. Se a declaração for `var contador` dentro de uma função, o bloco não basta para escondê-lo: o nome continua no escopo da função. Se o trecho for Python, atribuir a `contador` dentro de `for` não cria um escopo próprio para o laço; dentro de uma função, a análise considera o bloco da função. Se for Java, uma variável local declarada no bloco não pode ser referenciada após o fechamento dele. O procedimento é: localizar declaração; marcar as chaves ou o corpo da função que a contém; identificar a linguagem; só então avaliar o uso posterior.\n\n### Módulo e global não são intercambiáveis\n\nUm nome pode ser amplo em relação às funções de um arquivo, mas continuar restrito ao módulo em que foi definido. **Importação** é o mecanismo pelo qual um módulo disponibiliza ou consulta declarações de outro, conforme as regras da linguagem; ela não transforma automaticamente todos os nomes em globais universais. Da mesma forma, o objeto global de um ambiente de execução é uma estrutura específica, não um sinônimo para qualquer nome de nível superior. O alcance real depende de script, módulo, classe e regras de visibilidade.\n\n### Pegadinha:\n\nA banca pode exibir chaves e tratar o conteúdo como escopo de bloco em toda linguagem. A resposta depende da declaração e da linguagem: `let` e `var` divergem em JavaScript, enquanto `if` e `for` não criam escopo local independente em Python. Outra armadilha é chamar de “global” qualquer variável que não esteja dentro de uma função. Verifique se o nome pertence ao script, ao módulo, a uma classe ou ao ambiente global.\n\n### Resumo para a prova\n\nEscopos global, de módulo, de função e de bloco indicam regiões diferentes, e “global” não significa disponibilidade universal. Parâmetros são nomes locais à chamada. O efeito de um bloco depende da linguagem e da forma de declaração: JavaScript `let`/`const` são de bloco, `var` é de função; Python não cria escopo local separado para `if`/`for`; Java limita variáveis locais ao bloco válido. Leia o contexto do código antes de decidir se um nome continua visível após uma chave."
+    },
+    {
+      "title": "3. Escopo e declarações em JavaScript",
+      "markdown": "### O problema que este assunto resolve\n\nAo ler JavaScript, Ana encontra `var`, `let` e `const` e precisa prever quais nomes continuam acessíveis e em que momento podem ser usados. JavaScript é uma linguagem de programação; **declaração** é a instrução que introduz um nome. As três palavras não são intercambiáveis: diferem no alcance do nome, nas regras de redeclaração e no acesso antes da linha declarativa. Para resolver um trecho, Ana marca a palavra usada, o bloco ou função que contém a declaração e a ordem de execução.\n\n### Escopo de `var`\n\n`var` tem escopo de função: o vínculo pode ser usado na função que o contém, inclusive em blocos internos simples. Se não houver função envolvente, a regra depende do contexto de nível superior. Um **script clássico** é um script que não está sendo tratado como módulo; em um script clássico, uma declaração `var` no nível superior tem relação com o objeto global. Um **módulo** é uma unidade JavaScript com escopo próprio e regras de importação e exportação; uma declaração no nível superior do módulo não se torna automaticamente propriedade global. `globalThis` é o nome padronizado para acessar o objeto global do ambiente, mas nem toda variável de nível superior é propriedade desse objeto.\n\nUma declaração `var` é içada: durante a preparação do escopo, o nome é conhecido antes da execução sequencial chegar à linha da declaração, e sua variável recebe inicialmente `undefined` (valor que representa ausência de valor definido). Isso explica por que a leitura antecipada não costuma ser erro de nome, embora o resultado ainda não seja o valor atribuído mais adiante. O içamento não move literalmente a linha no arquivo nem executa a atribuição antes.\n\n### Escopo e inicialização de `let` e `const`\n\n`let` e `const` são declarações lexicais com escopo do bloco mais próximo que as contém. Um bloco é uma região estrutural do código; em JavaScript, chaves de um bloco podem delimitar esse escopo. O vínculo é conhecido dentro de sua região, mas não pode ser acessado antes de a declaração ser alcançada na execução. Esse intervalo é chamado **TDZ**, sigla de *temporal dead zone*, ou “zona morta temporal”; tentar ler ali causa `ReferenceError`, erro de referência que indica acesso inválido ao nome. Esse comportamento também se aplica a `const`.\n\n`let` permite atribuir outro valor ao vínculo depois de sua inicialização. `const` exige valor inicial na declaração e impede que o vínculo seja reatribuído. Isso não congela automaticamente um objeto. Um **objeto** é uma estrutura que pode conter propriedades; se `const caixa` aponta para um objeto, as propriedades desse objeto ainda podem ser alteradas quando a linguagem e o código permitem. O que não se pode fazer é reatribuir `caixa` para apontar a outro objeto.\n\nAs declarações lexicais não podem ser repetidas no mesmo escopo. Um bloco aninhado, porém, é uma região diferente: pode declarar outro `let` ou `const` com o mesmo nome e sombrear o exterior dentro do bloco interno.\n\n| Forma | Região do vínculo | Atribuição posterior | Uso antes da declaração |\n| --- | --- | --- | --- |\n| `var` | Função mais próxima; nível superior depende do contexto | Permitida | A leitura pode retornar `undefined` antes da atribuição |\n| `let` | Bloco mais próximo | Permitida | Erro durante a TDZ |\n| `const` | Bloco mais próximo | Reatribuição proibida | Erro durante a TDZ |\n\n### Exemplo passo a passo: duas variáveis chamadas `pontos`\n\nLia está revisando este fragmento:\n\n```javascript\nlet pontos = 4;\n{\n  let pontos = 9;\n  console.log(pontos);\n}\nconsole.log(pontos);\n```\n\nPrimeiro, a declaração externa cria um vínculo de valor 4. Em seguida, o programa entra no bloco e encontra outra declaração `let`; ela cria um vínculo próprio de valor 9, permitido porque o bloco interno é diferente do escopo externo. A chamada de `console.log` (função usada aqui para exibir informação) dentro do bloco resolve o nome para a declaração mais próxima e exibe 9. Ao fechar a chave, aquele bloco termina; o uso seguinte resolve para o `pontos` externo e exibe 4. Os nomes têm a mesma grafia, mas são vínculos distintos. Se a declaração interna fosse `var`, o bloco sozinho não a confinaria: ela pertenceria à função envolvente ou ao contexto de nível superior.\n\nAgora considere `console.log(taxa); let taxa = 3;`. A declaração lexical pertence ao escopo, mas o acesso ocorre antes de a execução alcançar a declaração. Portanto, não é correto dizer que a linguagem simplesmente não conhece o nome: a falha decorre da TDZ. Em contraste, com `var taxa`, a leitura antecipada pode produzir `undefined`, e a atribuição a 3 só ocorre depois.\n\n### Laços e redeclaração\n\nA diferença pode aparecer em laços que criam funções de retorno de chamada, isto é, funções passadas para serem executadas em outro momento. `let` fornece vínculos associados às iterações do laço de forma que cada função pode observar o valor correspondente à iteração; `var` usa o vínculo de função compartilhado. Em questão de prova, leia o código concreto e não suponha que a palavra “laço” por si só determine a regra: a declaração usada importa.\n\n### Pegadinha:\n\nA banca pode afirmar que “hoisting” torna qualquer variável acessível antes da declaração. O termo descreve o processamento prévio das declarações; não elimina a TDZ de `let` e `const`. Outra armadilha é dizer que `const` torna imutável tudo que o nome referencia: ela impede reatribuir o vínculo, mas não torna imutáveis as propriedades de um objeto. Por fim, confira se o trecho é módulo ou script clássico antes de relacionar uma declaração de topo a `globalThis`.\n\n### Resumo para a prova\n\n`var` tem escopo de função e um bloco simples não o restringe; sua leitura antes da atribuição pode resultar em `undefined`. `let` e `const` têm escopo de bloco e não podem ser acessados durante a TDZ anterior à declaração. `let` admite reatribuição; `const` exige inicialização e impede reatribuir o vínculo, mas não garante imutabilidade do objeto. Redeclaração lexical no mesmo escopo é proibida, enquanto um bloco aninhado pode sombrear o nome externo. Considere também se o código é script clássico ou módulo."
+    },
+    {
+      "title": "4. Resolução de nomes em Python e categorias em Java",
+      "markdown": "### O problema que este assunto resolve\n\nPython e Java mostram por que não basta decorar uma definição genérica de escopo. Em Python, a análise precisa considerar as atribuições feitas no corpo da função, inclusive as que aparecem depois de uma leitura. Em Java, é necessário classificar o nome: pode ser uma variável local, um parâmetro, um campo de instância ou um campo estático. **Python** e **Java** são linguagens de programação com regras próprias; o mesmo desenho de código não autoriza aplicar as regras de uma à outra.\n\n### Python: a função inteira importa\n\nUm **namespace** é um conjunto de associações entre nomes e objetos; o módulo possui seu namespace. Em Python, se o corpo de uma função atribui a `n`, o nome é considerado local naquele bloco da função, salvo se uma declaração `global` ou `nonlocal` indicar outra resolução. A decisão considera o bloco da função inteiro, não apenas as linhas já executadas. Por isso, uma leitura anterior à atribuição local não consulta automaticamente um nome global de mesmo nome: pode gerar `UnboundLocalError`, erro que informa que uma variável local foi usada antes de receber um valor.\n\nA palavra `global` declara que as leituras e atribuições desse nome no bloco da função devem usar a associação do módulo. Ela não torna o nome acessível universalmente em outros programas. A palavra `nonlocal` declara que o nome deve se referir a uma associação já existente em uma função envolvente, ou seja, uma função que contém a função atual. Se não existir tal associação, o código é inválido. Em ambos os casos, a declaração precisa estar no bloco antes dos usos incompatíveis com ela.\n\nUm `if` (condicional) escolhe um caminho de execução; um `for` (laço de repetição) percorre itens. Em Python, esses blocos não criam por si sós um escopo local independente. Assim, uma atribuição feita dentro de um `if` dentro de uma função continua sujeita às regras de nomes daquela função.\n\n### Exemplo passo a passo: nome local que encobre o do módulo\n\nBia lê o trecho Python abaixo e nota que `limite` aparece antes da atribuição:\n\n```python\nlimite = 10\ndef conferir():\n    print(limite)\n    limite = 5\n```\n\nA primeira linha associa `limite` no módulo. Bia poderia pensar que `print` mostrará 10, pois essa associação existe. Mas ela percorre o corpo completo de `conferir` e encontra uma atribuição local a `limite`. Por isso, Python classifica esse nome como local na função. Quando a execução tenta imprimi-lo, a variável local ainda não recebeu valor; o nome global não substitui a variável local, e ocorre `UnboundLocalError`. Se a intenção for atualizar a variável do módulo, a função deve declarar `global limite` antes do uso. Se a intenção for apenas consultar o nome externo sem atribuir localmente, deve-se evitar a atribuição local.\n\nPara diferenciar as declarações: uma função dentro de outra que pretende atualizar uma variável da função envolvente usa `nonlocal nome`; uma função que pretende atualizar uma associação do módulo usa `global nome`. Nenhuma delas significa “compartilhar com todo o sistema”.\n\n### Java: primeiro identifique a categoria\n\nEm Java, uma **variável local** é declarada dentro de um método ou bloco. Ela pode ser usada na região permitida a partir de sua declaração, e o compilador exige que tenha um valor definido antes da leitura. Um **parâmetro** é uma variável local recebida pelo método ou construtor quando ele é chamado. Não é um campo da classe.\n\nUm **campo** é uma variável declarada como membro de uma classe. O **campo de instância** pertence a cada objeto criado daquela classe; objetos diferentes podem manter valores diferentes nesse campo. O modificador `static` (estático) indica que o campo está associado à classe, e não é uma variável local de cada chamada. Os campos recebem valores padrão da linguagem se não forem inicializados explicitamente; essa regra não se aplica a variáveis locais.\n\n| Categoria em Java | Onde é declarado | Associação principal | Inicialização omitida |\n| --- | --- | --- | --- |\n| Variável local | Método ou bloco | Execução da região local | Precisa receber valor antes da leitura |\n| Parâmetro | Lista de parâmetros do método ou construtor | Chamada que fornece o argumento | Recebe o valor fornecido na chamada |\n| Campo de instância | Corpo da classe, sem `static` | Cada objeto | Recebe valor padrão da linguagem |\n| Campo estático | Corpo da classe, com `static` | Classe | Recebe valor padrão da linguagem |\n\n### Exemplo passo a passo: parâmetro e campo homônimos\n\nCaio examina uma classe Java com um campo `nome` e um método `renomear(String nome)`. A declaração no corpo da classe é um campo associado ao objeto; o `nome` entre parênteses é parâmetro recebido na chamada. Dentro do método, o parâmetro mais próximo sombreia o campo, então uma expressão simples `nome` designa o parâmetro. A expressão `this.nome` usa `this`, referência ao objeto atual, para selecionar o campo daquele objeto. Se o método atribui `this.nome = nome`, o lado esquerdo aponta ao campo e o lado direito ao parâmetro. Ao terminar a chamada, o parâmetro deixa de pertencer àquela execução; o campo permanece como estado do objeto.\n\nO exemplo também separa escopo de inicialização. Um campo que não recebeu atribuição explícita ainda tem o padrão definido pela linguagem. Uma variável local, porém, não pode ser lida até que o compilador consiga verificar que recebeu um valor. Modificadores de acesso, como os que regulam o acesso entre classes, afetam quem pode usar um membro; são uma questão relacionada, mas não transformam campo em variável local nem substituem a análise de escopo.\n\n### Comparação para resolver questões\n\n| Pergunta | Python | Java |\n| --- | --- | --- |\n| Como reconhecer nome local em função ou método? | Atribuição no bloco da função, salvo `global`/`nonlocal` | Declaração local ou parâmetro dentro do método/bloco |\n| O bloco de `if` cria escopo local próprio? | Não | Uma variável local declarada num bloco fica restrita a ele |\n| Como atingir uma associação externa? | `global` para o módulo; `nonlocal` para função envolvente | Campo pode ser qualificado, por exemplo com `this` para o objeto atual |\n| Local não inicializada pode ser lida? | Não quando ainda não foi vinculada; pode ocorrer `UnboundLocalError` | Não; deve estar definitivamente inicializada |\n\n### Pegadinha:\n\nEm Python, uma atribuição que aparece mais abaixo pode fazer a leitura anterior tratar o nome como local, em vez de buscar o mesmo nome no módulo. Não confunda `global` com `nonlocal`: o primeiro aponta ao módulo, o segundo a uma função envolvente. Em Java, não chame parâmetro de campo e não estenda aos locais os valores padrão que se aplicam aos campos. Quando parâmetro e campo têm o mesmo nome, determine qual deles cada expressão designa; `this.campo` identifica o campo do objeto atual.\n\n### Resumo para a prova\n\nEm Python, uma atribuição no bloco da função pode tornar o nome local em todo esse bloco; ler antes de atribuir pode gerar `UnboundLocalError`. `global` direciona ao namespace do módulo e `nonlocal` a uma associação preexistente em função envolvente; `if` e `for` não criam escopo local independente. Em Java, diferencie variável local, parâmetro, campo de instância e campo `static`. Campos recebem valores padrão quando a inicialização é omitida; variáveis locais precisam ser inicializadas antes da leitura. Um parâmetro pode sombrear campo homônimo, e `this.campo` qualifica o campo do objeto atual."
+    }
+  ],
+  "summary": "Escopo define onde um identificador pode ser usado e qual declaração um uso resolve. Escopos podem se aninhar; a resolução léxica procura o vínculo mais próximo no texto, e uma declaração interna pode sombrear uma externa sem alterá-la. As regras dependem da linguagem: JavaScript limita let/const a blocos, mas var a funções; let/const têm TDZ e não podem ser redeclarados no mesmo escopo lexical, e const impede reatribuição do vínculo. Python define nomes locais de função a partir de atribuições em todo o bloco; global referencia o módulo e nonlocal uma função envolvente. Blocos if/for não criam escopo próprio em Python. Java distingue variáveis locais e parâmetros de campos de instância e estáticos; campos recebem valores padrão e variáveis locais precisam ser inicializadas antes da leitura.",
+  "flashcards": [
+    {
+      "front": "O que é escopo de um identificador?",
+      "back": "A região do código na qual o nome pode ser resolvido para sua declaração."
+    },
+    {
+      "front": "Escopo e valor são a mesma coisa?",
+      "back": "Não. Escopo determina visibilidade e resolução; valor é o estado atual da variável."
+    },
+    {
+      "front": "O que é escopo léxico?",
+      "back": "Resolução determinada pela estrutura textual e pelos blocos que contêm a declaração."
+    },
+    {
+      "front": "O que é sombreamento?",
+      "back": "Um vínculo interno com o mesmo nome passa a ser o mais próximo em sua região; o externo continua existindo fora dela."
+    },
+    {
+      "front": "Em JavaScript, qual o escopo de let?",
+      "back": "O bloco mais próximo que contém a declaração, incluindo blocos de função e estruturas especificadas pela linguagem."
+    },
+    {
+      "front": "Em JavaScript, qual o escopo de var?",
+      "back": "A função mais próxima; sem função envolvente, o escopo global do script."
+    },
+    {
+      "front": "Um bloco simples limita var em JavaScript?",
+      "back": "Não. var não tem escopo de bloco."
+    },
+    {
+      "front": "O que é TDZ?",
+      "back": "Intervalo antes da declaração let/const ser alcançada no qual o vínculo não pode ser acessado."
+    },
+    {
+      "front": "O que ocorre ao ler let antes de sua declaração?",
+      "back": "ReferenceError, por causa da temporal dead zone."
+    },
+    {
+      "front": "O que const impede?",
+      "back": "A reatribuição do vínculo; não garante imutabilidade profunda do objeto referenciado."
+    },
+    {
+      "front": "let e const podem ser redeclarados no mesmo escopo lexical?",
+      "back": "Não; a nova declaração no mesmo escopo causa erro de sintaxe."
+    },
+    {
+      "front": "O que significa globalThis em JavaScript?",
+      "back": "Uma forma padronizada de referenciar o objeto global do ambiente."
+    },
+    {
+      "front": "O que cria escopo de bloco em JavaScript?",
+      "back": "Um bloco limita declarações let/const nele contidas; não limita var."
+    },
+    {
+      "front": "Em Python, um if cria escopo próprio?",
+      "back": "Não. A atribuição dentro do if mantém o escopo do bloco envolvente, como a função ou módulo."
+    },
+    {
+      "front": "Como Python decide que um nome é local à função?",
+      "back": "Uma operação de vinculação no bloco da função torna o nome local, salvo declaração global ou nonlocal."
+    },
+    {
+      "front": "Para que serve global em Python?",
+      "back": "Faz os usos do nome naquela função referenciarem o vínculo no namespace do módulo."
+    },
+    {
+      "front": "Para que serve nonlocal em Python?",
+      "back": "Faz o nome apontar para uma vinculação existente na função envolvente mais próxima."
+    },
+    {
+      "front": "Quando ocorre UnboundLocalError em Python?",
+      "back": "Ao ler dentro da função um nome classificado como local antes de vinculá-lo a um valor."
+    },
+    {
+      "front": "O que é campo de instância em Java?",
+      "back": "Campo não estático cujo estado pertence a cada objeto individual."
+    },
+    {
+      "front": "O que é campo static em Java?",
+      "back": "Campo associado à classe, em vez de haver uma cópia independente por objeto."
+    },
+    {
+      "front": "Parâmetros Java são campos?",
+      "back": "Não. São variáveis locais ao método ou construtor que os recebe."
+    },
+    {
+      "front": "Variáveis locais Java recebem automaticamente valor padrão?",
+      "back": "Não. Devem estar definitivamente inicializadas antes de serem lidas."
+    },
+    {
+      "front": "Campos Java recebem valor padrão quando omitida a inicialização?",
+      "back": "Sim, conforme o tipo e as regras da linguagem; isso não se aplica a variáveis locais."
+    },
+    {
+      "front": "Como evitar confusão entre parâmetro e campo Java de mesmo nome?",
+      "back": "Qualificar o campo com this, como this.nome, quando se quer referir ao objeto atual."
+    }
+  ],
+  "tips": [
+    "Marque no trecho a declaração, o bloco que a contém e o ponto de uso antes de decidir se o nome está visível.",
+    "Não trate escopo, duração de vida e valor como sinônimos; são propriedades diferentes.",
+    "Em JavaScript, procure a palavra-chave antes de analisar as chaves: var e let/const têm regras distintas.",
+    "Em Python, percorra a função inteira procurando atribuições: isso pode tornar local um nome usado antes delas.",
+    "Em Java, classifique primeiro: local, parâmetro, campo de instância ou campo static.",
+    "Para nome repetido em bloco aninhado, pergunte se houve novo vínculo (sombreamento) ou mutação do vínculo externo."
+  ],
+  "traps": [
+    "Afirmar que toda chave cria escopo em toda linguagem. Python não cria escopo local separado para if/for.",
+    "Dizer que var fica restrita ao bloco em JavaScript. Ela é limitada à função ou ao global do script.",
+    "Dizer que let pode ser lida antes da declaração por causa de hoisting. A TDZ impede o acesso.",
+    "Equiparar const a objeto imutável. const impede reatribuir o vínculo, mas propriedades podem mudar.",
+    "Supor que uma atribuição em Python modifica o global homônimo sem global. A atribuição torna o nome local.",
+    "Afirmar que variável local Java começa com valor padrão. Ela precisa ser inicializada antes da leitura."
+  ],
+  "activeRecall": [
+    {
+      "question": "Defina escopo sem confundi-lo com valor ou duração de vida.",
+      "answer": "Escopo é a região em que um identificador pode ser usado/resolvido; valor é o estado da variável e duração de vida é o período de existência do objeto ou vínculo."
+    },
+    {
+      "question": "O que significa a busca pelo escopo mais próximo?",
+      "answer": "Um uso não resolvido no bloco atual pode ser procurado nos escopos léxicos envolventes, conforme as regras da linguagem."
+    },
+    {
+      "question": "Compare var com let/const diante de um bloco JavaScript.",
+      "answer": "let/const são limitadas ao bloco; var ignora bloco simples e é limitada à função ou ao global do script."
+    },
+    {
+      "question": "Explique a TDZ em uma frase.",
+      "answer": "let/const estão associadas ao escopo, mas não podem ser acessadas entre o início desse escopo e a linha de declaração alcançada."
+    },
+    {
+      "question": "Por que atribuir a um nome em Python pode causar UnboundLocalError?",
+      "answer": "A atribuição faz o nome ser local em toda a função; uma leitura anterior tenta usar o vínculo local ainda sem valor."
+    },
+    {
+      "question": "Diferencie global e nonlocal em Python.",
+      "answer": "global aponta para o namespace do módulo; nonlocal aponta para uma vinculação de função envolvente já existente."
+    },
+    {
+      "question": "Diferencie campo de instância e campo static em Java.",
+      "answer": "O campo de instância tem estado por objeto; o static é associado à classe e compartilhado por suas instâncias daquela classe."
+    },
+    {
+      "question": "Como distinguir inicialização de campo e local em Java?",
+      "answer": "Campos recebem valores padrão da linguagem; uma variável local precisa estar inicializada antes de qualquer leitura."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confundir escopo com alcance de bloco universal",
+      "summary": "A existência de chaves não implica a mesma regra em toda linguagem. JavaScript limita let/const, mas não var; Python não cria escopo local novo em if/for."
+    },
+    {
+      "key": "e2",
+      "title": "Interpretar hoisting como acesso antecipado permitido",
+      "summary": "Em JavaScript, let e const ficam associadas ao bloco desde seu início, mas não podem ser lidas antes de a execução alcançar a declaração. Esse intervalo é a TDZ e o acesso causa ReferenceError, ao contrário da leitura antecipada de var, que pode resultar em undefined."
+    },
+    {
+      "key": "e3",
+      "title": "Não perceber a classificação local de nome em Python",
+      "summary": "Python classifica como local à função um nome que recebe atribuição em qualquer ponto do bloco, salvo declaração global ou nonlocal. Por isso, uma leitura anterior à atribuição tenta acessar o vínculo local ainda sem valor e pode gerar UnboundLocalError, mesmo que exista um nome global igual."
+    },
+    {
+      "key": "e4",
+      "title": "Misturar variáveis locais e campos em Java",
+      "summary": "Em Java, campos de instância e campos static recebem valores padrão quando não são inicializados explicitamente, mas variáveis locais precisam ter valor definido antes da leitura. Parâmetros também são variáveis locais associadas à chamada, não campos da classe; confundir as categorias leva a previsões erradas sobre visibilidade e inicialização."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em programação, escopo de um identificador designa principalmente a região em que ele pode ser referenciado conforme as regras da linguagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O escopo determina onde o nome pode ser resolvido para uma declaração. Ele não determina, por si só, o valor atual nem a duração de vida do objeto associado.",
+      "section": "1. Escopo, visibilidade e resolução de nomes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Escopo e valor atual de uma variável são conceitos equivalentes, pois ambos indicam onde o nome aparece no programa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Escopo trata de visibilidade e resolução do nome; valor é o dado associado à variável em certo momento. Um nome pode estar visível com diferentes valores ao longo da execução.",
+      "section": "1. Escopo, visibilidade e resolução de nomes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No escopo léxico, a posição textual da declaração e os blocos que a contêm orientam a resolução do nome.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O escopo léxico segue a estrutura do código-fonte: o uso procura a declaração no bloco atual e nos ambientes externos permitidos, não na cadeia de chamadas que levou à função.",
+      "section": "1. Escopo, visibilidade e resolução de nomes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em escopo léxico, uma função sempre resolve primeiro uma variável no escopo de quem a chamou.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O escopo léxico decorre da localização textual da função e dos ambientes que a envolvem. A função chamadora não passa a ser escopo externo só por invocá-la.",
+      "section": "1. Escopo, visibilidade e resolução de nomes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma declaração interna com nome igual ao de uma externa pode sombrear o vínculo externo sem necessariamente alterar seu valor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Quando a linguagem permite a declaração aninhada, o nome mais próximo é resolvido dentro da região interna. O vínculo externo continua distinto e volta a ser encontrado fora dela.",
+      "section": "1. Escopo, visibilidade e resolução de nomes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sempre que dois trechos usam o mesmo identificador, ambos necessariamente acessam a mesma variável.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Podem ser vínculos diferentes em escopos distintos, e o nome interno pode sombrear o externo. É preciso examinar declarações e regras da linguagem.",
+      "section": "1. Escopo, visibilidade e resolução de nomes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma variável inacessível fora de seu escopo necessariamente deixou de existir fisicamente naquele instante.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Visibilidade e duração de vida são noções distintas. Um objeto ainda pode existir por referências ou mecanismos de execução, embora determinado identificador não esteja visível naquele ponto.",
+      "section": "1. Escopo, visibilidade e resolução de nomes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cadeia de escopos permite que um escopo interno consulte nomes externos permitidos, mas não torna automaticamente seus nomes locais acessíveis ao externo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A relação de visibilidade é assimétrica: o código interno pode alcançar certos vínculos externos; o escopo externo não ganha acesso aos nomes criados apenas no interno.",
+      "section": "1. Escopo, visibilidade e resolução de nomes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Escopo global tem exatamente a mesma extensão e comportamento em todas as linguagens e ambientes de execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O sentido depende da linguagem e do ambiente: script clássico, módulo, namespace do módulo e objeto global não são automaticamente equivalentes.",
+      "section": "2. Escopos global, de módulo, função e bloco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em JavaScript, let e const são declarações lexicais limitadas ao bloco que as contém, observadas as estruturas definidas pela linguagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação da linguagem descreve let e const como block-scoped. Blocos aninhados podem ter vínculos próprios, e as declarações também podem ocorrer em escopo de função, módulo ou global.",
+      "section": "2. Escopos global, de módulo, função e bloco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em JavaScript, var declarada dentro de um if fica restrita ao bloco do if.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. var não tem escopo de bloco. Dentro de uma função fica acessível ao longo do escopo da função; sem função envolvente, a declaração integra o escopo global do script.",
+      "section": "2. Escopos global, de módulo, função e bloco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, atribuir a um nome dentro de um if cria necessariamente uma variável local exclusiva daquele if.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. if não cria escopo local separado em Python. A atribuição pertence ao bloco envolvente, por exemplo à função ou ao módulo.",
+      "section": "2. Escopos global, de módulo, função e bloco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Parâmetros de função são nomes locais associados à chamada, ainda que tenham o mesmo identificador de um nome externo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O parâmetro é vinculado ao escopo da função para aquela chamada. Um nome igual em ambiente externo não transforma o parâmetro em variável global.",
+      "section": "2. Escopos global, de módulo, função e bloco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um arquivo JavaScript carregado como módulo trata toda declaração de nível superior como propriedade automática de globalThis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Módulos têm escopo de módulo; declarações lexicais de nível superior não se tornam automaticamente propriedades de globalThis. É necessário distinguir módulo de script clássico.",
+      "section": "2. Escopos global, de módulo, função e bloco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A regra de que uma variável local é visível apenas em sua região declarada pode ser aplicada sem verificar qual linguagem está sendo examinada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A noção geral de visibilidade é comum, mas os limites concretos variam. Em especial, JavaScript diferencia var de let/const e Python não trata if como escopo local separado.",
+      "section": "2. Escopos global, de módulo, função e bloco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um script clássico, var no nível superior pode criar propriedade do objeto global, enquanto let de nível superior não o faz.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essa diferença vale para script clássico: var de nível superior associa-se ao objeto global; let/const criam vínculos lexicais e não propriedades do global. Módulos têm regras próprias.",
+      "section": "2. Escopos global, de módulo, função e bloco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa define escopo com maior precisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Região em que o nome pode ser usado e resolvido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conjunto de valores que uma variável pode assumir durante a execução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Intervalo físico em que o processador mantém um dado em registrador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quantidade de bytes reservada para qualquer nome declarado no programa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ordem em que as instruções de uma função são chamadas por outras funções.",
+          "correct": false
+        }
+      ],
+      "explanation": "Escopo trata da visibilidade e da resolução do identificador. Valores possíveis, armazenamento físico e fluxo de chamadas são conceitos diferentes.",
+      "section": "1. Escopo, visibilidade e resolução de nomes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função definida dentro de outra função usa escopo léxico. Onde ela procura primeiro um nome não declarado em seu próprio corpo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "No escopo da função que a chamou mais recentemente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "No escopo lexical imediatamente envolvente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apenas no objeto global, ignorando as funções externas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Em todos os módulos carregados, sem regra de precedência.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "No bloco que contém a próxima instrução a ser executada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com escopo léxico, os ambientes são determinados pela posição textual da função. A resolução parte do ambiente atual e segue os escopos envolventes, não a cadeia de chamadas.",
+      "section": "1. Escopo, visibilidade e resolução de nomes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No fragmento conceitual em que uma função interna declara seu próprio x, igual ao nome de um x externo, como se chama a relação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Recursão: a função interna executa automaticamente a função externa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Polimorfismo: o tipo do vínculo externo é convertido no interno.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sombreamento: o vínculo interno oculta o externo nessa região.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Sobrecarga: as duas variáveis são fundidas em um único vínculo compartilhado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Escopo dinâmico: o valor externo é copiado para o chamador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sombreamento descreve um nome interno que passa a ser resolvido para a declaração mais próxima. Não funde os vínculos nem implica alteração automática do valor externo.",
+      "section": "1. Escopo, visibilidade e resolução de nomes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao avaliar um nome repetido em dois blocos aninhados, qual procedimento é mais seguro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Assumir que ambos são sempre o mesmo vínculo, pois a grafia coincide.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ignorar a linguagem e contar quantas vezes cada nome aparece.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Examinar declarações, escopos e regras de redeclaração.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Considerar somente o valor inicial da variável mais externa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Verificar exclusivamente a ordem das chamadas em tempo de execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Nomes iguais podem ser vínculos diferentes ou redeclarações proibidas. A resposta exige identificar linguagem, localização das declarações e escopos envolvidos.",
+      "section": "1. Escopo, visibilidade e resolução de nomes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação distingue escopo de duração de vida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escopo mede visibilidade; duração de vida mede existência.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Escopo mede bytes de memória; duração de vida mede o número de linhas da função.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os dois termos são intercambiáveis em todas as linguagens compiladas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Duração de vida determina qual declaração o identificador resolve em cada linha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Escopo só existe para variáveis globais, nunca para parâmetros ou locais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Escopo responde onde o nome é acessível; duração de vida responde por quanto tempo a entidade associada existe. Um nome pode sair de escopo sem que um objeto referenciado seja imediatamente destruído.",
+      "section": "1. Escopo, visibilidade e resolução de nomes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em JavaScript, qual declaração permanece acessível após terminar um bloco simples, desde que não haja função intermediária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Qualquer nome declarado dentro de chaves, sem distinção de palavra-chave.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma variável declarada com let, por ser sempre global.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma variável declarada com const, porque const ignora escopos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma variável declarada com var, por não ser limitada ao bloco.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Somente um parâmetro, pois parâmetros são sempre globais.",
+          "correct": false
+        }
+      ],
+      "explanation": "var ignora o limite de bloco e, sem função envolvente, integra o escopo global do script. let e const são limitadas ao bloco; o resultado pressupõe contexto compatível e ausência de erro de redeclaração.",
+      "section": "2. Escopos global, de módulo, função e bloco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, qual é o efeito normal de uma atribuição a nome dentro de um if que está dentro de uma função?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cria variável visível somente até o fim do if.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Atribui ou cria o nome no escopo da função, salvo declaração especial.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Cria automaticamente atributo global no objeto do interpretador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Torna o nome local a todo o módulo, inclusive fora da função.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converte o if em uma função anônima com namespace independente.",
+          "correct": false
+        }
+      ],
+      "explanation": "if não cria escopo de função em Python. A atribuição é feita no bloco que envolve o if; dentro de uma função, o nome é local salvo global ou nonlocal.",
+      "section": "2. Escopos global, de módulo, função e bloco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que deve ser verificado antes de afirmar que uma declaração JavaScript de nível superior vira propriedade global?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se é script clássico ou módulo, além da palavra-chave usada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente se o nome contém letras maiúsculas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Se o navegador tem uma janela aberta, independentemente do tipo de código.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A quantidade de funções definidas no mesmo arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se existe um arquivo CSS associado ao documento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Script clássico e módulo têm regras diferentes. Além disso, var e declarações lexicais têm relação distinta com o objeto global no script clássico.",
+      "section": "2. Escopos global, de módulo, função e bloco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em JavaScript, um bloco de chaves limita igualmente let, const e var.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim, os três são sempre limitados ao primeiro par de chaves encontrado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Não: nenhuma declaração de variável possui escopo em JavaScript.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não: somente var é limitado ao bloco e let é global.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sim, exceto quando o bloco está dentro de um laço for.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não: let/const são de bloco; var é de função ou do script.",
+          "correct": true
+        }
+      ],
+      "explanation": "A diferença central é o escopo de bloco de let/const frente ao escopo de função de var. A existência das chaves não basta para concluir que var deixou de ser acessível.",
+      "section": "2. Escopos global, de módulo, função e bloco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção descreve melhor escopo de módulo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Bloco temporário criado por cada instrução de atribuição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Nome visível obrigatoriamente em todos os processos do computador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ambiente dos nomes definidos no módulo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Conjunto de variáveis guardadas exclusivamente em registradores da CPU.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Nome que só pode ser acessado durante uma chamada recursiva.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um módulo organiza declarações em uma unidade própria; a exposição a outros módulos depende de mecanismos como exportação e importação, não de visibilidade universal.",
+      "section": "2. Escopos global, de módulo, função e bloco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em JavaScript, const impede que uma variável objeto seja modificada em qualquer profundidade.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim, porque const congela recursivamente todo objeto associado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Não: const impede reatribuir o vínculo, não mutar o objeto.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Sim, mas apenas quando o objeto contém números inteiros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não, pois const permite reatribuição irrestrita a qualquer outro valor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim, e por isso const também cria escopo global obrigatório.",
+          "correct": false
+        }
+      ],
+      "explanation": "const torna o vínculo não reatribuível. A referência pode apontar a um objeto mutável; alterar uma propriedade não é reatribuir a variável.",
+      "section": "3. Escopo e declarações em JavaScript",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual resultado é esperado ao executar let x = 4; { let x = 9; console.log(x); } console.log(x);?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Imprime 9 e depois 4, pois há vínculos em escopos diferentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Imprime 4 e depois 9, pois o bloco sempre altera a variável externa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Imprime 9 duas vezes, pois let é global no arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Imprime 4 duas vezes, pois a declaração interna é ignorada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Lança erro de sintaxe porque let não pode ser usada em blocos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A declaração interna é permitida em um bloco aninhado e sombreia o x externo somente ali. Ao sair do bloco, o x externo continua valendo 4.",
+      "section": "3. Escopo e declarações em JavaScript",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que acontece ao avaliar let resultado = soma; let soma = 3; no mesmo bloco, em JavaScript?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "resultado recebe undefined porque todo let é inicializado assim antes da linha.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O código é convertido em var soma sem erro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "soma é buscada automaticamente no escopo do chamador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O acesso a soma lança ReferenceError por ocorrer na temporal dead zone.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "resultado recebe 3 porque declarações posteriores são executadas primeiro.",
+          "correct": false
+        }
+      ],
+      "explanation": "let não pode ser acessada antes de sua declaração ser alcançada. Esse intervalo do escopo é a TDZ; o acesso gera ReferenceError, embora não seja simplesmente um nome inexistente.",
+      "section": "3. Escopo e declarações em JavaScript",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual consequência decorre de declarar let ponto duas vezes no mesmo escopo lexical?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A segunda declaração substitui silenciosamente o valor da primeira.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Erro de sintaxe por redeclaração no mesmo escopo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A primeira declaração passa a ser global e a segunda local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As duas declarações são combinadas em um vetor chamado ponto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A segunda declaração é convertida automaticamente para const.",
+          "correct": false
+        }
+      ],
+      "explanation": "Declarações let não podem ser repetidas no mesmo escopo lexical. Um bloco aninhado distinto pode declarar outro ponto, mas isso é um vínculo separado que sombreia o externo.",
+      "section": "3. Escopo e declarações em JavaScript",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que hoisting não significa que uma leitura antecipada de let é permitida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque hoisting transforma let em uma função que retorna null.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Porque let só é analisada depois que todos os módulos são descarregados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A leitura antes da declaração está na TDZ e gera erro.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Porque JavaScript não reconhece declarações antes de uma chamada de função.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque todo identificador antecipado recebe automaticamente o valor false.",
+          "correct": false
+        }
+      ],
+      "explanation": "O vínculo lexical existe no escopo, mas não pode ser usado antes que a execução alcance a declaração. Essa restrição é a temporal dead zone, diferente do comportamento de var inicializada com undefined.",
+      "section": "3. Escopo e declarações em JavaScript",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dentro de uma função, var declarada em um for cria por padrão uma nova variável local independente para cada iteração.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim, pois cada repetição do laço cria uma nova função lexical.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim, porque var é sinônimo de const dentro de for.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sim, mas somente quando o laço percorre uma lista vazia.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não; var não pode ser declarada em cabeçalho de laço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não: var compartilha o vínculo da função; let no laço tem vínculo próprio.",
+          "correct": true
+        }
+      ],
+      "explanation": "var não cria vínculo por bloco ou por iteração; callbacks que capturam esse nome podem observar o vínculo compartilhado da função. let no cabeçalho de laço tem escopo distinto e evita esse padrão de compartilhamento.",
+      "section": "3. Escopo e declarações em JavaScript",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No script clássico JavaScript, qual afirmação sobre declarações no nível superior está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "No script clássico, só var de nível superior pode criar propriedade global.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "let e const sempre criam propriedade global, mas var nunca o faz.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Todas as declarações são propriedades globais em qualquer módulo ou script.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Nenhum nome de nível superior fica visível fora de sua própria instrução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A palavra-chave determina apenas tipo de dado, nunca relação com escopo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Em script clássico, var de nível superior tem relação com o objeto global; declarações lexicais não viram propriedades desse objeto. Código em módulo tem escopo de módulo e deve ser analisado separadamente.",
+      "section": "3. Escopo e declarações em JavaScript",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, uma função contém print(contagem) antes de contagem = 2. Há também uma contagem global. Qual é o efeito típico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A função sempre lê a global, pois a leitura aparece antes da atribuição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A atribuição torna contagem local; a leitura anterior pode gerar UnboundLocalError.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O nome é local apenas depois da linha de atribuição e antes disso é global.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Python converte automaticamente a função em uma classe para resolver o nome.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O código altera a variável global e não pode produzir exceção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Python determina nomes locais da função considerando operações de vinculação em todo o bloco. Sem declaração global/nonlocal, a atribuição faz contagem local; lê-la antes de receber valor causa UnboundLocalError.",
+      "section": "4. Resolução de nomes em Python e categorias em Java",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual declaração Python permite que uma função atribua ao nome contagem do namespace do módulo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "static contagem, que transforma o nome em campo de classe.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "nonlocal contagem, mesmo que não exista função envolvente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "module contagem, que cria novo módulo em tempo de execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "global contagem.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "outer contagem, que copia o valor para todos os escopos.",
+          "correct": false
+        }
+      ],
+      "explanation": "global declara que os usos do nome naquele bloco de função se referem ao namespace do módulo. nonlocal é usado para um vínculo existente em uma função envolvente.",
+      "section": "4. Resolução de nomes em Python e categorias em Java",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde a nonlocal em Python?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cria um novo escopo de bloco para cada comando if.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Declara que o nome deve ser sempre propriedade de builtins.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aponta para vínculo existente na função envolvente mais próxima.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Converte o nome em parâmetro posicional da função atual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permite criar uma variável externa que ainda não existe em nenhuma função.",
+          "correct": false
+        }
+      ],
+      "explanation": "nonlocal referencia uma ligação já existente em uma função envolvente. Se não há nome correspondente em escopo de função externo, Python sinaliza SyntaxError.",
+      "section": "4. Resolução de nomes em Python e categorias em Java",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma atribuição dentro de um for em Python cria sempre variável restrita àquela iteração e invisível depois do laço.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim, pois cada iteração equivale a uma chamada de função.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Não: em Python, o nome pertence ao escopo envolvente, não a cada iteração.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Sim, exceto quando o iterável contém números.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não; toda variável em Python é global em qualquer função.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim, pois o nome é removido automaticamente ao encerrar o laço.",
+          "correct": false
+        }
+      ],
+      "explanation": "Laços não formam escopos locais independentes em Python. Dentro de uma função, o alvo do for é vinculado no escopo da função; no nível do módulo, integra o bloco do módulo.",
+      "section": "4. Resolução de nomes em Python e categorias em Java",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, se não há binding local e o nome não é encontrado nos escopos aplicáveis nem nos nomes embutidos, qual resultado usual ocorre?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma exceção NameError indica que o nome não pôde ser resolvido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O nome recebe automaticamente o valor zero.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Python cria uma variável local em todas as funções que usam o nome.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O interpretador altera o nome para uma constante global.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A instrução é ignorada e a execução continua sem efeito.",
+          "correct": false
+        }
+      ],
+      "explanation": "A resolução de nomes pesquisa os escopos relevantes; se não encontrar vínculo aplicável, ocorre NameError. UnboundLocalError é uma forma específica ligada a nome local ainda não vinculado.",
+      "section": "4. Resolução de nomes em Python e categorias em Java",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, duas instâncias distintas de uma classe possuem, em regra, estados independentes para um campo de instância não static.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim, mas apenas se o campo for declarado static.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Não; campos de instância são sempre compartilhados pela classe.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não; campos só existem durante a compilação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sim; cada objeto tem seu valor de campo de instância.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Não; cada campo de instância corresponde a um parâmetro do construtor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Campos de instância representam estado associado a cada objeto. Um campo static, em contraste, é associado à classe e não se replica por objeto.",
+      "section": "4. Resolução de nomes em Python e categorias em Java",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual distinção descreve corretamente um campo static em Java?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É parâmetro formal criado em cada chamada de método.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É variável local que só pode ser lida antes de qualquer método.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Campo associado à classe, compartilhado entre instâncias.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "É nome com escopo limitado ao primeiro bloco de chaves do método.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É campo que recebe um valor novo a cada acesso, sem armazenamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "static marca variável de classe. Instâncias da classe compartilham o campo estático associado à classe carregada, enquanto campos não estáticos pertencem ao estado de cada objeto.",
+      "section": "4. Resolução de nomes em Python e categorias em Java",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, variáveis locais não inicializadas explicitamente podem ser lidas com segurança porque recebem automaticamente o mesmo padrão dos campos.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Correto: toda variável em Java recebe zero independentemente de sua categoria.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Não; variável local precisa ser inicializada antes da leitura.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Correto: o compilador consulta o valor da chamada anterior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Incorreto: variáveis locais não podem ser declaradas em métodos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Correto: apenas campos static precisam de inicialização definida.",
+          "correct": false
+        }
+      ],
+      "explanation": "A linguagem exige inicialização definida para variáveis locais antes do uso. Campos de instância e de classe têm valores padrão, mas essa regra não deve ser transferida às variáveis locais.",
+      "section": "4. Resolução de nomes em Python e categorias em Java",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um método Java tem parâmetro chamado nome e a classe também possui campo nome. Como o método pode indicar explicitamente o campo da instância atual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usando this.nome para qualificar o campo do objeto atual.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usando global.nome para sair do escopo do método.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usando nonlocal.nome para acessar o objeto chamador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usando var nome, que torna todos os nomes públicos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usando static.nome, que transforma o parâmetro em campo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O parâmetro é local ao método e pode sombrear o campo de mesmo nome. this.nome qualifica o campo pertencente ao objeto atual; o parâmetro continua sendo uma variável distinta.",
+      "section": "4. Resolução de nomes em Python e categorias em Java",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, qual categoria descreve corretamente o parâmetro formal de um método?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Nome global acessível sem qualificação em qualquer pacote.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Campo static compartilhado por todas as classes carregadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Variável de instância que existe em todos os objetos da classe.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Variável do método, local à chamada, e não campo da classe.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Constante do compilador que não recebe valor na chamada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Parâmetros são variáveis recebidas pelo método e classificadas como variáveis, não campos. Seu uso se limita ao escopo do método ou construtor correspondente.",
+      "section": "4. Resolução de nomes em Python e categorias em Java",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comparação entre Python e JavaScript está correta para uma atribuição dentro de um if situado em função?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Em ambas, if não pode conter declarações de variável.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Em ambas as linguagens, qualquer atribuição no if é global ao processo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Em Python o if cria função anônima; em JavaScript var fica restrita ao bloco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Em Python o if não cria escopo local separado; em JavaScript let declarado no bloco fica limitado a ele.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Em JavaScript let é sempre global, mas Python cria um módulo por if.",
+          "correct": false
+        }
+      ],
+      "explanation": "A comparação mostra por que a palavra bloco deve ser interpretada segundo a linguagem. Python usa o bloco da função; let em JavaScript é lexical e limitada ao bloco que a contém.",
+      "section": "4. Resolução de nomes em Python e categorias em Java",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma variável local Java e um campo de instância pertencem ambos à mesma categoria, pois estão escritos dentro do texto de uma classe.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim; a posição no arquivo torna todos os nomes campos de instância.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim; local e campo são sinônimos oficiais em Java.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não; a declaração dentro de método/bloco é local, enquanto campo é membro associado à classe ou objeto.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Não; campos só podem ser declarados em interfaces.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim, desde que os dois nomes tenham o mesmo tipo primitivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A categoria deriva do local e da forma da declaração, não apenas do arquivo ou da classe que contém o método. Variáveis locais são temporárias ao método/bloco; campos são membros da classe ou de instâncias.",
+      "section": "4. Resolução de nomes em Python e categorias em Java",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma questão apresenta uma variável declarada com let e usada depois do fechamento do bloco que a contém. Qual conclusão cabe em JavaScript?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O valor é copiado para globalThis ao sair do bloco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A variável torna-se automaticamente global ao fechar o bloco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O identificador fica fora de escopo nesse ponto, salvo se existir outra declaração acessível com o mesmo nome.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "let converte sua declaração em var depois da última instrução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O nome permanece acessível apenas porque o bloco já foi executado.",
+          "correct": false
+        }
+      ],
+      "explanation": "let tem escopo de bloco. Encerrado o bloco, aquele vínculo não é visível fora dele; uma declaração externa homônima, se houver, é um vínculo distinto.",
+      "section": "3. Escopo e declarações em JavaScript",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma função interna Python, o nome x existe em função externa, mas ainda não há atribuição local a ele. O que ocorre se a função declarar nonlocal x e atribuir a x?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A atribuição referencia o vínculo x existente na função envolvente mais próxima.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A atribuição cria sempre uma variável global chamada x no módulo principal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A atribuição é inválida porque nonlocal só vale para parâmetros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A atribuição cria um novo escopo de bloco ao redor da função externa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A atribuição apaga a função envolvente depois da primeira chamada.",
+          "correct": false
+        }
+      ],
+      "explanation": "nonlocal faz o nome designar uma vinculação existente em função envolvente. A atribuição modifica esse vínculo, em vez de criar um local novo na função interna ou alterar diretamente o global.",
+      "section": "4. Resolução de nomes em Python e categorias em Java",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Python, o nome local de uma função pode ser determinado observando operações de vinculação em qualquer ponto do bloco, não apenas antes do uso examinado.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Correto apenas para nomes importados, não para atribuições comuns.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Incorreto; cada linha é um bloco independente sem relação com as demais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Incorreto; Python decide localidade somente depois de executar a última instrução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Correto; por isso uma leitura anterior à atribuição local pode gerar UnboundLocalError.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Incorreto; toda atribuição dentro de função modifica sempre o módulo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A regra da linguagem considera operações de vinculação em todo o bloco da função para classificar o nome como local. A posição da leitura pode então produzir UnboundLocalError se ainda não houve valor local.",
+      "section": "4. Resolução de nomes em Python e categorias em Java",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, se um campo int de instância não receber inicialização explícita, qual descrição é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O campo recebe o valor do parâmetro de mesmo nome em qualquer método.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O campo não existe até que um método o inicialize pela primeira vez.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O compilador escolhe um inteiro aleatório em cada leitura.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A classe deixa de compilar porque nenhum campo pode ser omitido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O campo recebe o valor padrão previsto para int; isso não autoriza assumir a mesma regra para uma variável local.",
+          "correct": true
+        }
+      ],
+      "explanation": "Campos de instância e de classe recebem valores padrão da linguagem se não inicializados explicitamente. Variáveis locais seguem outra regra e precisam estar definidas antes da leitura.",
+      "section": "4. Resolução de nomes em Python e categorias em Java",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma declaração let em JavaScript pode ser acessada antes da linha em que aparece porque todas as declarações lexicais recebem undefined no início do bloco.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Correto; let e var têm a mesma inicialização antecipada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Incorreto; o acesso durante a TDZ causa ReferenceError.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Correto somente se a declaração estiver dentro de um módulo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Incorreto; let nunca pode ser usada dentro de qualquer bloco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Correto; a declaração é executada automaticamente antes do arquivo.",
+          "correct": false
+        }
+      ],
+      "explanation": "let e var diferem nesse ponto. A leitura de let antes de alcançar sua declaração falha com ReferenceError pela TDZ; var tem comportamento diferente de içamento e inicialização.",
+      "section": "3. Escopo e declarações em JavaScript",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, quando nonlocal nome não encontra vínculo correspondente em função envolvente, a linguagem cria silenciosamente um novo nome global.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim; nonlocal sempre cria o nome ausente no módulo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Não; a linguagem converte nonlocal em parâmetro opcional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sim, mas apenas na primeira execução da função.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não; a ausência de vínculo envolvente correspondente causa SyntaxError.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Sim; o nome é procurado somente no espaço de builtins.",
+          "correct": false
+        }
+      ],
+      "explanation": "nonlocal não cria livremente nome externo. Ele exige uma ligação existente em uma função envolvente; sem ela, há erro de sintaxe.",
+      "section": "4. Resolução de nomes em Python e categorias em Java",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma questão de prova que omite a linguagem e afirma que toda variável declarada em um laço é local ao laço, qual avaliação é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A afirmação é universalmente verdadeira para qualquer linguagem imperativa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A afirmação exige ressalva: escopo de laço depende da linguagem e da forma de declaração.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A afirmação é verdadeira somente para variáveis globais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A afirmação é falsa porque nenhuma linguagem oferece escopo de bloco.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A afirmação depende exclusivamente do tipo numérico da variável.",
+          "correct": false
+        }
+      ],
+      "explanation": "Regras variam: JavaScript distingue var de let no laço, e Python não cria escopo local independente para for. Uma resposta correta deve identificar linguagem e declaração.",
+      "section": "2. Escopos global, de módulo, função e bloco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário representa escopo de função em JavaScript?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma declaração dentro de função torna todas as variáveis do módulo locais à função.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma declaração let dentro de um bloco fica visível em todos os módulos importados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um parâmetro de função cria propriedade permanente em globalThis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma variável local é visível apenas na linha imediatamente posterior à declaração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "var dentro da função fica visível até o fim dela.",
+          "correct": true
+        }
+      ],
+      "explanation": "var declarada dentro de uma função é local a essa função e não é limitada por blocos internos simples. Escopo de função não equivale a visibilidade universal fora dela.",
+      "section": "2. Escopos global, de módulo, função e bloco",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação evita confundir sombreamento com mutação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Mutação significa declarar outro nome igual em um bloco externo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sombreamento sempre altera simultaneamente todos os valores com a mesma grafia.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sombreamento escolhe o vínculo mais próximo; atribuição pode mudar seu valor.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Os conceitos são idênticos e não podem ser distinguidos em código.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma variável sombreada deixa de existir em todos os escopos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sombreamento diz respeito a qual vínculo um nome resolve em determinada região. Mutação ou atribuição modifica o estado do objeto ou vínculo resolvido; a grafia repetida não faz os vínculos se fundirem.",
+      "section": "1. Escopo, visibilidade e resolução de nomes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, declarar uma variável local dentro de um bloco restringe seu uso à região válida daquele bloco, ainda que o método continue após o fechamento das chaves.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Correto; o fim do bloco encerra a visibilidade daquela declaração local.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Incorreto; toda variável de método vira campo da classe ao fechar o bloco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Incorreto; blocos Java só organizam indentação e não afetam visibilidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Correto apenas para campos static, nunca para locais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Incorreto; o identificador é automaticamente importado por todos os métodos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Variáveis locais têm visibilidade determinada pela região em que foram declaradas. O fechamento do bloco encerra o escopo local, enquanto o método pode continuar executando.",
+      "section": "4. Resolução de nomes em Python e categorias em Java",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma prova mostra duas declarações let com o mesmo nome, uma no bloco externo e outra dentro de um bloco aninhado. Qual conclusão é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A declaração externa é removida antes de entrar no bloco interno.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sempre há erro, pois let não aceita nenhum nome repetido em blocos aninhados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As duas declarações são unidas em uma única variável global.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "São vínculos distintos; o interno sombreia o externo no bloco interno.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A declaração interna é tratada como parâmetro da função envolvente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A proibição de redeclaração lexical vale para o mesmo escopo. Um bloco aninhado tem escopo diferente e pode declarar outro let com o mesmo nome, sombreando o vínculo externo enquanto estiver nele.",
+      "section": "3. Escopo e declarações em JavaScript",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre parâmetros e variáveis locais é correta em Java?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Parâmetros não são variáveis, pois recebem valor por chamada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Parâmetros são sempre campos static compartilhados por todos os objetos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Parâmetros ficam visíveis em toda classe que importa o pacote.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Parâmetros são nomes globais do ambiente de execução Java.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Parâmetro é variável local do método, não campo.",
+          "correct": true
+        }
+      ],
+      "explanation": "A documentação Java classifica parâmetros como variáveis, não campos. Seu escopo é associado ao método, construtor ou outro construto que os recebe.",
+      "section": "4. Resolução de nomes em Python e categorias em Java",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em JavaScript, a declaração const não pode ser usada dentro de uma função porque constantes têm necessariamente escopo global.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Correto; const só é admitida no nível superior de script.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Incorreto; const pode ser declarada em escopos locais e tem escopo de bloco.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Correto; const é palavra reservada apenas para módulos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Incorreto; const não tem escopo e pode ser usada em qualquer arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Correto; funções aceitam apenas declarações var.",
+          "correct": false
+        }
+      ],
+      "explanation": "const é uma declaração lexical que pode aparecer em blocos e funções, com escopo de bloco. Sua principal restrição é exigir inicialização e impedir reatribuição do vínculo.",
+      "section": "3. Escopo e declarações em JavaScript",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função JavaScript executa em contexto de escopo léxico. Para que a resolução de um nome livre seja previsível, qual fato é determinante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A ordem alfabética dos arquivos no diretório do projeto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O nome da última função que a chamou, independentemente da definição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O tipo de dado da instrução seguinte ao uso do nome.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A quantidade de argumentos passada pela função chamadora.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O ambiente em que a função foi definida e seus escopos envolventes.",
+          "correct": true
+        }
+      ],
+      "explanation": "Em escopo léxico, a função mantém relação com os ambientes que a envolvem no código-fonte. O contexto de chamada não substitui essa cadeia de escopos.",
+      "section": "1. Escopo, visibilidade e resolução de nomes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, global nome deve preceder usos do nome declarado no bloco da função e muda sua referência para o namespace do módulo.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Incorreto; Python não permite declarar nomes globais em funções.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Incorreto; global cria um campo estático numa classe externa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Incorreto; global equivale sempre a nonlocal em função aninhada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Correto; mas apenas para tornar o nome visível em todos os processos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Correto; global altera a resolução do nome no bloco da função para o vínculo do módulo.",
+          "correct": true
+        }
+      ],
+      "explanation": "A declaração global faz as referências ao nome no bloco da função apontarem ao namespace do módulo e deve aparecer antes dos usos relevantes. Ela não significa visibilidade universal entre processos ou módulos.",
+      "section": "4. Resolução de nomes em Python e categorias em Java",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao ler uma questão com código curto, qual informação deve ser obtida primeiro para avaliar corretamente o escopo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A linguagem e a forma de declaração do identificador examinado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A cor usada para destacar o nome no enunciado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A quantidade de comentários no arquivo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O sistema operacional do computador que executa o código.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ordem em que as alternativas foram apresentadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Regras de escopo dependem da linguagem e da declaração específica. Por exemplo, var e let diferem em JavaScript, e atribuições em blocos têm regras diferentes em Python e Java.",
+      "section": "1. Escopo, visibilidade e resolução de nomes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Java, um campo static é um parâmetro formal que recebe cópia do valor em cada chamada de método.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Correto; static e parâmetro são nomes equivalentes para dados de chamada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Correto; campos static são criados e destruídos a cada argumento recebido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Correto; todo parâmetro Java precisa ser static.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Incorreto; campos static são variáveis locais de laço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Incorreto; static indica campo associado à classe, enquanto parâmetro pertence à chamada do método.",
+          "correct": true
+        }
+      ],
+      "explanation": "Campo static e parâmetro têm categorias e escopos distintos. O primeiro é membro associado à classe; o segundo é variável local recebida na invocação do método ou construtor.",
+      "section": "4. Resolução de nomes em Python e categorias em Java",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual exemplo descreve sombreamento sem atribuir à linguagem uma regra universal de redeclaração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O nome é sombreado quando muda de valor, ainda que não haja nova declaração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Toda linguagem aceita redeclaração idêntica no mesmo escopo e substitui o vínculo antigo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atribuir um valor a uma variável externa sempre cria um novo vínculo local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Declarar um parâmetro apaga todos os nomes iguais de escopos externos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Em um bloco interno permitido, declarar outro nome igual pode fazer os usos internos apontarem ao vínculo interno.",
+          "correct": true
+        }
+      ],
+      "explanation": "Sombreamento normalmente envolve um vínculo mais interno de mesmo nome, se a linguagem permitir a declaração naquela relação de escopos. Regras de redeclaração variam e devem ser verificadas para o caso concreto.",
+      "section": "1. Escopo, visibilidade e resolução de nomes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Scope - Glossary",
+      "publisher": "MDN Web Docs",
+      "reference": "Tipos de escopo JavaScript; visibilidade, blocos, função e escopo global/módulo",
+      "url": "https://developer.mozilla.org/en-US/docs/Glossary/Scope",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "let - JavaScript | MDN",
+      "publisher": "MDN Web Docs",
+      "reference": "Escopo de bloco, TDZ, redeclaração e diferenças entre let e var",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/let",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Execution model — Python 3 documentation",
+      "publisher": "Python Software Foundation",
+      "reference": "Vinculação e resolução de nomes; escopos locais, global e nonlocal; UnboundLocalError",
+      "url": "https://docs.python.org/3/reference/executionmodel.html",
+      "accessedAt": "2026-10-31"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Variables — The Java Tutorials",
+      "publisher": "Oracle",
+      "reference": "Variáveis de instância, campos estáticos, variáveis locais e parâmetros",
+      "url": "https://docs.oracle.com/javase/tutorial/java/nutsandbolts/variables.html",
+      "accessedAt": "2026-10-31"
+    }
+  ]
+}

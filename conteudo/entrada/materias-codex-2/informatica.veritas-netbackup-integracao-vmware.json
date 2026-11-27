@@ -1,0 +1,2829 @@
+{
+  "id": "informatica.veritas-netbackup-integracao-vmware",
+  "subject": "Informática",
+  "title": "Veritas NetBackup: operação, administração e integração com VMware",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Operação e administração do Veritas NetBackup e integração com VMware",
+    "Veritas NetBackup para VMware",
+    "NetBackup VMware backup e restore",
+    "Administração do NetBackup VMware",
+    "Backup de máquinas virtuais VMware",
+    "Proteção de VMs com NetBackup",
+    "Política VMware Intelligent Policy",
+    "Integração do NetBackup com vCenter",
+    "Restauração de máquinas virtuais VMware",
+    "Modos de transporte SAN HotAdd NBD",
+    "NetBackup e VMware vSphere",
+    "Políticas de proteção de VMs no NetBackup"
+  ],
+  "scope": {
+    "covers": "Operação e administração do Veritas NetBackup para ambientes VMware vSphere: arquitetura off-host, primary server, media server, VMware backup host, credenciais e descoberta de vCenter/ESXi; políticas VMware, seleção manual e VMware Intelligent Policy, agendamentos, unidade de armazenamento, snapshots, quiesce, CBT e incrementais; modos SAN, HotAdd, NBD e NBDSSL; monitoramento de jobs, falhas operacionais e restauração integral ou de arquivos de VMs, inclusive validações de destino e transporte.",
+    "excludes": "Administração geral do vCenter/ESXi, instalação detalhada de appliances, comandos e parâmetros exclusivos de versões específicas, recuperação de desastres do próprio servidor NetBackup, proteção de outras plataformas de virtualização e licenciamento."
+  },
+  "theoryTitle": "Operar o NetBackup com VMware",
+  "chapters": [
+    {
+      "title": "1. Componentes e fluxo de proteção VMware",
+      "markdown": "### O problema que este assunto resolve\n\nUma VM reúne configuração e discos virtuais que precisam ser recuperáveis como um conjunto. O NetBackup integra-se ao vSphere e usa as APIs de armazenamento do VMware para criar uma fotografia consistente e transferir os dados para o armazenamento de backup. O trabalho é descarregado da VM para um **VMware backup host**; não é obrigatório instalar o cliente NetBackup dentro de cada máquina virtual para o backup integral.\n\n> **Siglas e termos deste capítulo**\n> - **Primary server**: coordena políticas, catálogo, agendamento e jobs do NetBackup.\n> - **Media server**: movimenta dados entre hosts e armazenamento de backup.\n> - **Backup host**: host NetBackup que acessa o ambiente VMware e lê os discos da VM. Pode ser um media server ou outro host configurado.\n> - **vCenter / ESXi**: plano de gerenciamento do ambiente e hipervisor que executa as VMs.\n> - **Snapshot**: estado temporário dos discos usado para capturar dados sem manter a VM parada durante toda a transferência.\n> - **Quiesce**: pausa coordenada de I/O para favorecer consistência do sistema de arquivos.\n\n### O caminho dos dados\n\nO administrador cadastra as credenciais do servidor VMware no NetBackup, valida o acesso e permite que os ativos sejam descobertos. Depois cria uma política do tipo VMware: escolhe armazenamento, agenda, host de backup e quais VMs proteger. Na execução, o NetBackup solicita snapshot ao vSphere, lê os dados por um modo de transporte selecionado, grava a imagem no armazenamento de backup e remove o snapshot de backup ao concluir. A VM permanece disponível enquanto a cópia é transferida.\n\nEsse modelo é chamado **off-host**: o trabalho de leitura e movimentação não depende de um cliente NetBackup instalado no sistema operacional convidado. A política pode proteger a VM inteira, inclusive desligada, e pode oferecer recuperação de arquivos selecionados quando as opções e o sistema convidado suportam essa operação.\n\n### Papéis não são intercambiáveis\n\n| Componente | Responsabilidade |\n| --- | --- |\n| Primary server | Coordenação, políticas e catálogo |\n| VMware backup host | Descoberta e acesso aos dados VMware na operação |\n| Media server | Transferência e gravação/leitura da imagem de backup |\n| vCenter ou ESXi | Fornece inventário, snapshots e acesso aos discos da VM |\n\nO host de backup precisa alcançar o servidor VMware e os datastores/discos relevantes, e o media server precisa alcançar a unidade de armazenamento escolhida. Credenciais válidas sem conectividade ou privilégios VMware suficientes não bastam. Ao cadastrar ou atualizar credenciais, o NetBackup também pode iniciar a descoberta do servidor.\n\n### Como cai na prova\n\n- Backup de VM não significa necessariamente instalar o cliente NetBackup dentro dela.\n- Snapshot é etapa de captura; não é a imagem de backup definitiva. A imagem é armazenada pelo NetBackup.\n- Diferencie primary server (coordena), backup host (acessa VMware) e media server (transporta/grava dados)."
+    },
+    {
+      "title": "2. Credenciais, políticas e seleção de VMs",
+      "markdown": "### O problema que este assunto resolve\n\nUma política define o que proteger, quando executar e onde guardar as imagens. O NetBackup mantém credenciais do vCenter ou do servidor ESXi necessário para descoberta, snapshot e restauração. Na interface web, a administração das políticas fica em **Protection > Policies**. Para criar a proteção, seleciona-se o tipo **VMware**, a unidade ou grupo de armazenamento, agenda, opções VMware, host de backup e clientes/VMs.\n\n> **Siglas e termos deste capítulo**\n> - **Política VMware**: conjunto de atributos, seleção de VMs, agenda e destino de armazenamento.\n> - **VMware Intelligent Policy (VIP)**: seleção automática de VMs por regras no Query Builder.\n> - **Seleção manual**: lista explicitamente escolhida de VMs na política.\n> - **Query Builder**: construtor das regras que incluem ou excluem VMs automaticamente.\n> - **Unidade de armazenamento**: destino lógico para gravação dos dados de backup.\n> - **Full / incremental**: cópia completa ou cópia que aproveita uma base anterior e alterações.\n\n### Manual ou automática\n\nNa seleção manual, o administrador informa ou navega até as VMs. Na VIP, as regras da política descrevem atributos para incluir ou excluir máquinas; ao executar o job, o NetBackup consulta o inventário e forma a lista atual que satisfaz as regras. Isso acompanha a entrada e saída de VMs do ambiente sem editar a lista a cada mudança. É possível testar a consulta na aba Clients; o teste mostra quais VMs seriam incluídas ou excluídas, mas não grava uma lista fixa de clientes.\n\nA política tem agenda e tipo de backup. Incrementais dependem de opções VMware compatíveis, como habilitar recuperação de arquivos da imagem da VM ou backup incremental em nível de bloco. A opção Accelerator para VM habilita a configuração de incremental em nível de bloco. Uma política pode ser iniciada manualmente pela ação de backup manual, selecionando agenda e clientes; o Activity Monitor acompanha o andamento.\n\n### Credenciais e descoberta\n\nCadastre credenciais com privilégios suficientes para as operações requeridas e valide-as. Se a validação ou descoberta falhar, verifique qual host está sendo usado para acessar o vCenter/ESXi, certificados quando houver comunicação autenticada, DNS, conectividade e permissões VMware. A descoberta automática cria/atualiza a visão dos ativos; ela não substitui a regra da política nem garante que toda VM descoberta deva ser protegida.\n\n### Como cai na prova\n\n- VIP seleciona dinamicamente segundo regras; seleção manual mantém escolhas explícitas.\n- O teste de consulta serve para pré-visualizar inclusão/exclusão, não congela o inventário.\n- Alterar a política de manual para inteligente ou o contrário pode levar a um próximo backup full normal."
+    },
+    {
+      "title": "3. Snapshots, consistência e transporte",
+      "markdown": "### O problema que este assunto resolve\n\nO snapshot oferece ao NetBackup um ponto de leitura enquanto a VM continua atendendo usuários. Para que o conteúdo reflita melhor um estado consistente do sistema convidado, a política pode solicitar quiesce antes do snapshot. A opção fica habilitada por padrão. VMware Tools é necessário para quiesce; em Linux, a configuração de quiesce do sistema convidado também deve estar habilitada. Se o quiesce falhar, permitir snapshot sem quiesce produz uma captura crash-consistent e exige avaliação própria da consistência; não é garantia equivalente.\n\n> **Siglas e termos deste capítulo**\n> - **CBT (Change Block Tracking)**: mecanismo VMware que identifica blocos alterados entre cópias.\n> - **BLIB**: backup incremental em nível de bloco habilitado na política VMware.\n> - **SAN**: acesso ao armazenamento por Fibre Channel ou iSCSI.\n> - **HotAdd**: discos da VM são anexados ao backup host, que também é uma VM.\n> - **NBD / NBDSSL**: transporte de dados via rede pelo protocolo Network Block Device, sem ou com SSL.\n> - **Crash-consistent**: captura sem quiesce coordenado da atividade de I/O do convidado.\n\n### CBT e incremental\n\nCom backup em nível de bloco habilitado, o NetBackup pode habilitar CBT se ainda não estiver ativo na VM. A cópia incremental usa a informação de blocos alterados em vez de reler todos os blocos. Isso depende do suporte e do estado VMware. Investigue snapshots preexistentes, estado do CBT e requisitos do vSphere quando a habilitação ou leitura de blocos falhar; não assuma que todo incremental será sempre limitado aos blocos alterados em qualquer cenário.\n\n### Escolha do transporte\n\n| Modo | Caminho e característica |\n| --- | --- |\n| SAN | Transferência sem criptografia por Fibre Channel ou iSCSI; exige acesso ao armazenamento |\n| HotAdd | Backup host executa em VM e acessa discos anexados; requer compatibilidade e acesso aos datastores |\n| NBD | Transferência em rede sem criptografia pelo protocolo NBD; em geral mais lenta que Fibre Channel |\n| NBDSSL | Transferência em rede pelo NBD protegida por SSL; em geral mais lenta que Fibre Channel |\n\nA ordem configurada determina as tentativas. O NetBackup usa o primeiro modo que funciona para **todos os discos** da VM; se um disco não puder ser acessado por SAN, pode tentar o próximo modo para todos os discos, em vez de misturar o modo por disco. SAN não é suportado para VMs em VMware Virtual Volumes (VVols). Para HotAdd em VVols, a VM protegida e o backup host devem estar no mesmo datastore VVol; em geral, VM e host devem estar no mesmo datacenter e o host ESXi do backup host deve acessar os datastores necessários.\n\n### Snapshots que sobraram\n\nSnapshots acumulados podem degradar desempenho e consumir espaço, além de causar falha em restauração por falta de capacidade. A política pode remover snapshots de backup do NetBackup e continuar, continuar ignorando snapshots existentes, ou interromper o job se houver snapshots conforme a opção escolhida. Snapshot de restauração chamado `NBU_RESTORE` indica restauração em curso e causa falha imediata de novo backup, independentemente dessa configuração; se não houver job ativo, o administrador VMware deve investigar antes de remover o snapshot.\n\n### Como cai na prova\n\n- Quiesce melhora a consistência; snapshot sem quiesce é crash-consistent.\n- NBDSSL acrescenta SSL; NBD não é transporte SAN.\n- A ordem de transporte e o acesso a todos os discos determinam o modo que efetivamente funciona."
+    },
+    {
+      "title": "4. Monitoramento, restauração e diagnóstico",
+      "markdown": "### O problema que este assunto resolve\n\nUm backup concluído só é útil se a imagem puder ser localizada e restaurada. O Activity Monitor mostra jobs, estados e detalhes; para uma solicitação manual, o backup VMware normalmente inicia mais de um job: um cria/remove snapshots e outro transfere os arquivos da VM a partir do snapshot. Examine ambos, os logs VMware do job e o estado do vCenter antes de atribuir a falha ao armazenamento.\n\n> **Siglas e termos deste capítulo**\n> - **Imagem**: conjunto de dados de backup catalogado pelo NetBackup.\n> - **Restore host**: host que realiza a transferência da recuperação para o VMware.\n> - **Datastore**: armazenamento VMware que recebe os discos restaurados.\n> - **SFR**: recuperação de arquivos individuais a partir de backup da VM, quando suportada.\n> - **Pre-recovery check**: valida credenciais, caminhos, conectividade, espaço e requisitos antes da recuperação.\n> - **CBT**: pode acelerar incrementais, mas não substitui validação de imagem e destino.\n\n### Recuperar VM ou arquivo\n\nA restauração integral permite recuperar a VM no local original ou alternativo, escolhendo host/destino e opções de rede, armazenamento e transporte disponíveis. O transporte padrão é o usado no backup. Se o destino ou host de recuperação não tem o mesmo acesso SAN da origem, insistir em SAN pode tornar a restauração lenta ou falhar; escolha modo compatível, como NBD ou HotAdd, e confirme conectividade e capacidade. O pre-recovery check verifica credenciais e caminhos, conectividade e espaço disponível no datastore/datastore cluster, entre outros requisitos. Resolva as falhas antes de iniciar.\n\nA recuperação de arquivos individuais evita restaurar a VM inteira, mas depende do suporte ao sistema operacional e dos privilégios/configuração da integração. Para arquivos Windows e Linux, o host de recuperação deve corresponder à plataforma dos arquivos em situações de recuperação individual. Alguns recursos, como arquivos em volumes específicos ou criptografados, têm restrições e podem exigir cliente dentro da VM.\n\n### Diagnóstico orientado a evidências\n\nSe o job de snapshot falhar, tente criar snapshot no vSphere com opção de quiesce equivalente. Se também falhar, investigue VMware, espaço, snapshots antigos, VMware Tools e estado do convidado. Se funcionar no vSphere, examine configuração, credenciais, privilégios e logs do NetBackup. Quiesce impossível pode apontar VMware Tools ausente/desatualizado. Mais de 31 snapshots existentes pode impedir o backup. Para recuperação com SAN que falha, verifique acesso do restore host ao datastore e considere NBD. Não apague snapshots sem identificar se pertencem a uma restauração ativa.\n\n### Como cai na prova\n\n- O pre-check antecede a recuperação e detecta problemas de acesso e capacidade; não corrige automaticamente a infraestrutura.\n- Um job de snapshot e outro de transferência têm funções distintas.\n- Restauração exige compatibilidade de transporte, permissões e espaço no destino."
+    }
+  ],
+  "summary": "O NetBackup protege VMs VMware por políticas que usam snapshots e APIs do vSphere, com transferência off-host a um armazenamento NetBackup. A administração envolve credenciais e descoberta, escolha de VMs manualmente ou por VMware Intelligent Policy, agendas, armazenamento, quiesce e CBT. SAN, HotAdd, NBD e NBDSSL têm requisitos diferentes; o modo escolhido precisa acessar todos os discos. Monitore os jobs no Activity Monitor e valide host, credenciais, conectividade, snapshots e espaço antes de restaurar a VM ou arquivos.",
+  "flashcards": [
+    {
+      "front": "O cliente NetBackup precisa estar em cada VM para backup integral?",
+      "back": "Não necessariamente. NetBackup para VMware realiza backup off-host por um VMware backup host usando APIs VMware."
+    },
+    {
+      "front": "Qual o papel do primary server?",
+      "back": "Coordena políticas, catálogo e jobs."
+    },
+    {
+      "front": "Qual o papel do media server?",
+      "back": "Movimenta dados entre os hosts e o armazenamento de backup."
+    },
+    {
+      "front": "O que faz o VMware backup host?",
+      "back": "Acessa o ambiente VMware e lê os dados das VMs para a operação de proteção."
+    },
+    {
+      "front": "Onde se cria uma política VMware na interface web?",
+      "back": "Protection > Policies, escolhendo o tipo VMware."
+    },
+    {
+      "front": "O que define uma política VMware?",
+      "back": "VMs, agenda/tipo de backup, host, opções VMware e armazenamento de destino."
+    },
+    {
+      "front": "Como difere seleção manual de VMware Intelligent Policy?",
+      "back": "Manual lista VMs explicitamente; Intelligent Policy aplica regras ao inventário atual na execução."
+    },
+    {
+      "front": "Para que serve Test query?",
+      "back": "Pré-visualiza quais VMs as regras incluem ou excluem; não salva uma lista fixa."
+    },
+    {
+      "front": "O que é quiesce?",
+      "back": "Coordenação da atividade de I/O do convidado antes do snapshot para melhorar consistência."
+    },
+    {
+      "front": "O que é necessário para quiesce VMware?",
+      "back": "VMware Tools; em Linux, habilitar também o quiesce no sistema convidado."
+    },
+    {
+      "front": "O que significa snapshot crash-consistent?",
+      "back": "Captura sem quiesce coordenado de I/O; requer análise própria da consistência."
+    },
+    {
+      "front": "O que faz CBT?",
+      "back": "Rastreia blocos alterados da VM e pode apoiar cópias incrementais em nível de bloco."
+    },
+    {
+      "front": "Quando NetBackup habilita CBT?",
+      "back": "Pode habilitá-lo se BLIB está ativado na política e CBT ainda não está ativo na VM."
+    },
+    {
+      "front": "Que tráfego SAN suporta?",
+      "back": "Transferência sem criptografia por Fibre Channel ou iSCSI, com acesso adequado ao armazenamento."
+    },
+    {
+      "front": "O que caracteriza HotAdd?",
+      "back": "O backup host é uma VM e acessa discos anexados; exige acesso/compatibilidade VMware."
+    },
+    {
+      "front": "Como diferem NBD e NBDSSL?",
+      "back": "Ambos usam NBD em rede; NBDSSL protege a transferência com SSL."
+    },
+    {
+      "front": "Como NetBackup escolhe modos de transporte?",
+      "back": "Tenta pela ordem configurada e usa o primeiro que funciona para todos os discos da VM."
+    },
+    {
+      "front": "SAN funciona com VMware VVols?",
+      "back": "A documentação da Veritas declara SAN não suportado para VMs em VVols."
+    },
+    {
+      "front": "Qual cuidado para HotAdd em VVols?",
+      "back": "VM protegida e backup host HotAdd devem estar no mesmo datastore VVol."
+    },
+    {
+      "front": "O que pode causar snapshots VMware acumulados?",
+      "back": "Degradação de desempenho, consumo de espaço e falhas de backup ou restauração."
+    },
+    {
+      "front": "O que verifica o pre-recovery check?",
+      "back": "Credenciais, caminhos, conectividade, espaço no datastore e outros requisitos da recuperação."
+    },
+    {
+      "front": "Onde acompanhar o progresso dos jobs?",
+      "back": "Activity Monitor na interface web do NetBackup."
+    },
+    {
+      "front": "Quantos jobs pode gerar um backup manual VMware?",
+      "back": "Mais de um: um trata criação/remoção de snapshots e outro transfere os arquivos da VM."
+    },
+    {
+      "front": "O que fazer se snapshot falha no NetBackup?",
+      "back": "Testar snapshot no vSphere com quiesce equivalente e comparar resultados para localizar a origem."
+    }
+  ],
+  "tips": [
+    "Ao investigar uma falha, separe descoberta, snapshot, leitura pelo backup host e gravação pelo media server.",
+    "Teste a consulta da Intelligent Policy antes da primeira execução para detectar filtros errados.",
+    "Para cada modo de transporte, confirme o caminho real de acesso aos datastores e a todos os discos.",
+    "Use quiesce por padrão e trate captura sem quiesce como crash-consistent.",
+    "Antes de recuperar, valide destino, espaço, credenciais e transporte no pre-recovery check.",
+    "Ao conferir backup manual, examine tanto o job de snapshot quanto o job de transferência."
+  ],
+  "traps": [
+    "Confundir snapshot temporário do VMware com imagem de backup gravada pelo NetBackup.",
+    "Achar que VMware Intelligent Policy salva a lista de VMs encontrada no teste de consulta.",
+    "Supor que SAN, HotAdd, NBD e NBDSSL são equivalentes quanto a segurança e acesso.",
+    "Tratar snapshot sem quiesce como equivalente à captura consistente com quiesce.",
+    "Acreditar que credencial validada dispensa conferir privilégios e conectividade do backup host.",
+    "Remover snapshot NBU_RESTORE sem verificar se ainda há uma recuperação em andamento."
+  ],
+  "activeRecall": [
+    "Descreva o caminho dos dados desde a política até o armazenamento de backup.",
+    "Compare as funções de primary server, backup host e media server.",
+    "Explique como criar uma política VMware e quais decisões operacionais ela reúne.",
+    "Compare seleção manual e seleção automática pela VMware Intelligent Policy.",
+    "Explique o efeito de quiesce e o que muda quando ele não ocorre.",
+    "Relacione BLIB, CBT e backup incremental.",
+    "Compare os quatro modos de transporte VMware e seus requisitos.",
+    "Descreva como investigar falha de snapshot e como preparar uma restauração."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Papéis dos componentes confundidos",
+      "summary": "Primary server coordena; backup host acessa VMware; media server movimenta e grava/recupera dados."
+    },
+    {
+      "key": "e2",
+      "title": "Seleção automática confundida com lista fixa",
+      "summary": "Intelligent Policy calcula VMs segundo regras no momento da execução; Test query é prévia, não grava a lista."
+    },
+    {
+      "key": "e3",
+      "title": "Consistência de snapshot presumida",
+      "summary": "Quiesce coordena I/O; sem ele a captura é crash-consistent e a consistência precisa de avaliação."
+    },
+    {
+      "key": "e4",
+      "title": "Transporte incompatível com o ambiente",
+      "summary": "SAN exige acesso ao datastore e não suporta VVols; HotAdd e modos NBD têm requisitos próprios."
+    },
+    {
+      "key": "e5",
+      "title": "Snapshot confundido com backup recuperável",
+      "summary": "Snapshot é usado para a captura; a imagem deve ser transferida e catalogada no armazenamento NetBackup."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Na arquitetura de backup VMware do NetBackup, qual componente coordena políticas e jobs?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O primary server, que coordena políticas, catálogo e execução dos jobs.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O vCenter, que cataloga imagens de backup no catálogo NetBackup e agenda cópias nos discos virtuais para cada política.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O VMware Tools, que grava imagens no armazenamento e controla as políticas do servidor NetBackup.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O datastore, que autentica operadores e inicia jobs de proteção para as máquinas do inventário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O snapshot, que coordena políticas e movimenta dados entre hosts até a unidade de armazenamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "O primary server coordena o NetBackup, incluindo políticas, catálogo e jobs. vCenter gerencia inventário VMware; VMware Tools auxilia operações no convidado; datastore guarda discos, e snapshot é um estado temporário, não um coordenador.",
+      "section": "1. Componentes e fluxo de proteção VMware",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para proteger integralmente uma VM VMware, é sempre obrigatório instalar o cliente NetBackup dentro do sistema operacional convidado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O NetBackup para VMware oferece backup off-host usando APIs VMware e um backup host; cliente dentro da VM não é requisito para o backup integral padrão. Pode haver requisitos específicos para determinadas recuperações de arquivos ou dados convidados.",
+      "section": "1. Componentes e fluxo de proteção VMware",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição distingue corretamente backup host e media server?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Backup host acessa VMware; media server movimenta dados e grava ou lê imagens.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Backup host agenda políticas no primary server; media server administra o inventário e as credenciais do vCenter.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Backup host guarda o catálogo central do NetBackup; media server cria snapshots dentro do sistema operacional convidado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Backup host valida operadores e suas credenciais VMware; media server substitui o hipervisor para executar as máquinas virtuais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Backup host cataloga snapshots do vCenter; media server seleciona VMs pelas regras OData da política VMware.",
+          "correct": false
+        }
+      ],
+      "explanation": "O backup host fornece acesso ao ambiente VMware e aos discos durante a operação. O media server transporta dados entre hosts e armazenamento. Coordenação de políticas é do primary server; inventário e snapshots dependem de VMware.",
+      "section": "1. Componentes e fluxo de proteção VMware",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O snapshot usado na proteção é a própria imagem definitiva de backup armazenada pelo NetBackup.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O snapshot fornece um ponto de leitura para transferir os dados enquanto a VM permanece disponível. O NetBackup precisa transferir os dados e gravar a imagem no armazenamento de backup; o snapshot de backup costuma ser removido ao fim do processo.",
+      "section": "1. Componentes e fluxo de proteção VMware",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na interface web, onde se inicia a criação de uma política de proteção VMware?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Em Protection > Policies, selecionando VMware como tipo de política.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Em Activity Monitor, convertendo um job concluído em política VMware.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Em vCenter > Datastores, criando uma regra do catálogo NetBackup.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Em VMware Tools, cadastrando uma agenda de cópia no sistema convidado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Em Storage > Snapshots, escolhendo o primary server como tipo de política.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação da Veritas indica Protection > Policies para criar políticas na interface web; seleciona-se VMware como tipo e então se definem armazenamento, agenda, clientes e opções VMware. O Activity Monitor acompanha jobs, não cria a política.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma VMware Intelligent Policy, o que determina a lista de máquinas protegida quando o job executa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "As regras de inclusão e exclusão avaliadas contra o inventário VMware atual.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A lista fixa exibida na última execução do Test query, salva na política e reaproveitada sem nova consulta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os snapshots encontrados no datastore no agendamento, que passam a servir como filtro das máquinas elegíveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os clientes NetBackup instalados em cada máquina virtual descoberta pelo serviço de inventário VMware.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O conjunto de VMs desligadas que o media server mantém no catálogo do ambiente de proteção VMware.",
+          "correct": false
+        }
+      ],
+      "explanation": "A Intelligent Policy avalia as regras do Query Builder no momento do job e inclui as VMs que então satisfazem os critérios. Test query serve como prévia; não salva uma lista definitiva de clientes.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O teste de uma consulta da VMware Intelligent Policy grava permanentemente no campo Clients a lista de VMs que encontrou.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Test query mostra quais VMs seriam incluídas ou excluídas segundo as regras, mas essa relação não é salva como uma lista fixa na aba Clients. Na execução, o NetBackup consulta novamente o inventário e os critérios.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer incluir automaticamente novas VMs de um grupo definido por atributos do inventário. Que configuração atende ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar VMware Intelligent Policy e definir regras no Query Builder da política.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar seleção manual e aguardar o vCenter atualizar sozinho a lista de clientes protegidos a cada descoberta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar snapshot agendado no datastore e usá-lo como inventário dinâmico para localizar as máquinas recém-criadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ativar NBDSSL, pois esse modo de transferência também seleciona máquinas automaticamente por atributos VMware.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Instalar VMware Tools nas VMs para que o utilitário as descubra e adicione à política existente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A Intelligent Policy seleciona VMs por critérios e acompanha mudanças no ambiente, desde que as regras estejam corretas. Seleção manual exige atualização explícita; snapshots e transporte não fazem seleção de clientes.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao criar política VMware, a unidade de armazenamento define o destino lógico para gravação das imagens de backup.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A política escolhe uma unidade de armazenamento ou grupo de unidades para receber os dados. Ela não define o inventário VMware nem o método de seleção das VMs.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que conjunto de verificações é apropriado quando a credencial VMware valida, mas a descoberta de ativos falha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar host usado na descoberta, permissões, certificados, DNS e conectividade ao vCenter.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desativar o catálogo, reiniciar o datastore e remover os snapshots da VM.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar todas as políticas para NBDSSL e retirar o acesso ao vCenter.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Recriar as imagens de backup, pois descoberta depende do armazenamento de destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Instalar cliente NetBackup em todas as VMs e ignorar os privilégios VMware.",
+          "correct": false
+        }
+      ],
+      "explanation": "Credencial válida não garante que o host de descoberta alcance o servidor ou tenha todos os privilégios. A Veritas recomenda verificar host/proxy usado, conectividade, certificados autenticados e permissões. Modo de transporte e catálogo não substituem essas verificações.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A opção de backup incremental de bloco pode permitir ao NetBackup habilitar CBT quando este ainda não está ativo na VM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação de troubleshooting descreve que o NetBackup habilita Change Block Tracking quando o backup em nível de bloco está habilitado na política e CBT ainda não está habilitado na VM. O funcionamento também depende do estado e suporte VMware.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é o efeito de quiesce antes de criar o snapshot da VM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Coordena a atividade de I/O do convidado para melhorar a consistência capturada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criptografa os discos transmitidos pelo modo SAN antes da leitura pelo backup host VMware.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converte automaticamente uma cópia full em backup incremental CBT na política de proteção VMware.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Replica a VM para um segundo vCenter antes da execução do job e da gravação da imagem de backup.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remove todos os snapshots existentes sem examinar a ação definida para a política VMware aplicada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quiesce coordena I/O antes do snapshot para favorecer consistência do sistema de arquivos e dos dados. Não criptografa transporte, não converte tipos de backup, não replica a VM e não é mecanismo geral de limpeza de snapshots.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O quiesce de VM pode depender de VMware Tools e, em Linux, de configuração habilitada no sistema convidado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação da Veritas indica VMware Tools para quiesce. Em Linux, a configuração de quiesce de snapshot no sistema convidado também precisa estar habilitada; sem isso, a preparação consistente pode falhar.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma política aceita snapshot sem quiesce após falha do quiesce, que propriedade deve ser considerada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A captura é crash-consistent e a equipe deve avaliar a consistência dos dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A captura torna-se automaticamente consistente com aplicações e transações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A VM é desligada e toda operação de gravação é bloqueada até o fim.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O CBT é desativado e o NetBackup restaura a cópia anterior da VM.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O snapshot deixa de existir e a imagem passa a ser gravada no vCenter.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sem quiesce, não há coordenação da atividade de I/O do convidado. A Veritas descreve o resultado como crash-consistent e alerta que a consistência não pode ser garantida; a equipe deve avaliar a adequação dos dados capturados.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual modo transfere dados sem criptografia por Fibre Channel ou iSCSI?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SAN, desde que o host tenha acesso ao armazenamento VMware.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "NBDSSL, que usa SSL sobre Fibre Channel e dispensa qualquer datastore acessível ao host de recuperação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "HotAdd, que sempre lê os discos por uma rede iSCSI criptografada e ignora a anexação de discos ao host.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "NBD, que transporta dados sem rede, usando discos anexados diretamente ao backup host VMware.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CBT, que é um protocolo de transporte por Fibre Channel usado para gravar imagens completas de máquinas virtuais.",
+          "correct": false
+        }
+      ],
+      "explanation": "SAN é o modo de transferência sem criptografia por Fibre Channel ou iSCSI e depende do acesso correspondente ao armazenamento. NBD/NBDSSL usam rede; HotAdd anexa discos ao backup host; CBT rastreia blocos alterados, não transporta dados.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "NBDSSL usa o protocolo NBD em rede com proteção SSL, enquanto NBD não oferece essa proteção SSL.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A distinção central documentada pela Veritas é que NBD transfere sem criptografia e NBDSSL usa SSL sobre o transporte NBD. Ambos costumam ser mais lentos que Fibre Channel.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que caracteriza o modo HotAdd no backup VMware?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O backup host roda em uma VM e acessa discos da VM protegida por anexação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O media server lê exclusivamente snapshots armazenados no vCenter por NBDSSL e não acessa os discos virtuais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A VM protegida precisa conter o primary server para exportar seus blocos ao backup host durante a cópia.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O datastore é copiado diretamente por Fibre Channel sem um host NetBackup intermediando a operação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O sistema convidado converte automaticamente dados para uma imagem incremental e anexa discos ao media server.",
+          "correct": false
+        }
+      ],
+      "explanation": "HotAdd permite que o backup host seja uma máquina virtual e leia discos anexados para a operação. Exige que o host e a infraestrutura VMware tenham acesso e compatibilidade; não elimina a função do NetBackup nem é um protocolo NBD.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Com vários modos selecionados, o NetBackup pode escolher um que funcione apenas para alguns discos e outro para os restantes da mesma VM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O NetBackup tenta os modos na ordem indicada e usa o primeiro que obtém sucesso para todos os discos da VM. Se um disco não puder ser acessado por determinado modo, tenta o próximo modo para os discos da máquina, não presume uma mistura por disco.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual condição a documentação estabelece para usar HotAdd com VMs em VVols?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A VM protegida e o backup host HotAdd devem residir no mesmo datastore VVol.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O backup host deve ser físico e conectado somente por Fibre Channel.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A VM precisa ser movida para datastore NFS antes de cada snapshot.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O primary server deve residir na mesma VM e usar CBT desabilitado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O restore host deve estar em outro datacenter sem acesso ao VVol.",
+          "correct": false
+        }
+      ],
+      "explanation": "A nota oficial da Veritas para HotAdd em VVols exige que a VM e a VM que contém o backup host HotAdd residam no mesmo datastore VVol. SAN, por sua vez, não é suportado para VMs em VVols.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de SAN é suportado pela Veritas para proteger máquinas virtuais que usam VMware Virtual Volumes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A documentação da Veritas informa que SAN não é suportado para VMs em VVols. Para esse ambiente, é necessário selecionar outro transporte compatível e observar seus requisitos, como HotAdd ou NBD conforme a topologia.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa associa corretamente modo e característica de transporte VMware?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "SAN usa Fibre Channel ou iSCSI sem criptografia; NBDSSL usa NBD protegido por SSL.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SAN usa SSL em rede local; NBDSSL anexa discos a uma VM de backup host.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "HotAdd usa apenas iSCSI sem criptografia; NBD transfere blocos por Fibre Channel.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "NBDSSL rastreia blocos alterados; CBT cifra o tráfego de rede por SSL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "NBD usa discos anexados; HotAdd transmite por NBD sem máquina virtual.",
+          "correct": false
+        }
+      ],
+      "explanation": "SAN é transferência sem criptografia por Fibre Channel ou iSCSI; NBDSSL é transporte em rede pelo protocolo NBD com SSL. HotAdd depende de backup host em VM; CBT rastreia blocos alterados, não é transporte.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Snapshots que permanecem acumulados podem reduzir o desempenho da VM e consumir espaço necessário a uma restauração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação da Veritas alerta que snapshots não removidos podem degradar desempenho e causar falhas de restauração por falta de espaço. Antes de removê-los, identifique sua origem e confirme que não há restauração ativa.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante um backup, o NetBackup encontra um snapshot de restauração chamado NBU_RESTORE, mas não há job ativo. Qual ação operacional é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Investigar a VM e confirmar o estado da restauração antes de remover o snapshot.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ignorar sempre o snapshot e forçar a criação de outro durante o backup.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar todos os snapshots da VM sem consultar o administrador VMware.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mudar a política para seleção manual, que remove snapshots de restauração.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar o catálogo para que o NetBackup encerre o snapshot automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A presença de NBU_RESTORE faz o backup falhar porque o NetBackup presume restauração em andamento, independentemente da configuração de snapshots existentes. Se não existe job ativo, a Veritas orienta que o administrador VMware inspecione a VM e decida se o snapshot deve ser removido.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência é adequada para diagnosticar falha ao criar snapshot com quiesce?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Testar snapshot equivalente no vSphere e conferir Tools, estado VMware e logs NetBackup.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar restore da VM, apagar a imagem antiga e desabilitar todas as credenciais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar a unidade de armazenamento e assumir que o snapshot será criado pelo media server.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar CBT por NBDSSL, pois o modo NBD cria snapshots com quiesce.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desligar a VM em produção sem verificar o resultado no vSphere.",
+          "correct": false
+        }
+      ],
+      "explanation": "A Veritas recomenda isolar se a falha é do VMware ou do NetBackup testando a operação de snapshot no vSphere com quiesce equivalente. Se falhar ali, investigue VMware e Tools; se funcionar, examine credenciais, permissões e logs do NetBackup.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um backup manual VMware pode apresentar um job para snapshots e outro job para transferir arquivos da VM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação descreve que a solicitação pode lançar mais de um job: o primeiro cria e remove snapshots e o segundo lê os arquivos da VM a partir do snapshot. Ambos devem ser considerados no diagnóstico.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em qual ferramenta da interface web o operador acompanha andamento e detalhes dos jobs de backup VMware?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Activity Monitor, consultando o estado e os detalhes de cada job.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Query Builder, que exibe logs de transferência de cada disco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "VMware Tools, que mantém o catálogo NetBackup de imagens.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "vSphere Datastore Browser, que mostra estados dos jobs do primary server.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Policy Attributes, que substitui o monitoramento de atividade.",
+          "correct": false
+        }
+      ],
+      "explanation": "O Activity Monitor permite acompanhar os jobs e abrir detalhes. Query Builder define seleção, VMware Tools atua no convidado e as telas VMware não substituem o monitor de jobs do NetBackup.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Antes de restaurar uma VM, qual verificação o pre-recovery check realiza?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Credenciais, caminhos, conectividade e disponibilidade de espaço no destino VMware.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desfragmentação automática dos discos e reparo de sistemas de arquivos convidados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conversão de todos os backups anteriores em imagens full completas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remoção de snapshots ativos e instalação de VMware Tools no destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alteração das permissões do vCenter para conceder acesso irrestrito ao NetBackup.",
+          "correct": false
+        }
+      ],
+      "explanation": "O pre-recovery check valida credenciais, caminhos, conectividade, espaço no datastore ou cluster e outros requisitos. Ele aponta problemas antes da execução, mas não os corrige por conta própria nem altera permissões ou sistemas convidados.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O pre-recovery check garante que qualquer falha identificada será corrigida automaticamente antes da restauração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O pre-check verifica requisitos e informa erros, como credenciais, conectividade ou espaço. O operador precisa resolver os problemas; ignorá-los pode fazer a recuperação falhar.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um restore host diferente do host usado no backup não tem acesso SAN ao datastore. Qual decisão reduz o risco de falha por incompatibilidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Selecionar um transporte acessível ao restore host, como NBD, após validar destino.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter SAN, pois o catálogo transfere automaticamente o acesso físico ao datastore para o host de recuperação sem conectividade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar o pre-check para forçar a criação dos discos no datastore original sem validar credenciais, conectividade ou espaço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escolher CBT como modo de transporte para reconstruir o acesso SAN ausente e transferir os blocos diretamente ao destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Instalar o primary server na VM restaurada para disponibilizar Fibre Channel ao host sem configuração de acesso SAN.",
+          "correct": false
+        }
+      ],
+      "explanation": "O restore host precisa ter acesso compatível com o modo de transporte. Se não alcança o datastore via SAN, SAN pode falhar; a Veritas recomenda considerar outro modo, como NBD, depois de verificar conectividade, espaço e destino.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em restauração integral, o modo de transporte padrão pode ser o mesmo utilizado no backup.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A interface de recuperação pode usar o transporte utilizado no backup como padrão. Ainda é necessário confirmar que o host de recuperação e o destino atual atendem aos requisitos desse modo.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual vantagem descreve corretamente a recuperação de arquivos individuais a partir de backup VMware?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Recupera arquivos selecionados sem precisar restaurar integralmente a VM.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Dispensa imagem de backup, pois lê arquivos diretamente do snapshot ativo mantido no datastore de produção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converte arquivos Windows para Linux durante a transferência ao destino e preserva permissões entre sistemas incompatíveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substitui as credenciais VMware por acesso direto ao catálogo do primary server para localizar discos convidados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remove as restrições de sistema operacional e de criptografia dos arquivos sem exigir configuração no convidado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A recuperação granular permite restaurar arquivos selecionados de uma imagem VMware, evitando a restauração completa da máquina. Ela não dispensa backup e possui requisitos e limitações de plataforma, sistema de arquivos e criptografia.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A recuperação individual de arquivos Windows pode ser feita para um convidado Linux sem restrição de plataforma.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A documentação da Veritas registra restrição de recuperação individual entre plataformas: arquivos Windows devem ser recuperados para convidados Windows e arquivos Linux para Linux suportado. Verifique também requisitos específicos de criptografia e volumes.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A restauração em datastore alternativo pode ser útil quando os arquivos VMDK não cabem no datastore original de destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A Veritas descreve que snapshots residuais e VMs com discos em vários datastores podem levar a tentativa de restaurar VMDKs no datastore de snapshot, sem espaço suficiente. Uma restauração em local alternativo permite selecionar datastore adequado.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política passou de seleção manual para Intelligent Policy e o próximo job executa full normal mesmo com imagem anterior. Qual explicação é compatível com o comportamento documentado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A mudança entre métodos de seleção pode provocar o próximo backup full normal da VM.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A Intelligent Policy elimina a imagem anterior e converte todo incremental em restore.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A VMware exige reinstalar o cliente NetBackup após cada mudança de seleção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O full normal indica necessariamente falha do catálogo e corrupção da VM.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O modo NBDSSL força um full sempre que a política tem regras de inclusão.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação de troubleshooting alerta que alterar a política de seleção manual para Intelligent Policy ou vice-versa pode fazer o próximo backup da VM ser um full normal, mesmo havendo imagem anterior. Isso, isoladamente, não indica corrupção.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O NetBackup pode proteger VMs desligadas, segundo a descrição do recurso NetBackup for VMware.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação de introdução informa que o NetBackup pode fazer backup de máquinas virtuais mesmo quando estão desligadas, além de oferecer cópias full e incrementais e recuperação da VM inteira.",
+      "section": "1. Componentes e fluxo de proteção VMware",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma VM falha ao criar snapshot e possui muitos snapshots existentes. Que fator conhecido deve ser investigado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A Veritas documenta falha possível quando há mais de 31 snapshots na VM.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O NetBackup exige exatamente 31 snapshots antes de iniciar qualquer backup.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O número de snapshots define o modo NBDSSL e impede uso de credenciais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Snapshots existentes convertem automaticamente o backup em seleção manual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O primary server limita cada política a 31 VMs e as demais falham por snapshot.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação oficial de troubleshooting informa que mais de 31 snapshots existentes podem fazer o backup falhar. O operador deve examinar e tratar o estado de snapshots no VMware; o limite citado refere-se a snapshots, não a quantidade de VMs da política.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A VMware Intelligent Policy pode incluir e excluir máquinas por critérios definidos no Query Builder da política.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. As regras do Query Builder selecionam automaticamente as VMs atuais que correspondem aos critérios. Podem definir inclusão ou exclusão, e a consulta é avaliada quando o job executa.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao escolher um backup host para VMware, qual aspecto operacional deve ser confirmado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acesso do host ao servidor VMware e aos datastores/discos exigidos pela política.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Que o host esteja no mesmo sistema operacional convidado de todas as VMs.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Que o host substitua o primary server e mantenha o catálogo localmente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Que toda VM esteja ligada e sem VMware Tools instalado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Que o host não tenha conectividade com o media server de destino.",
+          "correct": false
+        }
+      ],
+      "explanation": "O backup host precisa alcançar o servidor VMware e ler os discos/datastores envolvidos; o media server também precisa alcançar o armazenamento NetBackup. Compatibilidade e conectividade devem ser confirmadas em cada topologia.",
+      "section": "1. Componentes e fluxo de proteção VMware",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Desabilitar quiesce elimina qualquer necessidade de verificar consistência dos dados convidados na imagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Sem quiesce, o NetBackup captura sem coordenação de I/O e não pode garantir a consistência dos dados. A Veritas orienta análise própria da consistência quando a opção é desabilitada.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ação inicia uma execução imediata de backup a partir de uma política já configurada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Selecionar a política, acionar Manual backup, escolher agenda e clientes e iniciar Backup.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Abrir Query Builder, remover todas as regras e aguardar descoberta automática.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar um snapshot manual no datastore e marcar a imagem como catalogada sem executar o fluxo de backup NetBackup.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Validar a credencial VMware, que inicia necessariamente backup de todas as VMs sem consultar política ou agenda.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar pre-recovery check, que converte a política em job de proteção e inicia a cópia dos discos VMware.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação orienta abrir Protection > Policies, selecionar a política e Manual backup, escolher tipo de agenda e clientes, e iniciar Backup; o Activity Monitor acompanha jobs. Validar credenciais ou fazer pre-check não inicia cópia.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na política VMware, habilitar Accelerator seleciona a opção de backup incremental em nível de bloco.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O procedimento oficial de criação de política informa que selecionar Use Accelerator habilita a opção Enable block-level incremental backup na aba VMware. Esse recurso depende também dos requisitos VMware aplicáveis.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer que a VM permaneça disponível durante a transferência da cópia. Qual característica do NetBackup para VMware favorece esse objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usa snapshot para leitura e descarrega a transferência para um backup host.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Desliga a VM durante toda a gravação e copia o disco do sistema convidado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mantém todos os dados exclusivamente no vCenter sem transferir a imagem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Replica a memória da VM para o primary server e interrompe o datastore.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exige que o media server execute dentro da VM protegida.",
+          "correct": false
+        }
+      ],
+      "explanation": "O NetBackup usa snapshots VMware para obter um ponto de leitura e descarrega o backup para um backup host, mantendo a VM disponível durante a transferência. Isso não significa ausência de impacto ou que o snapshot seja a imagem definitiva.",
+      "section": "1. Componentes e fluxo de proteção VMware",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para um backup incremental VMware, selecionar tipo incremental na agenda, por si só, dispensa opções VMware necessárias à recuperação de arquivos ou ao BLIB.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A configuração documentada exige opções VMware compatíveis para incrementais, como habilitar recuperação de arquivos da imagem da VM ou backup incremental em nível de bloco. Tipo de agenda isolado não substitui a configuração da política.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente o papel do teste de regras antes do backup automático?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ajuda a detectar regras que incluem ou excluem VMs inesperadas antes da execução.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Confirma que os discos já foram copiados para o armazenamento definido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Valida o espaço de recuperação de cada datastore de destino VMware.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplica os snapshots das VMs listadas e remove os filtros da política.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cria automaticamente credenciais VMware com privilégios administrativos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Test query é uma prévia dos resultados das regras de seleção. Serve para identificar inclusão ou exclusão inesperada antes do job, mas não executa backup, valida restauração nem cria credenciais.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "NBD e NBDSSL costumam ser mais lentos que Fibre Channel segundo a descrição dos modos VMware da Veritas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação descreve NBD e NBDSSL como transporte em rede pelo Network Block Device e observa que geralmente são mais lentos que Fibre Channel. NBDSSL acrescenta SSL, mas continua sendo transporte em rede.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se o backup falha ao quiescer o sistema convidado, qual elemento deve ser verificado primeiro entre os requisitos do convidado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Instalação e atualização do VMware Tools na máquina virtual afetada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Número de change sets do catálogo no primary server.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Certificado SSL do modo NBD, mesmo quando NBD não foi selecionado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Nome da unidade de armazenamento do media server no vCenter.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ativação do Accelerator em toda política, mesmo sem incremental.",
+          "correct": false
+        }
+      ],
+      "explanation": "A Veritas aponta VMware Tools ausente ou desatualizado como causa a verificar quando a VM não pode ser quiesced para o snapshot. Também confira configuração de quiesce em Linux e o estado VMware.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando se restaura a VM para destino alternativo, o operador pode precisar escolher novamente host, rede, datastore e transporte compatíveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A recuperação integral permite selecionar destino alternativo e opções relacionadas. É necessário validar compatibilidade do host, conectividade, capacidade do datastore e transporte; o destino original não deve ser presumido.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situação explica melhor uma restauração SAN que falha apesar de a imagem estar catalogada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O restore host escolhido não tem acesso SAN ao datastore VMware de destino.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A política usa seleção manual em vez de Intelligent Policy.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A VM de origem estava desligada quando o backup foi realizado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A consulta OData incluiu uma VM com nome sensível a maiúsculas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O backup foi monitorado no Activity Monitor em vez do vCenter.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma imagem catalogada não garante que o host de recuperação alcance o armazenamento VMware pelo transporte selecionado. A Veritas cita falta de acesso SAN no recovery host como causa de falha e orienta escolher transporte compatível ou host adequado.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "VMware Intelligent Policy permite criar regras de seleção no Query Builder, inclusive em modo avançado com agrupamento de condições.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação descreve Query Builder em modos Basic e Advanced; o avançado oferece flexibilidade adicional, inclusive parênteses para agrupar regras. Na interface web, devem ser usados os operadores e palavras-chave OData indicados.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política usa snapshots existentes e o backup terminou. Qual afirmação descreve uma razão para administrar snapshots residuais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Snapshots não removidos podem degradar a VM e ocupar espaço do datastore.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Snapshots residuais aumentam sempre a consistência e aceleram restaurações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Snapshots residuais são as únicas cópias catalogadas pelo NetBackup.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Snapshots antigos substituem a necessidade de unidade de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Snapshots garantem que todo restore possa usar SAN sem acesso ao datastore.",
+          "correct": false
+        }
+      ],
+      "explanation": "Snapshots não removidos podem afetar desempenho e consumir espaço, criando risco para backups e restaurações. A imagem de backup é gravada no armazenamento NetBackup; snapshots não substituem cópias catalogadas.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O backup host escolhido automaticamente pode ser um media server ou outro host configurado para acesso VMware, conforme a política e o ambiente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A política indica o host que executa backup em nome das VMs; o ambiente pode usar media server ou host configurado para acesso VMware, observadas as opções e requisitos da implantação.",
+      "section": "1. Componentes e fluxo de proteção VMware",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que conduta é mais adequada diante de erro de espaço no pre-check de restauração?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Selecionar datastore com espaço suficiente ou liberar capacidade antes de iniciar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ignorar o erro, pois o NetBackup comprime automaticamente o datastore VMware.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar credenciais, pois o espaço é validado pelo primary server apenas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar a política de backup para seleção manual e repetir a recuperação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar quiesce para converter espaço livre em capacidade de restauração.",
+          "correct": false
+        }
+      ],
+      "explanation": "O pre-check pode apontar espaço insuficiente no datastore ou cluster. Deve-se corrigir a capacidade ou escolher destino com espaço antes de iniciar; ignorar a falha pode resultar em recuperação malsucedida.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Toda imagem VMware catalogada permite recuperar qualquer arquivo em qualquer sistema operacional, inclusive arquivos criptografados, sem requisitos adicionais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A recuperação granular tem limitações por plataforma e tipo de volume. Arquivos Windows e Linux exigem destino compatível; arquivos NTFS criptografados podem exigir cliente NetBackup na VM. Consulte os requisitos específicos da operação.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação é indispensável para que um backup VMware chegue ao destino de proteção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acesso VMware pelo backup host e caminho do media server ao armazenamento escolhido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Acesso de cada VM ao catálogo e conexão direta do vCenter ao tape drive.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cliente em cada convidado e ausência de primary server durante os jobs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Snapshots permanentes no datastore de cada VM e transporte exclusivamente NBDSSL para todos os discos protegidos da política.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Credenciais do datastore sem permissão de inventário ou acesso aos discos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O backup host precisa acessar vCenter/ESXi e os discos/datastores necessários; o media server precisa levar os dados ao armazenamento NetBackup. Credenciais isoladas ou snapshots sem transferência não produzem imagem recuperável.",
+      "section": "1. Componentes e fluxo de proteção VMware",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A opção de excluir discos na política pode alterar quais discos da VM são incluídos no backup.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A configuração de política VMware oferece opção de exclusão de discos. É necessário revisar essa configuração para não concluir que a imagem contém discos deliberadamente excluídos; uma VM sem discos incluídos pode resultar em backup vazio ou falha.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual interpretação do modo de transporte configurado para restauração é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A ordem selecionada importa, e cada modo precisa servir ao host e datastore de destino.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A ordem só altera a criptografia da imagem e não afeta o caminho dos discos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O modo escolhido no backup sempre funciona, mesmo em outro host sem acesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "NBDSSL corrige automaticamente credenciais e espaço indisponível no destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "HotAdd é selecionado sem considerar se o recovery host está em uma VM.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ordem de tentativa define a precedência e os modos dependem da topologia. O host de recuperação precisa ter acesso necessário; HotAdd requer host em VM, SAN requer acesso ao armazenamento, e NBD/NBDSSL usam conectividade em rede.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Alterar somente o método de seleção manual para Intelligent Policy é garantido a manter a próxima cópia limitada aos blocos alterados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A documentação alerta que mudar entre seleção manual e Intelligent Policy pode fazer o próximo backup ser full normal, mesmo com imagem anterior. Para BLIB/Accelerator, o processamento pode não ficar limitado apenas aos blocos alterados nesse caso.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em qual situação a seleção automática ajuda especialmente a administração de um ambiente VMware extenso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quando regras permitem manter atualizada a seleção conforme o inventário muda.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Quando é necessário evitar credenciais VMware para qualquer descoberta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quando todas as VMs devem ser incluídas sem avaliar atributos ou filtros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quando a política precisa restaurar snapshots no lugar de criar backups.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Quando o media server não consegue acessar o armazenamento configurado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A Intelligent Policy evita manter manualmente uma lista extensa e atualiza o conjunto protegido conforme as regras e inventário. Ela não elimina credenciais, não exige incluir tudo e não corrige falta de acesso ao destino.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um backup VMware pode proteger a VM completa e também permitir backups full e incrementais, inclusive em nível de bloco quando configurado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação de NetBackup para VMware descreve backup da máquina virtual completa, cópias full e incrementais, incluindo incrementais em nível de bloco quando habilitados e suportados.",
+      "section": "1. Componentes e fluxo de proteção VMware",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador quer confirmar se uma falha de snapshot está no vSphere ou na integração NetBackup. Qual evidência é útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Resultado de snapshot de teste no vSphere com a opção de quiesce equivalente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Contagem de políticas do primary server sem examinar a VM afetada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Velocidade do último restore de arquivo em outra plataforma convidada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Nome da unidade de armazenamento sem verificar conectividade VMware.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Estado da consulta automática sem comparar logs nem tarefas VMware.",
+          "correct": false
+        }
+      ],
+      "explanation": "A Veritas recomenda criar snapshot no vSphere com quiesce equivalente e observar as tarefas VMware. Se falhar, a origem provavelmente está no ambiente VMware; se funcionar, investigue NetBackup e seus logs de VMware.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe pode escolher interromper o backup de uma VM quando encontra snapshots existentes, conforme a opção de tratamento configurada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A política VMware permite definir a ação diante de snapshots preexistentes, incluindo interromper o job da VM se qualquer snapshot existir ou se houver snapshots criados pelo NetBackup. A escolha deve considerar operações em andamento e espaço.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As regras da Intelligent Policy são reavaliadas quando o job executa, permitindo que a seleção acompanhe mudanças no inventário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O NetBackup consulta as regras ao executar a política e forma a lista das VMs que naquele momento atendem aos critérios; o teste anterior não fixa os resultados.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para usar HotAdd, a VM protegida e o backup host precisam estar em datacenters VMware diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A orientação da Veritas registra como requisito VMware que a VM protegida e a VM que contém o backup host HotAdd residam no mesmo datacenter; para VVols, também devem estar no mesmo datastore VVol.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "NBD e NBDSSL usam transporte em rede baseado no protocolo Network Block Device.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Ambos usam NBD em rede local. NBDSSL cifra a transferência com SSL, enquanto NBD é descrito como transferência sem criptografia.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O teste das regras de seleção substitui a validação das credenciais e do acesso ao vCenter.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Test query mostra resultados de inclusão e exclusão das regras. Credenciais, privilégios e conectividade VMware precisam ser validados separadamente para descoberta e execução dos backups.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Activity Monitor apresenta o progresso dos jobs, mas não substitui a revisão dos detalhes de cada operação quando há falha.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O monitor permite acompanhar jobs e abrir seus detalhes. O diagnóstico requer examinar estados e mensagens dos jobs envolvidos, inclusive os de snapshot e de transferência, além do ambiente VMware.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a principal diferença operacional entre seleção manual e VMware Intelligent Policy?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manual mantém VMs escolhidas explicitamente; Intelligent Policy avalia regras no inventário.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manual cria snapshots diretamente sem servidor de políticas; Intelligent Policy grava imagens em datastores VMware sem armazenamento NetBackup.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manual usa NBDSSL em todas as execuções; Intelligent Policy depende exclusivamente de Fibre Channel para acessar cada VM.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manual dispensa políticas e agendamentos; Intelligent Policy dispensa qualquer armazenamento de backup configurado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manual recupera arquivos convidados de qualquer imagem; Intelligent Policy só restaura discos integrais das VMs selecionadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na seleção manual o administrador escolhe as máquinas; na Intelligent Policy as regras são avaliadas contra o inventário VMware quando o job executa. Os dois métodos integram uma política NetBackup e não definem por si mesmos transporte ou destino.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que sequência descreve melhor um backup VMware padrão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Política agenda VM, snapshot fornece leitura, host transfere dados e imagem é gravada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Media server cria VM, vCenter cataloga a imagem no catálogo NetBackup e primary server remove discos do datastore.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Query Builder grava snapshot no catálogo e VMware Tools replica o datastore para a unidade selecionada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "NBDSSL seleciona clientes, CBT cria política e o snapshot vira arquivo final sem transferência ao NetBackup.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "VMware Tools grava a cópia, e a unidade de armazenamento remove o snapshot do vCenter após o backup.",
+          "correct": false
+        }
+      ],
+      "explanation": "A política define a proteção; o snapshot fornece um ponto de leitura; o backup host acessa e transfere os dados, e o NetBackup os armazena como imagem. Os papéis de catálogo e gestão VMware não se confundem com essa sequência.",
+      "section": "1. Componentes e fluxo de proteção VMware",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O backup host tem acesso ao vCenter, mas um datastore necessário aos discos da VM não está acessível. Qual consequência é plausível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A operação pode falhar porque o host não consegue ler todos os discos exigidos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O primary server copia os discos sem acesso e completa o job automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A política troca para seleção manual e continua sem registrar a ocorrência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O catálogo emula o datastore e disponibiliza os VMDKs ao media server.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O quiesce restaura a conectividade e monta o datastore no backup host.",
+          "correct": false
+        }
+      ],
+      "explanation": "A descoberta do inventário não equivale ao acesso de leitura dos discos. O backup host precisa alcançar os datastores usados pela VM; sem isso, o transporte pode falhar para os discos e o job não se conclui normalmente.",
+      "section": "1. Componentes e fluxo de proteção VMware",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para que serve a unidade de armazenamento configurada na política?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Indica o destino lógico onde o NetBackup grava os dados de backup.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Define as regras OData para incluir máquinas descobertas pelo vCenter.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substitui credenciais e permissões necessárias ao acesso VMware.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escolhe quais discos devem receber quiesce dentro do sistema convidado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Controla o número de snapshots temporários mantidos no datastore VMware.",
+          "correct": false
+        }
+      ],
+      "explanation": "A política direciona o backup para uma unidade ou grupo de armazenamento NetBackup. Seleção de VMs, credenciais e opções de snapshot são configurações distintas e não são determinadas pela unidade de armazenamento.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma restauração integral deve considerar espaço disponível no datastore de destino antes de gravar os discos virtuais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O pre-recovery check verifica espaço no datastore ou cluster, pois discos restaurados precisam caber no destino. Falta de capacidade deve ser resolvida antes de iniciar a recuperação.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma imagem de backup bem-sucedida garante, por si só, que o restore host terá acesso ao datastore original por SAN.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O acesso durante o backup não garante que outro host escolhido para recuperação tenha acesso SAN ao destino. Se não tiver, selecione um transporte compatível ou um host com acesso adequado e valide os requisitos antes do restore.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao testar snapshot pelo vSphere para diagnosticar uma falha NetBackup, qual ajuste deve corresponder à política quando quiesce está habilitado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Marcar quiesce do sistema convidado e observar o resultado nas tarefas VMware.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Marcar captura da memória da VM, opção usada pelo NetBackup em todo backup.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar snapshots e restaurar a VM antes de comparar as operações.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar a regra OData e usar o mesmo job para testar o vCenter.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar CBT no datastore, pois esse recurso realiza a operação de quiesce.",
+          "correct": false
+        }
+      ],
+      "explanation": "A orientação de troubleshooting da Veritas é testar snapshot no vSphere com a opção de quiesce do sistema convidado se a política NetBackup usa quiesce. A opção de capturar memória não é usada pelo NetBackup nesse teste.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O uso de NBDSSL remove a necessidade de validar conectividade de rede entre o host de recuperação e o ambiente VMware.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. NBDSSL protege o transporte NBD com SSL, mas continua dependendo de conectividade de rede e de acesso permitido ao VMware. A criptografia não substitui validação de caminhos, credenciais e capacidade.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a função principal do CBT em uma política VMware com incrementais em nível de bloco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Identificar blocos alterados para apoiar o processamento incremental da VM.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criptografar todo o tráfego entre vCenter e media server com SSL, substituindo o modo NBDSSL.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar snapshots VMware e remover os anteriores após cada backup full de todas as VMs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Selecionar automaticamente VMs por nome e pasta no inventário sem consultar regras da política.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Armazenar o catálogo do NetBackup dentro de cada disco virtual protegido pelo backup host.",
+          "correct": false
+        }
+      ],
+      "explanation": "Change Block Tracking identifica blocos que mudaram e pode reduzir o volume lido em incrementais em nível de bloco. Criptografia, snapshot, seleção de VMs e catálogo são funções diferentes.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma imagem armazenada pelo NetBackup pode ser usada para recuperação mesmo depois que o snapshot temporário da operação foi removido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O snapshot é um recurso temporário para leitura durante a captura; a imagem catalogada é gravada no armazenamento NetBackup e pode ser selecionada para recuperação após o snapshot ser removido.",
+      "section": "1. Componentes e fluxo de proteção VMware",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na política VMware, qual conjunto reúne decisões importantes para a operação de backup?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "VMs, agenda, armazenamento, host de backup e opções VMware.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Somente o endereço do datastore e a senha do sistema convidado, sem agenda ou destino NetBackup.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas o nome do primary server e o modelo do hipervisor VMware, sem escolher as VMs protegidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número de snapshots manuais e as regras de firewall do vCenter, sem definir o armazenamento de backup.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somente a ordem de restauração de arquivos e a versão do VMware Tools instalados no convidado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A política reúne seleção das VMs, agenda e tipo de backup, unidade de armazenamento, host e opções específicas de VMware. Credenciais e configurações do ambiente também são necessárias, mas não substituem esses atributos da política.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O backup host pode ser um media server ou outro host configurado para acessar VMware, de acordo com a implantação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A política seleciona o host que realiza o backup em nome das VMs. Conforme a implantação, esse papel pode caber a um media server ou a outro host configurado como host de acesso VMware.",
+      "section": "1. Componentes e fluxo de proteção VMware",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual investigação é indicada quando a criação de snapshot falha no NetBackup, mas funciona no vSphere?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Revisar credenciais, privilégios, configuração da política e logs NetBackup.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Excluir a imagem anterior do catálogo e desativar a unidade de armazenamento usada pela política VMware.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Trocar o primary server pelo datastore, remover o host de backup e repetir a descoberta sem novas credenciais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover VMware Tools e executar o backup sem acesso ao vCenter, mantendo o snapshot de produção em uso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desabilitar todas as regras da política e restaurar a VM de origem antes de consultar logs ou validar credenciais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se o snapshot de teste no vSphere funciona, a falha pode estar na integração NetBackup. Revise credenciais e permissões, host usado, opções da política e logs específicos antes de alterar dados ou desativar componentes.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma política VMware pode permitir a exclusão de discos selecionados da cópia, portanto é necessário revisar a configuração ao validar cobertura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. As políticas VMware oferecem configuração de exclusão de discos. Ao confirmar o escopo protegido, o administrador deve verificar se discos relevantes foram excluídos intencionalmente.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que efeito tem escolher NBDSSL em vez de NBD para a transferência em rede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A transferência NBD passa a usar SSL para proteção dos dados em trânsito.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Os discos da VM passam a ser anexados ao backup host por HotAdd.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O backup host ganha acesso Fibre Channel sem configuração de SAN.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O CBT é habilitado e a política passa a selecionar VMs automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O datastore VMware passa a funcionar como unidade de armazenamento NetBackup.",
+          "correct": false
+        }
+      ],
+      "explanation": "NBDSSL é o transporte NBD protegido por SSL. Não altera NBD para HotAdd ou SAN, não configura CBT nem transforma datastore VMware em armazenamento NetBackup.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O NetBackup pode realizar backup de uma VM desligada, conforme as capacidades descritas para NetBackup for VMware.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação do produto informa que o NetBackup pode proteger máquinas virtuais mesmo quando estão desligadas. Isso não elimina os requisitos de acesso VMware, política e armazenamento.",
+      "section": "1. Componentes e fluxo de proteção VMware",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma restauração VMware, por que confirmar o transporte escolhido para o restore host?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque o host precisa alcançar os discos no destino pelo modo selecionado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Porque o transporte define quais VMs a política vai descobrir no vCenter.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Porque o transporte altera a senha cadastrada para acessar o VMware.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque NBDSSL cria espaço adicional no datastore durante a gravação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque HotAdd registra o catálogo do primary server dentro da VM restaurada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O restore host precisa ter conectividade e acesso aos discos do destino segundo o modo escolhido. Transporte não seleciona clientes, altera credenciais, cria capacidade nem move o catálogo para a VM.",
+      "section": "4. Monitoramento, restauração e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um backup manual VMware pode exigir que o operador escolha a agenda e os clientes antes de iniciar a execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. No fluxo de backup manual, seleciona-se a política, o tipo de agenda e os clientes que serão protegidos antes de acionar Backup; depois os jobs são acompanhados no Activity Monitor.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual resultado se espera da VMware Intelligent Policy após a execução das regras de seleção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma relação atual de VMs que satisfazem os critérios para aquele backup.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma imagem full de todas as VMs do vCenter, sem aplicar filtros da política.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma alteração permanente das permissões VMware para o operador da política.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um snapshot de cada datastore, sem incluir os discos das máquinas virtuais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um conjunto de arquivos convidados copiados diretamente para o catálogo central.",
+          "correct": false
+        }
+      ],
+      "explanation": "A Intelligent Policy avalia critérios e monta a relação de VMs que correspondem a eles para a execução do backup. Não remove filtros, altera permissões, copia datastores inteiros ou grava arquivos convidados no catálogo.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando uma VM não pode ser quiesced, o backup sem quiesce oferece a mesma garantia de consistência de uma captura coordenada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Sem quiesce, a captura é crash-consistent e o NetBackup não garante que toda atividade de I/O tenha sido coordenada. A consistência dos dados precisa ser avaliada pela equipe.",
+      "section": "3. Snapshots, consistência e transporte",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Antes de excluir discos de uma política VMware, qual cuidado de administração preserva a cobertura requerida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Revisar os discos excluídos e confirmar que nenhum dado necessário ficou fora da proteção.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Excluir sempre o disco de sistema para acelerar qualquer restauração integral.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desativar a seleção de VMs, que controla automaticamente os discos excluídos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Mover os discos excluídos ao catálogo NetBackup antes de cada snapshot.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar o backup host por um restore host sem verificar acesso ao datastore.",
+          "correct": false
+        }
+      ],
+      "explanation": "A política permite excluir discos, então a revisão do escopo deve confirmar que os discos com dados necessários continuam protegidos. Seleção de VMs, catálogo e escolha de host não substituem essa verificação.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O primary server, o backup host e o media server exercem funções distintas na proteção VMware.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O primary server coordena; o backup host acessa o VMware e os dados da VM; o media server movimenta dados para o armazenamento. Uma implantação pode combinar papéis em hosts, mas as responsabilidades conceituais permanecem distintas.",
+      "section": "1. Componentes e fluxo de proteção VMware",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a utilidade de validar credenciais do servidor VMware antes de configurar uma política de proteção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar que o NetBackup pode autenticar e acessar o ambiente VMware necessário.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar automaticamente uma imagem full de cada VM descoberta no inventário VMware.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Garantir espaço livre em todos os datastores de destino de restauração antes da execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ativar quiesce e instalar VMware Tools nos sistemas convidados durante a validação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Converter uma política manual em Intelligent Policy sem regras nem ajustes do Query Builder.",
+          "correct": false
+        }
+      ],
+      "explanation": "A validação confirma autenticação e acesso ao servidor VMware para descoberta e operações necessárias. Ela não cria backups, reserva espaço, instala Tools nem transforma o método de seleção da política.",
+      "section": "2. Credenciais, políticas e seleção de VMs",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma imagem de backup catalogada no armazenamento NetBackup não depende da permanência do snapshot VMware usado durante sua criação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O snapshot é um ponto temporário de leitura durante o backup; a cópia gravada e catalogada pelo NetBackup permanece como imagem recuperável depois que o snapshot é removido.",
+      "section": "1. Componentes e fluxo de proteção VMware",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "NetBackup for VMware Administrator's Guide — About NetBackup for VMware",
+      "publisher": "Veritas",
+      "reference": "Arquitetura off-host, snapshots, disponibilidade, backup integral e recuperação de arquivos",
+      "url": "https://www.veritas.com/content/support/en_US/doc/166027891-166028774-0/v19545336-166028774",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NetBackup for VMware Administrator's Guide — Configure a VMware policy",
+      "publisher": "Veritas",
+      "reference": "Criação de política, armazenamento, agenda, seleção manual e Intelligent Policy",
+      "url": "https://www.veritas.com/support/en_US/doc/166027891-167898579-0/v19545614-167898579",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NetBackup for VMware Administrator's Guide — Configure automatic virtual machine selection",
+      "publisher": "Veritas",
+      "reference": "Query Builder, regras de inclusão/exclusão e avaliação na execução",
+      "url": "https://origin-www.veritas.com/support/en_US/doc/166027891-167898579-0/v45098305-167898579",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NetBackup for VMware Administrator's Guide — Transport modes options (VMware)",
+      "publisher": "Veritas",
+      "reference": "SAN, HotAdd, NBD e NBDSSL, ordem de tentativa e VVols",
+      "url": "https://www.veritas.com/support/en_US/doc/166027891-170176766-0/v62458939-170176766",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NetBackup for VMware Administrator's Guide — Notes on the hotadd transport mode",
+      "publisher": "Veritas",
+      "reference": "Requisitos do host HotAdd, datacenter, acesso a datastore e VVols",
+      "url": "https://www.veritas.com/support/en_US/doc/166027891-166028774-0/v31193831-166028774",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NetBackup for VMware Administrator's Guide — Troubleshooting VMware backups",
+      "publisher": "Veritas",
+      "reference": "CBT, VMware Tools, falhas de snapshot e limites operacionais",
+      "url": "https://www.veritas.com/content/support/en_US/doc/166027891-170176766-0/v166029798-170176766",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NetBackup for VMware Administrator's Guide — Recover a VM",
+      "publisher": "Veritas",
+      "reference": "Pre-recovery check, transporte e início/monitoramento da recuperação",
+      "url": "https://www.veritas.com/support/en_US/doc/138617403-138789761-0/v130722426-138789761",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "NetBackup for VMware Administrator's Guide — Manually back up virtual machines",
+      "publisher": "Veritas",
+      "reference": "Backup manual e jobs de snapshot e transferência",
+      "url": "https://www.veritas.com/support/en_US/doc/166027891-170176766-0/v19545828-170176766",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

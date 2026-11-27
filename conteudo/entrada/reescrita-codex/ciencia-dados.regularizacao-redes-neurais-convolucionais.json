@@ -1,0 +1,1937 @@
+{
+  "id": "ciencia-dados.regularizacao-redes-neurais-convolucionais",
+  "subject": "Ciência de Dados",
+  "title": "Regularização L1 e L2 e redes neurais convolucionais",
+  "version": 2,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Regularização L1 em redes neurais",
+    "Regularização L2 em redes neurais",
+    "Normas L1 e L2 em aprendizado de máquina",
+    "Penalidade L1 e penalidade L2",
+    "Redes neurais convolucionais e regularização",
+    "Redes convolucionais para visão computacional",
+    "CNN e penalização dos pesos",
+    "Convolutional Neural Networks",
+    "Regularização por normas em modelos neurais",
+    "Filtros e convoluções em redes neurais",
+    "Redes neurais convolucionais (CNN)",
+    "Regularização de parâmetros de redes neurais"
+  ],
+  "scope": {
+    "covers": "Objetivo de treinamento com penalização; norma L1 e norma L2 sobre parâmetros, efeitos, diferenças, hiperparâmetro de regularização, esparsidade, decaimento de pesos e validação; fundamentos de redes neurais convolucionais, filtros, mapas de ativação, canais, compartilhamento de pesos, campos receptivos, stride, padding, dilation, pooling, camadas e dimensões de entrada e saída; interação entre regularização e treinamento de CNNs.",
+    "excludes": "Derivação integral de algoritmos de otimização, arquiteturas específicas de ponta, implementação completa de frameworks, processamento de imagens além das operações convolucionais e garantias de generalização para qualquer conjunto de dados."
+  },
+  "theoryTitle": "Penalização dos pesos e extração espacial de características",
+  "chapters": [
+    {
+      "title": "1. Por que regularizar os pesos",
+      "markdown": "Regularizar responde a um problema simples: como evitar que uma rede decore os exemplos que já viu e falhe quando recebe um caso novo? Durante o treinamento, a rede ajusta seus pesos para reduzir erros. Se ela puder se adaptar sem limite aos detalhes do conjunto de treino, poderá aprender ruído ou coincidências.\n\n### O que a penalidade acrescenta\n\nUm **peso**, também chamado **parâmetro**, é um número ajustável da rede. A **perda** resume o erro entre as previsões e as respostas esperadas. O algoritmo procura reduzir uma **função objetivo**, isto é, a expressão que define o que conta como um bom ajuste. Na regularização por norma, essa expressão combina a perda com uma penalidade calculada sobre pesos selecionados: perda dos dados + λ (lambda) vezes penalidade dos pesos. Lambda é um **hiperparâmetro**, uma escolha feita por quem configura o treinamento, e não um peso aprendido como os demais.\n\nSe lambda vale zero, a penalidade não contribui para o objetivo. Ao aumentar lambda, o custo de manter pesos grandes ganha importância relativa; por isso, o ajuste tende a preferir parâmetros menores. Essa tendência não garante que cada peso diminua de maneira simples em toda etapa, pois os pesos também respondem aos dados e ao otimizador. A ideia é limitar soluções excessivamente dependentes dos exemplos vistos.\n\n### Sobreajuste e subajuste\n\n**Sobreajuste** ocorre quando o modelo se adapta demais aos dados usados para aprender: pode apresentar erro pequeno no treino, mas erro maior em novos dados. **Subajuste** é o problema oposto: o modelo fica restrito demais, ou é simples demais, e não captura nem os padrões importantes do próprio treino. Regularizar busca um equilíbrio, não a menor magnitude possível dos pesos.\n\nPense em uma rede que classifica fotografias de cães e gatos. Se ela aprende a associar “gato” ao fundo de uma sala que aparece quase sempre nas fotos de gatos do treino, talvez erre ao ver um gato ao ar livre. Uma penalidade pode desencorajar pesos extremos ligados a essas coincidências. Mas, se for muito forte, a rede pode deixar de usar até formas e texturas realmente úteis.\n\n### Exemplo passo a passo: escolher lambda sem viciar o teste\n\nAna trabalha com fotografias de folhas e quer identificar uma doença. Primeiro, ela separa exemplos para treino, validação e teste, mantendo o teste guardado para a avaliação final. Depois, treina a mesma arquitetura com algumas intensidades de lambda. Para cada tentativa, o algoritmo reduz a perda de treino acrescida da penalidade. Ana compara o desempenho na validação e escolhe a intensidade que melhor atende ao objetivo, sem decidir pela acurácia do treino isoladamente. Por fim, abre o teste reservado uma vez para estimar como a configuração escolhida se comporta em exemplos não usados na seleção.\n\nA **validação** é a parte dos dados que orienta escolhas como lambda ou arquitetura; ela não deve ser tratada como novo material de treino para atualizar os pesos naquela avaliação. O **teste** é uma avaliação final separada. Se Ana experimentasse repetidamente dezenas de configurações e escolhesse a campeã pelo teste, também estaria ajustando indiretamente suas decisões a esse conjunto: o número final deixaria de ser uma estimativa independente da seleção.\n\n| Conjunto | Para que serve | O que evitar |\n| --- | --- | --- |\n| Treino | Ajustar os pesos da rede | Confundir bom ajuste com boa generalização |\n| Validação | Comparar configurações e escolher lambda | Usá-la como prova final imparcial após muitas decisões |\n| Teste | Estimar o resultado final da escolha | Reutilizá-lo para escolher cada nova tentativa |\n\n### O que lambda não faz\n\nA regularização por pesos não acrescenta fotografias, não troca os rótulos e não garante acerto em qualquer população futura. Ela também não é uma métrica de qualidade calculada depois do treinamento: como entra no objetivo, influencia os gradientes e, portanto, o caminho de atualização dos parâmetros. A qualidade ainda depende de dados representativos, rótulos confiáveis, arquitetura adequada e avaliação coerente.\n\nA penalidade pode incidir sobre todos os pesos ou apenas sobre um subconjunto, conforme a configuração. Em uma rede neural convolucional, por exemplo, alguém pode regularizar os filtros e deixar vieses fora; é preciso saber qual regra está sendo usada antes de interpretar o valor do objetivo. O parâmetro lambda controla a força relativa, mas a escala da perda e dos pesos também importa. Não se deve comparar lambdas de tarefas diferentes como se tivessem significado universal.\n\n### Exemplo de leitura do ajuste\n\nBruno observa que uma rede tem erro de treino muito baixo e erro de validação bem mais alto. Ele considera aumentar a regularização e compara a nova configuração na validação. Se os dois erros ficarem altos, pode haver subajuste; reduzir lambda pode ajudar, mas não é a única hipótese. Bruno também verifica se os exemplos são representativos e se o modelo está aprendendo o padrão relevante. A comparação deve manter o mesmo critério e a mesma divisão, para que a diferença observada tenha interpretação.\n\n### Pegadinha:\n\nA banca pode dizer que aumentar lambda sempre melhora a generalização ou que regularização elimina automaticamente os pesos inúteis. Nenhuma conclusão é automática: uma intensidade maior restringe o ajuste e pode ajudar contra sobreajuste, mas pode causar subajuste; eliminar pesos depende do tipo de penalidade e da solução, e não é sinônimo de regularizar em geral. Também é erro escolher hiperparâmetros pelo teste e depois chamá-lo de avaliação final independente.\n\n### Resumo para a prova\n\n- O objetivo regularizado soma a perda preditiva e uma penalidade ponderada por lambda.\n- Lambda é hiperparâmetro: controla a força da penalidade e deve ser selecionado sem consumir o teste final.\n- Sobreajuste é ajuste excessivo aos dados vistos; subajuste é restrição que impede aprender padrões úteis.\n- Regularizar pode favorecer generalização, mas não a garante; penalidade excessiva pode piorar o ajuste."
+    },
+    {
+      "title": "2. Normas L1 e L2: efeitos e diferenças",
+      "markdown": "Quando alguém diz que quer “penalizar os pesos”, ainda falta uma decisão: qual medida de tamanho usar? A norma L1 e a norma L2 avaliam a magnitude de maneiras diferentes, e essa diferença muda o tipo de solução que costuma aparecer.\n\n### O que significam L1 e L2\n\nUm vetor de pesos é uma lista de números aprendidos pelo modelo. A **norma L1** soma os valores absolutos desses números; valor absoluto é a distância até zero, sem considerar o sinal. Para pesos 2, −1 e 0,5, a soma L1 é 2 + 1 + 0,5. A penalidade L2 mais comum na função objetivo soma os quadrados: 2² + (−1)² + 0,5². A norma L2, em sentido estrito, é a raiz quadrada dessa soma; muitos métodos usam diretamente o quadrado da norma por conveniência matemática.\n\nO sinal negativo não torna um parâmetro “menor” para essas medidas: tanto o módulo quanto o quadrado são não negativos. A diferença principal é como o custo cresce conforme a magnitude aumenta. L1 cresce proporcionalmente ao módulo; L2 ao quadrado cresce mais rapidamente para magnitudes grandes.\n\n### Efeito típico da L1\n\nA L1 pode levar alguns pesos exatamente a zero, produzindo **esparsidade**, isto é, uma solução com muitos valores nulos. Em regressão com atributos, zeros podem indicar que certos atributos não contribuem para a previsão naquele ajuste. O nome **Lasso** é associado a essa regularização em modelos lineares. Em uma rede neural, porém, zerar um peso isolado não apaga por si só um neurônio: outras conexões ainda podem alimentar ou receber sinal daquela unidade. Tampouco significa que um canal convolucional inteiro tenha sido removido.\n\nA L1 não atua apenas nos pesos que acabam em zero: também pode reduzir valores que permanecem diferentes de zero. Se muitos pesos de um filtro continuarem ativos, o filtro ainda pode participar do cálculo da rede. Para falar em remoção estrutural, seria necessário demonstrar que a estrutura inteira foi eliminada e que o modelo foi efetivamente reduzido.\n\n### Efeito típico da L2\n\nA L2 ao quadrado torna pesos de grande magnitude relativamente caros, pois o quadrado cresce rapidamente. O efeito típico é distribuir a influência por pesos menores, em vez de concentrar tudo em poucos valores enormes. **Ridge** é o nome associado à regularização L2 em regressão. Em aplicações de aprendizagem profunda, uma opção chamada **weight decay** (decaimento dos pesos) costuma cumprir papel semelhante de reduzir magnitudes, mas a equivalência exata com adicionar a penalidade L2 depende do algoritmo de otimização e de sua implementação.\n\nA L2 não costuma produzir zeros exatos como efeito típico, mas isso não deve ser transformado em regra lógica absoluta para toda combinação de dados, parâmetros e implementação. O que define a penalidade é a expressão aplicada, não o apelido usado para uma opção de software.\n\n| Aspecto | L1 | L2 ao quadrado |\n| --- | --- | --- |\n| Cálculo usual | Soma dos módulos dos pesos | Soma dos quadrados dos pesos |\n| Tendência comum | Pode gerar alguns pesos exatamente nulos | Reduz magnitudes de modo mais distribuído |\n| Leitura em uma rede | Peso isolado pode zerar sem apagar canal | Pesos grandes recebem custo crescente |\n| Nome em regressão | Lasso | Ridge |\n\n### Exemplo passo a passo: um classificador de folhas\n\nLia treina um modelo para distinguir folhas saudáveis de folhas doentes. O vetor de parâmetros de uma parte simplificada do modelo contém pesos para manchas, bordas, cor e textura. Com L1, Lia acrescenta ao objetivo a soma dos módulos dos pesos escolhidos. Após o ajuste, o peso ligado a uma característica pouco útil pode chegar a zero; isso indica que aquele parâmetro específico não participa por sua conexão, mas não prova que a rede removeu por completo o neurônio que o continha.\n\nLia então treina uma versão com L2 ao quadrado. Agora cada peso contribui com seu quadrado para a penalidade. Um peso de magnitude 4 custa mais que um peso de magnitude 2, e a diferença cresce de forma quadrática. O resultado pode repartir a influência entre várias características com pesos menores. Ela compara as duas versões na validação, pois a aparência esparsa dos pesos não determina sozinha qual prevê melhor.\n\n### Elastic Net e outros mecanismos\n\n**Elastic Net** é o nome de uma combinação de penalidades L1 e L2. A parte L1 pode favorecer zeros e a parte L2 pode conter magnitudes elevadas; a contribuição de cada parcela depende dos coeficientes escolhidos. O nome aparece com frequência em regressão, mas a ideia de combinar termos pode ser aplicada a objetivos de modelos neurais.\n\n**Dropout** é uma técnica diferente: durante o treino, desativa aleatoriamente algumas unidades ou ativações, conforme a configuração. Não é uma norma dos pesos. Portanto, dizer que uma rede usa dropout não informa que ela está minimizando L1 ou L2. Do mesmo modo, aumento de dados transforma exemplos de treino para representar variações, e não penaliza diretamente a magnitude dos parâmetros.\n\n### Interpretação e cautelas\n\nAs bibliotecas podem aplicar a penalidade apenas a certos tensores, usar escalas distintas ou oferecer opções cujo comportamento depende do otimizador. Vieses são termos de deslocamento aprendidos; podem ou não entrar na penalização. Para interpretar um experimento, é preciso conferir quais parâmetros foram incluídos e qual fórmula foi minimizada. Também é importante que a escala da perda seja considerada: o mesmo coeficiente numérico diante de objetivos com escalas diferentes não implica necessariamente a mesma influência prática.\n\n### Pegadinha:\n\nA banca explora a afirmação absoluta “L1 remove neurônios” ou “L2 nunca produz um zero”. L1 pode zerar parâmetros individuais, mas isso não comprova poda de um canal inteiro; L2 tende a encolher pesos sem zerá-los, mas o efeito típico não é uma garantia universal. Outra confusão é tratar dropout e penalização por norma como nomes diferentes para o mesmo mecanismo.\n\n### Resumo para a prova\n\n- L1 soma módulos; L2 ao quadrado soma quadrados.\n- L1 pode favorecer esparsidade; L2 tende a reduzir pesos de forma distribuída.\n- Peso zero não significa automaticamente neurônio, filtro ou canal removido.\n- Ridge se associa à L2, Lasso à L1 e Elastic Net combina as duas.\n- Weight decay e penalidade L2 têm relação usual, mas a equivalência depende da atualização adotada. Dropout é mecanismo distinto."
+    },
+    {
+      "title": "3. Como uma rede convolucional processa entradas",
+      "markdown": "Uma imagem não é apenas uma lista de números: a posição dos pixels importa. Uma borda aparece porque valores vizinhos mudam juntos, e uma textura se repete em pequenas regiões. A rede neural convolucional foi criada para analisar esse tipo de estrutura local sem precisar aprender uma conexão completamente diferente para cada posição da imagem.\n\n### Filtros e mapas de ativação\n\nUma **rede neural convolucional**, abreviada **CNN** (do inglês *convolutional neural network*), aplica pequenos conjuntos de pesos sobre regiões da entrada. O conjunto é chamado **filtro** ou **kernel**. Em cada posição, multiplicam-se os valores locais pelos pesos correspondentes e somam-se os resultados; comumente há também um viés, um termo aprendido que desloca a soma. A saída em cada posição indica quanto aquele filtro respondeu à região. Reunidas, essas respostas formam um **mapa de ativação**, uma matriz espacial produzida por um filtro.\n\nO mesmo filtro percorre várias regiões e reutiliza os mesmos pesos. Esse **compartilhamento de pesos** permite procurar um padrão em locais diferentes e reduz o número de parâmetros em comparação com uma camada que aprendesse conexões independentes para cada pixel de cada localização. A CNN não recebe, por isso, invariância perfeita a qualquer mudança: a posição e o tamanho do padrão ainda podem afetar as ativações e as etapas seguintes.\n\n### Canais e dimensões\n\nUm **canal** é um plano de valores que descreve uma imagem ou uma representação interna. Uma fotografia colorida pode ter canais vermelho, verde e azul; camadas intermediárias podem ter outros canais, que já não correspondem diretamente a cores. Uma entrada em lote costuma ser descrita como (N, C_in, H, W): N é o número de imagens processadas juntas, C_in a quantidade de canais de entrada, H a altura e W a largura.\n\nUma convolução produz (N, C_out, H_out, W_out). C_out é a quantidade de filtros de saída e, portanto, de mapas produzidos; H_out e W_out são a altura e largura dos mapas. No caso comum em que cada filtro liga-se a todos os canais de entrada, cada filtro possui uma pequena matriz espacial por canal. Assim, ele combina os canais, mas devolve um mapa de ativação para aquele filtro.\n\n### Stride, padding e dilation\n\nO **stride** é o passo entre as posições sucessivas em que o filtro é aplicado. Passo 1 examina posições vizinhas; passo maior salta mais posições e normalmente reduz a largura e a altura da saída. O **padding** é a extensão colocada ao redor da entrada para tratar as bordas. Sem padding, um filtro que exige vizinhos pode deixar de produzir respostas próximas à margem. O **dilation** (dilatação) espaça os pontos do filtro: ele aumenta o alcance da região consultada sem necessariamente aumentar o número de pesos do kernel.\n\nEm uma dimensão, a fórmula comum para o tamanho de saída é H_out = floor((H_in + 2P − D(K−1) − 1)/S + 1). Aqui H_in é o tamanho da entrada, P é o padding em cada lado, D é a dilation, K é o tamanho do kernel e S é o stride; floor significa arredondar para baixo. A altura e a largura são calculadas separadamente, com seus parâmetros correspondentes. A fórmula torna explícito que a saída não depende apenas da quantidade de filtros.\n\n### Exemplo passo a passo: localizar uma borda\n\nRavi recebe uma imagem em tons de cinza de 5 por 5 pixels. Ela tem um canal de entrada. Ele escolhe um filtro de 3 por 3 que responde a uma transição vertical, stride 1 e nenhum padding. Ravi posiciona o filtro no canto superior esquerdo, multiplica cada um de seus nove pesos pelo pixel correspondente e soma os produtos. O resultado vira o primeiro valor do mapa.\n\nEm seguida, ele desloca o filtro uma posição para a direita e repete exatamente os mesmos pesos; depois continua até o limite horizontal. Como não acrescentou padding, o filtro não pode começar nas duas últimas linhas nem nas duas últimas colunas: a saída espacial fica 3 por 3. Se Ravi usar dois filtros diferentes, haverá dois mapas de saída, um por filtro. Se acrescentar padding suficiente para conservar o tamanho espacial nesse exemplo com stride 1, os filtros também poderão produzir respostas nas margens, embora os pixels acrescentados precisem de uma regra de preenchimento.\n\n### Grupos, convolução depthwise e pooling\n\nO parâmetro **groups** (grupos) divide as conexões entre canais em partições. Com um grupo, a situação usual é cada filtro combinar todos os canais de entrada. Com vários grupos, cada filtro acessa apenas a partição correspondente, reduzindo conexões. Uma convolução é chamada **depthwise** (por canal) na configuração usual em que o número de grupos é igual a C_in; cada canal de entrada é processado separadamente, podendo haver mais de um filtro de saída por canal.\n\n**Pooling** (agregação local) resume valores de uma vizinhança, por exemplo tomando o máximo ou a média. Ele frequentemente reduz a resolução espacial. Diferentemente da convolução aprendida típica, o pooling não ajusta uma matriz de pesos do filtro por retropropagação; sua regra de agregação é definida. Os dois podem reduzir dimensões, mas fazem operações distintas.\n\n| Operação ou parâmetro | O que controla | Consequência típica |\n| --- | --- | --- |\n| Filtro/kernel | Pesos aplicados à região local | Produz resposta aprendida aos padrões |\n| Stride | Distância entre posições do filtro | Passo maior tende a reduzir a saída |\n| Padding | Extensão ao redor da entrada | Afeta tratamento das margens e dimensões |\n| Dilation | Espaçamento entre pontos do filtro | Amplia a região examinada |\n| Pooling | Regra para resumir uma vizinhança | Agrega valores e pode reduzir resolução |\n\n### Sobre a palavra convolução\n\nEm matemática, a convolução estrita inverte o kernel antes de aplicá-lo. Muitas bibliotecas de aprendizagem profunda implementam correlação cruzada, que aplica os pesos sem essa inversão, mas mantêm o nome de camada convolucional. Como os pesos são aprendidos, essa convenção não altera o sentido usual da camada para quem constrói redes; pode, contudo, ser cobrada em perguntas de definição.\n\n### Pegadinha:\n\nA banca pode trocar stride, padding e dilation como se fossem sinônimos: stride determina o deslocamento, padding trata a borda, e dilation espaça os pontos internos do filtro. Outra armadilha é afirmar que C_out é o número de pixels ou que um filtro compartilhado usa um único escalar: cada filtro tem vários pesos, reutilizados em cada posição. Pooling também não é uma convolução aprendida.\n\n### Resumo para a prova\n\n- CNN aplica filtros locais e reutiliza seus pesos pela imagem; cada filtro costuma gerar um mapa.\n- Canais são planos de entrada ou representação; C_out conta filtros/mapas de saída.\n- Stride define o passo, padding afeta bordas e dilation espaça o kernel; todos podem afetar dimensões.\n- Groups particiona conexões entre canais; depthwise usa um grupo por canal de entrada na configuração usual.\n- Pooling agrega vizinhanças, enquanto convolução aplica filtros aprendidos."
+    },
+    {
+      "title": "4. CNNs, regularização e leitura de resultados",
+      "markdown": "Uma rede convolucional pode reconhecer padrões locais muito bem e, ainda assim, ajustar-se demais às imagens usadas no treino. O desafio é combinar a extração de características espaciais da CNN com um controle adequado dos pesos e avaliar se a solução funciona em imagens novas.\n\n### Onde entram os parâmetros da CNN\n\nUma **CNN** (rede neural convolucional) pode ter filtros convolucionais, camadas densas, vieses e parâmetros de normalização. Os **parâmetros** são os valores que o treinamento aprende; um viés é um termo ajustável somado à transformação, e uma camada densa conecta suas entradas a saídas por pesos próprios. Regularização L1 ou L2 pode ser aplicada a um conjunto escolhido desses parâmetros e somada à perda preditiva.\n\nO termo de penalidade afeta o ajuste por meio da **retropropagação** (em inglês, *backpropagation*), o cálculo usado para determinar como o erro varia com cada parâmetro. Um **gradiente** é essa informação de direção e intensidade de variação local; o otimizador usa os gradientes para atualizar os pesos. Assim, a penalidade pode influenciar os filtros que reconhecem bordas ou texturas e as camadas que combinam essas respostas. Ela não troca diretamente o tamanho do filtro, não reduz automaticamente a imagem e não cria mais exemplos.\n\n### Configurar a penalidade com clareza\n\nAntes de interpretar um experimento, é preciso saber quais tensores foram penalizados. Uma configuração pode incluir pesos dos filtros e das camadas densas, mas excluir vieses ou parâmetros de normalização. Outra pode adotar uma seleção diferente. O nome de uma opção de biblioteca, sozinho, não revela todos os detalhes: deve-se conferir a documentação e a regra efetivamente usada. A comparação também depende da escala da perda, do modo de somar os termos e do otimizador.\n\nA L1 e a L2 não mudam a geometria da convolução: filtros, canais, stride, padding e dilation continuam determinando como a entrada espacial é transformada. Se um peso do filtro se torna pequeno, isso pode alterar a resposta aprendida; se vários pesos zeram, ainda não se conclui que o mapa foi estruturalmente retirado. A arquitetura efetiva só muda quando sua estrutura é alterada e as dimensões correspondentes são ajustadas.\n\n### Exemplo passo a passo: classificar imagens sem consultar o teste\n\nMarina monta uma CNN para reconhecer espécies de aves em fotografias. Primeiro, divide imagens representativas em treino, validação e teste, evitando que fotos quase idênticas da mesma sequência apareçam em divisões diferentes quando isso distorceria a avaliação. Ela escolhe uma arquitetura inicial com convoluções, ativações e uma etapa classificadora. A ativação é uma transformação aplicada às saídas da camada; a etapa classificadora combina as características para produzir pontuações das classes.\n\nMarina treina versões com L1 e L2, mantendo a mesma divisão e comparando intensidades de penalização na validação. Para cada versão, verifica a perda de treino e o resultado de validação, além de observar se a penalidade foi aplicada aos parâmetros pretendidos. Se os resultados de treino forem bons, mas a validação piorar, ela investiga possível sobreajuste; se ambos forem ruins, considera subajuste, dados inadequados ou arquitetura insuficiente. A validação orienta a seleção, mas não garante que a configuração vencerá em qualquer conjunto futuro.\n\nDepois de escolher uma configuração, Marina avalia o modelo no teste reservado como medida final. Ela não aumenta ou reduz lambda repetidamente com base nesse resultado. Caso observe um erro importante no teste, pode documentá-lo e planejar outro ciclo de desenvolvimento com dados de desenvolvimento separados; não deve fingir que o teste continua intocado depois de usá-lo para escolher a próxima versão.\n\n### Regularização e técnicas relacionadas\n\nHá outras estratégias que podem ajudar a controlar sobreajuste, mas elas atuam de maneiras diferentes. **Dropout** desativa aleatoriamente unidades ou ativações durante o treino, conforme sua configuração. **Aumento de dados** (*data augmentation*) aplica transformações às entradas de treino, como mudanças admissíveis de orientação ou iluminação, para apresentar variações ao modelo. **Parada antecipada** interrompe o treinamento quando uma medida monitorada deixa de melhorar, seguindo um critério definido. Nenhuma delas é a mesma operação matemática que somar L1 ou L2 aos pesos.\n\nUma arquitetura convolucional comum alterna convolução e ativação, pode usar pooling e termina com uma etapa que transforma características em previsões. Pooling resume vizinhanças e frequentemente reduz a resolução espacial; não é uma penalidade sobre os pesos. A escolha entre pooling, stride e outras formas de redução depende da arquitetura e do objetivo.\n\n| Técnica | Atua principalmente sobre | Não deve ser confundida com |\n| --- | --- | --- |\n| Penalidade L1 | Módulos dos parâmetros selecionados | Remoção automática de filtros inteiros |\n| Penalidade L2 | Quadrados dos parâmetros selecionados | Redução do tamanho espacial da imagem |\n| Dropout | Ativações/unidades durante o treino | Penalidade por norma dos pesos |\n| Aumento de dados | Exemplos de entrada usados no treino | Alteração direta do valor dos pesos |\n| Pooling | Agregação local de respostas | Regularização L1 ou L2 |\n\n### Como ler os resultados\n\nUma métrica calculada no treino descreve o desempenho nos exemplos usados para ajustar os parâmetros; não é substituta da validação. A **métrica** é uma medida escolhida para resumir algum aspecto do desempenho, como proporção de classificações corretas. Perda e acurácia podem contar histórias diferentes: duas configurações podem acertar a mesma quantidade de exemplos, mas atribuir níveis distintos de confiança às previsões. Convém observar métricas coerentes com o problema, em vez de concluir a partir de uma única medida sem contexto.\n\nSe a validação não representar a população de interesse, um resultado alto nela não assegura bom desempenho no uso real. Também pode haver vazamento de informação, por exemplo quando o mesmo objeto fotografado aparece em treino e validação sob pequenas alterações. A regularização não corrige por si só esse defeito de desenho experimental. A divisão dos dados e a pergunta de avaliação precisam ser adequadas.\n\n### Pegadinha:\n\nA banca pode afirmar que L1 remove automaticamente filtros da CNN, que pooling penaliza pesos ou que maior lambda necessariamente aumenta a acurácia. Cada afirmação confunde mecanismos ou transforma uma tendência em garantia. A penalidade entra no objetivo e influencia os parâmetros selecionados; pooling agrega ativações; regularização forte pode até prejudicar o desempenho. Outra armadilha é chamar a validação de teste ou escolher a configuração pelo teste e ainda tratá-lo como avaliação imparcial.\n\n### Resumo para a prova\n\n- Pesos de filtros, camadas densas e outros parâmetros podem receber penalidade conforme a configuração.\n- A penalidade participa do objetivo e influencia atualizações via gradientes; não altera sozinha dimensões da convolução.\n- Verifique exatamente quais parâmetros são regularizados e como a biblioteca define a opção.\n- L1/L2, dropout, aumento de dados, parada antecipada e pooling são mecanismos diferentes.\n- Use treino para ajustar, validação para selecionar e teste reservado para a avaliação final; regularização não garante generalização."
+    }
+  ],
+  "summary": "Regularização acrescenta à perda preditiva uma penalidade sobre os parâmetros, ponderada por λ. A L1 soma módulos e pode levar coeficientes a zero, favorecendo esparsidade; a L2 ao quadrado soma quadrados e tende a encolher pesos sem zerá-los em geral. λ excessivo pode causar subajuste, por isso sua intensidade é selecionada com validação e o teste final fica reservado. Redes neurais convolucionais aplicam filtros locais aprendidos e compartilhados sobre canais para produzir mapas de ativação. O formato de saída depende de kernel, stride, padding e dilation; groups particiona conexões entre canais e pooling agrega regiões. Regularização e operações convolucionais têm efeitos distintos e podem ser combinadas no treinamento de uma CNN.",
+  "flashcards": [
+    {
+      "front": "O que a regularização acrescenta ao objetivo?",
+      "back": "Uma penalidade sobre parâmetros somada à perda preditiva."
+    },
+    {
+      "front": "O que controla λ?",
+      "back": "A intensidade relativa da penalidade no objetivo."
+    },
+    {
+      "front": "Como é definida a norma L1 de w?",
+      "back": "Soma dos valores absolutos de seus componentes."
+    },
+    {
+      "front": "Como é usual a penalidade L2 ao quadrado?",
+      "back": "Soma dos quadrados dos componentes dos pesos."
+    },
+    {
+      "front": "Qual norma pode produzir zeros exatos com frequência?",
+      "back": "L1, associada à esparsidade."
+    },
+    {
+      "front": "Qual é o efeito típico de L2?",
+      "back": "Encolher magnitudes sem zerar pesos em geral."
+    },
+    {
+      "front": "Qual nome clássico se associa à Lasso?",
+      "back": "L1."
+    },
+    {
+      "front": "Qual nome clássico se associa à Ridge?",
+      "back": "L2."
+    },
+    {
+      "front": "Qual cuidado ao escolher λ?",
+      "back": "Usar validação, mantendo o teste final separado."
+    },
+    {
+      "front": "Qual risco de λ muito grande?",
+      "back": "Subajuste por restringir demais os parâmetros."
+    },
+    {
+      "front": "O que é sobreajuste?",
+      "back": "Ajuste ao treino que não se transfere bem a dados novos."
+    },
+    {
+      "front": "O que é um kernel convolucional?",
+      "back": "Pequeno conjunto de pesos aplicado em vizinhanças locais."
+    },
+    {
+      "front": "O que o compartilhamento de pesos faz?",
+      "back": "Reutiliza o mesmo filtro em posições espaciais diferentes."
+    },
+    {
+      "front": "O que é um mapa de ativação?",
+      "back": "Saída espacial produzida por um filtro."
+    },
+    {
+      "front": "O que representa C_in?",
+      "back": "Número de canais que entram na convolução."
+    },
+    {
+      "front": "O que representa C_out?",
+      "back": "Número de mapas ou canais produzidos."
+    },
+    {
+      "front": "Como stride afeta a operação?",
+      "back": "Define o passo do filtro e pode reduzir a saída."
+    },
+    {
+      "front": "O que padding controla?",
+      "back": "Valores de borda acrescentados à entrada."
+    },
+    {
+      "front": "O que dilation altera?",
+      "back": "Espaçamento entre posições do kernel."
+    },
+    {
+      "front": "O que pooling costuma fazer?",
+      "back": "Agregar uma vizinhança e reduzir resolução."
+    },
+    {
+      "front": "O que groups controla?",
+      "back": "Conexões entre canais de entrada e saída."
+    },
+    {
+      "front": "Quando a convolução é depthwise?",
+      "back": "Quando groups = C_in e C_out é múltiplo de C_in."
+    },
+    {
+      "front": "O que ocorre com padding valid?",
+      "back": "Não se acrescenta padding espacial."
+    },
+    {
+      "front": "Quando same mantém a forma espacial?",
+      "back": "Stride unitário, segundo a definição usual da camada."
+    },
+    {
+      "front": "Dropout é penalidade L1?",
+      "back": "Não; desativa unidades aleatoriamente durante o treino."
+    }
+  ],
+  "tips": [
+    "Separe perda preditiva e termo de penalização ao ler a função objetivo.",
+    "Associe L1 a esparsidade possível, não a remoção garantida de neurônios.",
+    "Associe L2 a encolhimento suave e verifique a convenção de escala usada.",
+    "Na saída convolucional, acompanhe canais e dimensões espaciais separadamente.",
+    "Para formas de saída, confira stride, padding, kernel e dilation juntos.",
+    "Use validação para escolher regularização e preserve o teste para avaliação final."
+  ],
+  "traps": [
+    "Confundir a soma dos módulos da L1 com a soma dos quadrados da L2.",
+    "Afirmar que a L2 normalmente torna exatamente zero todos os pesos pequenos.",
+    "Tratar L1 como remoção automática de filtros ou neurônios completos.",
+    "Achar que stride e dilation significam o mesmo espaçamento.",
+    "Confundir pooling, que agrega valores, com convolução aprendida.",
+    "Escolher λ pelo teste final e depois apresentar esse teste como avaliação imparcial."
+  ],
+  "activeRecall": [
+    {
+      "question": "Escreva o formato geral do objetivo regularizado.",
+      "answer": "Perda preditiva mais λ vezes uma penalidade dos parâmetros."
+    },
+    {
+      "question": "Compare o efeito típico de L1 e L2.",
+      "answer": "L1 pode zerar pesos; L2 tende a encolhê-los."
+    },
+    {
+      "question": "Por que um λ alto pode piorar o modelo?",
+      "answer": "Pode restringir tanto os pesos que o modelo subajusta."
+    },
+    {
+      "question": "Como se escolhe λ sem contaminar a avaliação final?",
+      "answer": "Com validação, reservando o teste para a avaliação final."
+    },
+    {
+      "question": "O que significa esparsidade de pesos?",
+      "answer": "Muitos pesos iguais a zero."
+    },
+    {
+      "question": "O que compartilha uma CNN entre posições?",
+      "answer": "Os pesos do filtro convolucional."
+    },
+    {
+      "question": "Quais dimensões de um lote entram numa Conv2d usual?",
+      "answer": "N, C_in, H e W."
+    },
+    {
+      "question": "O que determina H_out e W_out?",
+      "answer": "Entrada, kernel, stride, padding e dilation."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "L1 versus L2",
+      "summary": "L1 soma módulos e pode gerar zeros exatos; L2 ao quadrado soma quadrados e tende a encolher pesos."
+    },
+    {
+      "key": "e2",
+      "title": "Intensidade de regularização",
+      "summary": "Aumentar λ eleva a influência da penalidade e, se for excessivo, pode restringir o modelo e causar subajuste."
+    },
+    {
+      "key": "e3",
+      "title": "Validação e teste",
+      "summary": "A validação orienta escolhas de hiperparâmetros; o teste final deve ficar reservado para estimar o desempenho."
+    },
+    {
+      "key": "e4",
+      "title": "Parâmetros convolucionais",
+      "summary": "Stride, padding e dilation têm papéis distintos na operação e na forma espacial da saída convolucional."
+    },
+    {
+      "key": "e5",
+      "title": "Operação CNN",
+      "summary": "Filtros aprendidos produzem mapas de ativação; pooling agrega regiões e não costuma aprender filtros convolucionais."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "A penalização L1 é formada pela soma dos módulos dos parâmetros penalizados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Para um vetor de pesos, a norma L1 soma os valores absolutos. Essa penalidade pode levar alguns coeficientes exatamente a zero.",
+      "section": "2. Normas L1 e L2: efeitos e diferenças",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A penalidade L2 ao quadrado soma os módulos dos pesos e por isso costuma produzir esparsidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. L2 ao quadrado soma os quadrados dos pesos; somar módulos descreve L1. L2 normalmente encolhe magnitudes sem zerar pesos exatamente.",
+      "section": "2. Normas L1 e L2: efeitos e diferenças",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar λ reduz a influência da penalidade em relação à perda preditiva, mantidos os demais fatores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. λ multiplica a penalidade no objetivo. Seu aumento tende a restringir mais os parâmetros, embora o resultado também dependa dos dados e da otimização.",
+      "section": "1. Por que regularizar os pesos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um λ arbitrariamente grande sempre melhora o desempenho em dados que a rede ainda não viu.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Restrição excessiva pode impedir o ajuste dos padrões úteis e causar subajuste. A intensidade precisa ser selecionada com dados de validação.",
+      "section": "1. Por que regularizar os pesos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A L1 pode levar alguns pesos a zero sem implicar que todo filtro ou neurônio correspondente seja removido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esparsidade descreve pesos zerados, mas a estrutura da rede não é automaticamente podada. Remover unidades requer uma interpretação estrutural e procedimento próprio.",
+      "section": "2. Normas L1 e L2: efeitos e diferenças",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A L2 ao quadrado penaliza menos fortemente, em termos marginais, um peso de magnitude alta que um peso pequeno.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O termo quadrático cresce com o quadrado da magnitude e seu gradiente também cresce proporcionalmente ao peso. Isso favorece encolhimento de valores grandes.",
+      "section": "2. Normas L1 e L2: efeitos e diferenças",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O conjunto de teste deve ser consultado repetidamente para escolher o λ que melhor se ajusta a cada arquitetura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A escolha pertence ao processo de validação. Ajustar repetidamente decisões pelo teste faz esse conjunto deixar de fornecer uma avaliação final independente.",
+      "section": "1. Por que regularizar os pesos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dropout e penalização L1 são o mesmo procedimento, pois ambos somam os módulos dos pesos ao objetivo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Dropout desativa unidades aleatoriamente durante o treinamento. L1 soma módulos de parâmetros ao objetivo; são mecanismos diferentes.",
+      "section": "4. CNNs, regularização e leitura de resultados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma CNN, o mesmo filtro convolucional costuma ser reutilizado em diversas posições espaciais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esse compartilhamento de pesos permite que o filtro detecte um padrão local em diferentes posições e reduz parâmetros em relação a pesos independentes por posição.",
+      "section": "3. Como uma rede convolucional processa entradas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Cada filtro de saída de uma convolução usual produz um mapa de ativação espacial.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O número de filtros define os canais de saída; cada filtro combina regiões locais da entrada conectada e produz seu próprio mapa espacial. O lote conserva uma cópia desses mapas por exemplo processado.",
+      "section": "3. Como uma rede convolucional processa entradas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar stride, mantendo os demais parâmetros, costuma aumentar a resolução espacial da saída.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um stride maior salta mais posições entre aplicações do filtro e normalmente reduz a altura e a largura da saída.",
+      "section": "3. Como uma rede convolucional processa entradas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Padding acrescenta valores nas bordas da entrada antes da operação convolucional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O padding define valores implícitos ao redor da entrada antes de aplicar o filtro. Esse parâmetro influencia as dimensões espaciais calculadas na saída, sem alterar por si só o número de canais produzidos.",
+      "section": "3. Como uma rede convolucional processa entradas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dilation altera o espaçamento entre elementos do kernel, enquanto stride altera o passo entre posições de aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Dilation expande o campo coberto pelo filtro ao espaçar seus pontos; stride desloca o filtro em passos maiores ou menores na entrada. São parâmetros distintos que afetam a geometria da operação de modos diferentes.",
+      "section": "3. Como uma rede convolucional processa entradas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Pooling e convolução são sinônimos, pois as duas operações sempre aprendem filtros de pesos durante o treino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma camada de pooling geralmente agrega valores em uma vizinhança e não aprende pesos de filtro. A convolução típica tem pesos aprendidos.",
+      "section": "3. Como uma rede convolucional processa entradas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Conv2d, C_in indica os canais da entrada e C_out indica os canais produzidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cada filtro de saída combina canais de entrada conectados e gera um canal de saída, sujeito à configuração de grupos.",
+      "section": "3. Como uma rede convolucional processa entradas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A configuração groups particiona as conexões entre canais de entrada e saída.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Grupos criam blocos de conexões separados; os números de canais de entrada e de saída precisam ser divisíveis por groups.",
+      "section": "3. Como uma rede convolucional processa entradas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Com padding valid, a camada acrescenta zeros para manter a altura e a largura da entrada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Valid significa ausência de padding. Same é a modalidade que procura conservar a dimensão espacial quando stride é unitário.",
+      "section": "3. Como uma rede convolucional processa entradas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A penalidade adicionada ao objetivo não pode ser aplicada a filtros convolucionais, mesmo quando são parâmetros aprendidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os filtros são parâmetros aprendidos e podem integrar o conjunto penalizado. A implementação precisa especificar quais parâmetros, como vieses, recebem a penalidade.",
+      "section": "4. CNNs, regularização e leitura de resultados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma penalização L1 aplicada a CNN assegura que canais de saída inteiros desapareçam da arquitetura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. L1 pode zerar pesos individuais, mas isso não garante que todos os pesos ligados a um canal sejam zerados nem que a arquitetura seja podada.",
+      "section": "4. CNNs, regularização e leitura de resultados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede com baixa perda de treino pode ainda generalizar mal, motivo pelo qual se examina seu desempenho de validação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O modelo pode sobreajustar e memorizar particularidades do treino. Validação ajuda a avaliar configurações em exemplos que não ajustaram os pesos.",
+      "section": "1. Por que regularizar os pesos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na operação chamada Conv2d pelas bibliotecas usuais, o cálculo implementado normalmente corresponde a correlação cruzada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação de Conv2d descreve o operador como correlação cruzada. A denominação convolução é mantida na prática de redes neurais.",
+      "section": "3. Como uma rede convolucional processa entradas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual expressão representa a inclusão de regularização na função objetivo do treinamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Perda preditiva somada a λ vezes uma penalidade dos parâmetros.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Acurácia de validação multiplicada pelo tamanho do conjunto de teste.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Número de filtros dividido pelo erro observado nos exemplos novos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Perda de treino substituída pela soma dos valores dos pixels.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Gradiente calculado sem perda e sem qualquer termo de parâmetros.",
+          "correct": false
+        }
+      ],
+      "explanation": "O treinamento minimiza a perda preditiva acrescida de uma penalidade ponderada por λ. As demais expressões combinam medidas ou dados que não definem esse objetivo regularizado.",
+      "section": "1. Por que regularizar os pesos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja encorajar coeficientes exatamente nulos em um modelo com muitos atributos. Qual penalidade é a escolha mais direta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "L2, que soma quadrados e costuma encolher sem zerar coeficientes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "L1, que soma módulos e pode induzir soluções esparsas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Pooling, que agrega vizinhos e remove coeficientes lineares.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Stride, que desloca filtros e seleciona atributos tabulares.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Padding, que amplia bordas e torna parâmetros esparsos.",
+          "correct": false
+        }
+      ],
+      "explanation": "A penalidade indicada para promover coeficientes exatamente nulos é L1. L2 controla magnitudes por encolhimento, mas normalmente não seleciona zeros exatos; as outras opções são operações convolucionais, não penalidades de coeficientes.",
+      "section": "2. Normas L1 e L2: efeitos e diferenças",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma Conv2d com grupos unitários, que efeito costuma ocorrer ao aumentar o stride sem alterar os outros parâmetros?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A saída espacial costuma ficar maior, pois o filtro visita mais posições.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A saída ganha canais, pois cada passo cria um filtro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Stride maior reduz as posições espaciais calculadas para a saída.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O kernel cresce, pois stride acrescenta pesos aprendidos entre seus pontos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O padding desaparece, pois stride substitui os valores da borda.",
+          "correct": false
+        }
+      ],
+      "explanation": "Stride é o passo entre posições sucessivas de aplicação. Aumentá-lo normalmente reduz a quantidade de posições e, portanto, as dimensões espaciais de saída; não muda kernel, canais ou padding.",
+      "section": "3. Como uma rede convolucional processa entradas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual escolha descreve corretamente o significado de C_out em uma convolução 2D usual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É o número de canais da entrada lida antes da aplicação dos filtros.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É o número de imagens processadas simultaneamente pelo lote.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É o número de pixels acrescentados ao redor da entrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É a quantidade de posições horizontais visitadas pelo kernel.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É o número de canais produzidos, em geral um mapa por filtro.",
+          "correct": true
+        }
+      ],
+      "explanation": "C_out especifica a quantidade de canais de saída. Cada filtro de saída gera um mapa espacial; lote, padding e posições espaciais são dimensões ou parâmetros distintos.",
+      "section": "3. Como uma rede convolucional processa entradas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O conjunto de treino tem erro baixo e a validação revela erro alto. Qual leitura é mais compatível com esse padrão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A rede pode ter sobreajustado exemplos particulares do treinamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A validação foi necessariamente usada para calcular cada gradiente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O erro alto prova que a camada convolucional não tem parâmetros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A diferença indica que λ foi fixado em exatamente zero.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O treino baixo confirma que o desempenho em novos dados será alto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Desempenho muito melhor no treino que na validação é compatível com sobreajuste. Esse padrão não demonstra causa única nem garante qual valor de λ foi usado.",
+      "section": "1. Por que regularizar os pesos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No mesmo modelo linear, o que distingue diretamente as penalidades L1 e L2 ao quadrado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "L1 soma quadrados; L2 soma valores absolutos dos coeficientes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "L1 usa módulos; L2 usa quadrados das magnitudes dos pesos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "L1 reduz a amostra; L2 altera o rótulo observado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "L1 calcula acurácia; L2 transforma atributos em canais de imagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "L1 atua na validação; L2 atua somente no conjunto de teste.",
+          "correct": false
+        }
+      ],
+      "explanation": "L1 soma módulos dos coeficientes e L2 ao quadrado soma seus quadrados. As demais alternativas trocam as definições ou atribuem às normas tarefas de preparação e avaliação de dados.",
+      "section": "2. Normas L1 e L2: efeitos e diferenças",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na Conv2d, o que muda quando a equipe aumenta dilation e mantém kernel, stride e padding?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os pontos do filtro ficam mais juntos e cobrem um campo menor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "As posições sucessivas do filtro passam a avançar mais rapidamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O número de canais de saída cresce sem alterar os filtros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O espaçamento do kernel cresce e amplia o campo receptivo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Valores de borda são removidos e a convolução se torna depthwise.",
+          "correct": false
+        }
+      ],
+      "explanation": "Dilation espaça os pontos do kernel e amplia o campo receptivo sem ser o stride. Stride controla deslocamento; canais dependem de filtros e groups determina conexões.",
+      "section": "3. Como uma rede convolucional processa entradas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde à penalização L2 ao quadrado aplicada aos pesos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela soma valores absolutos e costuma zerar a maioria dos pesos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela soma os módulos e força vários coeficientes a zero.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela eleva o total de imagens processadas em cada minibatch.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela remove canais de saída sem modificar os valores restantes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Soma quadrados e encolhe pesos, sem zerá-los geralmente.",
+          "correct": true
+        }
+      ],
+      "explanation": "A penalidade L2 ao quadrado soma quadrados e penaliza mais os pesos de grande magnitude. Seu efeito típico é encolher parâmetros; zeros exatos são mais associados à L1.",
+      "section": "2. Normas L1 e L2: efeitos e diferenças",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como usar os conjuntos de dados para selecionar λ e estimar a qualidade final do modelo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ajustar λ pelo treino e reportar a métrica desse mesmo treino.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Selecionar λ pelo teste e repetir até a métrica subir.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escolher λ pela validação e reservar o teste para estimativa final.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Usar o teste para atualizar os pesos e validar no treino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Misturar todos os exemplos e escolher λ pela perda combinada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A validação orienta escolhas como λ; o teste reservado estima o desempenho final. Usar o teste repetidamente durante seleção incorpora suas informações à decisão e torna a estimativa otimista.",
+      "section": "1. Por que regularizar os pesos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma Conv2d recebe tensores N, C_in, H e W. Qual formato geral descreve sua saída?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "N, C_out, H_out e W_out, com forma espacial calculada pelos parâmetros.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "N, H, W e kernel, mantendo o canal de entrada inalterado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "C_in, N, H_out e filtros, pois lote vira dimensão espacial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "H, W, stride e padding, independentemente da quantidade de filtros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "N, H_out, W_out e tamanho do batch multiplicado por channels.",
+          "correct": false
+        }
+      ],
+      "explanation": "A saída usual mantém N como tamanho do lote, passa a ter C_out canais e dimensões espaciais H_out e W_out. Estas dependem da entrada, kernel, stride, padding e dilation.",
+      "section": "3. Como uma rede convolucional processa entradas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário caracteriza melhor subajuste causado por regularização intensa demais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acurácia alta no treino e queda isolada no teste final.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Perdas baixas no treino e na validação, após várias épocas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Modelo flexível com erro baixo no treino e erro alto apenas na validação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Modelo com filtros compartilhados e mapas espaciais de saída regulares.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Modelo restrito demais que falha em ajustar até os exemplos de treino.",
+          "correct": true
+        }
+      ],
+      "explanation": "Subajuste ocorre quando a capacidade efetiva ou as restrições impedem representar padrões até nos dados de treino. Regularização excessiva é uma possível causa, mas não a única.",
+      "section": "1. Por que regularizar os pesos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma camada sem grupos, qual formato típico tem o tensor dos pesos de uma convolução 2D?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "(C_in, C_out, H_in, W_in), ligado ao tamanho da imagem completa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "(C_out, C_in, K_h, K_w), com filtros de dimensões espaciais locais.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "(N, C_in, C_out, stride), dependente do tamanho do lote.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "(H_out, W_out, C_out, C_in), igual ao formato da saída.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "(K_h, K_w, H_in, W_in), sem eixo para canais de saída.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na configuração usual sem grupos, os pesos são indexados por canal de saída, canal de entrada e dimensões do kernel. O lote e a largura total da imagem não são eixos desse tensor.",
+      "section": "3. Como uma rede convolucional processa entradas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe avalia duas opções: remover pesos pequenos por limiar ou treinar com penalidade L2. Qual afirmação diferencia os efeitos típicos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "L2 zera pesos pequenos de modo exato; limiar apenas suaviza valores continuamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "L2 apaga filtros inteiros; limiar apenas reduz os valores continuamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ambas asseguram canais removidos, desde que o erro de validação caia.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "L2 encolhe magnitudes; um limiar pode converter valores selecionados em zeros.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Limiar escolhe λ automaticamente; L2 define quais imagens vão ao treino.",
+          "correct": false
+        }
+      ],
+      "explanation": "L2 penaliza magnitudes e geralmente as encolhe. Zerar por limiar é uma operação adicional explícita; nem L2 nem um limiar simples asseguram remover filtros inteiros sem critério estrutural.",
+      "section": "2. Normas L1 e L2: efeitos e diferenças",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para manter a dimensão espacial com padding same, qual restrição usual acompanha Conv2d?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Stride deve ser unitário para que same preserve a forma espacial.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Dilation deve ser nula para que a camada acrescente bordas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Kernel precisa cobrir a imagem inteira em ambos os sentidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Groups deve igualar C_out para conservar a altura e largura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Padding deve ser zero para que a saída mantenha a forma.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na definição documentada para Conv2d, padding same mantém H e W quando stride é 1 e não aceita stride diferente de 1. Os demais parâmetros listados não substituem essa condição.",
+      "section": "3. Como uma rede convolucional processa entradas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual mudança na perda de treinamento expressa diretamente a regularização L1 de parâmetros w?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar λ vezes a soma dos quadrados de w à perda.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Substituir a perda por acurácia dividida pelo número de pesos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adicionar λ vezes a soma dos módulos dos componentes de w.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Subtrair a norma L2 dos rótulos observados em cada batch.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somar valores absolutos das entradas sem considerar parâmetros treináveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "A penalidade L1 é λ vezes a soma de |wᵢ| sobre os parâmetros penalizados. A soma dos quadrados caracteriza L2 ao quadrado; as outras alternativas não penalizam os pesos dessa forma.",
+      "section": "2. Normas L1 e L2: efeitos e diferenças",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que característica distingue o compartilhamento de pesos de uma camada convolucional de uma camada densa local?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O filtro usa parâmetros distintos em cada posição da imagem de entrada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A mesma coleção de pesos do filtro é reutilizada em posições espaciais.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Cada pixel recebe somente uma saída, independentemente dos canais disponíveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A camada convolucional não aprende parâmetros durante o treinamento da rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os pesos são compartilhados entre exemplos, mas não entre posições espaciais.",
+          "correct": false
+        }
+      ],
+      "explanation": "O filtro mantém os mesmos pesos ao percorrer diferentes localizações espaciais da entrada. Pesos são aprendidos, e a operação também pode processar diversos canais e exemplos.",
+      "section": "3. Como uma rede convolucional processa entradas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente a relação entre weight decay e penalidade L2 em redes neurais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "São sempre idênticos, independentemente do otimizador e da implementação usada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Weight decay é outro nome para dropout aplicado aos filtros convolucionais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "L2 atua apenas nos vieses, enquanto weight decay atua só nos kernels.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Weight decay costuma associar-se à L2, mas equivalência depende da atualização.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A relação existe apenas em regressão linear, nunca em redes neurais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Weight decay é frequentemente interpretado como penalização L2, mas a equivalência da atualização depende do otimizador e da implementação. Também não é sinônimo de dropout nem de uma regra fixa sobre quais parâmetros são incluídos.",
+      "section": "2. Normas L1 e L2: efeitos e diferenças",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Conv2d, com que condição uma operação com grupos é chamada depthwise na definição usual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Groups é unitário e cada filtro combina todos os canais da entrada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Groups equivale a C_out e C_in não participa das conexões.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Groups equivale ao batch e kernels têm dimensões espaciais unitárias.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Groups corresponde a stride e cada saída agrega todos os pixels.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Groups é C_in e C_out pode ser múltiplo de C_in.",
+          "correct": true
+        }
+      ],
+      "explanation": "A condição depthwise usual é groups = C_in, com C_out = K × C_in para um multiplicador inteiro K. Groups controla conexões entre canais e não se relaciona ao tamanho do lote ou stride.",
+      "section": "3. Como uma rede convolucional processa entradas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência descreve um uso adequado dos dados ao comparar intensidades de regularização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Treinar cada escolha, comparar pelo teste e guardar a validação para o final.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Treinar no teste e usar a validação somente para gerar rótulos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escolher a intensidade pela perda de treino e dispensar avaliação externa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Selecionar pela validação e manter teste separado para estimar desempenho final.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Atualizar os pesos pela validação e decidir a arquitetura pelo teste repetido.",
+          "correct": false
+        }
+      ],
+      "explanation": "A validação permite comparar hiperparâmetros, como a intensidade da regularização. O teste deve permanecer fora da seleção para fornecer estimativa final menos enviesada.",
+      "section": "1. Por que regularizar os pesos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que é correto concluir ao observar L1 zerando alguns pesos de filtros de uma CNN?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A rede necessariamente removeu os mapas e alterou C_out automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O filtro inteiro foi removido, mesmo se alguns pesos seguirem ativos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A esparsidade em pesos não demonstra, por si só, poda estrutural de canais.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O treinamento virou pooling, pois pesos nulos agregam regiões da entrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O stride aumentou, pois a L1 elimina posições espaciais consecutivas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pesos zerados são esparsidade em parâmetros individuais. Para concluir que um canal foi removido, seria necessário demonstrar que toda a estrutura relevante foi podada e que a arquitetura foi ajustada.",
+      "section": "4. CNNs, regularização e leitura de resultados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve a função típica do pooling em uma arquitetura convolucional?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aprender filtros de pesos que percorrem a entrada com stride próprio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somar penalidades L1 e L2 para reduzir os parâmetros treináveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Agregar valores em vizinhanças, frequentemente reduzindo resolução espacial.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Expandir cada canal de entrada em muitos mapas convolucionais novos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atribuir rótulos de classe a pixels sem analisar suas vizinhanças.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pooling agrega valores de regiões locais e frequentemente reduz a resolução espacial. Uma convolução típica, ao contrário, aplica filtros aprendidos para gerar mapas de ativação.",
+      "section": "3. Como uma rede convolucional processa entradas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rede apresenta baixo erro de treino e validação, mas perde desempenho em dados novos. Qual procedimento ajuda a diagnosticar e selecionar ajustes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Escolher ajustes observando repetidamente o teste até superar a validação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desconsiderar o teste e declarar a validação como desempenho universal garantido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar λ sem nova comparação e presumir que generalização melhora.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar validação representativa para comparar ajustes e preservar uma avaliação final.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Remover todos os filtros convolucionais antes de medir qualquer métrica adicional.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma validação representativa pode orientar comparações de λ, arquitetura e outras escolhas; o teste final deve ser preservado para a avaliação. Regularização não garante melhora e precisa ser avaliada empiricamente.",
+      "section": "4. CNNs, regularização e leitura de resultados",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual parâmetro da convolução especifica quantos valores são acrescentados nas bordas da entrada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dilation, que introduz distâncias entre pontos sucessivos do kernel.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Padding, que determina os valores implícitos ao redor da entrada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Groups, que particiona conexões entre canais da operação convolucional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Stride, que define a distância entre posições do filtro aplicado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "C_out, que controla a margem acrescentada na altura e largura.",
+          "correct": false
+        }
+      ],
+      "explanation": "Padding controla a extensão adicionada às bordas e afeta H_out e W_out. Dilation e stride definem espaçamentos diferentes; groups regula conexões e C_out define canais de saída.",
+      "section": "3. Como uma rede convolucional processa entradas",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao incluir penalidade L1 nos pesos de uma CNN, qual quantidade é diretamente somada ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma parcela proporcional à soma dos módulos dos parâmetros selecionados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma parcela proporcional à soma dos quadrados dos pixels de entrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A contagem de filtros multiplicada pelo erro medido no teste final.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A quantidade de canais de entrada descontada da perda preditiva.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Acurácia de validação ponderada por cada dimensão espacial da imagem.",
+          "correct": false
+        }
+      ],
+      "explanation": "L1 acrescenta uma parcela proporcional à soma dos módulos dos parâmetros escolhidos para penalização. Isso não é soma de pixels nem função da acurácia de validação.",
+      "section": "4. CNNs, regularização e leitura de resultados",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como interpretar a afirmação de que um filtro detecta o mesmo padrão em posições distintas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O mapa é calculado uma vez e copiado sem avaliar outras regiões.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O kernel troca os pesos a cada posição para especializar a detecção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O filtro precisa receber uma imagem diferente para cada localização espacial.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O kernel é recalculado do zero em cada posição, sem reutilizar pesos aprendidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A mesma matriz de pesos percorre várias regiões e gera ativações locais.",
+          "correct": true
+        }
+      ],
+      "explanation": "O filtro convolucional é aplicado repetidamente com a mesma matriz de pesos em diferentes localizações. Isso produz ativações espaciais comparáveis quando o padrão aparece em posições distintas.",
+      "section": "3. Como uma rede convolucional processa entradas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa explica por que penalização excessiva pode prejudicar o ajuste de uma rede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela aumenta pixels e impede a convolução de percorrer os canais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela transforma todos os mapas de ativação em rótulos supervisionados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ela pode restringir os pesos até o modelo subajustar os dados.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ela converte validação em treino e elimina o conjunto de teste.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela sempre eleva a variância dos pesos e provoca sobreajuste.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma penalidade muito forte limita a flexibilidade e pode causar subajuste. Não há garantia de que λ alto melhore generalização, e seu efeito precisa ser medido na validação.",
+      "section": "1. Por que regularizar os pesos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na forma usual de entrada de uma Conv2d em lote, o que representa N?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O número de canais produzidos pela camada convolucional.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O tamanho do lote de exemplos processados conjuntamente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A quantidade de posições espaciais percorridas em cada eixo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número de grupos de conexões entre canais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A dimensão espacial do kernel aplicado à imagem de entrada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na forma (N, C_in, H, W), N indica quantos exemplos compõem o lote processado em conjunto. C_in representa os canais da entrada, enquanto H e W indicam suas dimensões espaciais.",
+      "section": "3. Como uma rede convolucional processa entradas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição corresponde à combinação de penalidades L1 e L2 conhecida em modelos lineares como Elastic Net?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar pooling seguido de stride para selecionar atributos correlacionados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somar a perda de validação à perda calculada sobre o teste.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicar L1 nos dados e L2 somente às dimensões espaciais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Combinar termos de módulos e quadrados dos parâmetros na penalidade.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Alternar épocas de convolução sem atualizar pesos compartilhados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Elastic Net combina penalidades L1 e L2 dos parâmetros. A mistura pode equilibrar esparsidade com encolhimento, com pesos relativos controlando a contribuição de cada termo. Pooling, stride e divisão de dados não representam essa combinação.",
+      "section": "2. Normas L1 e L2: efeitos e diferenças",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência de operações é compatível com uma CNN que extrai características espaciais antes da classificação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Convolução, ativação e eventualmente pooling antes de uma camada classificadora.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Teste, padding e validação, usados como camadas de transformação espacial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Penalidade L1, rótulo e batch, que substituem mapas de ativação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apenas pooling sem convolução, pois o filtro sempre é fixo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Stride, conjunto de teste e dilation, sem pesos aprendidos na rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma arquitetura comum aplica convoluções e ativações, podendo reduzir resolução com pooling, e então usa uma etapa classificadora. Há muitas arquiteturas possíveis, mas conjuntos de dados e penalidades não são camadas espaciais.",
+      "section": "4. CNNs, regularização e leitura de resultados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "scikit-learn User Guide: Linear Models",
+      "publisher": "scikit-learn",
+      "reference": "Formulações e efeitos típicos de Ridge L2, Lasso L1 e Elastic Net",
+      "url": "https://scikit-learn.org/stable/modules/linear_model.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PyTorch: torch.nn.Conv2d",
+      "publisher": "PyTorch",
+      "reference": "Forma de entrada e saída, filtros, stride, padding, dilation, groups e depthwise convolution",
+      "url": "https://docs.pytorch.org/docs/stable/generated/torch.nn.Conv2d.html",
+      "accessedAt": "2026-11-03"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Improving neural networks by preventing co-adaptation of feature detectors",
+      "publisher": "arXiv",
+      "reference": "Artigo primário sobre dropout como técnica distinta de regularização",
+      "url": "https://arxiv.org/abs/1207.0580",
+      "accessedAt": "2026-11-03"
+    }
+  ]
+}

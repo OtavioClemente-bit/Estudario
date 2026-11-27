@@ -1,0 +1,1828 @@
+{
+  "id": "informatica.python-mongodb",
+  "subject": "Informática",
+  "title": "Python e MongoDB com PyMongo",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Python MongoDB",
+    "Python com MongoDB e PyMongo",
+    "Driver PyMongo para aplicações Python",
+    "Acesso a banco MongoDB usando Python",
+    "Programação Python com banco de documentos MongoDB",
+    "Conexão de aplicações Python ao MongoDB",
+    "Operações CRUD de MongoDB em Python",
+    "Consultas MongoDB feitas com PyMongo",
+    "Inserção de documentos no MongoDB com Python",
+    "Atualização e remoção MongoDB com PyMongo"
+  ],
+  "scope": {
+    "covers": "Uso do MongoDB em programas Python por meio do driver oficial PyMongo: instalação e conexão com MongoClient ou AsyncMongoClient, URI, cliente, banco e coleção; documentos BSON e ObjectId; operações insert, find, update, delete e resultados; filtros, operadores, projeção, ordenação e paginação; validação e índices; agregação por pipeline; transações e sessões; exceções, fechamento, segurança de credenciais e diferenças entre API síncrona e assíncrona.",
+    "excludes": "Sintaxe geral da linguagem Python, administração do servidor MongoDB, desenho completo de sistemas distribuídos, configuração operacional de clusters e uso de outros drivers ou frameworks web."
+  },
+  "theoryTitle": "Aplicações Python acessando MongoDB",
+  "chapters": [
+    {
+      "title": "1. PyMongo e conexão com o banco",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação precisa transformar objetos e operações Python em solicitações que o servidor MongoDB entenda e devolver os resultados em estruturas úteis ao programa. **PyMongo** é o driver oficial recomendado para trabalhar com MongoDB em Python. Ele oferece clientes, coleções, operações CRUD e recursos de sessão. Instalar o pacote não instala nem inicia o servidor: o banco MongoDB precisa estar acessível separadamente.\n\n> **Siglas e termos deste capítulo**\n> - **Driver**: biblioteca cliente que implementa o protocolo e a API para acessar o banco.\n> - **URI**: endereço de conexão, com host, opções e, quando necessário, autenticação.\n> - **BSON**: formato binário de documentos usado pelo MongoDB; inclui tipos como ObjectId e data.\n> - **Deployment**: instância local, conjunto de réplicas ou serviço hospedado ao qual o cliente se conecta.\n> - **Pool**: conjunto de conexões mantido pelo cliente para reutilização.\n\n### Cliente, banco e coleção\n\nA hierarquia da API é `MongoClient` → banco de dados → coleção. Uma conexão local comum pode ser aberta assim:\n\n```python\nfrom pymongo import MongoClient\nclient = MongoClient('mongodb://localhost:27017/')\ndb = client['loja']\nprodutos = db['produtos']\n```\n\n`MongoClient` representa o cliente e gerencia conexões; `client['loja']` seleciona o banco e `db['produtos']` seleciona a coleção. A seleção por colchetes não exige que banco e coleção já existam: o MongoDB os cria quando uma gravação efetivamente cria dados ou quando são explicitamente criados. Criar um objeto Python de coleção, por si só, não prova que existe uma coleção persistida no servidor.\n\nA URI local costuma começar com `mongodb://`; no Atlas, usa-se a URI fornecida para o cluster. Não se deve colocar senhas reais no código versionado. Use configuração segura, proteja o segredo e codifique caracteres reservados da credencial conforme as regras da URI. Permitir tráfego na rede e configurar usuário/autorização também são tarefas do ambiente MongoDB, não do driver.\n\n### Cliente síncrono e cliente assíncrono\n\nA API síncrona usa `MongoClient` e chamadas como `collection.find_one(...)`. A API assíncrona atual do driver usa `AsyncMongoClient`; operações que aguardam I/O precisam de `await`, e cursores são percorridos com `async for`. Não se deve misturar uma chamada assíncrona sem `await` com o código síncrono esperando que ela já tenha consultado o servidor. O modo assíncrono é útil em uma aplicação que já coordena muitas operações de I/O com `asyncio`; ele não altera o modelo de documentos do banco.\n\nO cliente pode ser reutilizado pela aplicação para beneficiar-se do pool. Ao encerrar o ciclo de vida da aplicação, feche-o com `client.close()`; para o assíncrono, aguarde `await client.close()`. Em serviços, crie o cliente no início e feche no desligamento, evitando criar e descartar um novo cliente a cada consulta. Um comando `client.admin.command('ping')` pode verificar se a conexão com o servidor responde.\n\n### Como cai na prova\n\n- O driver é a biblioteca cliente; servidor e serviço hospedado são componentes separados.\n- `MongoClient` dá acesso ao deployment, banco e coleções; uma coleção pode ser selecionada sem criar imediatamente dados persistidos.\n- A API assíncrona exige `AsyncMongoClient`, `await` em operações I/O e iteração assíncrona dos cursores."
+    },
+    {
+      "title": "2. Documentos e operações de escrita",
+      "markdown": "### O problema que este assunto resolve\n\nMongoDB armazena documentos em coleções. No PyMongo, documentos são normalmente representados por dicionários Python, e a API converte tipos compatíveis para BSON. Ao gravar, entenda o identificador, o retorno da operação e o que acontece em gravações individuais ou em lote.\n\n> **Siglas e termos deste capítulo**\n> - **CRUD**: create, read, update e delete — criar, ler, atualizar e excluir.\n> - **Documento**: conjunto de campos em formato semelhante a um objeto/dicionário.\n> - **`_id`**: campo identificador obrigatório e único dentro da coleção.\n> - **`ObjectId`**: tipo BSON usado como identificador automático padrão.\n> - **`InsertOneResult`**: resultado de inserção individual que informa o identificador incluído.\n\n### Inserir um ou vários documentos\n\n`insert_one(documento)` insere um documento e devolve um resultado cujo `inserted_id` informa o `_id` gravado. `insert_many(lista)` insere vários e fornece `inserted_ids`. Se o documento não trouxer `_id`, o driver gera um `ObjectId`; se o programa fornecer `_id`, deve garantir que não colida com outro da coleção. Uma colisão viola o índice único e provoca erro, não substitui silenciosamente o documento existente.\n\n```python\nresultado = produtos.insert_one({'nome': 'caderno', 'preco': 18.5})\nprint(resultado.inserted_id)\n```\n\n`insert_many` aceita uma sequência de documentos. Por padrão, a inserção em lote é ordenada: ao encontrar erro, como chave duplicada, as operações posteriores podem não ser tentadas. Com `ordered=False`, o servidor tenta continuar com os demais documentos, embora a operação ainda possa informar erros. Isso não transforma o lote em uma transação atômica: documentos já inseridos não são automaticamente desfeitos por uma falha posterior.\n\n### Subdocumentos, arrays e tipos\n\nUm documento pode conter campos aninhados e arrays, por exemplo `{'nome': 'Lia', 'endereco': {'cidade': 'Recife'}, 'notas': [8, 9]}`. Datas Python compatíveis, números, strings, booleanos, listas e dicionários são convertidos para os tipos BSON correspondentes. Não trate todos os valores como texto: tipo influencia comparação, ordenação e operadores. Chaves devem ser nomes de campo válidos para o servidor e a estrutura deve respeitar limites do MongoDB.\n\nO campo `_id` existe em cada documento persistido e é único na coleção. Se omitido numa inserção, recebe `ObjectId` automaticamente. O `_id` é uma chave de identidade; não é o índice da posição do documento, nem um contador garantidamente sequencial. O valor gerado pode ser lido pelo resultado da inserção.\n\n### Como cai na prova\n\n- `insert_one` e `insert_many` são inserções; o resultado expõe `inserted_id` ou `inserted_ids`.\n- Um `_id` duplicado causa erro de unicidade. Inserção em lote ordenada pode parar ao encontrar falha; lote não é automaticamente atômico.\n- Documentos podem conter estruturas aninhadas e arrays, preservando tipos BSON em vez de converter tudo para texto."
+    },
+    {
+      "title": "3. Consultas, cursores e alterações",
+      "markdown": "### O problema que este assunto resolve\n\nA leitura no PyMongo combina um filtro, que descreve quais documentos interessam, com métodos de coleção que definem quantos documentos e quais campos são devolvidos. Atualizações e exclusões também usam filtros; por isso um filtro incorreto pode alterar ou apagar um conjunto muito maior que o pretendido.\n\n> **Siglas e termos deste capítulo**\n> - **Filtro**: documento de consulta com critérios de seleção.\n> - **Cursor**: iterador de resultados de uma consulta que pode trazer vários documentos.\n> - **Projeção**: seleção dos campos que serão devolvidos.\n> - **Upsert**: opção que insere um documento se nenhum corresponder à atualização.\n> - **Operador**: campo especial como `$gt`, `$set` ou `$in`, com semântica definida pelo MongoDB.\n\n### Buscar documentos\n\n`find_one(filtro)` devolve um documento correspondente ou `None`; é adequado quando se espera um único resultado ou se quer apenas o primeiro. `find(filtro)` devolve um cursor, não uma lista materializada. Percorra-o com `for documento in cursor`; para grande volume, isso evita carregar todos os resultados de uma só vez. `find({})` não filtra por critérios e pode retornar todos os documentos.\n\nFiltros simples usam igualdade, como `{'status': 'ativo'}`. Operadores incluem `$gt` (maior que), `$gte` (maior ou igual), `$lt`, `$lte`, `$in` (valor em uma lista), `$and` e `$or`. Por exemplo, `{'preco': {'$gte': 10, '$lt': 20}}` seleciona preços de pelo menos 10 e menores que 20. Um caminho pontuado como `'endereco.cidade'` consulta campo aninhado. Um campo ausente não é equivalente a um campo explicitamente definido como `None` em todas as consultas: use operadores como `$exists` quando a presença for o critério.\n\nProjeção restringe os campos devolvidos: `find({}, {'nome': 1, 'preco': 1})` inclui esses campos e, por padrão, `_id`. Para omitir `_id`, indique `{'_id': 0}`. Em geral não se misturam inclusão e exclusão de campos na mesma projeção, exceto pela exclusão de `_id`. `sort`, `skip` e `limit` permitem ordenar e paginar; ordenação estável para paginação costuma incluir um campo único como desempate.\n\n### Atualizar e remover\n\n`update_one(filtro, atualização)` altera no máximo um documento correspondente; `update_many` altera todos os que correspondem. Atualizações comuns usam operadores: `{'$set': {'status': 'pago'}}` define campos, `$inc` incrementa um valor numérico, `$unset` remove um campo e `$push` acrescenta a um array. Sem operador de atualização, um documento de substituição substitui o conteúdo do documento (preservando `_id`), em vez de simplesmente acrescentar campos. `upsert=True` insere quando não há correspondência. Resultados informam contagens como `matched_count`, `modified_count` e, em inserção por upsert, `upserted_id`.\n\n`delete_one(filtro)` remove no máximo um correspondente e `delete_many(filtro)` remove todos os correspondentes. Filtro vazio em `delete_many({})` remove todos os documentos da coleção. Uma coleção vazia deve ser tratada deliberadamente; não use filtro vazio como se fosse ausência de critério. Antes de operações em massa, confira a seletividade do filtro e os resultados.\n\n### Como cai na prova\n\n- `find` devolve cursor; `find_one` devolve documento ou `None`. `count_documents` conta documentos que correspondem ao filtro.\n- `$set` define campos, `$inc` incrementa e `$unset` remove campos; uma substituição não é um `$set` implícito.\n- O sufixo `many` afeta todas as correspondências. Filtro vazio em exclusão múltipla é amplo e perigoso."
+    },
+    {
+      "title": "4. Validação, índices e agregação",
+      "markdown": "### O problema que este assunto resolve\n\nConsultas e gravações precisam continuar corretas quando o volume cresce e quando diferentes documentos tentam obedecer a uma mesma regra de dados. MongoDB permite validação de documentos no servidor, índices para acelerar padrões de acesso e pipelines de agregação para transformar conjuntos de documentos. O driver envia essas definições e operações; ele não substitui o planejamento do modelo de dados.\n\n> **Siglas e termos deste capítulo**\n> - **Índice**: estrutura auxiliar que acelera buscas e ordenações, com custo de armazenamento e manutenção.\n> - **Índice único**: índice que impede valores repetidos para a chave indexada, ressalvadas as regras específicas para campos ausentes/nulos.\n> - **Pipeline**: sequência ordenada de estágios de agregação aplicados aos documentos.\n> - **`$match`**: estágio que filtra documentos; **`$group`**: estágio que agrupa e calcula resultados.\n> - **Schema validation**: regras do servidor que aceitam ou rejeitam documentos escritos.\n\n### Índices e validação\n\n`collection.create_index([('email', 1)], unique=True)` solicita índice ascendente único em `email`; `-1` representa direção descendente para a chave do índice. `create_index` pode receber configurações como `unique=True`. Um índice único é útil para impor unicidade de identificadores de negócio, mas a criação falha se os dados existentes já violarem a regra. Índices favorecem operações compatíveis com suas chaves e ordem, mas cada índice ocupa espaço e aumenta o trabalho de escrita. Não crie índices indiscriminadamente.\n\nA validação de documentos é configurada no servidor/coleção com regras baseadas, por exemplo, em JSON Schema. Ela pode restringir tipos ou campos exigidos e impedir gravação que não satisfaz os critérios configurados. No PyMongo, opções de escrita como `bypass_document_validation` podem permitir que uma operação ignore validações de documento quando habilitado; isso deve ser usado somente com intenção e autorização, não como solução normal para erro de validação.\n\n### Pipeline de agregação\n\n`collection.aggregate(pipeline)` executa uma sequência de estágios. Cada estágio recebe documentos intermediários e produz documentos para o próximo. Por exemplo:\n\n```python\npipeline = [\n    {'$match': {'status': 'pago'}},\n    {'$group': {'_id': '$categoria', 'total': {'$sum': '$valor'}}},\n    {'$sort': {'total': -1}}\n]\nfor linha in pedidos.aggregate(pipeline):\n    print(linha)\n```\n\nAqui `$match` filtra, `$group` agrupa pela categoria e calcula a soma e `$sort` ordena. A agregação devolve cursor de documentos resultantes; agrupamento normalmente produz documentos calculados, não altera os documentos de origem. Estágios de saída como `$out` ou `$merge` têm efeito de gravação e devem ser considerados separadamente. A ordem dos estágios importa: filtrar cedo pode reduzir o volume processado, sem mudar a semântica quando o filtro é equivalente.\n\n### Como cai na prova\n\n- Índices podem acelerar leituras, mas consomem recursos e encarecem atualizações/inserções; índice único também impõe restrição.\n- A validação é regra do servidor para documentos; `bypass_document_validation` é opção explícita de certas escritas.\n- Pipeline é uma sequência de estágios; `$match`, `$group` e `$sort` filtram, agrupam e ordenam, respectivamente."
+    },
+    {
+      "title": "5. Sessões, transações, erros e boas práticas",
+      "markdown": "### O problema que este assunto resolve\n\nUma requisição pode envolver várias operações dependentes, falhar por rede ou violar uma regra de dados. O programa deve distinguir resultado vazio de falha, lidar com exceções do driver e saber quando uma sequência precisa de garantias transacionais. Também precisa controlar sessões e segredos com cuidado.\n\n> **Siglas e termos deste capítulo**\n> - **Sessão**: contexto cliente-servidor representado por `ClientSession`, usado em recursos como transações e causal consistency.\n> - **Transação**: grupo de operações confirmado ou abortado como unidade conforme suporte do deployment.\n> - **Write concern**: nível de confirmação solicitado para gravações.\n> - **Read preference**: regra de escolha do membro do deployment para leituras.\n> - **Exceção**: objeto Python que sinaliza falha, distinto de uma consulta sem correspondência.\n\n### Sessões e transações\n\nUma sessão pode ser iniciada por `client.start_session()`. Para uma transação, use deployment compatível, sessão e os métodos de transação, por exemplo `with session.start_transaction(): ...`; operações da unidade devem receber `session=session`. Em API assíncrona, use os equivalentes assíncronos e aguarde as operações. Transações em MongoDB dependem do tipo/configuração de deployment — em particular, conjunto de réplicas ou cluster fragmentado compatível — e não devem ser confundidas com o comportamento padrão de uma inserção individual. Há custo de coordenação: modelar dados para operações atômicas em um documento pode ser mais simples quando atende ao domínio.\n\nO PyMongo oferece execução conveniente de transações com callback e tratamento de erros transitórios, mas aplicações ainda devem lidar com falhas e desenhar operações que possam ser repetidas com segurança quando necessário. Nem toda exceção significa a mesma coisa: `DuplicateKeyError` indica violação de unicidade; `ConnectionFailure` e `ServerSelectionTimeoutError` apontam problemas de conexão/seleção do servidor; outras subclasses de `PyMongoError` abrangem erros do driver. Capture exceções específicas quando a aplicação puder se recuperar de modo específico e registre contexto sem revelar credenciais.\n\n### Configuração segura e previsível\n\nColoque URIs e senhas em configuração protegida, use usuário com permissões necessárias e mantenha TLS/regras de rede adequadas ao deployment. Defina timeouts coerentes para seleção de servidor e operações de acordo com o comportamento esperado, e não confunda timeout com resultado vazio. Reutilize um cliente por processo ou ciclo de vida de aplicação. Evite imprimir URIs com senha em logs.\n\nA URI pode definir opções de autenticação, TLS, conjunto de réplicas e outros parâmetros. `MongoClient` é preguiçoso quanto à conexão: sua construção pode não provar de imediato que o servidor está acessível; um comando como `ping` força uma verificação. Acompanhe e encerre corretamente cliente, sessão e cursor conforme o padrão síncrono ou assíncrono.\n\n### Como cai na prova\n\n- Sessão dá contexto às operações; transação exige deployment compatível e operações associadas à sessão.\n- Nenhum documento encontrado pode resultar em `None`; falha de rede ou erro de unicidade é exceção.\n- Proteja URI e credenciais, reutilize o cliente e não conclua que a conexão foi validada só porque `MongoClient` foi instanciado."
+    }
+  ],
+  "summary": "PyMongo é o driver oficial recomendado para acessar MongoDB em Python. A API organiza o acesso em MongoClient, banco e coleção; a conexão local usa uma URI mongodb:// e um cliente reutilizável. MongoClient é síncrono; AsyncMongoClient oferece API assíncrona, com await e async for. Documentos são dicionários convertidos para BSON e cada documento tem _id único; sem _id, o driver gera ObjectId. insert_one/insert_many inserem e retornam identificadores; find_one retorna documento ou None e find produz cursor. Filtros aceitam igualdade e operadores como $gt, $in e $or; projeção escolhe campos, sort ordena e limit/skip paginam. update_one/update_many usam operadores como $set, $inc e $unset; upsert insere se não houver correspondência. delete_one/delete_many removem documentos segundo o filtro. Índices aceleram padrões de consulta e índice único impõe unicidade, mas índices consomem recursos. aggregate executa pipeline como $match, $group e $sort. Validação é aplicada pelo servidor. Sessões podem contextualizar transações, que dependem de deployment compatível e operações associadas à sessão. Exceções de PyMongo distinguem problemas como chave duplicada e falha de conexão. Proteja URIs, reutilize e feche clientes e trate timeouts e resultados vazios de forma distinta.",
+  "flashcards": [
+    {
+      "front": "Qual é o driver recomendado para MongoDB em Python?",
+      "back": "PyMongo, o driver oficial MongoDB para Python."
+    },
+    {
+      "front": "Qual classe abre uma conexão síncrona com MongoDB?",
+      "back": "MongoClient, normalmente inicializado com uma URI."
+    },
+    {
+      "front": "Qual classe é usada pela API assíncrona atual?",
+      "back": "AsyncMongoClient, com await nas operações de I/O."
+    },
+    {
+      "front": "Qual a hierarquia típica do acesso PyMongo?",
+      "back": "Cliente → banco de dados → coleção → documentos."
+    },
+    {
+      "front": "O que acontece se uma inserção omite _id?",
+      "back": "O driver gera um ObjectId para o campo _id."
+    },
+    {
+      "front": "O que acontece se dois documentos usam o mesmo _id?",
+      "back": "A unicidade é violada e a gravação gera erro."
+    },
+    {
+      "front": "Qual método insere um documento?",
+      "back": "insert_one(documento); o resultado fornece inserted_id."
+    },
+    {
+      "front": "Qual método insere vários documentos?",
+      "back": "insert_many(lista); o resultado fornece inserted_ids."
+    },
+    {
+      "front": "O que find_one retorna quando não há correspondência?",
+      "back": "None."
+    },
+    {
+      "front": "O que find retorna?",
+      "back": "Um cursor que pode ser percorrido para obter documentos correspondentes."
+    },
+    {
+      "front": "O que faz o operador $gt?",
+      "back": "Seleciona valores maiores que o valor informado."
+    },
+    {
+      "front": "O que faz a projeção numa consulta?",
+      "back": "Define quais campos serão incluídos ou excluídos do resultado."
+    },
+    {
+      "front": "Qual é o papel de $set numa atualização?",
+      "back": "Define os valores dos campos indicados sem substituir o documento inteiro."
+    },
+    {
+      "front": "Qual é o papel de $inc?",
+      "back": "Incrementa numericamente um campo."
+    },
+    {
+      "front": "O que significa upsert=True numa atualização?",
+      "back": "Se nada corresponder, a operação cria um documento a partir do filtro e atualização."
+    },
+    {
+      "front": "O que faz delete_many({})?",
+      "back": "Remove todos os documentos correspondentes, neste caso todos da coleção."
+    },
+    {
+      "front": "O que representa a direção 1 em uma chave de índice?",
+      "back": "Ordem ascendente."
+    },
+    {
+      "front": "Que efeito tem unique=True ao criar índice?",
+      "back": "Impede duplicidade na chave indexada, se os dados e as regras do índice permitirem sua criação."
+    },
+    {
+      "front": "Quais são três estágios comuns de agregação?",
+      "back": "$match filtra, $group agrupa/calcula e $sort ordena."
+    },
+    {
+      "front": "O que é um cursor de consulta?",
+      "back": "Um iterador de resultados que não precisa materializar todos os documentos numa lista de uma vez."
+    },
+    {
+      "front": "Como se verifica uma conexão com um ping?",
+      "back": "Executando, por exemplo, client.admin.command('ping')."
+    },
+    {
+      "front": "Como se fecha um cliente síncrono?",
+      "back": "Com client.close()."
+    },
+    {
+      "front": "Que exceção aponta uma chave duplicada?",
+      "back": "DuplicateKeyError, uma exceção do PyMongo relacionada à unicidade."
+    },
+    {
+      "front": "Uma transação usa apenas o cliente, sem sessão?",
+      "back": "Não; operações transacionais são associadas a uma sessão e a deployment compatível."
+    },
+    {
+      "front": "Onde guardar a URI com senha?",
+      "back": "Em configuração protegida/segredo, fora do código e de logs públicos."
+    }
+  ],
+  "tips": [
+    "Associe MongoClient ao deployment, banco ao nome lógico e coleção ao conjunto de documentos.",
+    "Lembre: find_one retorna um item ou None; find retorna cursor, que se percorre.",
+    "Em atualização, identifique o operador: $set define, $inc soma, $unset remove campo.",
+    "Antes de delete_many ou update_many, avalie o filtro: vazio alcança todos os documentos.",
+    "Índice pode acelerar leitura e impor unicidade, mas cobra armazenamento e custo de escrita.",
+    "Resultado vazio não é exceção de conexão; trate PyMongoError e suas subclasses conforme a falha."
+  ],
+  "traps": [
+    "Dizer que instalar PyMongo instala também o servidor MongoDB. São componentes separados.",
+    "Tratar find como lista pronta. Ele retorna cursor, que pode ser iterado.",
+    "Afirmar que _id é sempre um número sequencial. O valor padrão gerado é ObjectId.",
+    "Usar update sem operador e presumir que somente os campos informados serão adicionados. Documento de substituição substitui o conteúdo.",
+    "Supor que insert_many é atômico. Falha em item não desfaz necessariamente gravações anteriores.",
+    "Confundir agregado com alteração da coleção. Estágios comuns transformam resultados; estágios de saída têm efeito de gravação explícito."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o caminho entre um programa Python e um documento MongoDB.",
+      "answer": "O programa usa PyMongo; MongoClient conecta ao deployment, seleciona um banco, depois uma coleção e executa operações sobre documentos BSON."
+    },
+    {
+      "question": "Compare find_one e find.",
+      "answer": "find_one devolve um documento correspondente ou None; find devolve cursor para percorrer zero ou mais resultados."
+    },
+    {
+      "question": "Como o identificador é atribuído numa inserção?",
+      "answer": "Todo documento tem _id único; se omitido, o driver gera ObjectId. Se fornecido, deve ser único na coleção."
+    },
+    {
+      "question": "Explique o efeito de $set, $inc e $unset.",
+      "answer": "$set define campo, $inc incrementa numericamente e $unset remove o campo do documento."
+    },
+    {
+      "question": "Por que um filtro vazio numa operação many exige cuidado?",
+      "answer": "Em update_many ou delete_many, ele pode corresponder a todos os documentos da coleção."
+    },
+    {
+      "question": "Qual a utilidade e o custo de um índice?",
+      "answer": "Pode acelerar consultas/ordenações compatíveis e impor unicidade, mas ocupa espaço e aumenta custo de manutenção nas gravações."
+    },
+    {
+      "question": "Descreva um pipeline de agregação com três estágios.",
+      "answer": "$match seleciona documentos, $group agrega por chave e calcula valores, e $sort ordena o resultado."
+    },
+    {
+      "question": "Quais cuidados são necessários para transações com PyMongo?",
+      "answer": "Usar sessão, associar a sessão às operações e contar com deployment MongoDB compatível; não presumir que qualquer servidor isolado ofereça suporte transacional."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Cliente e servidor confundidos",
+      "summary": "PyMongo é a biblioteca cliente; MongoDB é o deployment do banco. Instalar o pacote não inicia o servidor. Reutilize e feche o cliente."
+    },
+    {
+      "key": "e2",
+      "title": "Retornos de consulta confundidos",
+      "summary": "find_one retorna documento ou None; find retorna cursor. Resultado vazio não é falha de rede."
+    },
+    {
+      "key": "e3",
+      "title": "Operadores CRUD interpretados incorretamente",
+      "summary": "$set, $inc e $unset modificam campos de formas diferentes; atualização sem operadores pode ser substituição; métodos many alcançam múltiplas correspondências."
+    },
+    {
+      "key": "e4",
+      "title": "Índice tratado como gratuito ou só como desempenho",
+      "summary": "Índices consomem espaço e encarecem gravações. Unique também restringe duplicidade e pode falhar ao ser criado sobre dados conflitantes."
+    },
+    {
+      "key": "e5",
+      "title": "Sessão, transação e erro ignorados",
+      "summary": "Operações transacionais devem usar sessão em deployment compatível. Erros de unicidade, rede e timeout são exceções e não equivalem a ausência de documentos."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "PyMongo é o driver oficial recomendado para usar MongoDB a partir de programas Python.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. PyMongo é a distribuição oficial de ferramentas Python para MongoDB e é o caminho recomendado na documentação do driver.",
+      "section": "1. PyMongo e conexão com o banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Instalar o pacote PyMongo inicia automaticamente um servidor MongoDB local na máquina do programa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": false },
+        { "key": "E", "text": "Errado.", "correct": true }
+      ],
+      "explanation": "Errado. PyMongo é um driver cliente. O servidor ou serviço MongoDB é um componente separado que precisa estar acessível à aplicação.",
+      "section": "1. PyMongo e conexão com o banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "MongoClient pode selecionar um banco com client['loja'] e uma coleção com db['produtos'].",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. O cliente seleciona o banco por nome, e o objeto de banco seleciona uma coleção por nome. Essa hierarquia permite que a aplicação escolha a coleção onde fará leituras ou gravações.",
+      "section": "1. PyMongo e conexão com o banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Construir MongoClient garante que uma conexão de rede foi testada com sucesso antes de qualquer uso posterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": false },
+        { "key": "E", "text": "Errado.", "correct": true }
+      ],
+      "explanation": "Errado. MongoClient pode ser criado antes de uma conexão efetiva ser selecionada; um comando como ping pode forçar a verificação de acessibilidade do servidor.",
+      "section": "1. PyMongo e conexão com o banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na API assíncrona do driver, AsyncMongoClient pode ser usado com await nas operações de I/O.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. A API assíncrona usa AsyncMongoClient e aguarda chamadas de I/O; seus resultados também são percorridos com async for quando se trata de cursor assíncrono.",
+      "section": "1. PyMongo e conexão com o banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma URI que contém usuário e senha pode ser impressa em logs públicos sem risco, pois o driver remove as credenciais automaticamente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": false },
+        { "key": "E", "text": "Errado.", "correct": true }
+      ],
+      "explanation": "Errado. A URI pode conter credenciais; a aplicação deve protegê-las e evitar registrar o segredo em logs. O driver não deve ser tratado como sanitizador automático de qualquer texto logado.",
+      "section": "1. PyMongo e conexão com o banco",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Reutilizar um MongoClient durante o ciclo de vida de uma aplicação permite que ele gerencie e reutilize conexões do pool.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. O cliente mantém o gerenciamento do pool de conexões e deve ser compartilhado em vez de criado para cada consulta; feche-o quando a aplicação encerrar.",
+      "section": "1. PyMongo e conexão com o banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O banco e a coleção são criados no servidor imediatamente quando o programa apenas obtém seus objetos Python por nome.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": false },
+        { "key": "E", "text": "Errado.", "correct": true }
+      ],
+      "explanation": "Errado. Obter referências ao banco e à coleção não equivale por si só a persistir dados no servidor; normalmente a criação fica evidente quando uma gravação cria os objetos necessários ou quando são criados explicitamente.",
+      "section": "1. PyMongo e conexão com o banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Todo documento de uma coleção MongoDB tem um campo _id cujo valor precisa ser único nessa coleção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. MongoDB exige _id único por documento na coleção; a unicidade é protegida por índice e duplicidade causa erro de gravação.",
+      "section": "2. Documentos e operações de escrita",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando a aplicação omite _id, insert_one gera um inteiro sequencial para posicionar o documento na coleção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Se _id não for informado, o driver gera automaticamente um valor ObjectId único; ele não representa a posição do documento nem uma sequência inteira garantida.",
+      "section": "2. Documentos e operações de escrita",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O resultado de insert_one disponibiliza o identificador gravado por meio da propriedade inserted_id.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O resultado de inserção individual possui inserted_id, inclusive para consultar o identificador gerado automaticamente.",
+      "section": "2. Documentos e operações de escrita",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "insert_many com ordered=False transforma o lote numa transação que desfaz todas as inserções se um documento falhar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. ordered=False permite que o servidor tente as demais gravações após erro, mas não torna o lote uma transação atômica nem desfaz documentos que já foram inseridos.",
+      "section": "2. Documentos e operações de escrita",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um documento MongoDB pode ter subdocumentos e arrays, e PyMongo converte estruturas Python compatíveis para BSON.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Dicionários e listas podem representar campos aninhados e arrays; o driver faz a conversão para os tipos BSON correspondentes.",
+      "section": "2. Documentos e operações de escrita",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma colisão de _id em insert_one substitui silenciosamente o documento que já tinha esse identificador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A unicidade de _id é imposta por índice único; inserir um identificador duplicado causa erro. Para alterar um documento existente, use operação de atualização apropriada.",
+      "section": "2. Documentos e operações de escrita",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Documentos escritos no MongoDB são todos convertidos para strings, de modo que o tipo Python original não influencia consultas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. PyMongo serializa valores compatíveis em tipos BSON, que preservam categorias como número, texto, booleano, lista, documento aninhado e ObjectId; as comparações dependem dos tipos.",
+      "section": "2. Documentos e operações de escrita",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma chamada a update_many com filtro vazio pode alcançar todos os documentos da coleção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Um filtro vazio não impõe critério de seleção; em uma operação many, ele pode corresponder a todos os documentos. O mesmo cuidado vale para delete_many.",
+      "section": "3. Consultas, cursores e alterações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual chamada retorna um único documento correspondente ou None quando não há correspondência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "collection.find_one({\"status\": \"ativo\"})",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "collection.find({\"status\": \"ativo\"})",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "collection.insert_one({\"status\": \"ativo\"})",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "collection.aggregate({\"status\": \"ativo\"})",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "collection.delete_one({\"status\": \"ativo\"})",
+          "correct": false
+        }
+      ],
+      "explanation": "find_one busca um documento e retorna None se não encontrar. find retorna cursor, insert_one grava e aggregate recebe pipeline de estágios; delete_one remove um correspondente.",
+      "section": "3. Consultas, cursores e alterações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao chamar collection.find(filtro), que tipo de resultado o programa normalmente percorre para obter os documentos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um cursor iterável de resultados correspondentes",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma lista imutável materializada integralmente no cliente",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um único documento ou None, sem possibilidade de mais resultados",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um identificador ObjectId criado para a consulta",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma sessão transacional que já confirma as leituras",
+          "correct": false
+        }
+      ],
+      "explanation": "find retorna cursor, que o código percorre; não é uma única resposta como find_one nem necessariamente uma lista integral carregada de uma vez.",
+      "section": "3. Consultas, cursores e alterações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que filtro seleciona documentos cujo campo preco é pelo menos 10 e menor que 20?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "{\"preco\": {\"$gte\": 10, \"$lt\": 20}}",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "{\"preco\": {\"$gt\": 20, \"$lte\": 10}}",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "{\"$set\": {\"preco\": [10, 20]}}",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "{\"preco\": {\"$in\": [10, 20]}}",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "{\"preco\": {\"$exists\": true}}",
+          "correct": false
+        }
+      ],
+      "explanation": "$gte inclui o limite inferior e $lt exclui o superior. $in selecionaria apenas valores listados; $exists testa presença, não faixa numérica.",
+      "section": "3. Consultas, cursores e alterações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coleção possui campo cidade dentro do documento aninhado endereco. Qual filtro consulta a cidade Recife?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "{\"endereco.cidade\": \"Recife\"}",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "{\"endereco\": \"cidade.Recife\"}",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "{\"cidade\": {\"endereco\": \"Recife\"}}",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "{\"$set\": {\"endereco.cidade\": \"Recife\"}}",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "{\"endereco\": [\"cidade\", \"Recife\"]}",
+          "correct": false
+        }
+      ],
+      "explanation": "A notação de caminho pontuado endereco.cidade seleciona o campo aninhado cidade dentro de endereco. $set pertence a uma atualização, e os outros formatos não expressam esse caminho de consulta.",
+      "section": "3. Consultas, cursores e alterações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta projeta nome e preco e omite o identificador padrão. Qual projeção é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "{\"nome\": 1, \"preco\": 1, \"_id\": 0}",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "{\"nome\": 0, \"preco\": 0, \"_id\": 1}",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "{\"$set\": {\"nome\": 1, \"preco\": 1}}",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "{\"nome\": true, \"preco\": false, \"_id\": 1}",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "{\"nome\": 1, \"preco\": 1, \"_id\": 1}",
+          "correct": false
+        }
+      ],
+      "explanation": "A projeção inclui nome e preco e exclui _id explicitamente. Por padrão _id seria incluído; a exclusão de _id é a exceção comum à regra de não misturar inclusão e exclusão na projeção.",
+      "section": "3. Consultas, cursores e alterações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual operador de atualização define o campo status como pago sem substituir o documento inteiro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "{\"$set\": {\"status\": \"pago\"}}",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "{\"$inc\": {\"status\": \"pago\"}}",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "{\"$unset\": {\"status\": \"pago\"}}",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "{\"$push\": {\"status\": \"pago\"}}",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "{\"$match\": {\"status\": \"pago\"}}",
+          "correct": false
+        }
+      ],
+      "explanation": "$set atribui o valor do campo. $inc incrementa número, $unset remove campo, $push acrescenta a array e $match é estágio de agregação.",
+      "section": "3. Consultas, cursores e alterações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação deve aumentar o campo tentativas em uma unidade em cada documento correspondente. Qual atualização expressa essa operação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "{\"$inc\": {\"tentativas\": 1}}",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "{\"$set\": {\"tentativas\": 1}}",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "{\"$unset\": {\"tentativas\": 1}}",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "{\"$push\": {\"tentativas\": 1}}",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "{\"$group\": {\"tentativas\": 1}}",
+          "correct": false
+        }
+      ],
+      "explanation": "$inc incrementa numericamente o valor existente. $set o substituiria por 1, enquanto $unset remove o campo e $push trata arrays.",
+      "section": "3. Consultas, cursores e alterações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O filtro de update_one corresponde a quatro documentos. Quantos documentos essa operação atualiza no máximo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Um documento correspondente", "correct": true },
+        {
+          "key": "B",
+          "text": "Todos os quatro documentos encontrados",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Nenhum, pois o filtro precisa conter _id",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um documento novo para cada correspondência",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A coleção inteira, independentemente do filtro",
+          "correct": false
+        }
+      ],
+      "explanation": "update_one atualiza no máximo um documento que corresponda ao filtro. Para alcançar todos os correspondentes, a API tem update_many.",
+      "section": "3. Consultas, cursores e alterações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que faz upsert=True em uma operação de atualização quando o filtro não encontra documento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Insere um documento compatível com o filtro e a atualização",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remove o documento mais antigo da coleção",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converte automaticamente o filtro em uma projeção",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Cancela a atualização e devolve obrigatoriamente None",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cria um índice único para todos os campos enviados",
+          "correct": false
+        }
+      ],
+      "explanation": "Com upsert habilitado, a atualização insere um documento caso nenhum corresponda, e o resultado pode informar upserted_id. A opção não cria índices nem exclui documentos.",
+      "section": "3. Consultas, cursores e alterações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma rotina quer remover todos os documentos cujo campo expirado seja true. Qual chamada expressa corretamente a exclusão em lote?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "collection.delete_many({\"expirado\": True})",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "collection.find({\"expirado\": True})",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "collection.update_one({\"expirado\": True}, {})",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "collection.insert_many({\"expirado\": True})",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "collection.aggregate({\"expirado\": True})",
+          "correct": false
+        }
+      ],
+      "explanation": "delete_many recebe o filtro e remove todos os documentos correspondentes. find apenas lê e update_one altera no máximo um documento.",
+      "section": "3. Consultas, cursores e alterações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para contar documentos de acordo com um filtro em PyMongo, qual método é apropriado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "collection.count_documents(filtro)",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "collection.estimated_document_count(filtro)",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "collection.find_one(filtro).count()",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "collection.insert_many(filtro)",
+          "correct": false
+        },
+        { "key": "E", "text": "collection.distinct(filtro)", "correct": false }
+      ],
+      "explanation": "count_documents aceita filtro e conta as correspondências. estimated_document_count estima o total da coleção e não recebe filtro para esse propósito.",
+      "section": "3. Consultas, cursores e alterações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa ordenar produtos pelo preço crescente e então limitar a consulta a cinco resultados. Que encadeamento é compatível com PyMongo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "collection.find({}).sort(\"preco\", 1).limit(5)",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "collection.find({}).limit(\"preco\").sort(5, -1)",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "collection.insert_many({}).sort(\"preco\", 1)",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "collection.find_one({}).sort(\"preco\", 1).limit(5)",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "collection.delete_many({}).limit(5).sort(\"preco\", 1)",
+          "correct": false
+        }
+      ],
+      "explanation": "find retorna cursor, no qual sort e limit configuram ordenação e quantidade. A direção 1 é ascendente; find_one já retorna um documento, e operações de escrita não são cursores de consulta.",
+      "section": "3. Consultas, cursores e alterações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação deve impedir que dois usuários tenham o mesmo valor no campo email. Que configuração representa essa regra no índice?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "create_index([('email', 1)], unique=True)",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "create_index([('email', 1)], sparse=False, unique=False)",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "create_index([('email', -1)], expireAfterSeconds=0)",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "create_index([('email', 1)], background=False, unique=False)",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "create_index([('email', 0)], name='email')",
+          "correct": false
+        }
+      ],
+      "explanation": "unique=True solicita índice único para email e impede valores duplicados conforme as regras do índice. A criação pode falhar se a coleção já contiver valores conflitantes.",
+      "section": "4. Validação, índices e agregação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente um custo de manter índices numa coleção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Índices ocupam espaço e também precisam ser mantidos durante gravações",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Índices reduzem o armazenamento total e não participam de gravações",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Todo índice torna qualquer consulta mais rápida sem impacto operacional",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Índices impedem o MongoDB de armazenar arrays ou documentos aninhados",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Índices só podem ser consultados pelo cliente e não existem no servidor",
+          "correct": false
+        }
+      ],
+      "explanation": "Índices podem acelerar padrões compatíveis de leitura e ordenação, mas ocupam espaço e exigem atualização conforme os documentos mudam. Logo, sua criação deve seguir padrões reais de acesso.",
+      "section": "4. Validação, índices e agregação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A criação de um índice único sempre é concluída mesmo que a coleção já contenha documentos com chaves repetidas.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não; dados existentes que violem a unicidade podem impedir a criação",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Sim; o MongoDB apaga automaticamente todos os duplicados excedentes",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sim; índices únicos só conferem duplicidade nas leituras futuras",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não; o PyMongo converte o índice único em índice textual",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sim; a opção unique apenas recomenda unicidade e nunca é imposta",
+          "correct": false
+        }
+      ],
+      "explanation": "Um índice único impõe a restrição; se valores existentes forem duplicados, a construção do índice falha em vez de apagar registros automaticamente.",
+      "section": "4. Validação, índices e agregação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma validação de documentos no servidor pode rejeitar escritas que não satisfaçam regras configuradas para a coleção.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim; regras de validação podem restringir estrutura e tipos dos documentos",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Não; validação existe apenas no editor Python e nunca no MongoDB",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não; validar documentos significa criar uma cópia de segurança",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sim; mas a validação só é executada por find e não por gravações",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não; uma coleção MongoDB não pode definir requisitos de campos",
+          "correct": false
+        }
+      ],
+      "explanation": "MongoDB permite definir regras de validação de documentos, que controlam gravações segundo critérios configurados. A regra reside no servidor e não é mera verificação do editor Python.",
+      "section": "4. Validação, índices e agregação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a finalidade de bypass_document_validation=True em uma operação de escrita que o oferece?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Permitir que aquela escrita ignore validação de documento do servidor",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar validação automática para os campos ausentes no documento",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter qualquer documento escrito em um esquema JSON rígido",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desabilitar os índices únicos durante toda a vida da coleção",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transformar uma inserção em consulta sem gravar dados",
+          "correct": false
+        }
+      ],
+      "explanation": "A opção permite que uma escrita específica ignore validação de documento quando habilitada. Não cria uma regra nem desabilita índices; seu uso exige intenção explícita.",
+      "section": "4. Validação, índices e agregação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um pipeline, qual estágio filtra documentos intermediários de acordo com uma condição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "$match", "correct": true },
+        { "key": "B", "text": "$group", "correct": false },
+        { "key": "C", "text": "$sort", "correct": false },
+        { "key": "D", "text": "$project", "correct": false },
+        { "key": "E", "text": "$merge", "correct": false }
+      ],
+      "explanation": "$match seleciona documentos segundo um filtro. $group agrupa, $sort ordena, $project remodela campos e $merge é um estágio de saída que pode gravar resultados.",
+      "section": "4. Validação, índices e agregação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência calcula a soma de valor por categoria para pedidos pagos e ordena os totais em ordem decrescente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "$match por status, $group por categoria com $sum e $sort do total em -1",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "$sort por status, $match por total e $group por valor em 1",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "$group por status, $merge por categoria e $match pelo total em -1",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "$project por categoria, $sort por valor e $unset do total em 1",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "$limit por status, $inc por categoria e $match por total em -1",
+          "correct": false
+        }
+      ],
+      "explanation": "O pipeline primeiro filtra pedidos pagos, agrupa pela categoria calculando a soma do valor, e ordena o campo total de forma decrescente com -1. Os demais estágios propostos não cumprem essas operações.",
+      "section": "4. Validação, índices e agregação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O retorno de aggregate(pipeline) é percorrido como cursor de documentos resultantes da sequência de estágios.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim; a aplicação pode iterar pelos documentos produzidos pelo pipeline",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Não; aggregate retorna sempre um único inteiro com a contagem final",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não; aggregate modifica obrigatoriamente todos os documentos de origem",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sim; porém retorna apenas os nomes dos estágios sem executar a consulta",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não; a API devolve somente uma sessão sem resultados",
+          "correct": false
+        }
+      ],
+      "explanation": "aggregate executa a pipeline e devolve cursor de documentos resultantes. Estágios comuns como match, group e sort transformam o conjunto em saída; não modificam obrigatoriamente a coleção de origem.",
+      "section": "4. Validação, índices e agregação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação com PyMongo associa as operações da unidade a uma sessão e depende de um deployment MongoDB compatível.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. Transações usam ClientSession e operações associadas à sessão; suporte exige deployment compatível, como conjunto de réplicas ou cluster fragmentado configurado adequadamente.",
+      "section": "5. Sessões, transações, erros e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual exceção do PyMongo é associada a uma tentativa de gravação que viola um índice único?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "DuplicateKeyError", "correct": true },
+        { "key": "B", "text": "StopIteration", "correct": false },
+        { "key": "C", "text": "ImportError", "correct": false },
+        { "key": "D", "text": "SyntaxWarning", "correct": false },
+        { "key": "E", "text": "KeyboardInterrupt", "correct": false }
+      ],
+      "explanation": "DuplicateKeyError representa erro de chave duplicada, como uma gravação que conflita com índice único. As demais exceções pertencem a contextos Python diferentes.",
+      "section": "5. Sessões, transações, erros e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação deve interpretar find_one retornando None como prova de que houve falha de conexão com o servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": false },
+        { "key": "E", "text": "Errado.", "correct": true }
+      ],
+      "explanation": "Errado. None indica que a consulta não encontrou documento correspondente. Falhas de conexão ou seleção do servidor são erros/exceções distintos e devem ser tratados como tais.",
+      "section": "5. Sessões, transações, erros e boas práticas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação pode ser executada no mesmo formato em qualquer instância isolada do MongoDB, pois PyMongo simula atomicidade no cliente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": false },
+        { "key": "E", "text": "Errado.", "correct": true }
+      ],
+      "explanation": "Errado. O suporte transacional depende de deployment MongoDB compatível; PyMongo não simula atomicidade arbitrária no cliente. As operações transacionais são vinculadas a uma sessão.",
+      "section": "5. Sessões, transações, erros e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em código assíncrono, operações I/O do AsyncMongoClient devem ser aguardadas e o cliente pode ser encerrado com await client.close().",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. A API assíncrona coordena operações aguardáveis e o fechamento também é assíncrono; cursores são percorridos com async for.",
+      "section": "1. PyMongo e conexão com o banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um timeout de seleção do servidor deve ser tratado como se a consulta tivesse encontrado zero documentos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": false },
+        { "key": "E", "text": "Errado.", "correct": true }
+      ],
+      "explanation": "Errado. Timeout indica que o cliente não conseguiu selecionar um servidor dentro do limite; ausência de correspondências é um resultado válido da consulta, como None em find_one.",
+      "section": "5. Sessões, transações, erros e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comando simples pode ser usado para testar se o servidor responde a partir de um MongoClient?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "client.admin.command(\"ping\")",
+          "correct": true
+        },
+        { "key": "B", "text": "client.close(\"ping\")", "correct": false },
+        {
+          "key": "C",
+          "text": "client.find_one({\"ping\": True})",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "client.insert_many([{\"ping\": True}])",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "client.aggregate([{\"$ping\": {}}])",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação usa o comando ping via banco admin para testar conexão/resposta. Os outros métodos não correspondem a esse comando e vários sequer pertencem à API do cliente.",
+      "section": "1. PyMongo e conexão com o banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática reduz exposição indevida de credenciais usadas para conectar ao MongoDB?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter a URI em configuração protegida e impedir que apareça em logs",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Publicar a URI completa no repositório para facilitar a depuração",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reutilizar a mesma senha em todos os ambientes e usuários",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Desativar a autenticação sempre que a URI contiver usuário",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Colocar a senha no nome da coleção para evitar arquivos de configuração",
+          "correct": false
+        }
+      ],
+      "explanation": "Credenciais devem ser mantidas em configuração/segredo protegido e não registradas em logs ou repositórios públicos. Permissões e autenticação também devem seguir o princípio do acesso necessário.",
+      "section": "5. Sessões, transações, erros e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A validação configurada para uma coleção pode ser ignorada por uma operação que explicitamente use bypass_document_validation=True, se a operação oferecer essa opção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. A opção de escrita permite optar por não aplicar validação de documento naquela operação. Não é a prática padrão para corrigir dados inválidos e deve ser usada com intenção explícita.",
+      "section": "4. Validação, índices e agregação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transação em PyMongo é criada sem sessão e exige que cada operação indique apenas o nome da coleção.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": false },
+        { "key": "E", "text": "Errado.", "correct": true }
+      ],
+      "explanation": "Errado. A transação começa em sessão, e as operações que pertencem à transação precisam receber essa sessão. Também é necessário suporte do deployment MongoDB.",
+      "section": "5. Sessões, transações, erros e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma consulta find({}) é adequada para selecionar somente documentos com status ativo, sem acrescentar nenhum critério.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": false },
+        { "key": "E", "text": "Errado.", "correct": true }
+      ],
+      "explanation": "Errado. O filtro vazio não especifica status e pode retornar todos os documentos. Para selecionar ativos, use um critério como {\"status\": \"ativo\"}.",
+      "section": "3. Consultas, cursores e alterações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A ordem dos estágios pode importar num pipeline, e $sort ordena os documentos intermediários pelo campo indicado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. A agregação executa estágios em sequência e $sort ordena a saída intermediária, influenciando o resultado de estágios seguintes que dependam dessa ordem.",
+      "section": "4. Validação, índices e agregação",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual chamada busca todos os documentos e percorre os resultados sem pedir que find_one escolha um único?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "for doc in collection.find({}): print(doc)",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "for doc in collection.find_one({}): print(doc)",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "for doc in collection.insert_many([]): print(doc)",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "for doc in collection.delete_many({}): print(doc)",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "for doc in collection.create_index([]): print(doc)",
+          "correct": false
+        }
+      ],
+      "explanation": "find({}) retorna cursor para percorrer os documentos sem critério de filtro. find_one retorna um documento ou None, e as operações de escrita não produzem esse cursor de consulta.",
+      "section": "3. Consultas, cursores e alterações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma atualização usa replace_one para trocar o documento correspondente preservando seu _id. Qual descrição é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A substituição troca os demais campos do documento pelo conteúdo novo",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A substituição adiciona apenas campos ausentes e mantém todos os demais",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A substituição incrementa automaticamente cada campo numérico",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A substituição remove o documento e apaga a coleção completa",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A substituição só pode ser feita se o filtro estiver vazio",
+          "correct": false
+        }
+      ],
+      "explanation": "replace_one substitui o conteúdo do documento correspondente, mantendo o identificador do documento. Para alterar somente campos selecionados sem substituir o documento, use operadores como $set.",
+      "section": "3. Consultas, cursores e alterações",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual chamada devolve valores distintos de um campo e pode receber filtro de documentos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "collection.distinct(\"categoria\", filtro)",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "collection.find_one(\"categoria\", filtro)",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "collection.insert_one(\"categoria\", filtro)",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "collection.delete_many(\"categoria\", filtro)",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "collection.create_index(\"categoria\", filtro)",
+          "correct": false
+        }
+      ],
+      "explanation": "distinct recebe o nome do campo e, opcionalmente, um filtro para restringir os documentos considerados. Os métodos restantes não são consultas de valores distintos.",
+      "section": "3. Consultas, cursores e alterações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual diferença entre estimated_document_count e count_documents é relevante numa consulta filtrada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "count_documents aceita filtro; estimated_document_count estima o total da coleção",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "estimated_document_count aceita qualquer filtro; count_documents não conta",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os dois inserem um documento e retornam inserted_id",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "count_documents remove resultados, enquanto estimated_document_count atualiza",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Os dois contam somente documentos com _id fornecido pelo programa",
+          "correct": false
+        }
+      ],
+      "explanation": "count_documents conta correspondências de um filtro. estimated_document_count estima o total da coleção e não serve para contar um subconjunto filtrado.",
+      "section": "3. Consultas, cursores e alterações",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação distingue corretamente uma chamada de escrita que não encontra correspondência de uma falha de rede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Contagens de correspondência podem ser zero; falhas de rede são sinalizadas por exceções",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ambas sempre retornam None e não podem ser distinguidas",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Falhas de rede significam que delete_many removeu todos os documentos",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Zero correspondências prova que a autenticação foi rejeitada",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exceções de rede são retornadas como ObjectId no resultado da escrita",
+          "correct": false
+        }
+      ],
+      "explanation": "Resultados de escrita expõem contagens como matched_count ou deleted_count, inclusive zero; problemas de conexão/seleção do servidor são reportados por exceções do PyMongo.",
+      "section": "5. Sessões, transações, erros e boas práticas",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando uma aplicação encerra seu ciclo de vida, fechar o cliente PyMongo libera os recursos de conexão que ele administra.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo.", "correct": true },
+        { "key": "E", "text": "Errado.", "correct": false }
+      ],
+      "explanation": "Certo. O cliente síncrono deve ser fechado com close; em código assíncrono, aguarda-se o fechamento do cliente assíncrono. Isso encerra recursos de conexão administrados pelo cliente.",
+      "section": "1. PyMongo e conexão com o banco",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "MongoDB PyMongo Driver Documentation",
+      "publisher": "MongoDB, Inc.",
+      "reference": "Visão geral, driver recomendado, recursos CRUD, agregação, índices e documentação de API",
+      "url": "https://www.mongodb.com/docs/languages/python/pymongo-driver/current/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Connect to MongoDB",
+      "publisher": "MongoDB, Inc.",
+      "reference": "MongoClient, AsyncMongoClient, URI, implantação local e Atlas, ping e fechamento",
+      "url": "https://www.mongodb.com/docs/languages/python/pymongo-driver/current/connect/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Insert Documents",
+      "publisher": "MongoDB, Inc.",
+      "reference": "insert_one, insert_many, _id, ObjectId, opções de escrita e inserção ordenada",
+      "url": "https://www.mongodb.com/docs/languages/python/pymongo-driver/current/crud/insert/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Query",
+      "publisher": "MongoDB, Inc.",
+      "reference": "find_one, find, cursores, contagem, distinct e monitoramento",
+      "url": "https://www.mongodb.com/docs/languages/python/pymongo-driver/current/crud/query/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Update Documents",
+      "publisher": "MongoDB, Inc.",
+      "reference": "Operadores de atualização, upsert, resultados e substituição",
+      "url": "https://www.mongodb.com/docs/languages/python/pymongo-driver/current/crud/update/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Delete Documents",
+      "publisher": "MongoDB, Inc.",
+      "reference": "Exclusão de documentos com operações one e many",
+      "url": "https://www.mongodb.com/docs/languages/python/pymongo-driver/current/crud/delete/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Aggregation",
+      "publisher": "MongoDB, Inc.",
+      "reference": "Execução de pipelines de agregação com PyMongo",
+      "url": "https://www.mongodb.com/docs/languages/python/pymongo-driver/current/aggregation/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Indexes",
+      "publisher": "MongoDB, Inc.",
+      "reference": "Criação e uso de índices com PyMongo",
+      "url": "https://www.mongodb.com/docs/languages/python/pymongo-driver/current/indexes/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Transactions",
+      "publisher": "MongoDB, Inc.",
+      "reference": "Sessões e transações no driver PyMongo",
+      "url": "https://www.mongodb.com/docs/languages/python/pymongo-driver/current/crud/transactions/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "PyMongo Errors API",
+      "publisher": "MongoDB, Inc.",
+      "reference": "Exceções do driver, incluindo DuplicateKeyError e erros de conexão",
+      "url": "https://pymongo.readthedocs.io/en/stable/api/pymongo/errors.html",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Schema Validation",
+      "publisher": "MongoDB, Inc.",
+      "reference": "Validação de documentos configurada no servidor MongoDB",
+      "url": "https://www.mongodb.com/docs/manual/core/schema-validation/",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

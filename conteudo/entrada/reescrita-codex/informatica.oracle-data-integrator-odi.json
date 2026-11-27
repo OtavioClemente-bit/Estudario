@@ -1,0 +1,2320 @@
+{
+  "id": "informatica.oracle-data-integrator-odi",
+  "subject": "Informática",
+  "title": "Oracle Data Integrator (ODI)",
+  "version": 2,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Oracle Data Integrator (ODI)",
+    "Ferramenta Oracle Data Integrator",
+    "Oracle Data Integrator da Oracle",
+    "Integração de dados com ODI",
+    "Oracle Data Integrator 12c",
+    "Arquitetura do Oracle Data Integrator",
+    "Repositórios do Oracle Data Integrator",
+    "Mappings do Oracle Data Integrator",
+    "Knowledge Modules do ODI",
+    "Oracle Data Integrator para ETL"
+  ],
+  "scope": {
+    "covers": "Oracle Data Integrator (ODI): finalidade e arquitetura ELT; master e work repositories; ODI Studio, agentes, cenários e sessões; topologia, contextos, data servers e schemas lógicos/físicos; modelos, datastores e engenharia reversa; mappings, staging e Knowledge Modules LKM, IKM, CKM, RKM, JKM, XKM e SKM; qualidade e rejeição de dados; journalização e CDC; projects, packages, procedures, scenarios, load plans, execução e monitoramento.",
+    "excludes": "Administração detalhada de Oracle Database, sintaxe SQL específica de cada SGBD, instalação passo a passo de middleware, licenciamento e diferenças de versões específicas, Oracle BI Applications e Oracle Business Intelligence Suite Enterprise Edition."
+  },
+  "theoryTitle": "Oracle Data Integrator: integração, execução e controle",
+  "chapters": [
+    {
+      "title": "1. Finalidade e arquitetura do ODI",
+      "markdown": "### O problema que este assunto resolve\n\nQuando uma organização mantém dados de clientes em um sistema, pedidos em outro e pagamentos em um terceiro, alguém precisa reunir essas informações de modo repetível. O Oracle Data Integrator (**ODI**) é uma ferramenta da Oracle para desenhar e executar esse tipo de integração. Em vez de escrever manualmente um programa diferente para cada transferência, a equipe descreve as estruturas, as regras e o destino; o ODI combina essa descrição com módulos de execução compatíveis com os bancos e demais tecnologias envolvidos.\n\nA ferramenta não adivinha os dados nem decide sozinha o significado de cada coluna. Pessoas configuram conexões, identificam as fontes e os alvos, definem as transformações e selecionam como o trabalho será executado. O produto organiza essa configuração como **metadata**, isto é, descrições sobre estruturas, conexões, regras e objetos de integração, e então gera os passos técnicos apropriados.\n\n### ELT e ETL\n\n**ELT** significa extração, carga e transformação: os dados são extraídos da fonte, carregados numa área de preparação e transformados ali ou perto do destino. **ETL** significa extração, transformação e carga: a transformação acontece antes de os dados chegarem ao destino final, em geral num mecanismo separado. As siglas diferem pela posição da etapa de transformação.\n\nO ODI é associado principalmente ao estilo ELT porque pode aproveitar o mecanismo do banco ou da plataforma que recebe os dados. Isso não quer dizer que toda integração sempre siga o mesmo caminho. A tecnologia de origem e destino, a localização da área de preparação e os módulos escolhidos influenciam quais etapas são possíveis. Uma questão que diz que ODI “sempre transforma no destino” simplifica demais: o desenho físico e a configuração definem o percurso efetivo.\n\nExemplo: Ana trabalha numa loja que mantém cadastro de clientes num sistema e vendas em outro. Ela precisa entregar ao setor financeiro uma tabela com o identificador do cliente, a data da venda e o total. Ana modela as duas fontes, descreve a junção pelo identificador, escolhe a área de preparação e define o alvo. O ODI pode carregar os registros para a preparação e pedir ao mecanismo configurado que faça a junção e grave o resultado. Se a arquitetura exigir transformação antes da carga final, o fluxo poderá usar outra estratégia. O ponto central é que a regra de negócio foi descrita no mapping e a execução depende da configuração.\n\n### Repositórios: controle e trabalho\n\nUm **repositório** é uma base organizada que guarda dados internos da ferramenta. O **master repository** (repositório mestre) concentra informações de topologia e segurança e mantém referências aos repositórios de trabalho. Topologia descreve os recursos físicos e os contextos disponíveis; segurança controla usuários e privilégios. O master ajuda diferentes equipes e ambientes a compartilhar essa administração.\n\nO **work repository** (repositório de trabalho) guarda objetos de projeto, como modelos, mappings e packages, e também pode guardar informações operacionais, como cenários e sessões. A instalação pode separar o trabalho de desenvolvimento do trabalho de execução. Um master pode estar relacionado a mais de um work, enquanto cada work fica associado a um master por vez. Portanto, “master contém todos os mappings” é uma descrição incorreta: os objetos de desenvolvimento ficam no work de desenvolvimento.\n\nUm work de desenvolvimento contém os objetos editáveis usados para construir integrações. Um work de execução pode concentrar os objetos e registros necessários para executar e acompanhar fluxos. A divisão concreta varia conforme a arquitetura implantada; para a prova, importa reconhecer a função de cada repositório, sem presumir que toda instalação mantém tudo numa única base.\n\n### Studio, agente, cenário e sessão\n\nO **ODI Studio** é o ambiente gráfico com áreas voltadas a tarefas diferentes. Designer serve para construir modelos e objetos de integração; Topology configura recursos físicos, conexões e contextos; Security administra contas e privilégios; Operator acompanha execuções e seus detalhes. Um **agente** é o processo que recebe uma solicitação e executa as tarefas do fluxo. O agente consulta as informações necessárias nos repositórios e usa as conexões configuradas para atuar sobre as fontes e os destinos.\n\nUm **scenario** (cenário) é uma versão executável gerada a partir de um objeto de projeto, como um package ou mapping. Ele representa a lógica que será executada e pode ser promovido entre ambientes conforme o processo da equipe. Editar o objeto no projeto não atualiza por si só um cenário já gerado. Depois de uma alteração, a equipe precisa gerar a versão executável desejada e disponibilizá-la segundo seu procedimento de implantação.\n\nUma **session** (sessão) é uma ocorrência específica da execução de um cenário ou de outro objeto executável. A sessão registra estado, tarefas, mensagens, duração e métricas, por exemplo, quantas linhas foram processadas. Duas execuções do mesmo cenário geram ocorrências distintas: isso permite investigar uma falha sem confundir o histórico de hoje com o da execução anterior.\n\n| Elemento | O que representa | Exemplo concreto |\n| --- | --- | --- |\n| Master repository | Administração, topologia e segurança | Contexto de produção e privilégios |\n| Work repository | Objetos de projeto ou dados operacionais | Mapping editável ou histórico de sessões |\n| Agente | Processo que executa as tarefas | Agente inicia a carga agendada |\n| Scenario | Versão executável gerada | Versão aprovada do package de vendas |\n| Session | Uma execução daquela versão | Carga de terça-feira, com estado e mensagens |\n\n### Exemplo: da mudança à investigação\n\nAna percebe que o relatório de vendas deve excluir pedidos cancelados. Ela altera o filtro no mapping do projeto de desenvolvimento e salva o objeto. O cenário que já estava publicado continua representando a versão anterior. Ana gera um cenário atualizado e, seguindo o fluxo de implantação da equipe, disponibiliza essa versão no ambiente de execução. À noite, o agente executa o cenário e cria uma sessão.\n\nNa manhã seguinte, o relatório tem menos linhas do que o esperado. Ana abre Operator e localiza a sessão daquela noite. Ela confere qual tarefa terminou, qual falhou, a mensagem emitida e as métricas. Se a tarefa não conectou ao banco, verifica a configuração da conexão e o contexto. Se concluiu, mas rejeitou linhas, examina as regras de qualidade e os registros de erro. A sessão fornece evidência da execução; ela não é o mapping nem o cenário.\n\n### O que comparar\n\n| Par de conceitos | Diferença essencial |\n| --- | --- |\n| ETL e ELT | A posição da transformação muda: antes da carga final em ETL, na área preparada em ELT. |\n| Master e work | Master concentra topologia/segurança e referências; work guarda objetos de projeto e/ou execução. |\n| Scenario e session | Scenario é a versão executável; session é a ocorrência concreta que a executa. |\n| Designer e Operator | Designer constrói objetos; Operator acompanha tarefas e resultados operacionais. |\n\n### Pegadinha\n\n**Pegadinha:** dizer que a sessão é “o programa” ou que o cenário é “o log da execução”. O cenário contém a versão executável; cada sessão registra uma execução específica. Outra troca comum é atribuir ao master repository o armazenamento normal dos projetos, que ficam no work de desenvolvimento.\n\n### Resumo para a prova\n\nO ODI descreve integrações por metadata e gera tarefas para as tecnologias configuradas. ELT transforma na área preparada; ETL transforma antes da carga final, mas o percurso real depende do desenho e dos módulos. Master administra topologia e segurança; work guarda projeto e/ou execução. Designer desenvolve, agente executa e Operator monitora. Scenario é a versão executável; session é uma ocorrência com estado, mensagens e métricas."
+    },
+    {
+      "title": "2. Topologia, modelos e engenharia reversa",
+      "markdown": "### O problema que este assunto resolve\n\nUm fluxo de integração não deve precisar ser redesenhado do zero sempre que muda do ambiente de desenvolvimento para o de produção. O ODI resolve parte desse problema separando a referência lógica usada pelo desenho da localização física onde os dados realmente estão. Assim, um mapping pode falar em “origem de clientes” e o ambiente escolhido determina qual banco atende esse papel.\n\n### Vocabulário da topologia\n\n**Topologia** é a descrição dos recursos e das associações que permitem ao ODI localizar e acessar tecnologias. Um **data server** é a definição de uma instância tecnológica e de sua conexão: identifica a tecnologia e inclui informações necessárias para estabelecer comunicação, como endereço e credenciais configuradas. Um **schema físico** (**physical schema**) indica o local real de objetos dentro dessa conexão, por exemplo, o schema do banco em que reside a tabela. Esses elementos representam recursos concretos.\n\nUm **schema lógico** (**logical schema**) é um nome abstrato para um papel de origem ou destino que os modelos podem usar sem fixar um servidor particular. Um **contexto** é uma configuração nomeada que resolve schemas lógicos para os físicos correspondentes naquele ambiente. O contexto de desenvolvimento pode encaminhar o lógico “clientes” ao banco de teste, enquanto o contexto de produção resolve o mesmo papel para o banco produtivo. O contexto selecionado também precisa combinar com os data servers e schemas configurados; não cria uma conexão que não existe.\n\n| Elemento | Pergunta que responde | Exemplo |\n| --- | --- | --- |\n| Data server | Com qual instância/tecnologia falar? | Banco corporativo de teste |\n| Schema físico | Em que localização real estão os objetos? | Schema APP_TEST no servidor |\n| Schema lógico | Qual papel o projeto referencia? | Origem de cadastro de clientes |\n| Contexto | Onde esse papel se resolve neste ambiente? | Desenvolvimento aponta para APP_TEST |\n\n### Do modelo à estrutura utilizável\n\nUm **modelo** reúne metadata para uma tecnologia ou conjunto de estruturas que o ODI precisa conhecer. Dentro dele, um **datastore** representa uma tabela, arquivo ou outra estrutura de dados; contém informações estruturais, como colunas e, quando disponíveis, chaves e restrições. O datastore descreve o formato e o significado técnico dos campos para o projeto. Ele não é a conexão física, não é uma cópia dos registros e não é uma execução.\n\nA **engenharia reversa** é o processo de ler metadata já existente numa tecnologia e importá-lo para o modelo do ODI. Ela pode economizar a digitação manual das colunas: em vez de cadastrar uma a uma a estrutura de uma tabela, a pessoa solicita que a ferramenta examine o catálogo acessível e traga a descrição. O que se importa são definições estruturais. A engenharia reversa não carrega automaticamente os dados de negócio, não corrige senhas e não decide como mapear uma coluna para outra.\n\nUm **RKM** (**Reverse Knowledge Module**, módulo de conhecimento para engenharia reversa) orienta como obter e tratar metadata de uma tecnologia. O módulo adequado depende da tecnologia e das capacidades disponíveis. Isso é diferente de um **LKM** (**Loading Knowledge Module**, módulo de carga), que participa da movimentação de dados numa integração; o RKM obtém descrições estruturais, enquanto o LKM transporta registros no fluxo.\n\n### Exemplo passo a passo: a mudança de ambiente\n\nAna está criando uma integração com a tabela CLIENTE. Primeiro, a equipe registra no ODI um data server que descreve o banco e a forma de conexão. Em seguida, configura o schema físico em que CLIENTE está. Ana cria ou escolhe um schema lógico chamado ORIGEM_CLIENTE e o utiliza no modelo, sem escrever no mapping o nome do servidor de produção.\n\nAna seleciona o contexto DESENVOLVIMENTO. Esse contexto resolve ORIGEM_CLIENTE para o schema físico de teste. Ela faz engenharia reversa e confere que o datastore contém as colunas esperadas, como ID_CLIENTE e NOME. Depois, a mesma integração é executada no contexto PRODUÇÃO, cuja associação lógica aponta ao schema físico produtivo. A regra do mapping permanece a mesma, mas os dados de conexão e a resolução do ambiente são os apropriados para a execução. Se a sessão disser que a conexão falhou, Ana verifica data server, credenciais, disponibilidade e contexto; repetir a engenharia reversa não resolve a autenticação.\n\n### Limites e relações entre conceitos\n\n| Situação | Componente a examinar | Por quê |\n| --- | --- | --- |\n| Projeto não encontra a tabela importada | Modelo e datastore | Verifica se a estrutura foi registrada no modelo |\n| O nome lógico aponta para ambiente inesperado | Contexto e associação lógico-física | É o contexto que resolve o papel lógico |\n| Não é possível abrir conexão | Data server e acesso ao schema físico | A conexão depende dos detalhes físicos e das credenciais |\n| Colunas do modelo estão desatualizadas | Engenharia reversa e metadata importada | Atualiza a descrição estrutural acessível |\n| Linhas precisam ser transportadas à staging | Mapping e LKM compatível | Isso é movimentação de dados, não engenharia reversa |\n\n### O que a engenharia reversa não faz\n\nA leitura de metadata pressupõe que a conexão funcione e que a conta tenha acesso às descrições necessárias. Se a conta não puder consultar a estrutura, o processo pode falhar mesmo que a tabela exista. A engenharia reversa também não transforma nomes, não aplica regra de negócio e não garante que duas tabelas com colunas parecidas tenham o mesmo significado. Depois da importação, a equipe ainda precisa conferir as estruturas, definir relações e desenhar o fluxo.\n\n### Pegadinha\n\n**Pegadinha:** tratar schema lógico como nome físico de banco ou dizer que o contexto transfere dados. Logical schema é referência reutilizável; contexto escolhe sua correspondência física no ambiente. Outra confusão frequente é afirmar que RKM executa a carga dos registros: RKM obtém metadata; os módulos de carga atuam no movimento de dados.\n\n### Resumo para a prova\n\nTopologia descreve conexões, localizações e contextos. Data server identifica a instância e a conexão; schema físico localiza objetos reais; schema lógico representa o papel usado pelo modelo; contexto resolve esse papel para um ambiente. Modelo agrupa estruturas e datastore descreve uma delas. Engenharia reversa importa metadata estrutural, não linhas de negócio. RKM orienta essa leitura; LKM participa da carga de dados."
+    },
+    {
+      "title": "3. Mappings e Knowledge Modules",
+      "markdown": "### O problema que este assunto resolve\n\nUma integração costuma combinar dados de várias fontes, aplicar regras e gravar o resultado num destino. O ODI precisa traduzir esse desenho para operações que a tecnologia envolvida consiga executar. Um **mapping** (mapeamento) descreve de forma declarativa quais estruturas participam, como os dados se relacionam, que filtros ou expressões são aplicados e onde o resultado deve chegar. Declarativo significa que a pessoa descreve o resultado e as relações; o ODI gera os passos técnicos a partir do desenho físico e dos módulos escolhidos.\n\nUm **Knowledge Module** (módulo de conhecimento, frequentemente abreviado KM) fornece lógica reutilizável para uma função do processo. A equipe seleciona módulos compatíveis com tecnologia, localização dos dados e estratégia de integração. Um KM não substitui o modelo, as conexões nem as regras de negócio: ele implementa uma parte do fluxo descrito.\n\n### Da fonte ao destino\n\nA **staging area** (área de preparação) é o local em que os dados podem ser carregados e preparados para transformação e integração. No desenho físico, a equipe decide onde essa área fica e como as etapas se conectam. Essa decisão importa: se os dados e o destino estão no mesmo servidor, o processamento pode aproveitar esse mecanismo; se estão em tecnologias ou servidores distintos, a carga pode exigir passos extras ou um módulo apropriado à movimentação entre conexões.\n\nO **LKM** (**Loading Knowledge Module**, módulo de carga) participa do transporte de dados da origem até a área de preparação ou outro ponto previsto pelo desenho. Alguns LKMs materializam registros em tabelas de trabalho, cuja convenção frequente de nome começa com C$. Outros podem usar formas de acesso diferentes. Não se deve concluir que todo LKM sempre cria a mesma tabela: seu comportamento concreto depende da tecnologia e do módulo.\n\nO **IKM** (**Integration Knowledge Module**, módulo de integração) implementa a integração dos dados preparados no alvo. A estratégia pode inserir novos registros, atualizar registros existentes ou combinar ações conforme as opções do módulo e a definição de chave. **Append** significa acrescentar linhas, sem pressupor atualização de registros já existentes. Uma estratégia de atualização incremental pode comparar pela chave e atualizar correspondências, mas depende da configuração e das capacidades do KM.\n\nO **CKM** (**Check Knowledge Module**, módulo de verificação) verifica regras de integridade ou qualidade associadas ao fluxo. Por exemplo, pode checar se um campo obrigatório não está vazio ou se uma referência respeita uma regra configurada. Linhas que falham podem ser identificadas para investigação; uma convenção comum associa rejeições a tabelas E$. A existência de uma tabela de erro não corrige o dado por si mesma: ela ajuda a localizar registros que não passaram nas verificações.\n\n| Sigla e nome | Responsabilidade típica | Pergunta prática |\n| --- | --- | --- |\n| LKM — Loading Knowledge Module | Carrega dados até a área de preparação | Como os dados chegam à staging? |\n| IKM — Integration Knowledge Module | Integra o fluxo no alvo | Como inserir ou atualizar o destino? |\n| CKM — Check Knowledge Module | Verifica constraints e regras | Quais registros violam uma regra? |\n| RKM — Reverse Knowledge Module | Importa metadata por engenharia reversa | Como ler estruturas da tecnologia? |\n| JKM — Journalizing Knowledge Module | Prepara captura de alterações | Como registrar mudanças na origem? |\n| XKM — Component Knowledge Module | Contribui para gerar componentes | Como lógica dos componentes participa do código? |\n| SKM — Service Knowledge Module | Gera artefatos de serviços | Como expor operações para datastores? |\n\n### Os módulos têm funções diferentes\n\nO **RKM** foi tratado no capítulo de topologia: ele ajuda a importar descrições estruturais para modelos. O **JKM** prepara journalização, isto é, a organização dos registros de alterações que serão acompanhados por um mecanismo de captura de mudanças. Essa captura é conhecida como **CDC** (**Change Data Capture**, captura de alterações). Os métodos disponíveis variam de acordo com tecnologia e módulo. Capturar alterações não equivale a integrar os registros no alvo: essa etapa continua sendo tratada pelo fluxo, normalmente com um IKM.\n\nO **XKM** (módulo de conhecimento de componentes) contribui com lógica para a geração de código a partir dos componentes de um mapping. O **SKM** (**Service Knowledge Module**, módulo de serviços) gera artefatos de serviços associados a datastores. Esses papéis complementares não substituem as tarefas de carga ou integração.\n\nA nomenclatura de tabelas auxilia a leitura de exemplos, mas é uma convenção ligada ao fluxo e aos módulos: C$ costuma ser associada à carga/preparação; I$ pode representar uma estrutura intermediária de integração; E$ pode guardar erros ou rejeições. Não memorize as letras como se fossem uma garantia universal de que todo processo sempre criará todas essas tabelas.\n\n### Exemplo passo a passo: cadastro de pedidos\n\nAna precisa copiar pedidos novos de um sistema de vendas para um banco analítico. Ela cria um mapping que aponta para o datastore de pedidos, filtra registros cancelados e define o alvo. Primeiro, o desenho físico estabelece em que servidor ficará a staging area. Depois, Ana escolhe um LKM que consiga carregar a fonte para essa área. Se a opção selecionada materializa os dados numa tabela de preparação, ela confere a execução e as permissões necessárias para essa tabela.\n\nNa sequência, Ana escolhe um IKM compatível com o destino e com a estratégia de carga. Ela define se o processo apenas acrescentará linhas ou se atualizará pedidos já existentes usando a chave do pedido. Antes da gravação final, o desenho pode aplicar verificações do CKM, por exemplo, que o total não seja nulo. Se certas linhas forem rejeitadas, Ana examina os registros identificados e corrige a origem ou a regra; a rejeição não deve ser silenciosamente confundida com sucesso integral.\n\nNo primeiro ensaio, a sessão informa que o LKM não conseguiu acessar a origem. Ana investiga conexão e permissões; trocar o CKM não corrige transporte. Num ensaio seguinte, o LKM termina, mas o alvo não recebe as linhas esperadas. Ela verifica o IKM, a chave, o desenho físico e as métricas da tarefa. Separar a responsabilidade de cada módulo reduz o espaço de busca.\n\n### Staging e desenho físico\n\nO processamento costuma ser mais eficiente quando as transformações podem ser executadas perto dos dados, evitando transferir grandes volumes desnecessariamente. A área de staging e o destino influenciam quais KMs são apropriados. Se a staging fica no servidor de destino, esse banco pode realizar transformações baseadas em conjuntos de registros. Se ela fica em outro local, a integração pode envolver conexões adicionais, outro KM ou etapas de movimentação. A escolha não é uma propriedade isolada do mapping lógico: depende do desenho físico, da tecnologia e dos módulos disponíveis.\n\nO fluxo lógico continua descrevendo o que se quer fazer, enquanto o desenho físico determina como acomodar esse trabalho no ambiente. Por isso, dois mappings com regras semelhantes podem ser executados com passos diferentes em arquiteturas diferentes. A pessoa deve validar se os componentes e KMs são compatíveis com as conexões e a localização configuradas.\n\n### Comparação de erros comuns\n\n| Sintoma | Papel mais diretamente relacionado | O que conferir |\n| --- | --- | --- |\n| Dados não saem da fonte para a preparação | LKM | Conexão, permissões, tecnologia e modo de carga |\n| Linhas chegam à staging, mas não são integradas no alvo | IKM | Estratégia, chave, localização e opções de integração |\n| Registros não cumprem regra de qualidade | CKM | Constraint, dado rejeitado e critério configurado |\n| Colunas do modelo precisam ser importadas | RKM | Acesso à metadata e método de engenharia reversa |\n| Mudanças da origem não aparecem no mecanismo de captura | JKM | Journalização e configuração de CDC |\n\n### Pegadinha\n\n**Pegadinha:** trocar as funções dos três módulos mais cobrados. LKM carrega; IKM integra; CKM verifica. RKM importa estrutura e JKM prepara a captura de mudanças. Uma tabela C$ ou E$ é convenção de apoio ao processo, não é o próprio módulo nem prova de que todas as etapas terminaram corretamente.\n\n### Resumo para a prova\n\nMapping descreve fontes, transformações e alvos; desenho físico e KMs convertem essa descrição em etapas adequadas à tecnologia. LKM transporta dados para preparação, IKM integra no destino e CKM verifica regras. RKM importa metadata, JKM prepara CDC, XKM contribui para a geração de componentes e SKM cria artefatos de serviço. Staging e tecnologia influenciam a escolha dos módulos."
+    },
+    {
+      "title": "4. Orquestração, CDC e operação",
+      "markdown": "### O problema que este assunto resolve\n\nUma carga de dados raramente consiste numa única ação. Primeiro pode ser necessário preparar uma fonte, depois integrar o resultado, validar os registros e só então iniciar outra carga dependente. A equipe precisa definir a ordem, saber o que fazer quando uma etapa falha e descobrir por que o resultado mudou. O ODI oferece objetos de orquestração para organizar essas etapas e registros operacionais para acompanhar cada execução.\n\n### Objetos de projeto e orquestração\n\nUm **project** (projeto) agrupa objetos relacionados, como mappings, packages, procedures e outros componentes de integração. Um **package** (pacote) encadeia etapas, por exemplo, executar um mapping, avaliar uma condição e chamar uma procedure. É útil quando o processo requer uma sequência de ações ou ramificações. Uma **procedure** (procedimento) agrupa operações reutilizáveis que não se encaixam naturalmente no desenho de um mapping, incluindo comandos de apoio e tarefas procedurais. O package coordena as ações; a procedure contém uma operação que pode ser chamada.\n\nUm **scenario** (cenário) é uma versão executável gerada de um objeto de projeto. Ele pode ser criado a partir de um package ou de outro objeto compatível e representa a versão que será distribuída para execução. Depois de uma alteração no projeto, deve-se gerar a versão que se quer executar e promovê-la segundo o processo de implantação. A edição do objeto de origem não altera automaticamente um cenário já publicado.\n\nUm **load plan** (plano de carga) coordena cenários em etapas, definindo dependências, condições e possibilidades de paralelismo. Dependência significa que uma etapa espera outra condição ou conclusão antes de começar. Paralelismo permite que partes independentes ocorram ao mesmo tempo quando o desenho e os recursos permitem. O load plan opera num nível de coordenação de cenários; não substitui o mapping que descreve a transformação dos dados.\n\n| Objeto | Escopo | Exemplo |\n| --- | --- | --- |\n| Mapping | Descreve fontes, transformações e alvo | Filtrar e relacionar pedidos |\n| Package | Encadeia passos de execução | Rodar mapping e depois uma procedure |\n| Procedure | Reúne operações de apoio reutilizáveis | Executar uma rotina de preparação |\n| Scenario | Materializa uma versão executável | Versão aprovada de um package |\n| Load plan | Coordena cenários e dependências | Preparar dimensões antes da carga de fatos |\n| Session | Registra uma execução específica | Resultado da carga desta noite |\n\n### Captura de alterações\n\n**CDC** significa **Change Data Capture** (captura de alterações). Em vez de consultar repetidamente todas as linhas de uma origem para descobrir o que mudou, um processo de CDC acompanha alterações segundo um mecanismo e uma configuração adequados. No ODI, um **JKM** pode preparar a journalização, que organiza o registro das mudanças para consumo pelo fluxo. Dependendo da tecnologia e do módulo, podem ser usados triggers (gatilhos disparados por operações na base) ou outros mecanismos compatíveis.\n\nA equipe ainda precisa configurar a captura e controlar o consumo para evitar perda ou aplicação fora de ordem; capturar mudanças não substitui integração nem validação.\n\n### Exemplo passo a passo: execução noturna\n\nAna administra a carga diária de vendas. Ela tem um mapping que consolida vendas e um segundo mapping que calcula totais por produto. Primeiro, Ana agrupa essas ações num package, colocando a consolidação antes do cálculo. Ela gera um scenario do package depois de revisar a alteração e disponibiliza a versão aprovada no ambiente de execução.\n\nComo a consolidação precisa terminar antes do cálculo, Ana cria um load plan que representa essa dependência. O agente inicia o plano no horário configurado. A execução concreta gera uma session com as tarefas de cada etapa, o estado final, as mensagens e métricas. No dia seguinte, Ana pode distinguir a execução de segunda-feira da de terça-feira, mesmo que ambas tenham usado o mesmo scenario.\n\nSe o primeiro mapping terminou e o segundo falhou, a sessão indica qual tarefa apresentou erro. Ana abre Operator, consulta a mensagem e verifica o contexto, as conexões e os schemas envolvidos. Se a mensagem apontar para falta de privilégio, ela corrige a configuração de acesso com o administrador. Se houver linhas rejeitadas, verifica a regra de qualidade e os registros afetados. Se o plano executou um cenário antigo, confere a versão implantada e gera/promove o cenário correto. Cada indício aponta a uma camada diferente do processo.\n\n### Leitura operacional e diagnóstico\n\nO **Operator** é a área do ODI Studio usada para consultar execuções. A investigação começa escolhendo a session correta pelo cenário, horário e estado. Em seguida, deve-se localizar a tarefa que falhou, ler a mensagem completa e observar a sequência de etapas. Duração e contagens ajudam a perceber se uma carga processou menos linhas, parou cedo ou foi concluída. Esses números são pistas: por si sós, não explicam a regra de negócio nem corrigem a causa.\n\nA equipe então segue a evidência. Erro de autenticação leva à conexão e às credenciais; tabela inexistente leva à resolução do schema e ao contexto; rejeições levam às verificações de qualidade e aos dados; cenário desatualizado leva à geração e implantação. Alterar módulos sem identificar a tarefa causadora pode mascarar a investigação e introduzir uma mudança desnecessária.\n\n| Indício observado | Próxima verificação razoável |\n| --- | --- |\n| Falha antes de abrir conexão | Contexto, data server, credenciais e disponibilidade |\n| Mapping executa, mas não encontra objeto | Schema lógico/físico e datastore |\n| Muitas linhas são rejeitadas | Regras do CKM e dados registrados como rejeitados |\n| Alteração no projeto não aparece em produção | Scenario gerado e versão promovida |\n| Etapa posterior começa antes da anterior | Dependências e condições do load plan |\n\n### Pegadinha\n\n**Pegadinha:** afirmar que um load plan contém as regras de transformação, ou que um scenario é o log de execução. As regras ficam nos objetos como mappings; o plano coordena cenários. O cenário é executável e cada sessão registra uma ocorrência. Também é errado dizer que CDC elimina toda configuração ou validação: capturar mudanças é apenas uma parte do fluxo incremental.\n\n### Resumo para a prova\n\nProject agrupa objetos; package encadeia passos; procedure reúne operações reutilizáveis; scenario é a versão executável; load plan organiza cenários, dependências e condições; session registra uma execução. Agentes executam e Operator permite investigar. JKM pode preparar journalização para CDC, mas captura, integração pelo fluxo e validação de qualidade têm responsabilidades distintas."
+    }
+  ],
+  "summary": "ODI integra fontes e destinos com mappings declarativos e Knowledge Modules. A topologia conecta recursos físicos a logical schemas por contexto; master e work repositories separam administração de projeto/execução. LKM carrega, IKM integra, CKM verifica, RKM faz engenharia reversa e JKM prepara captura de mudanças. Packages e load plans organizam cenários; agentes executam sessões monitoradas no Operator.",
+  "flashcards": [
+    {
+      "front": "Qual é a finalidade do ODI?",
+      "back": "Desenhar e executar integrações entre fontes e destinos com metadados, regras e Knowledge Modules."
+    },
+    {
+      "front": "Como ELT difere de ETL?",
+      "back": "Em ELT, carrega-se para staging antes de transformar; em ETL, a transformação ocorre antes da carga final."
+    },
+    {
+      "front": "O que o master repository contém?",
+      "back": "Topologia, segurança e referências/conexões aos work repositories."
+    },
+    {
+      "front": "O que pode existir em um work repository?",
+      "back": "Projetos e modelos, dados de execução, ou ambos, conforme o tipo de work."
+    },
+    {
+      "front": "Como master e work se relacionam?",
+      "back": "Um master pode ter vários works; cada work associa-se a um master por vez."
+    },
+    {
+      "front": "O que é uma sessão?",
+      "back": "Instância de execução com tarefas, estado, mensagens e métricas."
+    },
+    {
+      "front": "O que é um scenario?",
+      "back": "Versão executável gerada a partir de um objeto do projeto."
+    },
+    {
+      "front": "Qual é a função principal do agente?",
+      "back": "Executar cenários e registrar resultados das sessões no repositório."
+    },
+    {
+      "front": "O que descreve um data server?",
+      "back": "Uma instância tecnológica e os parâmetros de sua conexão física."
+    },
+    {
+      "front": "Para que serve um logical schema?",
+      "back": "Representa um papel lógico resolvido para um physical schema por contexto."
+    },
+    {
+      "front": "O que faz o contexto?",
+      "back": "Associa logical schemas a recursos físicos de um ambiente."
+    },
+    {
+      "front": "O que é um datastore?",
+      "back": "Metadata de uma estrutura, como tabela ou arquivo, dentro de um modelo ODI."
+    },
+    {
+      "front": "O que é engenharia reversa?",
+      "back": "Importar metadados estruturais de uma tecnologia para um modelo ODI."
+    },
+    {
+      "front": "Qual é o papel do LKM?",
+      "back": "Carregar dados da fonte até a área de staging ou outro local de carga."
+    },
+    {
+      "front": "Qual é o papel do IKM?",
+      "back": "Integrar o fluxo preparado nas tabelas do destino."
+    },
+    {
+      "front": "Qual é o papel do CKM?",
+      "back": "Conferir constraints e regras de qualidade dos dados."
+    },
+    {
+      "front": "O que costuma ser armazenado em E$?",
+      "back": "Registros rejeitados por verificações CKM para análise de erros."
+    },
+    {
+      "front": "Para que serve RKM?",
+      "back": "Customizar engenharia reversa e extração de metadados."
+    },
+    {
+      "front": "Para que serve JKM?",
+      "back": "Criar e administrar infraestrutura de journalização e CDC."
+    },
+    {
+      "front": "Qual é a função típica de XKM?",
+      "back": "Reunir lógica de componentes para contribuir com a geração de código."
+    },
+    {
+      "front": "Qual é a função de SKM?",
+      "back": "Gerar serviços de manipulação de dados para datastores."
+    },
+    {
+      "front": "O que faz append?",
+      "back": "Insere registros do fluxo no alvo, sem atualizar os registros já existentes."
+    },
+    {
+      "front": "O que distingue incremental update de append?",
+      "back": "Incremental update também pode atualizar registros existentes segundo a chave configurada."
+    },
+    {
+      "front": "O que é um package?",
+      "back": "Sequência de passos de orquestração dentro de um projeto."
+    },
+    {
+      "front": "O que é um load plan?",
+      "back": "Estrutura que organiza cenários em etapas, dependências, condições e paralelismo."
+    },
+    {
+      "front": "O que se consulta no Operator?",
+      "back": "Sessões, tarefas, estados, mensagens, duração e métricas."
+    }
+  ],
+  "tips": [
+    "Fixe LKM = carregar, IKM = integrar, CKM = conferir qualidade.",
+    "Separe scenario, que é executável, de session, que é uma ocorrência de execução.",
+    "Lembre: master guarda topologia/segurança; work guarda projeto/modelo e/ou execução.",
+    "Para mudar ambientes sem duplicar mappings, use logical schemas resolvidos pelo contexto.",
+    "RKM importa metadata estrutural; JKM captura alterações por journalização.",
+    "Diagnostique falhas pela tarefa e mensagem no Operator, depois confira contexto e conexão física."
+  ],
+  "traps": [
+    "Dizer que o agente é só uma interface de desenho ignora sua função de execução.",
+    "Trocar master por work confunde topologia e segurança com projetos e execução.",
+    "Tratar scenario como sessão ignora a diferença entre versão executável e ocorrência.",
+    "Atribuir transporte ao CKM troca sua função de checagem pela função do LKM.",
+    "Dizer que engenharia reversa carrega linhas de negócio confunde metadata com dados.",
+    "Tratar contexto como credencial ou transformação confunde resolução lógico-física."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o ciclo de um mapping até sua execução.",
+      "answer": "O objeto do projeto é usado para gerar um scenario; o agente executa esse scenario como sessão, que é monitorada no Operator."
+    },
+    {
+      "question": "Diferencie master e work repositories.",
+      "answer": "Master contém topologia/segurança e referências aos works; work contém projetos/modelos e/ou dados de execução. Cada work liga-se a um master por vez."
+    },
+    {
+      "question": "Como o ODI reaproveita um mapping em dois ambientes?",
+      "answer": "O mapping usa logical schemas; o contexto os resolve para os physical schemas do ambiente. Conexões e credenciais também devem estar configuradas."
+    },
+    {
+      "question": "Explique LKM, IKM e CKM em um fluxo.",
+      "answer": "LKM carrega até staging, IKM integra no alvo e CKM verifica qualidade, podendo separar rejeições em E$."
+    },
+    {
+      "question": "Diferencie RKM e JKM.",
+      "answer": "RKM obtém metadata estrutural por engenharia reversa; JKM prepara journalização e captura de mudanças."
+    },
+    {
+      "question": "Diferencie package, scenario e load plan.",
+      "answer": "Package encadeia passos; scenario é uma versão executável; load plan organiza cenários em etapas e dependências."
+    },
+    {
+      "question": "Como investigar uma sessão que falhou?",
+      "answer": "No Operator, identifique a tarefa e mensagem; depois confira contexto, conexão, permissões, SQL e rejeições."
+    },
+    {
+      "question": "Por que usar CDC?",
+      "answer": "Para capturar mudanças e reduzir releitura integral da origem; a infraestrutura de journalização e o consumo precisam estar configurados."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Repositórios e execução confundidos",
+      "summary": "Master concentra topologia e segurança; work guarda projeto/modelo e/ou execução. Scenario é executável e sessão é sua ocorrência."
+    },
+    {
+      "key": "e2",
+      "title": "Topologia lógica e física misturada",
+      "summary": "Data server e physical schema descrevem recursos físicos; logical schema é o papel lógico e contexto o resolve para o físico."
+    },
+    {
+      "key": "e3",
+      "title": "Knowledge Modules trocados",
+      "summary": "LKM carrega, IKM integra, CKM verifica, RKM faz engenharia reversa e JKM prepara CDC; XKM e SKM contribuem para geração e serviços."
+    },
+    {
+      "key": "e4",
+      "title": "Metadata confundido com dados de negócio",
+      "summary": "Modelos e datastores descrevem estruturas; mappings e KMs processam linhas."
+    },
+    {
+      "key": "e5",
+      "title": "Orquestração e monitoramento embaralhados",
+      "summary": "Packages encadeiam passos, load plans organizam cenários, agentes executam e Operator acompanha sessões."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "O agente ODI pode executar um cenário como sessão e registrar tarefas e métricas no repositório.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O agente é o componente de execução: recebe o cenário, processa suas tarefas e grava dados operacionais da sessão no repositório. Entre eles estão estado, mensagens e métricas, como duração e quantidade de linhas processadas.",
+      "section": "1. Finalidade e arquitetura do ODI",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O master repository é o local normal de armazenamento dos mappings de projeto, enquanto o work repository contém apenas usuários e senhas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Projetos e modelos ficam no work de desenvolvimento; o master concentra topologia e segurança. O work também pode conter dados de execução.",
+      "section": "1. Finalidade e arquitetura do ODI",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sessão representa a execução concreta de um cenário, enquanto o cenário é a versão executável gerada do objeto de projeto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Uma mesma versão de cenário pode ser executada mais de uma vez, gerando sessões distintas com estados e resultados próprios.",
+      "section": "1. Finalidade e arquitetura do ODI",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em ELT, a transformação ocorre necessariamente em um servidor intermediário antes que os dados sejam carregados na área de staging.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. ELT carrega os dados para uma área de preparação antes da transformação, que pode ocorrer no mecanismo dessa área.",
+      "section": "1. Finalidade e arquitetura do ODI",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um work repository pode associar-se simultaneamente a vários master repositories para que o agente selecione um ao iniciar cada sessão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um work associa-se a um master por vez. Um master pode, por outro lado, manter associação com vários work repositories.",
+      "section": "1. Finalidade e arquitetura do ODI",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O ODI Studio oferece áreas para desenvolvimento, topologia, segurança e operação, cada qual voltada a tarefas diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Designer, Topology, Security e Operator atendem respectivamente a desenvolvimento, recursos físicos, segurança e acompanhamento operacional.",
+      "section": "1. Finalidade e arquitetura do ODI",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O agente pode ignorar o master repository porque as conexões de todos os work repositories estão incorporadas permanentemente em cada mapping.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O agente conecta-se ao master, valida o usuário ODI e lê a informação necessária para alcançar o work repository.",
+      "section": "1. Finalidade e arquitetura do ODI",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um work de desenvolvimento pode conter os domínios de projeto/modelo e de execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O work de desenvolvimento contém os objetos de projeto/modelo além dos recursos de execução; um work de execução pode conter somente o domínio de execução.",
+      "section": "1. Finalidade e arquitetura do ODI",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A engenharia reversa importa metadados estruturais para um modelo ODI, em vez de transportar por si só os registros de negócio ao destino.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Engenharia reversa lê descrições como tabelas e colunas; carga de registros é tarefa de mappings e módulos de carga/integração.",
+      "section": "2. Topologia, modelos e engenharia reversa",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um logical schema pode apontar para physical schemas distintos quando o mapping roda sob contextos diferentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O contexto resolve nomes lógicos para recursos físicos específicos do ambiente, permitindo reaproveitar o desenho.",
+      "section": "2. Topologia, modelos e engenharia reversa",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Data server é o nome lógico reutilizável de uma origem, e contexto armazena as expressões de transformação do mapping.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Data server descreve uma instância e conexão; contexto resolve logical schemas para physical schemas. Expressões pertencem ao mapping.",
+      "section": "2. Topologia, modelos e engenharia reversa",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um datastore representa metadata de uma estrutura, como tabela ou arquivo, dentro de um modelo ODI.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Datastore é uma representação da estrutura e de seus atributos no metadata do modelo; não é uma execução de integração.",
+      "section": "2. Topologia, modelos e engenharia reversa",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Contexto resolve schemas lógicos para físicos, mas não substitui as credenciais de conexão do data server.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O contexto seleciona o recurso físico associado ao papel lógico; a conexão ainda depende de data server e credenciais válidos.",
+      "section": "2. Topologia, modelos e engenharia reversa",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "JKM é o módulo padrão para importar colunas de uma tecnologia durante a engenharia reversa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. RKM realiza engenharia reversa e extrai metadados estruturais para modelos ODI. JKM tem outra finalidade: criar e gerenciar a infraestrutura de journalização que captura alterações dos datastores selecionados.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "IKM pode carregar dados para staging e LKM pode integrar o fluxo preparado ao alvo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. As funções estão invertidas: o LKM realiza carga ou movimentação da origem até a preparação; o IKM processa o fluxo preparado e integra registros nas tabelas de destino. A distinção ajuda a identificar a etapa de cada módulo.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual área do ODI Studio é usada principalmente para acompanhar sessões, tarefas e mensagens de execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Operator, que exibe sessões, tarefas, estados e mensagens de execução.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Designer, que mantém credenciais e resolve conexões físicas do ambiente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Topology, que organiza as expressões e filtros de cada mapping.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Security, que executa mappings e registra linhas carregadas no destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Model, que funciona como painel de monitoramento para cada agente ODI.",
+          "correct": false
+        }
+      ],
+      "explanation": "Operator apresenta informações operacionais das execuções, enquanto Designer desenvolve objetos, Topology descreve recursos e Security trata de usuários e privilégios.",
+      "section": "1. Finalidade e arquitetura do ODI",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso permite resolver a mesma referência lógica para bancos de desenvolvimento e de produção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma sessão que modifica as expressões SQL conforme encontra o banco.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um contexto que associa logical schemas a physical schemas do ambiente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um CKM que converte nomes lógicos em conexões JDBC físicas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um scenario que reescreve a topologia durante cada execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma engenharia reversa que substitui data servers e credenciais.",
+          "correct": false
+        }
+      ],
+      "explanation": "O contexto define a correspondência entre logical schema e physical schema para o ambiente. Ele não modifica expressões nem substitui data servers e credenciais.",
+      "section": "2. Topologia, modelos e engenharia reversa",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual KM é usado tipicamente para carregar dados de uma origem remota à staging area?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "IKM, que integra o fluxo previamente preparado na tabela de destino.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "CKM, que verifica regras de qualidade do fluxo antes da integração.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RKM, que importa metadados estruturais para um modelo ODI.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "LKM, que executa a carga de dados da origem para a preparação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "JKM, que prepara journalização para capturar mudanças na origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "LKM é Loading Knowledge Module e trata da carga/movimentação. IKM integra, CKM verifica, RKM importa metadata e JKM configura captura de mudanças.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual objeto é a versão executável gerada de um mapping ou package do projeto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Datastore, que contém a versão compilada e as sessões do package.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Contexto, que converte passos do package em comandos executáveis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Scenario, que representa uma versão executável de objeto do projeto.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Physical schema, que armazena uma cópia publicada do mapping.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Session, que é criada no projeto antes de qualquer execução.",
+          "correct": false
+        }
+      ],
+      "explanation": "Scenario é a versão executável gerada. A sessão é criada quando essa versão roda; datastore e physical schema descrevem estruturas e localizações.",
+      "section": "4. Orquestração, CDC e operação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual estrutura pode receber rejeições de registros durante verificações de qualidade feitas por CKM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "C$, tabela de carga que substitui o repositório de desenvolvimento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "I$, tabela de integração que guarda a topologia e as credenciais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Master repository, que armazena as linhas inválidas de cada sessão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Journal table, que substitui a tabela de erros em toda validação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "E$, tabela de erros associada a rejeições de regra ou constraint.",
+          "correct": true
+        }
+      ],
+      "explanation": "CKM pode registrar registros que violam constraints em uma tabela de erros E$ para análise. C$ é convenção de carga e o master contém metadata administrativo, não linhas rejeitadas.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual objeto organiza cenários em etapas com dependências, condições e paralelismo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Load plan, que coordena cenários e relações entre etapas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Model, que organiza tabelas e colunas para engenharia reversa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RKM, que decide a ordem de execução de cada cenário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Data server, que contém todas as dependências do package.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CKM, que controla condições e paralelismo do processo completo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Load plan organiza cenários em etapas e permite definir dependências, condições e paralelismo. Com isso, uma rotina maior pode executar grupos de cenários conforme seus pré-requisitos, em vez de tratar cada cenário como processo isolado.",
+      "section": "4. Orquestração, CDC e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual tipo de módulo prepara infraestrutura de journalização para captura de alterações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "IKM, que aplica as alterações incrementais na tabela do alvo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "CKM, que rejeita as alterações que violam regras de qualidade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RKM, que importa as alterações para o modelo durante reverse engineering.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "JKM, que cria e administra mecanismos de journalização/CDC.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "LKM, que carrega a tabela completa sem manter captura de mudanças.",
+          "correct": false
+        }
+      ],
+      "explanation": "JKM cria e mantém infraestrutura de journalização. A integração posterior ainda pode usar mappings/IKM; CKM verifica qualidade, RKM importa metadados e LKM carrega dados.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que distingue append de incremental update na integração de dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Append atualiza registros antigos, mas incremental update só insere linhas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Append verifica constraints, enquanto incremental update importa metadados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Append insere linhas; incremental update também pode atualizar registros existentes.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Append ativa CDC; incremental update configura o logical schema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Append faz reverse engineering; incremental update cria o work repository.",
+          "correct": false
+        }
+      ],
+      "explanation": "Append insere o fluxo, sem atualizar registros existentes. Incremental update pode atualizar registros existentes conforme chave e opções do KM.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual objeto agrupa passos de integração e controle, como executar um mapping ou avaliar uma condição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Datastore, que representa as colunas da tabela de origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Package, que encadeia passos e decisões de orquestração.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Contexto, que armazena os comandos e as decisões do fluxo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CKM, que executa packages e gera cenários de produção.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Physical schema, que ordena as procedures por dependência.",
+          "correct": false
+        }
+      ],
+      "explanation": "Package coordena passos, mappings, condições e procedures. Contexto resolve recursos físicos; CKM verifica integridade e schema/datastore descrevem estrutura/localização.",
+      "section": "4. Orquestração, CDC e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual contribuição o XKM pode oferecer à geração do código de um mapping?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "XKM, que contribui para agregar lógica na geração do mapping.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SKM, que publica operações Web para os datastores do modelo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "CKM, que transporta a origem para as tabelas C$ da staging.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "JKM, que monta instruções de merge nas tabelas do destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RKM, que grava os resultados das sessões no work repository.",
+          "correct": false
+        }
+      ],
+      "explanation": "XKM agrega lógica associada a componentes fonte/intermediários para a geração do código. SKM gera serviços, CKM verifica, JKM trata CDC e RKM engenharia reversa.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que caracteriza a estratégia Slowly Changing Dimension Type 2 para registros dimensionais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ela remove o histórico para manter somente uma linha corrente por dimensão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ela preserva versões históricas quando atributos dimensionais mudam.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ela reverte cargas com erro usando as tabelas de rejeição do CKM.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ela importa os metadados da dimensão para o master repository.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ela captura mudanças na origem sem integrar o fluxo ao destino.",
+          "correct": false
+        }
+      ],
+      "explanation": "SCD Type 2 mantém versões históricas de registros dimensionais em vez de apenas sobrescrever o valor corrente. A modelagem de vigência depende do projeto.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O work repository contém somente conexões físicas e não pode guardar objetos de projeto nem informações de execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O work pode guardar modelos e projetos e também dados de execução; o conteúdo depende se é um work de desenvolvimento ou de execução.",
+      "section": "1. Finalidade e arquitetura do ODI",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual procedimento inicial é adequado quando uma execução funciona em teste, mas falha ao usar recursos de produção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar engenharia reversa para corrigir automaticamente as permissões.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Alterar o CKM para ignorar as credenciais da conexão física.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar o work repository, que guarda as senhas de todos os servidores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conferir contexto e resolução dos logical schemas para recursos físicos.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Editar o datastore, pois ele armazena as senhas JDBC da conexão.",
+          "correct": false
+        }
+      ],
+      "explanation": "Quando a execução muda de ambiente, confira se o contexto resolve cada logical schema para o physical schema de produção. Também verifique conectividade, credenciais e privilégios. O datastore contém metadata estrutural e não armazena a senha JDBC.",
+      "section": "2. Topologia, modelos e engenharia reversa",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que caracteriza o modo Control Append em relação ao append simples?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Control Append importa metadados antes de criar o logical schema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Control Append atualiza registros existentes usando uma chave de negócio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Control Append substitui todos os dados e remove os logs do agente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Control Append captura mudanças por journalização sem carregar linhas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Control Append insere o fluxo e também permite verificar os dados.",
+          "correct": true
+        }
+      ],
+      "explanation": "Control Append combina a inserção dos registros do fluxo com a checagem dos dados durante o processo. Append simples insere sem fazer essa validação; CDC, rollback e engenharia reversa têm outras finalidades e não definem esse modo de integração.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O agente conecta-se primeiro ao work repository para validar credenciais e só depois consulta o master para obter os dados de conexão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A ordem é inversa: o agente primeiro acessa o master, verifica o usuário ODI e consulta os dados de conexão para alcançar o work repository. Em seguida lê as tarefas e registra os resultados da sessão.",
+      "section": "1. Finalidade e arquitetura do ODI",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que deve ser examinado primeiro para identificar a etapa de uma execução que falhou?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A definição do modelo, que sempre contém a mensagem de erro do agente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A sessão no Operator, consultando a tarefa e sua mensagem.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O logical schema, que mantém o histórico completo das linhas processadas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O RKM, que recria a sessão com as mesmas opções físicas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A tabela de destino, que registra a mensagem de cada tarefa ODI.",
+          "correct": false
+        }
+      ],
+      "explanation": "A sessão no Operator mostra tarefas, estado e mensagens, orientando o diagnóstico. O logical schema e o modelo descrevem metadata, não substituem os registros operacionais. Localizar a tarefa exata ajuda a conferir a conexão, o SQL gerado e as regras de qualidade envolvidas.",
+      "section": "4. Orquestração, CDC e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual componente é mais adequado para agrupar operações reutilizáveis que não se ajustam naturalmente a um mapping?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "RKM, que executa operações externas a cada linha do fluxo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Logical schema, que mantém comandos SQL para cada tecnologia.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Session, que guarda comandos futuros antes da execução.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Procedure, que agrupa operações procedurais reutilizáveis.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "CKM, que reúne qualquer SQL sem verificar qualidade de dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Procedure é o componente reutilizável apropriado para agrupar operações que não se encaixam naturalmente no conceito declarativo de mapping. RKM é voltado à engenharia reversa de metadados e não executa operações externas para cada linha do fluxo.",
+      "section": "4. Orquestração, CDC e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela C$ é uma estrutura de rejeições produzida pelo CKM, e não pode ser usada como staging de carga por um LKM.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. C$ é uma convenção de tabelas temporárias de carga/staging que um LKM pode utilizar. Rejeições CKM podem ser registradas em E$; as funções dessas estruturas não devem ser trocadas.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual sequência descreve o fluxo típico entre projeto, publicação e execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sessão, datastore, package e por fim o scenario compilado pelo Operator.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Agente, geração de mapping, importação de datastore e sessão de projeto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Contexto, RKM, edição do master e execução automática da Topology.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Load plan, sessão de projeto, edição do mapping e captura pelo CKM.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Mapping ou package, geração de scenario e execução como sessão pelo agente.",
+          "correct": true
+        }
+      ],
+      "explanation": "O objeto de projeto, como mapping ou package, é usado para gerar um scenario executável. O agente executa o scenario e cria uma sessão. Assim, desenho, publicação da versão executável e execução concreta são etapas diferentes e observáveis.",
+      "section": "4. Orquestração, CDC e operação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual KM contribui reunindo lógica de fontes e componentes intermediários para a geração do mapping?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "XKM, que contribui para a geração de código dos componentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "JKM, que cria subscribers e controla a captura de mudanças.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SKM, que publica serviços de leitura e manipulação para o modelo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RKM, que importa metadata e registra as sessões de execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CKM, que carrega dados e define os contextos do destino.",
+          "correct": false
+        }
+      ],
+      "explanation": "XKM agrega lógica de geração de fontes e componentes intermediários. SKM gera serviços, JKM trata CDC, RKM faz engenharia reversa e CKM verifica qualidade.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O CKM transporta dados remotos para staging, enquanto o LKM verifica constraints em datastores ou tabelas de fluxo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. As responsabilidades estão trocadas: LKM carrega dados para staging; CKM verifica constraints e regras de integridade em datastores ou fluxos, segundo o modo configurado.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual KM oferece a função de gerar serviços de manipulação de dados para datastores?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "RKM, que gera serviços Web a partir de tabelas de journal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "SKM, que produz artefatos de serviços para datastores.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "IKM, que publica serviços e importa metadados do destino.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CKM, que publica serviços para consultar registros rejeitados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "LKM, que gera arquivos de implantação para serviços ODI.",
+          "correct": false
+        }
+      ],
+      "explanation": "SKM significa Service Knowledge Module e gera serviços de manipulação de dados. Os demais módulos têm funções de engenharia reversa, integração, checagem e carga.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma sessão é criada antes da execução do cenário e armazenada como uma definição editável dentro do projeto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A sessão é criada por uma execução concreta do cenário; a definição editável pertence ao projeto, que pode gerar um scenario executável.",
+      "section": "4. Orquestração, CDC e operação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual recurso descreve uma instância tecnológica e os parâmetros para conexão física?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Logical schema, que representa a instância e guarda suas credenciais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Load plan, que mantém as senhas das conexões de destino.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Datastore, que contém o contexto e o endereço da instância.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Session, que guarda uma conexão para todas as execuções futuras.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Data server, que define a conexão a uma instância tecnológica.",
+          "correct": true
+        }
+      ],
+      "explanation": "Data server é a definição da instância e conexão; logical schema nomeia um papel lógico, datastore descreve uma estrutura e load plan organiza execução.",
+      "section": "2. Topologia, modelos e engenharia reversa",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A execução do agente é iniciada pelo Operator, pois ele não recebe solicitações de agendadores externos, linha de comando ou API.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Agentes podem receber solicitações por componentes ODI, serviços, escalonadores externos e interfaces de linha de comando ou API. O Operator é útil para monitoramento, mas não é a única origem de uma solicitação.",
+      "section": "4. Orquestração, CDC e operação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em qual situação a engenharia reversa é mais adequada que um LKM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quando se quer atualizar registros no destino por uma chave.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Quando é preciso transportar linhas remotas para a staging area.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quando se quer obter estruturas e colunas para um modelo ODI.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Quando se quer rejeitar linhas inválidas em tabela de erros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Quando se quer criar journalização para capturar alterações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Engenharia reversa obtém metadata estrutural para o modelo. LKM transporta linhas, IKM integra, CKM rejeita por regras e JKM cria infraestrutura de CDC.",
+      "section": "2. Topologia, modelos e engenharia reversa",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Alterar um mapping em desenvolvimento atualiza automaticamente todas as versões de scenario já publicadas nos ambientes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Scenario é uma versão executável gerada; alterações posteriores no projeto precisam ser geradas e promovidas segundo o processo de implantação. Um agente executa a versão publicada, não atualiza seu conteúdo a partir da edição do mapping.",
+      "section": "4. Orquestração, CDC e operação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual definição resume a diferença entre LKM, IKM e CKM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "CKM carrega, IKM captura mudanças e LKM importa estruturas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "LKM transporta, IKM integra e CKM confere regras de qualidade.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "IKM importa metadata, CKM administra topologia e LKM cria sessões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "LKM integra, CKM gera serviços e IKM registra os usuários ODI.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "IKM transporta, LKM verifica rejeições e CKM administra contextos.",
+          "correct": false
+        }
+      ],
+      "explanation": "LKM executa a carga ou movimentação da fonte para staging, IKM integra o fluxo preparado nas tabelas do alvo e CKM verifica constraints e regras de qualidade. O papel de cada um corresponde a uma etapa diferente do mapping físico.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Cada execução de um mesmo scenario pode criar uma sessão diferente, com seu próprio resultado e mensagens.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cada execução é uma instância operacional com estado, tarefas, mensagens e métricas próprias, ainda que o scenario seja o mesmo. A sessão separada permite comparar ocorrências e investigar uma falha sem sobrescrever resultados anteriores.",
+      "section": "1. Finalidade e arquitetura do ODI",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual módulo pode transportar dados de fontes em outros servidores até a área de staging?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "JKM usado para carregar a tabela integral ao destino final.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "CKM usado para copiar tabelas sem executar verificações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RKM usado para integrar linhas durante a engenharia reversa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "LKM compatível com as tecnologias da origem e da preparação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "SKM usado para escolher conexão e local da staging area.",
+          "correct": false
+        }
+      ],
+      "explanation": "LKM executa a etapa de carga e transporte até a staging. A compatibilidade do módulo depende das tecnologias e da localização da área de preparação.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A escolha da staging area pode influenciar a combinação de LKM e IKM usada em um mapping.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A localização de fontes, staging e destino determina o caminho físico dos dados e quais módulos de carga e integração são compatíveis.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática ajuda a reutilizar uma implementação de carga por muitos mappings compatíveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Duplicar SQL manual em cada sessão para cada tabela de origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Alterar diretamente todos os modelos físicos de destino.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Customizar um Knowledge Module adequado e reutilizá-lo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Editar cenários publicados, pois eles atualizam os módulos usados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Colocar regras de carga no contexto, que propaga SQL aos mappings.",
+          "correct": false
+        }
+      ],
+      "explanation": "KMs são reutilizáveis entre mappings; estender ou customizar um módulo adequado pode propagar o comportamento físico aos fluxos que o selecionam. Contextos resolvem schemas, não lógica de carga.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O physical design pode indicar onde fica a staging area, e essa posição afeta o processamento do mapping.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Staging no destino pode permitir processamento set-oriented ali; staging em outro servidor pode exigir módulos multi-conexão ou carga adicional.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual abordagem é adequada ao investigar uma falha que aparenta ser de conexão em uma sessão ODI?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Modificar o datastore, porque ele guarda a senha JDBC usada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Editar o CKM para contornar a autenticação da conexão física.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Excluir o work repository, pois ele contém senhas de data servers.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ver a tarefa e mensagem no Operator e conferir servidor e contexto.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Executar RKM, que corrige permissões e conexões automaticamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Operator mostra a falha específica; depois deve-se verificar contexto, data server, schema e credenciais. CKM e RKM não corrigem autenticação.",
+      "section": "4. Orquestração, CDC e operação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "CDC pode reduzir a releitura integral da origem, mas depende de journalização configurada e de consumo controlado das alterações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. JKM pode preparar a captura de mudanças; o processo ainda requer configuração e estratégia de consumo para não perder a consistência do fluxo incremental.",
+      "section": "4. Orquestração, CDC e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual tipo de KM está associado à geração de serviços de manipulação de dados para datastores?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "RKM, que cria serviços Web a partir de tabelas journalizadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "LKM, que cria os artefatos de implantação dos serviços ODI.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "IKM, que publica serviços e importa metadata da origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "CKM, que gera serviços para consultar as linhas rejeitadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "SKM, que gera artefatos de serviços para datastores.",
+          "correct": true
+        }
+      ],
+      "explanation": "SKM significa Service Knowledge Module e gera artefatos de serviços de manipulação para datastores. LKM tem outra função: carrega dados entre fonte, staging e destino conforme o desenho e o módulo selecionado, não publica esses serviços.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um mesmo cenário executado em horários diferentes gera uma única sessão que é sobrescrita a cada vez.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Cada execução concreta gera uma sessão própria, que preserva estado, mensagens e métricas daquela ocorrência. Manter instâncias separadas permite comparar execuções e investigar falhas sem apagar o histórico anterior.",
+      "section": "4. Orquestração, CDC e operação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um mapping declarativo dispensa modelos e datastores porque o ODI infere toda estrutura ao iniciar cada sessão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Mappings dependem de metadata das fontes e dos alvos em modelos e datastores, além da topologia que localiza os recursos físicos. Engenharia reversa pode importar metadata, mas não elimina o desenho e a configuração do fluxo.",
+      "section": "2. Topologia, modelos e engenharia reversa",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se a staging está no servidor alvo, o processamento do IKM pode ocorrer ali, evitando transferir os dados intermediários para outro servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Quando a staging area fica no servidor alvo, o IKM pode executar processamento orientado a conjuntos nesse servidor e evitar deslocar intermediários para outro servidor. A tecnologia e o KM selecionado definem os passos concretos.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um JKM pode preparar a captura de mudanças por triggers ou outro método compatível com a tecnologia e o módulo selecionados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O método de captura depende da tecnologia e do JKM; alguns usam triggers e outros integram mecanismos específicos de CDC.",
+      "section": "4. Orquestração, CDC e operação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual função resume corretamente a contribuição do XKM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Publicar serviços Web para as operações definidas em datastores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter subscribers e tabelas de captura de mudanças.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Reunir lógica de componentes para a geração do código do mapping.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Executar sessões e gravar métricas de cada tarefa no work.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Carregar diretamente todas as linhas da origem ao destino final.",
+          "correct": false
+        }
+      ],
+      "explanation": "XKM contribui para a geração do código agregando lógica dos componentes de origem e intermediários. Serviços são função do SKM; execução é do agente.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Datastore descreve metadata de estrutura, enquanto topologia e contexto contribuem para localizar fisicamente essa estrutura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O datastore registra a estrutura no modelo; logical schema, contexto e physical schema resolvem onde ela está na tecnologia.",
+      "section": "2. Topologia, modelos e engenharia reversa",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa diferencia package de procedure no ODI?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Package encadeia passos de orquestração; procedure agrupa operações reutilizáveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Package descreve tabelas; procedure resolve schemas físicos por contexto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Package importa metadata; procedure captura alterações com JKM.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Package é sessão em execução; procedure é cenário publicado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Package contém apenas CKM; procedure armazena todos os logs do agente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Package coordena passos de um fluxo. Procedure agrupa operações reutilizáveis que não se encaixam naturalmente no conceito de mapping.",
+      "section": "4. Orquestração, CDC e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual objeto é apropriado para coordenar cenários sucessivos com dependências de conclusão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Load plan, que coordena cenários e condições entre etapas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Model, que define tabelas e restrições de integridade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Data server, que mantém relações de dependência do processo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Datastore, que executa etapas conforme as chaves da tabela.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "CKM, que controla condições operacionais do plano completo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Load plan coordena cenários em etapas com dependências, condições e paralelismo. Model e datastore descrevem estruturas, data server descreve conexão física e CKM verifica qualidade; nenhum deles substitui a orquestração do plano.",
+      "section": "4. Orquestração, CDC e operação",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "JKM prepara captura de mudanças, mas não substitui automaticamente as etapas de integração e validação do fluxo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. JKM administra a infraestrutura de journalização e captura alterações. O IKM ainda integra essas linhas no destino, e o CKM pode verificar regras de qualidade; capturar mudanças não realiza essas outras etapas.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação sobre C$ em um fluxo ODI está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "É a tabela de rejeições que todo CKM usa para erros de integridade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É a tabela padrão de segurança que armazena credenciais de agentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É o repositório de projeto usado para guardar mappings editáveis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É uma tabela de staging que pode receber dados carregados por um LKM.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "É a tabela que registra os cenários executados pelo load plan.",
+          "correct": false
+        }
+      ],
+      "explanation": "LKMs podem criar tabelas C$ de staging para carregar dados da origem antes da integração. E$ é a convenção associada a erros e rejeições; repositórios ODI mantêm metadata e estados operacionais, não servem como essas tabelas temporárias.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um mapping pode usar metadata declarativo e ainda depender de physical design, topologia e KMs compatíveis para executar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O desenho descreve regras, mas a localização de staging, os recursos físicos e os KMs determinam como elas serão executadas.",
+      "section": "3. Mappings e Knowledge Modules",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual tarefa é apropriada para RKM, em vez de CKM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Integrar dados preparados no alvo usando uma chave definida.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Verificar constraints e separar registros inválidos do fluxo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Extrair metadata estrutural de uma tecnologia para o modelo ODI.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Carregar fontes remotas para uma área de preparação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar journalização de uma origem para capturar alterações.",
+          "correct": false
+        }
+      ],
+      "explanation": "RKM executa engenharia reversa e traz metadata estrutural ao modelo. CKM verifica constraints; IKM integra o fluxo no alvo; LKM carrega dados para staging; JKM cria infraestrutura de captura de mudanças. São tarefas diferentes no ciclo ODI.",
+      "section": "2. Topologia, modelos e engenharia reversa",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando um cenário é regenerado depois de uma mudança no projeto, a nova versão executável deve ser promovida conforme o processo de implantação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O cenário é um snapshot executável gerado do objeto de projeto. A equipe deve gerar e promover a versão desejada para que os agentes executem a lógica atualizada, em vez de presumir que a edição do mapping alterou cenários publicados.",
+      "section": "4. Orquestração, CDC e operação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Oracle Data Integrator — Introduction to Knowledge Modules",
+      "publisher": "Oracle",
+      "reference": "Categorias e funções de LKM, IKM, CKM, XKM, JKM e SKM; staging e geração de mappings.",
+      "url": "https://docs.oracle.com/en/middleware/fusion-middleware/data-integrator/14.1.2/odikd/introduction-knowledge-modules.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Oracle Data Integrator — Creating and Using Mappings",
+      "publisher": "Oracle",
+      "reference": "Desenho físico, localização da staging area e seleção de LKMs e IKMs.",
+      "url": "https://docs.oracle.com/en/middleware/fusion-middleware/data-integrator/12.2.1.3/odidg/creating-and-using-mappings.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Oracle Data Integrator — Creating an Integration Project",
+      "publisher": "Oracle",
+      "reference": "Convenções e responsabilidades de LKM, IKM, CKM, RKM e JKM; modos de integração.",
+      "url": "https://docs.oracle.com/en/middleware/fusion-middleware/data-integrator/12.2.1.3/odidg/creating-integration-project.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Oracle Data Integrator — Work Repository Editor",
+      "publisher": "Oracle",
+      "reference": "Domínios de execução e projeto/modelo e associação de work a master repository.",
+      "url": "https://docs.oracle.com/middleware/12212/odi/ODISH/f1_work_rep_details.htm",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Administering Oracle Data Integrator",
+      "publisher": "Oracle",
+      "reference": "Repositórios, conexão e operação de agentes e sessões.",
+      "url": "https://docs.oracle.com/cd/F23552_01/data-integrator/12.2.1.4/odiad/administering-oracle-data-integrator.pdf",
+      "accessedAt": "2026-11-07"
+    }
+  ]
+}

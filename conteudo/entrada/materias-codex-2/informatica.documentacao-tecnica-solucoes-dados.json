@@ -1,0 +1,1453 @@
+{
+  "id": "informatica.documentacao-tecnica-solucoes-dados",
+  "subject": "Informática",
+  "title": "Documentação técnica de soluções de dados",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Documentação técnica de soluções de dados",
+    "Documentação técnica para soluções de dados",
+    "Documentação de plataformas e soluções de dados",
+    "Documentação de arquitetura de dados",
+    "Documentação de pipelines de dados",
+    "Documentação de fluxos de dados",
+    "Documentação de produtos de dados",
+    "Documentação de ativos e conjuntos de dados",
+    "Catálogo e documentação de dados corporativos",
+    "Metadados técnicos e de negócio de dados",
+    "Linhagem e rastreabilidade de dados",
+    "Dicionário de dados e contratos de dados",
+    "Documentação de soluções analíticas de dados",
+    "Documentar modelos e fontes de dados no dbt"
+  ],
+  "scope": {
+    "covers": "Documentação técnica de soluções de dados: arquitetura e componentes; inventário e catálogo de ativos; metadados técnicos e de negócio, dicionário e contratos; origem, transformações e linhagem ponta a ponta; qualidade, atualização e observabilidade; segurança, classificação, acesso e retenção; documentação de operação, implantação, incidentes e recuperação; geração e atualização de documentação executável, controle de versões e validação da documentação.",
+    "excludes": "Projeto detalhado de bancos relacionais, SQL de um SGBD específico, configuração de nuvem de um fornecedor, engenharia de dados completa, modelagem estatística, legislação de proteção de dados e documentação geral de redes ou sistemas sem relação com soluções de dados."
+  },
+  "theoryTitle": "Como documentar uma solução de dados de ponta a ponta",
+  "chapters": [
+    {
+      "title": "1. O que uma documentação de dados precisa explicar",
+      "markdown": "### O problema que este assunto resolve\n\nUma solução de dados liga produtores, armazenamento, processamento e consumidores. Se a equipe só registra nomes de tabelas, o leitor ainda não sabe de onde o dado veio, que transformação sofreu, quando estará atualizado, quem responde por ele ou como reagir quando o fluxo falhar. Documentar é tornar essas relações verificáveis para quem constrói, opera, governa e usa os dados.\n\n> **Siglas e termos deste capítulo**\n> - **Ativo de dados**: tabela, arquivo, tópico, modelo, relatório ou outro recurso que armazena ou entrega dados.\n> - **Metadado**: informação que descreve um ativo, como nome, tipo, dono, definição ou localização.\n> - **Pipeline**: etapas automatizadas que coletam, transformam e entregam dados.\n> - **ETL/ELT**: extração, transformação e carga; no ELT, a transformação ocorre após carregar na plataforma de destino.\n> - **DAG**: grafo direcionado acíclico que representa dependências e ordem de execução.\n\n### Comece pela arquitetura e pelos limites\n\nUma visão de arquitetura situa o sistema: fontes de origem, mecanismo de ingestão, armazenamento bruto ou curado, processamento, catálogo, consumidor e fronteiras de segurança. O diagrama deve deixar claro o sentido do fluxo e distinguir componentes de tecnologia de conjuntos de dados. Registre também ambiente, responsável e interfaces relevantes. Um desenho sem nomes de ativos ou sem setas de dependência é apenas ilustrativo; não permite avaliar o impacto de uma mudança.\n\nExemplo: o sistema de vendas exporta pedidos para uma área bruta; uma tarefa valida e padroniza os registros; um modelo agrega vendas por dia; um painel consome a tabela agregada. A documentação precisa conectar essas quatro etapas e dizer qual delas é a fonte oficial para o painel.\n\n### Uma ficha útil por ativo\n\n| Campo | Conteúdo prático |\n| --- | --- |\n| Identidade | Nome estável, sistema, ambiente e localização lógica |\n| Significado | Definição do negócio e finalidade do conjunto |\n| Estrutura | Colunas, tipos, chaves, granularidade e nulabilidade relevante |\n| Responsabilidade | Dono do dado, responsável técnico e canal de contato |\n| Uso | Consumidores previstos, restrições e exemplos de consulta |\n| Operação | Frequência, horário esperado, atualização e dependências |\n| Governança | Classificação, acesso, retenção e origem da regra aplicável |\n\nA granularidade é o que uma linha representa. “Pedidos” é ambíguo; “uma linha por item de pedido, incluindo itens cancelados” permite interpretar contagens e somas. Colunas como `status` precisam de domínio ou descrição dos valores permitidos. Para medidas, declare unidade, moeda, período e regra de agregação quando isso não for óbvio.\n\n### Público, propósito e manutenção\n\nA documentação de arquitetura atende quem planeja; o catálogo atende quem descobre e interpreta; a referência de operação atende quem executa e recupera o serviço. Um único texto pode apontar para esses materiais, mas deve separar a visão conceitual da instrução operacional. Use linguagem objetiva, exemplos consistentes e links para a definição mantida na fonte de verdade.\n\nA documentação também precisa de responsável e critério de atualização. Se o esquema ou a regra de transformação mudar sem revisão do catálogo, o material publicado passa a induzir erro. Mudanças de contrato, donos, classificação e dependências devem ter histórico rastreável.\n\n### Como cai na prova\n\n- Uma ficha de ativo útil vai além do nome da tabela: explica significado, granularidade, responsável, estrutura e condições de uso.\n- Um diagrama de arquitetura deve permitir seguir fonte, etapas e consumidores; não substitui a descrição semântica das colunas.\n- Documentação não é inventário estático: precisa acompanhar alterações de esquema, processo e responsabilidade."
+    },
+    {
+      "title": "2. Metadados, catálogo, dicionário e contratos",
+      "markdown": "### O problema que este assunto resolve\n\nTimes chamam coisas diferentes de “documentação”. O catálogo ajuda a localizar e avaliar ativos; o dicionário define campos e vocabulário; o contrato registra expectativas de estrutura e comportamento entre quem produz e quem consome. Eles se complementam, mas não são sinônimos.\n\n> **Siglas e termos deste capítulo**\n> - **Catálogo de dados**: inventário pesquisável de ativos e metadados associados.\n> - **Esquema (schema)**: estrutura formal de um conjunto, incluindo campos e tipos.\n> - **Contrato de dados**: expectativas acordadas entre produtor e consumidor sobre estrutura, semântica e condições de entrega.\n> - **Metadado técnico**: nome de coluna, tipo, localização, esquema, formato ou partição.\n> - **Metadado de negócio**: definição compreensível para o domínio, dono, finalidade e classificação.\n> - **Freshness**: quão recente está uma fonte em relação à expectativa definida.\n\n### Registre significado, não só estrutura\n\nO esquema pode informar que `valor_total` é decimal, mas não diz se inclui frete, desconto ou imposto. O dicionário deve esclarecer isso, indicar unidade e regra de cálculo, informar se aceita nulo e descrever o significado de códigos. A chave primária lógica e a granularidade explicam como contar registros sem duplicar entidades. Definições compartilhadas evitam que dois relatórios calculem “cliente ativo” de maneiras incompatíveis.\n\nUm catálogo também deve ajudar o usuário a decidir se o ativo serve ao caso dele: origem, período coberto, frequência de atualização, restrições de acesso, dono, qualidade conhecida e consumidores. Uma classificação de sensibilidade é metadado com consequência operacional: sistemas downstream devem respeitá-la, em vez de remover o rótulo ao copiar o dado.\n\n### Contratos e mudanças compatíveis\n\nUm contrato pode estabelecer nomes e tipos de campos, obrigatoriedade, semântica, formatos de evento e expectativa de atualização. O produtor publica mudanças; consumidores conhecem as dependências antes da implantação. Acrescentar campo opcional costuma ser compatível com consumidores que ignoram campos desconhecidos, mas não é universal: leitores com esquema rígido podem falhar. Remover ou renomear campo, alterar tipo ou mudar o significado mantendo o mesmo nome são mudanças potencialmente incompatíveis.\n\nDocumente a política de evolução: como anunciar versão, validar produtores, identificar consumidores, manter transição e encerrar campos antigos. Não trate “o schema passou” como prova de compatibilidade sem verificar a interpretação e o comportamento dos consumidores.\n\n### Documentação executável com dbt\n\nNo dbt, propriedades em YAML permitem documentar modelos, fontes e colunas. Declarar uma fonte e referenciá-la com `source()` registra dependência no grafo; a fonte também pode receber descrição, testes e configuração de atualização. Descrições de modelos e colunas aparecem na documentação gerada. O comando `dbt docs generate` gera o site de documentação no fluxo local descrito pela versão aplicável; `dbt docs serve` permite pré-visualizá-lo localmente. Os artefatos de execução, como `manifest.json` e `catalog.json`, alimentam recursos de documentação e catálogo conforme a modalidade do dbt.\n\nA geração automática não escreve a semântica de negócio por você. Metadados extraídos do catálogo do banco revelam tipos e objetos, mas o dono do domínio ainda precisa explicar significado, granularidade e regras. Inclua documentação no fluxo de revisão e gere novamente após alterações para que o site não represente uma versão obsoleta.\n\n### Como cai na prova\n\n- Catálogo facilita descoberta; dicionário define termos e campos; contrato expressa expectativas entre produtor e consumidor.\n- No dbt, declarar fontes e usar `source()` ajuda a representar dependências; descrições e testes documentam e verificam expectativas.\n- Tipos de coluna não substituem significado de negócio, unidade nem granularidade."
+    },
+    {
+      "title": "3. Linhagem, qualidade e observabilidade",
+      "markdown": "### O problema que este assunto resolve\n\nQuando um indicador muda, a equipe precisa responder: qual sistema originou o valor, quais operações o modificaram, que versão do processo rodou e quais consumidores foram afetados? A linhagem conecta ativos e processos ao longo desse caminho. Ela serve para análise de impacto, investigação de erro, auditoria técnica e reprodução.\n\n> **Siglas e termos deste capítulo**\n> - **Linhagem (lineage)**: relação entre dados e processos que mostra origem, transformações e destinos.\n> - **Upstream/downstream**: dependências anteriores e consumidores posteriores a um ativo.\n> - **Observabilidade de dados**: capacidade de acompanhar estado, qualidade, atualização e execução do fluxo.\n> - **SLA/SLO**: compromisso ou objetivo mensurável de serviço, como horário de disponibilidade do conjunto.\n> - **Proveniência**: registro da origem e do histórico de produção de um dado.\n> - **Teste de dados**: regra executável que verifica propriedade esperada do dado.\n\n### Descreva a linhagem em níveis úteis\n\nA linhagem de alto nível mostra sistema de origem, zona de ingestão, transformação principal e produto ou consumidor. A linhagem técnica pode descer a tabelas, modelos e colunas, registrando a dependência de cada saída em relação às entradas. Associe cada aresta ao processo que a cria e, quando possível, à versão do código ou execução. Uma seta sem origem identificada nem processo associado não explica a proveniência.\n\nNo dbt, o grafo de projeto representa dependências declaradas entre modelos e fontes. A função `source()` cria uma dependência de modelo para fonte, tornando-a visível no grafo. Isso não descobre automaticamente toda transformação feita fora do projeto; jobs externos, cópias manuais ou integrações precisam ser representados por seus próprios metadados ou documentação.\n\n### Transformações e evidências\n\nDescreva filtros, junções, deduplicação, conversão de fuso e agregação que alterem interpretação. Para cada produto, registre entradas, regra, saída, chave, granularidade e comportamento diante de dados inválidos. Diferencie uma transformação que elimina registros de uma que apenas mascara uma coluna. A referência ao código e à execução permite conferir a regra real; um parágrafo genérico como “dados tratados” não é linhagem suficiente.\n\nA linhagem também permite calcular impacto: se um campo de origem for removido, descubra modelos e relatórios downstream que dependem dele. Antes da mudança, confirme a lista de dependentes e comunique donos; depois, verifique as saídas afetadas. A documentação deve distinguir dependência declarada de dependência observada e informar limites de cobertura.\n\n### Qualidade e frescor observáveis\n\nA documentação de qualidade deve definir regra, escopo, método de medição, resultado e responsável por tratar falha. Exemplos são: identificador não nulo, chave única, domínio válido, relação referencial, faixa de valores e volume esperado. Completeness, accuracy e uniqueness são dimensões citadas na orientação AWS para qualidade; a seleção de métricas depende do uso. Uma regra sem limiar ou sem destino de alerta não informa quando agir.\n\nFreshness verifica se a fonte foi atualizada dentro do limite esperado; não prova que seu conteúdo esteja correto. Uma carga pode terminar no horário e duplicar linhas. Por isso, combine sinais de execução, disponibilidade da origem, atualização, volume e testes semânticos. Em uma ficha operacional, registre a cadência esperada, último sucesso, ponto de falha, canal de alerta e como distinguir atraso de dado inválido.\n\n### Como cai na prova\n\n- Linhagem responde “de onde veio, o que ocorreu e quem consome”; catálogo sem relações não fornece esse trajeto.\n- Frescor no prazo não garante exatidão; qualidade e operação pedem verificações diferentes.\n- Um grafo é tão completo quanto as dependências declaradas e observadas que contém."
+    },
+    {
+      "title": "4. Segurança, operação e ciclo de vida documental",
+      "markdown": "### O problema que este assunto resolve\n\nA solução pode estar tecnicamente correta e ainda expor dado sensível, reter informação além da regra ou deixar o plantão sem caminho de recuperação. A documentação técnica deve tornar explícitas as salvaguardas e instruções reais, sem publicar segredos. Ela também precisa ter versão e responsável para manter consistência com o ambiente executado.\n\n> **Siglas e termos deste capítulo**\n> - **RBAC**: controle de acesso baseado em papéis.\n> - **RPO/RTO**: perda de dados tolerada medida no tempo e prazo-alvo de recuperação do serviço.\n> - **Runbook**: procedimento de operação para tarefas e cenários de falha.\n> - **Change log**: histórico de alterações de documento, esquema ou processo.\n> - **Classificação**: rótulo que indica tratamento e proteção exigidos para um dado.\n> - **Mascaramento**: ocultação ou substituição de valores para limitar exposição.\n\n### Registre controles e limites de acesso\n\nPara cada classe de ativo, documente classificação, responsável pela autorização, grupos ou papéis que podem ler e escrever, finalidade de uso, trilha de auditoria, criptografia aplicável e política de retenção. Não copie senhas, tokens ou chaves para diagramas, exemplos ou runbooks; indique o cofre ou processo autorizado para obtê-los. Se um extrato derivado conserva informação sensível, a classificação precisa acompanhar o destino.\n\nO catálogo deve permitir descobrir a classificação e o responsável sem expor o próprio dado protegido. A orientação AWS recomenda registrar classificações no catálogo e manter sistemas consumidores alinhados a elas. O acesso precisa ser avaliado em cada camada, inclusive exportações e produtos derivados, conforme política organizacional.\n\n### Runbook e resposta a falhas\n\nUm runbook útil identifica serviço e ambiente, pré-condições, sinais de alerta, sequência segura de diagnóstico, ação permitida, validação de resultado, escalonamento e forma de recuperação. Explique dependências upstream e downstream, como reprocessar um intervalo e como evitar duplicação ou perda ao repetir uma carga. Separe comandos de leitura de ações que alteram dados; indique aprovação necessária conforme procedimento local.\n\nRegistre os objetivos de recuperação e a forma de verificar backup e restauração. RPO e RTO são metas diferentes: uma restauração pode cumprir prazo e ainda perder mais dados do que o tolerado, ou preservar dados mas demorar demais. Teste o procedimento e anote evidência e data; possuir uma descrição de backup não demonstra que a restauração funciona.\n\n### Versionar e validar a documentação\n\nMantenha diagramas, definições de esquema, contratos e instruções junto ao fluxo de revisão apropriado, com autor, data, justificativa e versão. Automatize o que pode ser extraído de código ou catálogo e revise manualmente as afirmações semânticas e operacionais. Integre verificações de links, nomes, esquemas e testes de documentação à entrega. Compare metadados antes e depois de mudanças e publique a versão correspondente ao código e ao ambiente.\n\nA documentação não deve prometer comportamento que o pipeline não implementa. Revise-a quando houver mudança de esquema, regra de negócio, acesso, consumidor, retenção, alerta ou procedimento. Defina prazo ou evento de revisão e preserve histórico suficiente para entender o que mudou e qual versão produziu determinado resultado.\n\n### Como cai na prova\n\n- Classificação e dono do dado são metadados operacionais; sistemas downstream devem conservar e aplicar as restrições.\n- Runbook descreve diagnóstico, ação, validação e escalonamento; RPO e RTO não são equivalentes.\n- Gere documentos a partir de fontes mantidas e confira semântica e execução: automatizar extração não garante que a descrição esteja correta."
+    }
+  ],
+  "summary": "Uma documentação técnica de solução de dados conecta arquitetura, ativos, significado, estrutura, donos, contratos, linhagem, qualidade, segurança e operação. Catálogo, dicionário e contrato têm propósitos distintos. Linhagem registra origens, transformações e consumidores e permite analisar impacto; testes e freshness verificam propriedades diferentes. Documentação executável pode extrair estruturas e dependências, mas precisa de descrições semânticas revisadas. A classificação acompanha os dados derivados e as instruções operacionais precisam ser testáveis e versionadas.",
+  "flashcards": [
+    {
+      "front": "O que uma ficha de ativo deve informar além do nome?",
+      "back": "Significado, granularidade, estrutura, dono, origem, consumidores, atualização, qualidade e restrições de uso."
+    },
+    {
+      "front": "O que significa granularidade de uma tabela?",
+      "back": "O que uma linha representa, como um registro por item de pedido."
+    },
+    {
+      "front": "Qual é a função de um catálogo de dados?",
+      "back": "Inventariar ativos e permitir descobri-los por metadados úteis."
+    },
+    {
+      "front": "O que o dicionário de dados esclarece?",
+      "back": "Significado dos campos, tipos, unidades, domínios, chaves e regras de interpretação."
+    },
+    {
+      "front": "O que expressa um contrato de dados?",
+      "back": "Expectativas acordadas de estrutura, semântica e entrega entre produtor e consumidores."
+    },
+    {
+      "front": "Por que documentar a unidade de uma medida?",
+      "back": "Para não agregar valores de moedas, escalas ou períodos diferentes como equivalentes."
+    },
+    {
+      "front": "O que registra a linhagem?",
+      "back": "Origem, processos de transformação e destinos ou consumidores do dado."
+    },
+    {
+      "front": "Para que serve linhagem numa mudança de esquema?",
+      "back": "Identificar ativos downstream e consumidores que podem ser afetados."
+    },
+    {
+      "front": "O que source() faz no dbt?",
+      "back": "Referencia fonte declarada e estabelece dependência visível no grafo do projeto."
+    },
+    {
+      "front": "O que a documentação dbt pode mostrar?",
+      "back": "Modelos, fontes, descrições, dependências, testes e metadados disponíveis."
+    },
+    {
+      "front": "Freshness prova que os dados estão corretos?",
+      "back": "Não. Avalia atualização temporal, não exatidão ou validade semântica."
+    },
+    {
+      "front": "Dê um exemplo de teste de unicidade.",
+      "back": "Verificar que o identificador de pedido aparece uma única vez na tabela."
+    },
+    {
+      "front": "Quais dimensões de qualidade cita a AWS Analytics Lens?",
+      "back": "Completude, exatidão e unicidade."
+    },
+    {
+      "front": "Por que documentar o dono de um conjunto?",
+      "back": "Para saber quem responde por definição, classificação, acesso e dúvidas."
+    },
+    {
+      "front": "Como tratar alteração incompatível de campo?",
+      "back": "Identificar consumidores e coordenar a transição antes de mudar ou remover o campo."
+    },
+    {
+      "front": "Qual a diferença entre RPO e RTO?",
+      "back": "RPO limita perda de dados no tempo; RTO define prazo-alvo de recuperação."
+    },
+    {
+      "front": "O que deve constar num runbook de pipeline?",
+      "back": "Pré-condições, sinais, diagnóstico, ações, validação, escalonamento e recuperação."
+    },
+    {
+      "front": "O que é metadado técnico?",
+      "back": "Informação como tipo, nome, esquema, localização e formato do ativo."
+    },
+    {
+      "front": "O que é metadado de negócio?",
+      "back": "Definição semântica, finalidade, domínio e responsabilidade para usuários do negócio."
+    },
+    {
+      "front": "Por que versionar documentação?",
+      "back": "Para relacionar mudanças às versões do código, do esquema e do ambiente."
+    }
+  ],
+  "tips": [
+    "Defina o que uma linha representa para evitar somas duplicadas e interpretações divergentes.",
+    "Siga o dado da origem ao destino e registre processos, transformações e consumidores.",
+    "Separe frescor de qualidade: chegar no horário não prova completude nem correção.",
+    "Use o catálogo para reunir definição, dono, classificação, uso e atualização do ativo.",
+    "Consulte consumidores antes de remover, renomear ou alterar o tipo de um campo.",
+    "Teste o runbook em ambiente controlado e valide o estado recuperado após a execução."
+  ],
+  "traps": [
+    "O catálogo ajuda a descobrir ativos; o dicionário aprofunda campos, termos e definições.",
+    "Uma seta só é linhagem útil se identificar ativos, direção e processo relacionado.",
+    "O tipo decimal não revela unidade, regra de cálculo nem significado do valor.",
+    "Freshness mede atualização; não funciona como teste de exatidão do conteúdo.",
+    "Ferramentas extraem estrutura, mas semântica depende de conhecimento do domínio.",
+    "RPO trata perda de dados; RTO trata o prazo para recuperar o serviço."
+  ],
+  "activeRecall": [
+    "Explique por que a granularidade precisa ser registrada junto à definição de uma tabela.",
+    "Compare catálogo, dicionário de dados e contrato de dados em um exemplo de pedidos.",
+    "Desenhe a linhagem de uma fonte até um painel e indique onde cada transformação deve ser descrita.",
+    "Descreva o que source() acrescenta ao grafo de um projeto dbt.",
+    "Dê um exemplo de regra de qualidade e outro de freshness e explique o que cada uma prova.",
+    "Liste os metadados que permitem ao consumidor avaliar se um conjunto é adequado ao seu uso.",
+    "Explique como uma mudança incompatível de coluna deve ser coordenada com consumidores.",
+    "Monte os passos essenciais de um runbook para falha de carga sem repetir dados.",
+    "Diferencie RPO de RTO e descreva uma situação em que um objetivo seja cumprido e o outro não.",
+    "Explique como preservar classificação ao criar uma tabela derivada.",
+    "Quais informações ajudam a localizar o dono de um ativo e esclarecer seu uso permitido?",
+    "Como verificar se a documentação publicada corresponde ao código que produziu os dados?"
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Semântica e granularidade",
+      "summary": "Nome e tipo de campo não informam o que cada registro representa nem como interpretar seus valores."
+    },
+    {
+      "key": "e2",
+      "title": "Linhagem incompleta",
+      "summary": "Dependências omitidas escondem impacto e interrompem a explicação desde a origem até o consumidor."
+    },
+    {
+      "key": "e3",
+      "title": "Freshness confundida com qualidade",
+      "summary": "Uma carga recente ainda pode ter registros duplicados, incompletos ou semanticamente inválidos."
+    },
+    {
+      "key": "e4",
+      "title": "Mudança de contrato sem análise",
+      "summary": "Alterar tipo, nome ou significado pode quebrar consumidores sem indicar falha no produtor."
+    },
+    {
+      "key": "e5",
+      "title": "Procedimento não testado",
+      "summary": "Runbook ou backup pode estar desatualizado e não recuperar o serviço dentro das metas."
+    },
+    {
+      "key": "e6",
+      "title": "Documentação sem versão e responsável",
+      "summary": "Sem histórico e dono, descrições de esquema, regras e instruções podem divergir do sistema executado."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma tabela analítica contém uma linha por item de pedido, inclusive itens cancelados. Qual descrição torna essa granularidade e uma possível ambiguidade explícitas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tabela diária agregada por pedido, com cancelamentos excluídos e sem detalhe de cada item.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma linha por item de pedido; inclui cancelados e identifica o pedido de origem.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Conjunto com campos numéricos e textuais para relatórios gerenciais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tabela comercial consolidada para consulta de usuários autorizados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registro de vendas derivado de processos executados pela plataforma.",
+          "correct": false
+        }
+      ],
+      "explanation": "A definição correta informa o que cada linha representa e esclarece que cancelados entram no conjunto. As outras opções falam de atualização ou finalidade, mas deixam a granularidade sem resposta.",
+      "section": "1. O que uma documentação de dados precisa explicar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um catálogo corporativo, qual conjunto de metadados ajuda um analista a decidir se uma tabela de vendas serve à sua análise?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Apenas nome físico, tamanho e data de criação, inferindo finalidade por padrão de nome e popularidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente os tipos físicos das colunas e a localização do banco, tratando nomes compreensíveis como substitutos da definição de negócio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definição, granularidade, origem, atualização, dono e restrições de uso.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Nome do desenvolvedor original e quantidade de consultas recentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Lista de ferramentas instaladas e formato de compressão utilizado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Definição, granularidade, origem, atualização, responsabilidade e restrições permitem avaliar adequação e interpretar resultados. Dados puramente físicos não esclarecem significado nem condições de uso.",
+      "section": "1. O que uma documentação de dados precisa explicar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma coluna `receita` é decimal e aparece em painéis de vários departamentos. Que informação do dicionário reduz melhor o risco de somas incompatíveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A extensão do arquivo de origem, o tamanho médio das partições e o algoritmo usado para comprimir cada registro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A equipe que mantém o warehouse e o horário previsto para carregar os dados de origem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A descrição do painel mais acessado e sua paleta de cores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A unidade, moeda, período e regra que compõem o valor registrado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A quantidade total de linhas e o nome do serviço de armazenamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Unidade, moeda, período e regra de cálculo definem como comparar e agregar receita. Tipo numérico, tamanho ou informação visual não resolvem essas diferenças semânticas.",
+      "section": "1. O que uma documentação de dados precisa explicar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe desenhou um fluxo com caixas chamadas “processo 1”, “processo 2” e “relatório”. Qual ajuste torna o diagrama tecnicamente útil para análise de impacto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Adicionar cores, legenda de equipes proprietárias e posição dos componentes, sem registrar ativos nem dependências entre eles.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Identificar ativos, direção das dependências e processo que os conecta.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Substituir as caixas por um parágrafo com os nomes dos fornecedores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover as setas para evitar inferências sobre ordem de execução.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exibir somente o sistema de destino e os usuários do relatório.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para análise de impacto, o leitor precisa saber quais ativos se relacionam, em que direção e por qual transformação ou processo. Cores sem legenda ou lista de fornecedores não mostram dependências.",
+      "section": "1. O que uma documentação de dados precisa explicar",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer reduzir dúvidas sobre quem pode explicar o significado e aprovar o uso de um conjunto corporativo. Qual metadado deve manter atualizado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O proprietário ou responsável pelo domínio e um canal de contato válido.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O nome de quem executou a carga mais recente no ambiente de produção e a data em que entrou de plantão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A versão do sistema operacional do servidor de transformação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O tamanho em bytes da maior partição carregada no último mês.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A quantidade de consultas abertas no console de administração.",
+          "correct": false
+        }
+      ],
+      "explanation": "O dono ou responsável pelo domínio pode esclarecer definição, classificação e finalidade e encaminhar aprovações. O executor da última carga não é necessariamente responsável pelo significado ou uso do ativo.",
+      "section": "1. O que uma documentação de dados precisa explicar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela tem coluna `status` com códigos `A`, `P` e `X`, sem explicação. Qual registro documental é mais importante para interpretar os relatórios?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A ordenação física dos registros, a codificação interna e o formato binário usado no armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A lista de ferramentas que exportam a tabela para CSV, com a configuração de cada conector e o formato de arquivo resultante.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O significado permitido de cada código e se ele muda com o tempo.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O nome de todos os usuários que já consultaram a coluna.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A quantidade de caracteres usada para armazenar cada código.",
+          "correct": false
+        }
+      ],
+      "explanation": "O domínio de valores explica o significado dos códigos e eventuais mudanças históricas. Comprimento e armazenamento são detalhes técnicos, não esclarecem se A significa ativo ou aprovado.",
+      "section": "2. Metadados, catálogo, dicionário e contratos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No dbt, uma equipe declara uma fonte e a utiliza por meio de `source()` em um modelo. Qual consequência documental decorre dessa referência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O modelo passa a depender da fonte e a relação pode aparecer no grafo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O banco de origem passa a validar todos os valores do modelo automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A função converte as colunas da fonte em documentação de negócio completa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A referência elimina a necessidade de descrever a semântica e testar a fonte, pois o vínculo no grafo garante a validade dos registros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O grafo passa a incluir automaticamente integrações externas não declaradas, cópias manuais e transformações executadas em outros sistemas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação dbt explica que source() cria dependência entre modelo e fonte, o que apoia a representação da linhagem declarada. A referência não valida todo o conteúdo nem descobre processos externos omitidos.",
+      "section": "2. Metadados, catálogo, dicionário e contratos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma propriedade `description` foi acrescentada ao YAML de um modelo e sua coluna. O que ela fornece à documentação gerada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma explicação textual do modelo e do campo para usuários do projeto.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma garantia de que todo valor da coluna atende à regra descrita.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma conversão automática da coluna para o tipo descrito em texto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma permissão de leitura concedida aos consumidores do catálogo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um registro de linhagem também para processos externos ao projeto, mesmo quando nenhum relacionamento foi declarado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Descrições em propriedades documentam modelos, colunas e outras fontes. Uma descrição é metadado explicativo; sozinha não executa validação, converte tipos ou concede acesso.",
+      "section": "2. Metadados, catálogo, dicionário e contratos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer visualizar a documentação local de um projeto dbt após compilá-lo. Qual sequência corresponde ao fluxo documentado para geração e prévia local?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executar `dbt test` e depois abrir diretamente a tabela de origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Executar `dbt docs generate` e depois `dbt docs serve`.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Executar `dbt source` e depois exportar cada coluna manualmente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar `dbt run` e aguardar que o catálogo abra no warehouse.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar `dbt clean` e depois reconstruir as fontes no banco.",
+          "correct": false
+        }
+      ],
+      "explanation": "O fluxo local indicado na documentação é gerar o site com `dbt docs generate` e visualizá-lo localmente com `dbt docs serve`. Teste, limpeza ou execução de modelos não substituem esses comandos de documentação.",
+      "section": "2. Metadados, catálogo, dicionário e contratos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um produtor adicionará um campo opcional, mas alguns consumidores usam leitores com esquema rígido. Qual decisão técnica é mais adequada antes da implantação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Presumir compatibilidade universal, pois campos opcionais sempre são ignorados por leitores rígidos e consumidores legados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Desativar o catálogo até que todos os relatórios atualizem o esquema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Testar consumidores e contrato, comunicar a mudança e coordenar a transição.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Alterar também o significado de outros campos para reduzir as versões.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Manter o campo fora da documentação para evitar alertas de esquema.",
+          "correct": false
+        }
+      ],
+      "explanation": "Adicionar campo costuma ser compatível apenas para consumidores que toleram campos desconhecidos. Leitores rígidos podem falhar; por isso contrato, testes e comunicação devem considerar os consumidores reais.",
+      "section": "2. Metadados, catálogo, dicionário e contratos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa precisa que o consumidor descubra se um conjunto tem atualização diária, quem responde por ele e qual é sua restrição de acesso. Onde esses elementos devem ser encontráveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente em comentários SQL internos ao código, sem ficha consultável nem metadados para descoberta pelo consumidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Em um catálogo ou ficha do ativo com metadados operacionais e de negócio.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apenas na configuração de rede do servidor que armazena a tabela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Em uma mensagem de implantação sem vínculo persistente com o ativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "No nome físico do conjunto, usando abreviações para cada característica.",
+          "correct": false
+        }
+      ],
+      "explanation": "O catálogo ou ficha deve reunir metadados que permitam descoberta e avaliação, como dono, atualização e classificação. SQL ou mensagem de implantação podem ser referências, mas não são um ponto persistente de descoberta do ativo.",
+      "section": "2. Metadados, catálogo, dicionário e contratos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma transformação filtra pedidos cancelados, converte a moeda e agrega valores por dia antes de alimentar um painel. Que conteúdo da linhagem é essencial para explicar o indicador?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente o nome do painel e o grupo de usuários que o visualiza.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A sequência de entradas e regras aplicadas, incluindo filtros, conversões, agregações e as saídas efetivamente entregues.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apenas o horário de início do último job concluído com sucesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O inventário das máquinas onde estão instaladas as ferramentas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A descrição da tabela final sem referência aos passos anteriores.",
+          "correct": false
+        }
+      ],
+      "explanation": "A explicação do indicador depende das regras que alteram o conjunto: exclusão de cancelados, conversão cambial e agregação diária, além das entradas e saídas. Horário e ambiente não revelam a semântica do cálculo.",
+      "section": "3. Linhagem, qualidade e observabilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O grafo dbt exibe modelos e fontes declaradas, mas uma cópia manual feita fora do projeto alimenta outro relatório. Como documentar essa limitação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Considerar o grafo completo, pois tabelas no mesmo warehouse e convenções de nomes revelariam toda dependência, mesmo sem declará-la.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Omitir o relatório, já que ele não foi criado por um modelo dbt.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Registrar a dependência externa e declarar que o grafo dbt não a cobre sozinho.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Renomear a tabela copiada para que apareça no grafo automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tratar o relatório como fonte independente sem investigar sua origem.",
+          "correct": false
+        }
+      ],
+      "explanation": "O grafo representa dependências declaradas no projeto, não descobre toda cópia manual ou integração externa. A relação externa precisa ser registrada e a cobertura conhecida deve ser declarada para não induzir falsa completude.",
+      "section": "3. Linhagem, qualidade e observabilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma carga terminou dentro do horário esperado, mas o número de registros duplicou após uma falha de reprocessamento. Qual conclusão é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O indicador de freshness garante qualidade, então o alerta deve ser ignorado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Freshness pode estar adequado enquanto um teste de unicidade falha.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O atraso da fonte explica a duplicação mesmo com execução pontual.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O catálogo deve substituir as verificações executáveis de integridade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma carga bem-sucedida prova que a semântica dos registros está correta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Freshness observa se a fonte chegou dentro do limite temporal; duplicidade é outra propriedade e pode ser detectada com teste de unicidade ou idempotência. Concluir sucesso da carga não prova correção do conteúdo.",
+      "section": "3. Linhagem, qualidade e observabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe monitora apenas se os jobs retornaram código de sucesso. Qual complemento detecta melhor se dados importantes deixaram de chegar ou mudaram de qualidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Monitorar disponibilidade das fontes, frescor, volume e regras de qualidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Registrar somente a quantidade de linhas na documentação do projeto.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Acompanhar o uso de CPU e dispensar verificações do conteúdo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar testes por comentários explicando a finalidade do pipeline.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Monitorar apenas o horário de implantação do código da aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A saúde de um fluxo de analytics depende de componentes, fontes e conteúdo. A orientação AWS recomenda acompanhar métricas operacionais e disponibilidade de fontes; indicadores de volume, freshness e qualidade completam a visão do dado entregue.",
+      "section": "3. Linhagem, qualidade e observabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um identificador de pedido deve existir e não pode se repetir na tabela final. Qual combinação de verificações traduz diretamente essas expectativas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Limite de atualização e monitoramento do horário de chegada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Teste de não nulo e teste de unicidade do identificador.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Teste de ordenação e verificação do formato de compressão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Registro do tamanho físico e teste de latência da consulta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Descrição do negócio e inclusão do nome do responsável.",
+          "correct": false
+        }
+      ],
+      "explanation": "Não nulo verifica que o identificador existe; unicidade verifica que não se repete. Freshness, compressão e latência não testam essas duas propriedades do conteúdo.",
+      "section": "3. Linhagem, qualidade e observabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um campo de origem será removido de uma tabela. Qual uso da linhagem reduz o risco de quebrar relatórios e produtos derivados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Localizar dependências downstream, seus responsáveis e validar impacto antes da mudança.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Contar apenas consultas feitas na tabela durante o último dia útil.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Gerar um novo diagrama sem verificar modelos e consumidores conhecidos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover do catálogo qualquer ativo sem dono técnico identificado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar a descrição do campo depois de concluir a implantação em produção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Linhagem mostra consumidores e transformações dependentes; ao cruzá-la com donos, a equipe pode testar e comunicar a mudança antes de retirar o campo. Contagem de consultas recentes não captura todas as dependências programadas.",
+      "section": "3. Linhagem, qualidade e observabilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe define limite de atualização de uma fonte e registra seu último horário de chegada. O que esse registro permite avaliar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Se os dados respeitam necessariamente todos os domínios de negócio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Se a fonte está recente em relação à expectativa de atualização definida.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Se as transformações preservaram a classificação de sensibilidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se os consumidores interpretaram corretamente cada coluna do contrato e executaram as regras de negócio previstas para o conjunto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Se a restauração atende ao prazo e à perda tolerável definidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Freshness compara a atualização observada com a expectativa temporal. Ela não prova validade semântica, controle de acesso nem resultado de recuperação; essas propriedades exigem verificações específicas.",
+      "section": "3. Linhagem, qualidade e observabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O catálogo lista uma tabela, mas não indica sua fonte nem suas transformações. Qual é a principal limitação para investigar um valor incorreto no painel?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Não há metadado suficiente para rastrear origem, processo e destino do valor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O tipo físico da coluna não permite que o catálogo guarde uma descrição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A falta de um diagrama impede consultar a tabela diretamente no banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A tabela não pode ser testada porque não consta em um runbook.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O painel não pode usar esses dados antes que cada servidor físico seja catalogado com marca, modelo e localização de rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "Sem relações de origem e transformação, a equipe não consegue seguir a proveniência do valor nem localizar a etapa que o alterou. A mera presença do ativo no catálogo não substitui a linhagem.",
+      "section": "3. Linhagem, qualidade e observabilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tabela derivada contém identificadores pessoais cuja classificação exige acesso restrito. Como o pipeline deve tratar o metadado de classificação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Manter a classificação nos ativos derivados e aplicar controles também nos consumidores.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Remover o rótulo depois da transformação, pois a cópia tem outra localização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Registrar a classificação apenas no servidor bruto e não no catálogo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar a frequência de atualização como substituto para autorização de acesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Compartilhar a tabela e solicitar ao usuário que evite campos sensíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "A classificação precisa acompanhar os dados derivados e orientar controles nas camadas de destino. O guia AWS recomenda registrar classificações no catálogo e exigir que consumidores downstream as respeitem; localização ou transformação não apagam automaticamente a sensibilidade.",
+      "section": "4. Segurança, operação e ciclo de vida documental",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um runbook de falha de ingestão lista apenas “reiniciar o job”. Qual complemento o torna mais seguro para uma carga que pode duplicar registros no reprocessamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descrever diagnóstico, intervalo afetado, ação idempotente e validação da saída.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Adicionar a lista de pessoas que receberam o último relatório mensal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Registrar a marca do servidor e deixar a sequência de recuperação implícita.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Recomendar executar novamente sem verificar a tabela de destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover alertas de falha para evitar reprocessamentos concorrentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "O procedimento precisa identificar intervalo e estado afetados, orientar repetição segura e verificar a saída, evitando duplicação. Um reinício cego pode repetir carga parcial ou produzir registros duplicados.",
+      "section": "4. Segurança, operação e ciclo de vida documental",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer documentar como recuperar a plataforma após interrupção. Como distinguir corretamente RPO e RTO no plano?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RPO define tolerância à perda de dados; RTO define prazo-alvo de recuperação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "RPO mede latência de consulta; RTO mede atualização da fonte.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "RPO mede o tempo de recuperação; RTO mede linhas que podem ser perdidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RPO define classificação do dado; RTO define acesso por perfil.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RPO e RTO são dois nomes para o mesmo limite de retenção.",
+          "correct": false
+        }
+      ],
+      "explanation": "RPO expressa quanta perda de dados no tempo é tolerável; RTO expressa o prazo-alvo para restabelecer o serviço. Uma meta trata do ponto de recuperação e a outra da duração da recuperação.",
+      "section": "4. Segurança, operação e ciclo de vida documental",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um diagrama interno inclui credenciais de conexão para facilitar o plantão. Que ajuste mantém a utilidade operacional sem divulgar segredos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir credenciais pelo nome do cofre ou processo autorizado de obtenção.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Mover as credenciais para a legenda em fonte menor no mesmo diagrama.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Publicar o desenho sem controle, pois ele é usado somente pela equipe.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Codificar as credenciais em base64 e manter a imagem no catálogo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover do diagrama os componentes que precisam de autenticação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação deve explicar o caminho autorizado para obter o segredo, sem reproduzir o valor. Reduzir fonte ou codificar o texto não protege credenciais; omitir componentes elimina contexto de operação.",
+      "section": "4. Segurança, operação e ciclo de vida documental",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O guia AWS para analytics recomenda que as mudanças de metadados do catálogo sejam controladas e versionadas, inclusive alterações de esquema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A Analytics Lens recomenda acompanhar mudanças de metadados, controlar alterações de esquema e usar versionamento ou comparação de versões para entender a evolução do catálogo.",
+      "section": "2. Metadados, catálogo, dicionário e contratos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No dbt, declarar uma fonte permite referenciá-la nos modelos, testar pressupostos sobre ela e avaliar sua atualização.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação oficial de sources descreve referência por `source()`, dependência no grafo, testes de dados e cálculo de freshness para fontes declaradas.",
+      "section": "2. Metadados, catálogo, dicionário e contratos",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Linhagem útil relaciona sistemas de origem, mudanças realizadas nos dados e sistemas downstream que os recebem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Linhagem descreve relações entre dados e processos, incluindo de onde vieram, que mudanças sofreram e quais destinos downstream os utilizam.",
+      "section": "3. Linhagem, qualidade e observabilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma carga de dados terminou dentro da janela esperada, seus registros estão necessariamente completos, corretos e únicos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Freshness verifica atualização temporal em relação à expectativa; completude, exatidão e unicidade exigem verificações próprias e podem falhar mesmo com a carga pontual.",
+      "section": "3. Linhagem, qualidade e observabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O tipo de uma coluna, sem descrição de unidade ou regra de cálculo, pode ser suficiente para interpretar com segurança uma métrica de negócio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Um tipo decimal informa representação, não diz se o valor é moeda, qual período cobre ou quais parcelas compõem a métrica. O dicionário deve documentar essas regras.",
+      "section": "1. O que uma documentação de dados precisa explicar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma documentação gerada pode reunir descrições de modelos e colunas e informações estruturais disponíveis no warehouse.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação dbt inclui descrições de recursos e metadados técnicos, como tipos de colunas e informações de tabelas, quando os dados correspondentes são gerados.",
+      "section": "2. Metadados, catálogo, dicionário e contratos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O grafo de dependências dbt consegue incluir automaticamente toda transformação executada por sistemas externos, mesmo que ela nunca seja declarada no projeto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O grafo representa dependências declaradas no projeto. Integrações, cópias manuais e jobs externos precisam ser registrados por meios próprios para que a linhagem fique completa.",
+      "section": "3. Linhagem, qualidade e observabilidade",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A orientação AWS para analytics trata completude, exatidão e unicidade como atributos de qualidade que podem ser medidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A Analytics Lens cita completude, exatidão e unicidade entre os atributos críticos de qualidade que devem ser medidos e acompanhados no ambiente.",
+      "section": "3. Linhagem, qualidade e observabilidade",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Adicionar um campo opcional é sempre compatível com todo consumidor, pois leitores com esquema rígido aceitam qualquer campo desconhecido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Alguns leitores rígidos falham diante de campos desconhecidos. Compatibilidade depende do comportamento dos consumidores e precisa ser testada e coordenada pelo contrato.",
+      "section": "2. Metadados, catálogo, dicionário e contratos",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um catálogo pode registrar dono e classificação de conjuntos para ajudar usuários a descobrir ativos e avaliar seu tratamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Catálogos centralizam metadados que apoiam descoberta; a Analytics Lens destaca atribuir donos e registrar classificações para orientar governança e proteção dos dados.",
+      "section": "2. Metadados, catálogo, dicionário e contratos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cópia derivada sempre perde a classificação de sensibilidade da origem, pois a transformação cria um ativo tecnicamente diferente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A classificação deve acompanhar os dados conforme sua natureza e política. Sistemas consumidores downstream também precisam respeitar as restrições aplicáveis ao conjunto compartilhado.",
+      "section": "4. Segurança, operação e ciclo de vida documental",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma descrição textual de coluna substitui um teste executável, pois explicar a regra garante que os valores a cumpram.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A descrição comunica a expectativa; um teste verifica dados concretos. São recursos complementares, e texto não executa validação.",
+      "section": "2. Metadados, catálogo, dicionário e contratos",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O RPO expressa o prazo-alvo para restaurar o serviço, enquanto o RTO expressa a quantidade de dados que se aceita perder.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Os conceitos estão invertidos: RPO limita a perda de dados medida no tempo; RTO define o prazo-alvo para recuperação do serviço.",
+      "section": "4. Segurança, operação e ciclo de vida documental",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um runbook deve indicar como validar o resultado de uma recuperação, e não apenas como reiniciar o job que falhou.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Reiniciar não prova que o conjunto foi recuperado sem lacunas ou duplicações. Um procedimento operacional precisa orientar ação e validação do estado resultante, além de diagnóstico e escalonamento.",
+      "section": "4. Segurança, operação e ciclo de vida documental",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma arquitetura de dados bem documentada mostra componentes e conexões, mas dispensa descrever o significado dos campos porque o esquema já contém essa informação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O diagrama explica componentes e fluxo; o esquema explica estrutura. Significado, granularidade, unidade e regras de negócio precisam de descrição semântica própria.",
+      "section": "1. O que uma documentação de dados precisa explicar",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Testar um procedimento de restauração e guardar evidência ajuda a confirmar se as instruções e metas de recuperação podem ser cumpridas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Um plano escrito não demonstra que o backup restaura nem que o serviço volta dentro de RTO e RPO definidos. A execução controlada produz evidência para corrigir o procedimento.",
+      "section": "4. Segurança, operação e ciclo de vida documental",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao gerar um catálogo a partir do esquema físico, a equipe pode considerar concluída a documentação semântica, mesmo sem explicar domínio, medida ou significado de negócio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. Extração automática fornece estrutura técnica, mas não infere necessariamente significado, unidade, finalidade e regra de negócio. Essas descrições devem ser fornecidas e revisadas por quem conhece o domínio.",
+      "section": "2. Metadados, catálogo, dicionário e contratos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Versionar definições e contratos permite relacionar uma mudança de esquema ao contexto e à versão do processo que produziu determinado conjunto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O histórico de versões permite identificar o que mudou e associar a documentação ao código, esquema e execução correspondentes, apoiando análise de impacto e reprodução.",
+      "section": "4. Segurança, operação e ciclo de vida documental",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "About documentation — dbt Developer Hub",
+      "publisher": "dbt Labs",
+      "reference": "Escopo de documentação de projetos, metadados de modelos e colunas, geração e prévia local",
+      "url": "https://docs.getdbt.com/docs/build/documentation",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Add sources to your DAG — dbt Developer Hub",
+      "publisher": "dbt Labs",
+      "reference": "Declaração de fontes, função source(), dependências, testes, descrições e freshness",
+      "url": "https://docs.getdbt.com/docs/build/sources",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Artifacts — dbt Developer Hub",
+      "publisher": "dbt Labs",
+      "reference": "Artefatos manifest.json e catalog.json, documentação e metadados de produção",
+      "url": "https://docs.getdbt.com/docs/deploy/artifacts",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Data Analytics Lens — AWS Well-Architected Framework",
+      "publisher": "Amazon Web Services",
+      "reference": "Documentação de arquitetura, qualidade, ownership, catálogo, classificação, linhagem, controle de mudanças e retenção em workloads analíticos",
+      "url": "https://docs.aws.amazon.com/pdfs/wellarchitected/latest/analytics-lens/analytics-lens.pdf",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

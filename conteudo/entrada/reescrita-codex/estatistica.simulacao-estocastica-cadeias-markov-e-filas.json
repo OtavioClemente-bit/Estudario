@@ -1,0 +1,2201 @@
+{
+  "id": "estatistica.simulacao-estocastica-cadeias-markov-e-filas",
+  "subject": "Estatística",
+  "title": "Simulação estocástica, cadeias de Markov e teoria das filas",
+  "version": 2,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Simulação estocástica e passeio aleatório",
+    "Cadeias de Markov em tempo discreto",
+    "Cadeias de Markov em tempo contínuo",
+    "Processos markovianos e simulação",
+    "Teoria das filas e processos estocásticos",
+    "Modelagem estocástica de filas",
+    "Passeio aleatório em redes e grafos",
+    "Matriz de transição de Markov",
+    "Processo de nascimento e morte",
+    "Modelos M/M/1 e filas markovianas",
+    "Distribuição estacionária de Markov",
+    "Monte Carlo e cadeias de Markov"
+  ],
+  "scope": {
+    "covers": "Simulação estocástica por geração de variáveis aleatórias e método de Monte Carlo; passeios aleatórios; processos estocásticos e propriedade de Markov; cadeias homogêneas em tempo discreto, matriz de transição, probabilidades em n passos, classes, absorção, periodicidade e distribuição estacionária; cadeias em tempo contínuo, taxas, tempos exponenciais, gerador infinitesimal e balanço; processos de nascimento e morte; teoria das filas, notação Kendall, M/M/1, utilização, estabilidade, lei de Little e interpretação de simulação.",
+    "excludes": "Inferência estatística geral, geração de números pseudoaleatórios em detalhes de implementação, métodos avançados de Monte Carlo por cadeias de Markov, filas com disciplina de prioridade em profundidade, redes complexas de filas e prova formal de teoremas de convergência."
+  },
+  "theoryTitle": "Modelar a aleatoriedade: estados, transições e filas",
+  "chapters": [
+    {
+      "title": "1. Simulação estocástica e passeio aleatório",
+      "markdown": "Uma simulação estocástica ajuda quando o sistema tem resultados incertos e queremos estimar o que costuma acontecer sem fingir que cada execução será igual. Ela transforma regras probabilísticas em muitas histórias possíveis e resume essas histórias com medidas como média, chance de ultrapassar um limite ou tempo até um evento.\n\n### Vocabulário para acompanhar o modelo\n\nUma **variável aleatória** é um resultado numérico cujo valor depende do acaso, como o tempo até a próxima chegada. O **estado** é a descrição do sistema em determinado instante: por exemplo, quantas pessoas há na fila. Uma **trajetória** é a sequência de estados produzida ao longo do tempo. O método de **Monte Carlo** estima uma quantidade repetindo experimentos aleatórios e resumindo os resultados. Um **passeio aleatório** é uma trajetória cuja posição muda por incrementos sorteados. Uma **semente** é um valor usado para iniciar um gerador pseudoaleatório; fixá-la permite repetir a mesma sequência em uma implementação, mas não torna o fenômeno real previsível.\n\n### Da pergunta à simulação\n\nA ordem de trabalho importa. Primeiro, Ana define a pergunta: “qual fração dos dias terá mais de dez clientes esperando?”. Em seguida, ela especifica o estado, as regras de chegada e atendimento, o horário de abertura e a duração de cada dia simulado. Então executa muitas réplicas, isto é, execuções independentes do mesmo experimento. Em cada uma, registra se a fila passou de dez. Se isso ocorreu em oitenta de mil réplicas, a estimativa é 80/1000, ou 0,08. Esse resultado estima uma probabilidade sob as hipóteses escolhidas; não garante que exatamente oito por cento dos próximos dias terão esse evento.\n\nSe Y_r é o resultado numérico da réplica r e há R réplicas, a média simulada é a soma dos resultados dividida por R. Com mais réplicas, a flutuação de amostragem costuma diminuir. Isso não corrige uma regra errada: se Ana modelou atendimentos mais rápidos do que são na realidade, repetir milhões de vezes apenas estima com precisão o modelo equivocado. Convém distinguir três fontes: variabilidade inerente ao sistema, erro de amostragem por usar um número finito de réplicas e erro de modelagem por representar mal o processo.\n\n| Pergunta | O que a simulação responde |\n| --- | --- |\n| Qual é o resultado de uma execução? | Uma trajetória possível, não uma previsão certa. |\n| Qual é o comportamento médio? | Uma estimativa calculada sobre muitas réplicas ou um período longo. |\n| O modelo representa a realidade? | Isso exige comparar hipóteses e dados; mais réplicas não bastam. |\n\n### Passeio aleatório: posição e dispersão\n\nConsidere um caminhante numa linha numerada que começa na posição zero. A cada passo, ele anda uma unidade para a direita com probabilidade p e uma unidade para a esquerda com probabilidade 1-p. Se os passos são independentes, a posição após n passos é a soma dos incrementos. Sua média é n(2p−1), e sua variância é 4np(1−p). Quando p=1/2, a média é zero: isso quer dizer que muitas trajetórias se equilibram em torno de zero, não que cada caminhante fique parado. A dispersão cresce porque trajetórias individuais podem se afastar bastante.\n\nExemplo passo a passo: Ana acompanha um robô que começa no marco zero e dá quatro passos, cada um para a direita ou para a esquerda com chances iguais. Uma trajetória possível é direita, direita, esquerda, direita, que termina no marco 2. Outra pode alternar os sentidos e terminar no zero. Ana registra muitos percursos; o centro das posições tende a ficar em zero, mas a posição de qualquer percurso não é determinada pela média. Se a chance de direita subir para 0,7, a média passa a avançar para a direita, embora ainda haja trajetórias que terminem à esquerda.\n\nEm um **grafo** (rede formada por vértices ligados por arestas), o caminhante escolhe um vizinho permitido. Se escolhe uniformemente entre os vizinhos, cada aresta disponível tem a mesma chance, mas os vértices podem ter frequências diferentes: um vértice com muitos vizinhos participa de mais transições possíveis. Um **estado absorvente** é aquele que, uma vez alcançado, não permite saída. Uma barreira também pode refletir o caminhante ou encerrar o experimento; são regras diferentes e precisam ser descritas.\n\n### Como interpretar o resultado\n\nUma saída de simulação é condicional ao modelo, à condição inicial, ao horizonte observado e às medidas selecionadas. Para estimar eventos raros, poucas réplicas podem não registrar nenhum caso, sem que a probabilidade verdadeira seja zero. Para processos que evoluem ao longo do tempo, iniciar sempre no estado vazio pode distorcer uma média de longo prazo; o período inicial pode precisar de tratamento separado.\n\n**Pegadinha:** média zero num passeio simétrico não significa ausência de movimento nem posição zero em cada repetição. A média resume muitas trajetórias; não descreve todas elas. Também não confunda reprodutibilidade da sequência pseudoaleatória com certeza sobre o sistema real.\n\n**Resumo para a prova**\n\n- Defina pergunta, estado, regras aleatórias, condição inicial, horizonte e medida antes de simular.\n- Monte Carlo estima uma quantidade a partir de repetições; a estimativa tem variabilidade.\n- Mais réplicas reduzem erro de amostragem, mas não consertam hipóteses inadequadas.\n- Passeio simétrico tem deslocamento médio zero e dispersão positiva.\n- Em redes, probabilidades de transição dependem dos vizinhos e das regras; absorção significa não sair do estado."
+    },
+    {
+      "title": "2. Cadeias de Markov em tempo discreto",
+      "markdown": "Uma cadeia de Markov é útil quando o sistema pode ser resumido por estados e a regra para o próximo passo depende do estado atual. Essa simplificação permite calcular probabilidades futuras sem guardar a história completa. A hipótese só é válida se o estado escolhido contiver a informação relevante: registrar apenas “máquina ligada” pode ser insuficiente se a chance de falha também depender de há quanto tempo está ligada.\n\n### Estados, transições e propriedade de Markov\n\nO **espaço de estados** é o conjunto de situações que o modelo admite. Uma **transição** é a mudança de um estado para outro. A propriedade de Markov diz que, dado o estado presente, a distribuição do estado seguinte não depende de estados anteriores. Ela não afirma que as observações ao longo do tempo sejam independentes.\n\nUma cadeia é **homogênea** quando as probabilidades de transição permanecem as mesmas em cada passo. A **matriz de transição**, indicada por P, organiza essas probabilidades: cada linha representa o estado de origem, cada coluna o destino, todos os valores são não negativos e a soma de cada linha é 1. Essa orientação deve ser verificada antes de fazer contas; em outra convenção, a matriz pode ser transposta.\n\n### Como calcular vários passos\n\nSuponha dois estados para uma loja: A significa estoque suficiente; B significa estoque baixo. Ana estima que, estando em A, a loja continua em A no passo seguinte com probabilidade 0,8 e passa a B com probabilidade 0,2. Estando em B, repõe o estoque e volta a A com probabilidade 0,5, ou continua em B com probabilidade 0,5. A matriz, com linhas de origem, é P=[ [0,8; 0,2], [0,5; 0,5] ]. As linhas somam um.\n\nSe Ana começa com certeza em A, a distribuição inicial é o vetor-linha (1,0). Depois de um passo, multiplica à direita por P e obtém (0,8; 0,2). Para obter a distribuição depois de dois passos, multiplica novamente por P, ou usa P². A entrada da linha i e coluna j de P² é a chance de sair de i e chegar a j em exatamente dois passos, somando todas as rotas intermediárias. Em geral, após m passos, a distribuição é o vetor inicial vezes P elevado a m. O expoente representa número de transições, não multiplicação escalar por m.\n\nA probabilidade de uma sequência específica é obtida multiplicando a probabilidade inicial do primeiro estado pelas probabilidades de cada transição observada. Por exemplo, o caminho A, B, A tem probabilidade inicial de A multiplicada por P(A,B) e P(B,A). A multiplicação decorre da regra condicional da cadeia; não quer dizer que as etapas sejam independentes.\n\n### Comunicação, classes e absorção\n\nUm estado é alcançável a partir de outro quando existe uma sequência de transições com probabilidade positiva que os conecta. Dois estados **se comunicam** quando cada um é alcançável a partir do outro. Uma **classe comunicante** reúne estados que se comunicam. A cadeia é **irredutível** se todos os estados pertencem à mesma classe comunicante. Se há classes separadas, a distribuição de longo prazo pode depender da classe que a trajetória alcança.\n\nUm estado é **absorvente** quando a probabilidade de permanecer nele no próximo passo é 1. Se uma loja encerra definitivamente ao ficar sem estoque, “encerrada” pode ser absorvente. Para calcular a probabilidade de terminar em cada estado absorvente, costuma-se escrever equações condicionando pelo primeiro passo: a chance de absorção a partir do estado atual é a soma das chances de cada próximo estado multiplicadas pelas chances de absorção a partir dali.\n\n### Estacionariedade e convergência\n\nUma distribuição estacionária é um vetor de probabilidades que não muda após a transição: pi P=pi, com componentes não negativas que somam 1. Ela descreve equilíbrio probabilístico, não necessariamente uma trajetória parada. Uma cadeia finita irredutível tem distribuição estacionária única. Para concluir que as distribuições após muitos passos convergem a ela, também é preciso evitar periodicidade.\n\nUm estado é **periódico** quando os instantes possíveis de retorno compartilham um divisor comum maior que 1. Na alternância forçada A→B→A→B, o retorno a A ocorre apenas após número par de passos. Pode existir distribuição estacionária, mas a distribuição em passos sucessivos oscila e não converge a partir de A.\n\n| Conceito | O que garante | O que não garante sozinho |\n| --- | --- | --- |\n| Distribuição estacionária | A distribuição permanece igual após um passo. | Que qualquer condição inicial converge a ela. |\n| Irredutibilidade finita | Uma única classe e distribuição estacionária única. | Convergência se houver periodicidade. |\n| Aperiodicidade | Não há ciclos de retorno presos a múltiplos de um inteiro maior que um. | Existência de equilíbrio em qualquer cadeia infinita. |\n\n**Pegadinha:** conhecer apenas o estado atual é a hipótese de Markov; isso não significa que os estados sucessivos sejam independentes. Também não confunda resolver pi P=pi com provar convergência: estacionariedade e convergência são afirmações diferentes.\n\n**Resumo para a prova**\n\n- Matriz de transição: linhas de origem, probabilidades não negativas e soma de cada linha igual a 1.\n- Para vetor-linha, a evolução é pi seguinte = pi atual vezes P; após m passos usa-se P^m.\n- Comunicação exige alcançabilidade nos dois sentidos; absorvente não permite saída.\n- Estacionária satisfaz pi P=pi e soma 1. Em cadeia finita, irredutibilidade dá unicidade; aperiodicidade também é necessária para a convergência usual."
+    },
+    {
+      "title": "3. Cadeias de Markov em tempo contínuo",
+      "markdown": "Uma cadeia de Markov em tempo contínuo modela sistemas que podem mudar em qualquer instante, como máquinas que falham ou clientes que chegam sem esperar uma rodada marcada. O estado atual resume a informação necessária sobre o futuro; além do destino possível, o modelo precisa dizer quão depressa as mudanças acontecem.\n\n### Vocabulário e gerador\n\nA sigla **CTMC** vem do inglês *continuous-time Markov chain*, isto é, cadeia de Markov em tempo contínuo. Uma **taxa de transição** qᵢⱼ mede a rapidez instantânea com que o processo sai do estado i para o estado j, para j diferente de i. O **gerador**, matriz Q, reúne essas taxas. Os elementos fora da diagonal são não negativos; cada elemento diagonal é o negativo da soma das taxas de saída daquela linha. Por isso, cada linha de Q soma zero.\n\nA taxa não é uma probabilidade. Para um intervalo muito curto h, a probabilidade de uma transição de i para j é aproximadamente qᵢⱼh. Se h aumenta, essa aproximação pode deixar de ser boa. A chance de mais de uma transição em um intervalo muito pequeno é de ordem menor que h, conforme as hipóteses usuais do modelo.\n\n### Tempo de permanência e destino\n\nA taxa total de saída de i é qᵢ, a soma das taxas para todos os destinos diferentes de i. O **tempo de permanência** é quanto o processo espera nesse estado antes de saltar. Ele tem distribuição exponencial com taxa qᵢ e média 1/qᵢ. A distribuição exponencial é uma lei de espera sem memória: dado que a espera já durou certo tempo, o modelo mantém a mesma taxa instantânea para o próximo instante.\n\nQuando o salto ocorre, a chance de escolher j como destino é qᵢⱼ/qᵢ. Assim, taxa total e escolha do destino são duas peças da mesma descrição: a soma define a rapidez do próximo salto; as proporções definem para onde ele vai. Se qᵢ for zero, não há saída do estado e ele é absorvente.\n\nExemplo passo a passo: Ana monitora um equipamento que está no estado “operando”. Ele pode falhar com taxa a ou ser retirado para manutenção preventiva com taxa b. Enquanto opera, o tempo até o primeiro desses eventos tem distribuição exponencial de taxa a+b. A chance de o primeiro evento ser falha é a/(a+b), e a de ser manutenção é b/(a+b). Ana não soma a e b para obter uma probabilidade; soma as taxas para obter a rapidez total e divide cada taxa pela soma para obter as chances relativas dos destinos.\n\n### Como ler a matriz Q\n\nConsidere estados 0 e 1. Se de 0 para 1 a taxa é a e de 1 para 0 a taxa é b, o gerador, na convenção de linhas de origem, é Q=[[-a, a], [b, -b]]. A diagonal negativa não quer dizer “probabilidade negativa”. Ela permite que cada linha some zero e expressa algebricamente a saída. Q não é uma matriz de transição de um passo: suas linhas não somam 1, e seus elementos não são diretamente probabilidades.\n\nSe pi(t) é um vetor-linha com probabilidades dos estados no instante t, a equação de evolução é pi'(t)=pi(t)Q. O símbolo pi'(t) representa a taxa de mudança das probabilidades. Se o problema define vetores-coluna, a forma correspondente usa a transposta. Em cálculos, identifique a convenção antes de multiplicar; misturá-las inverte linhas e colunas.\n\n### Balanço e regime estacionário\n\nUma distribuição estacionária pi não muda com o tempo. Na convenção de vetor-linha, ela satisfaz pi Q=0 e as probabilidades somam 1. Em palavras, para cada estado, o fluxo probabilístico que entra equilibra o fluxo que sai. Para a cadeia de dois estados do exemplo, o equilíbrio exige pi₀a=pi₁b: o fluxo de 0 para 1 deve igualar o de 1 para 0. A normalização pi₀+pi₁=1 completa as equações.\n\nEm um processo de **nascimento e morte**, o estado costuma ser uma contagem. Um nascimento aumenta a contagem em uma unidade; uma morte a reduz em uma unidade. Uma fila pode ser representada assim: chegada é nascimento e conclusão de atendimento é morte, enquanto a fila tem clientes. Em espaço finito, o sistema pode ter distribuição estacionária sob condições usuais; em espaço infinito, resolver as equações locais não basta. As probabilidades precisam ser normalizáveis, isto é, somar um valor finito que permita ajustá-las para que totalizem 1.\n\n| Objeto | Interpretação | Soma relevante |\n| --- | --- | --- |\n| Matriz de transição discreta | Chance de destino em um passo. | Cada linha soma 1. |\n| Gerador Q | Taxas instantâneas de salto. | Cada linha soma 0. |\n| Diagonal de Q | Negativo da taxa total de saída. | Não é chance de permanecer. |\n\n**Pegadinha:** não trate a diagonal de Q como probabilidade de permanência nem exija que as linhas somem 1. No tempo contínuo, a diagonal é negativa e as linhas somam zero; as probabilidades em um intervalo são obtidas a partir da evolução do processo, não copiadas diretamente do gerador.\n\n**Resumo para a prova**\n\n- A CTMC muda em instantes aleatórios; o estado atual determina as taxas dos próximos saltos.\n- A soma das taxas de saída define a taxa total; o tempo de permanência tem média inversa dessa soma.\n- A probabilidade de cada destino é sua taxa dividida pela taxa total.\n- Q tem taxas não negativas fora da diagonal, diagonal negativa e linhas que somam zero.\n- Equilíbrio satisfaz pi Q=0, normalização e balanço de fluxo; em espaço infinito, verifique se a solução pode ser normalizada."
+    },
+    {
+      "title": "4. Teoria das filas e modelos de nascimento e morte",
+      "markdown": "A teoria das filas responde perguntas práticas: quantas pessoas tendem a esperar, quanto tempo passam no sistema e quando a capacidade de atendimento é insuficiente. Para responder, é preciso descrever como chegam as demandas, como recebem serviço e quais limites existem. Uma fila é um modelo probabilístico; o resultado depende das hipóteses sobre o fluxo, os servidores e a capacidade.\n\n### Termos e notação de Kendall\n\nA taxa de chegada, indicada por λ (lambda), é o número médio de chegadas por unidade de tempo. A taxa de serviço, μ (mu), é o número médio de atendimentos que um servidor ocupado conclui por unidade de tempo. A utilização ρ (rho) compara a carga oferecida com a capacidade. Na fila de um servidor, ρ=λ/μ. Esses parâmetros são taxas, não durações: se μ=8 atendimentos por hora, o tempo médio de serviço exponencial é 1/μ hora.\n\nA **notação de Kendall** resume componentes de uma fila. Em M/M/1, o primeiro M indica chegadas Markovianas, usualmente um fluxo de Poisson com intervalos entre chegadas exponenciais; o segundo M indica tempos de serviço exponenciais; 1 indica um servidor. A letra M vem de “Markoviano”, isto é, uma hipótese sem memória sobre o processo. A notação não informa por si só a capacidade máxima, a disciplina de atendimento ou se a população de clientes é finita; esses detalhes precisam ser dados separadamente.\n\n### População, tempo e lei de Little\n\nL é o número médio de clientes no sistema, incluindo quem espera e quem está sendo atendido. Lq é o número médio apenas na fila, sem contar o atendimento em curso. W é o tempo médio total desde a entrada até a saída; Wq é o tempo médio de espera antes do serviço começar. A **lei de Little** relaciona essas médias: L=λW e Lq=λWq, desde que as medidas se refiram ao mesmo sistema e ao mesmo fluxo efetivo, em condições estáveis de longo prazo.\n\nExemplo: Ana observa uma central em que entram efetivamente 3 chamadas por hora e encontra, em média, 12 chamadas no sistema. Pela lei de Little, W=L/λ=12/3=4 horas. A conclusão é válida se 12 e 3 se referem à mesma população e ao mesmo período. Se a central bloqueia tentativas quando todos os canais estão ocupados, chamadas recusadas não integram a população aceita; para relacionar população e tempo dos atendidos, usa-se o fluxo efetivo que entrou, não automaticamente todas as tentativas oferecidas.\n\n| Grandeza | O que conta | Relação em regime estável |\n| --- | --- | --- |\n| L | Espera mais atendimento. | L=λW. |\n| Lq | Apenas quem aguarda. | Lq=λWq. |\n| W | Espera mais duração do serviço. | W=Wq+tempo médio de serviço. |\n| Wq | Só a espera antes do serviço. | Não inclui atendimento. |\n\n### Fila M/M/1 e condição de estabilidade\n\nNa fila M/M/1 infinita usual, o estado n é o total de clientes no sistema. Uma chegada aumenta n em um; se n for positivo, uma conclusão de atendimento reduz n em um. As chegadas ocorrem à taxa λ e o único servidor atende à taxa μ quando está ocupado. Para haver distribuição estacionária normalizável, requer-se λ<μ. Se as chegadas sustentadas igualarem ou superarem a capacidade, o modelo infinito usual não tem equilíbrio probabilístico: a fila pode crescer sem limite. A razão ρ=λ/μ precisa ficar abaixo de 1.\n\nSob essas hipóteses, a chance de haver n clientes é (1−ρ)ρⁿ. A média no sistema é L=ρ/(1−ρ). O tempo médio total é W=1/(μ−λ); o tempo médio de serviço é 1/μ, então Wq=W−1/μ. Essas fórmulas se referem ao modelo M/M/1 infinito estável, não a qualquer fila.\n\nExemplo passo a passo: Ana analisa uma recepção com chegadas médias de 6 clientes por hora e atendimento médio de 8 clientes por hora. Primeiro confere o modelo: um servidor, chegadas Poisson, serviço exponencial, fila sem limite e parâmetros constantes. Depois calcula ρ=6/8=0,75, menor que 1; a estabilidade do modelo é possível. A média total é L=0,75/(1−0,75)=3 clientes. O tempo total é W=1/(8−6)=0,5 hora. O atendimento médio dura 1/8 hora, portanto Wq=0,5−0,125=0,375 hora. A recepção tem em média três clientes no sistema, mas isso não quer dizer que sempre haja exatamente três, nem que cada pessoa espere 0,375 hora.\n\n### Modelos de nascimento e morte\n\nUm processo de nascimento e morte é uma cadeia em tempo contínuo cujo estado muda uma unidade por vez: nascimento sobe de n para n+1; morte desce de n para n−1. Em filas, chegada costuma ser nascimento e conclusão de serviço, morte. No estado zero não há atendimento concluído que reduza a contagem. Em modelos com vários servidores, a taxa total de atendimento pode depender do número presente, pois só há tantos atendimentos simultâneos quanto servidores ocupados. Por isso, as equações e fórmulas de um servidor não devem ser copiadas sem ajuste.\n\n### Simular eventos de uma fila\n\nNa simulação de eventos discretos, o relógio avança de uma ocorrência relevante para a seguinte. Uma chegada aceita aumenta a população; um atendimento concluído a reduz. Se a capacidade estiver lotada, uma chegada bloqueada não aumenta a população atendida. O programa acumula o tempo passado em cada estado para estimar médias temporais. Começar vazio e medir imediatamente pode enviesar o resultado de longo prazo; um período de aquecimento pode ser separado. Réplicas independentes e horizonte adequado ajudam a avaliar a variabilidade da estimativa.\n\n**Pegadinha:** λ e μ são taxas; seus inversos são tempos médios apenas sob a interpretação exponencial. L inclui clientes em atendimento, enquanto Lq não. A lei de Little exige taxa compatível com a população observada. A estabilidade ρ<1 é específica da M/M/1 infinita usual e não autoriza usar suas fórmulas em modelos com outras hipóteses.\n\n**Resumo para a prova**\n\n- M/M/1 significa chegada Markoviana/Poisson, serviço exponencial e um servidor; capacidade e disciplina ainda precisam ser informadas.\n- ρ=λ/μ; para a fila infinita usual, λ<μ é a condição de estabilidade.\n- L conta quem espera e quem recebe serviço; Lq conta apenas a espera. W inclui serviço; Wq exclui.\n- Lei de Little: L=λW e Lq=λWq, com medidas compatíveis e fluxo efetivo.\n- Simulação de eventos atualiza o estado em chegadas e conclusões; avalie aquecimento, bloqueio e variabilidade."
+    }
+  ],
+  "summary": "Simulação estocástica estima o comportamento de sistemas aleatórios por trajetórias repetidas. Passeios aleatórios somam passos aleatórios. Cadeias discretas usam uma matriz estocástica por passo; cadeias contínuas usam taxas e um gerador cujas linhas somam zero. Filas podem ser modeladas por estados de população, com chegadas e atendimentos alterando o número no sistema. Para M/M/1 infinita, a estabilidade exige λ<μ; lei de Little relaciona médias por L=λW.",
+  "flashcards": [
+    {
+      "front": "O que caracteriza uma simulação estocástica?",
+      "back": "Ela incorpora mecanismos aleatórios explícitos para produzir trajetórias e estimar medidas por repetição."
+    },
+    {
+      "front": "O que a semente de um gerador pseudoaleatório permite?",
+      "back": "Reproduzir a mesma sequência pseudoaleatória em uma execução compatível."
+    },
+    {
+      "front": "Como se define o passeio aleatório simples?",
+      "back": "A posição muda por incrementos aleatórios, como +1 com probabilidade p e −1 com probabilidade 1−p."
+    },
+    {
+      "front": "Qual é a esperança da posição após n passos simétricos independentes?",
+      "back": "Se a posição inicial é zero e p=1/2, a esperança é zero; a variância ainda cresce com n."
+    },
+    {
+      "front": "Qual é a propriedade de Markov?",
+      "back": "Condicionado ao estado presente, a distribuição do futuro não depende da história anterior."
+    },
+    {
+      "front": "O que representa Pij em uma cadeia discreta?",
+      "back": "A probabilidade de passar do estado i ao estado j em um passo."
+    },
+    {
+      "front": "Qual condição as linhas de uma matriz de transição satisfazem?",
+      "back": "Cada entrada é não negativa e cada linha soma 1, adotada a convenção de linha como origem."
+    },
+    {
+      "front": "Como evolui uma distribuição linha após m passos?",
+      "back": "πm=π0P^m."
+    },
+    {
+      "front": "O que significa distribuição estacionária em tempo discreto?",
+      "back": "É uma distribuição π normalizada que satisfaz πP=π."
+    },
+    {
+      "front": "O que é um estado absorvente?",
+      "back": "Um estado que, uma vez atingido, não é abandonado: sua probabilidade de transição para si é 1."
+    },
+    {
+      "front": "O que é periodicidade em uma cadeia?",
+      "back": "Uma restrição aritmética aos comprimentos possíveis dos retornos a um estado."
+    },
+    {
+      "front": "O que significa dois estados se comunicarem?",
+      "back": "Cada um pode ser alcançado a partir do outro por transições com probabilidade positiva."
+    },
+    {
+      "front": "O que é qij numa CTMC?",
+      "back": "A taxa instantânea de salto de i para j, para i diferente de j."
+    },
+    {
+      "front": "Qual é o tempo médio de permanência em i numa CTMC?",
+      "back": "1/qi, em que qi é a soma das taxas de saída de i."
+    },
+    {
+      "front": "Como se define a diagonal do gerador Q?",
+      "back": "qii=−Σj≠i qij, de modo que cada linha de Q some zero."
+    },
+    {
+      "front": "O que significa M/M/1?",
+      "back": "Chegadas Poisson, serviço exponencial e um servidor; capacidade e disciplina precisam ser especificadas à parte."
+    },
+    {
+      "front": "Qual é a condição de estabilidade da M/M/1 infinita?",
+      "back": "λ<μ, equivalente a ρ=λ/μ<1."
+    },
+    {
+      "front": "O que conta Lq?",
+      "back": "O número médio de clientes aguardando, sem incluir quem está em atendimento."
+    },
+    {
+      "front": "O que expressa a lei de Little?",
+      "back": "L=λW em regime estável, relacionando população média, fluxo efetivo e tempo médio no sistema."
+    },
+    {
+      "front": "Como uma simulação de eventos discretos avança o relógio?",
+      "back": "Salta para o instante do próximo evento, como chegada ou fim de serviço, e atualiza o estado."
+    }
+  ],
+  "tips": [
+    "Escreva o estado e a convenção de vetores antes de multiplicar uma matriz de transição.",
+    "Cheque a soma das linhas de P; para o gerador Q, cheque se as linhas somam zero.",
+    "Diferencie passo discreto, instante contínuo e duração aleatória entre eventos.",
+    "Em fila, declare quem entra em L e em Lq antes de aplicar a lei de Little.",
+    "Verifique as hipóteses do modelo antes de usar fórmulas de M/M/1.",
+    "Separe incerteza do sistema, erro amostral e erro de especificação do modelo."
+  ],
+  "traps": [
+    "Esperança zero num passeio simétrico não quer dizer posição sempre igual a zero.",
+    "Uma distribuição estacionária não implica automaticamente convergência de qualquer estado inicial.",
+    "A diagonal negativa do gerador não é probabilidade de permanecer no estado.",
+    "Lei de Little usa taxa efetiva de fluxo quando há bloqueio ou perdas.",
+    "M/M/1 infinita fica instável se a chegada média alcança ou supera a capacidade de serviço.",
+    "Aumentar repetições reduz erro de amostragem, mas não conserta hipótese errada."
+  ],
+  "activeRecall": [
+    "Explique por que o estado atual precisa resumir a informação passada relevante para aplicar a propriedade de Markov.",
+    "Dada uma matriz P, verifique as somas de linha e calcule a distribuição após dois passos.",
+    "Descreva um exemplo de estado absorvente e indique como reconhecê-lo na matriz.",
+    "Compare o papel de P numa cadeia discreta com o papel de Q numa cadeia contínua.",
+    "Derive a condição de estabilidade de M/M/1 pela comparação entre λ e μ.",
+    "Explique a diferença entre L e Lq usando um cliente em atendimento.",
+    "Descreva como uma simulação de eventos discretos trata uma chegada e uma conclusão de serviço.",
+    "Cite duas fontes de erro numa estimativa obtida por simulação e como distingui-las."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Matriz de transição e orientação",
+      "summary": "Uma matriz estocástica por linha registra a origem da transição e exige linhas normalizadas.",
+      "description": "Confundir a origem na linha com a origem na coluna leva a multiplicar distribuições do lado errado e interpretar incorretamente Pij."
+    },
+    {
+      "key": "e2",
+      "title": "Estacionariedade e convergência",
+      "summary": "Invariância de uma distribuição e convergência das distribuições de passo são propriedades distintas.",
+      "description": "Resolver πP=π fornece uma distribuição invariante, mas periodicidade ou reducibilidade podem impedir convergência simples das distribuições de passo."
+    },
+    {
+      "key": "e3",
+      "title": "Gerador contínuo",
+      "summary": "O gerador reúne taxas e organiza o balanço instantâneo entre estados do processo contínuo.",
+      "description": "O gerador Q guarda taxas fora da diagonal e diagonal negativa para fechar soma zero; suas entradas não são probabilidades de transição."
+    },
+    {
+      "key": "e4",
+      "title": "Estabilidade e métricas de fila",
+      "summary": "Fórmulas de fila dependem das hipóteses do modelo e da população efetivamente medida.",
+      "description": "Aplicar fórmulas M/M/1 fora das hipóteses ou trocar tempo no sistema por espera em fila produz resultados sem significado para o modelo descrito."
+    },
+    {
+      "key": "e5",
+      "title": "Interpretação do resultado simulado",
+      "summary": "Precisão amostral não elimina problemas de hipótese, inicialização ou fluxo usado.",
+      "description": "Uma média de muitas trajetórias não elimina viés de modelagem, inicialização inadequada ou escolha incorreta da taxa efetiva."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma equipe repete a simulação com a mesma semente e as mesmas configurações para localizar uma divergência entre duas versões do programa. Essa repetição não pode reproduzir a sequência pseudoaleatória usada no primeiro experimento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma semente fixa inicializa o gerador pseudoaleatório e permite repetir a sequência nas mesmas condições de implementação. Isso facilita depuração, embora não prove que o modelo represente adequadamente o sistema real.",
+      "section": "1. Simulação estocástica e passeio aleatório",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num passeio em que cada passo é +1 ou −1 com probabilidade igual e independente, a posição esperada após n passos é zero quando a posição inicial é zero.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Cada incremento tem esperança nula e a esperança da soma é a soma das esperanças. A distribuição, porém, se espalha: variância positiva significa que muitas trajetórias terminam longe de zero.",
+      "section": "1. Simulação estocástica e passeio aleatório",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar o número de repetições de Monte Carlo elimina tanto o erro de amostragem quanto qualquer viés causado por uma distribuição escolhida incorretamente para o modelo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Mais repetições tendem a reduzir a variabilidade amostral da estimativa sob o modelo usado. Se a distribuição de entrada ou a estrutura do modelo estiver equivocada, a estimativa pode convergir com precisão para uma resposta enviesada.",
+      "section": "1. Simulação estocástica e passeio aleatório",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A propriedade de Markov exige que a distribuição do próximo estado dependa de toda a história, mesmo quando o estado atual já é conhecido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A propriedade exige que, conhecido o estado presente, o passado não acrescente informação sobre o futuro. Se a história ainda importar, pode ser necessário ampliar o estado para incluir a condição ou a idade do componente.",
+      "section": "1. Simulação estocástica e passeio aleatório",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um passeio aleatório simétrico, esperança de posição igual a zero significa que cada trajetória individual termina necessariamente na origem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A esperança descreve a média sobre trajetórias, não o destino de cada uma. Um passeio pode terminar em posições positivas ou negativas; a simetria faz esses desvios se compensarem na média.",
+      "section": "1. Simulação estocástica e passeio aleatório",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma matriz de transição estimada a partir de uma simulação pode ter linhas com soma maior que um se houver várias transições possíveis saindo do mesmo estado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. As probabilidades dos destinos mutuamente exclusivos de um passo devem somar um em cada linha. Ter vários destinos possíveis reparte a probabilidade, não aumenta sua soma acima de um.",
+      "section": "2. Cadeias de Markov em tempo discreto",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma cadeia homogênea, a entrada (i,j) de P² representa a probabilidade de estar em j após exatamente um passo, começando em i.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. P contém as probabilidades de um passo; P² soma sobre todos os estados intermediários e descreve dois passos. Sua entrada (i,j) reúne os caminhos de dois passos de i para j.",
+      "section": "2. Cadeias de Markov em tempo discreto",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cadeia finita irredutível pode ter distribuição estacionária única e ainda apresentar oscilação periódica que impede a convergência de suas distribuições a cada passo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Irredutibilidade em espaço finito garante distribuição estacionária única. Se a cadeia tiver período maior que um, a distribuição de passo pode oscilar; a aperiodicidade é a condição adicional usual para convergência das distribuições de qualquer estado inicial.",
+      "section": "2. Cadeias de Markov em tempo discreto",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cadeia com dois estados que alternam obrigatoriamente a cada passo tem período um, embora ambos os estados se comuniquem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. É possível ir de cada estado ao outro e retornar, mas retornos a um estado só ocorrem após números pares de passos. O máximo divisor comum dos tempos de retorno é dois, portanto o período não é um.",
+      "section": "2. Cadeias de Markov em tempo discreto",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se π é estacionária para P, então começar a cadeia com distribuição π faz a distribuição de cada passo permanecer igual a π.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Da equação πP=π segue que, após um passo, a distribuição continua π; por repetição, o mesmo vale nos passos seguintes.",
+      "section": "2. Cadeias de Markov em tempo discreto",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um estado é absorvente quando sua probabilidade de transição para si é zero, pois então nenhuma trajetória pode ficar nele.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Estado absorvente tem probabilidade um de permanecer nele na transição seguinte. Probabilidade zero de transição para si indica que o processo necessariamente sai desse estado no próximo passo.",
+      "section": "2. Cadeias de Markov em tempo discreto",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Estados que se comunicam formam uma relação de equivalência e, por isso, particionam o espaço de estados em classes comunicantes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A comunicação é reflexiva, simétrica e transitiva: cada estado alcança a si mesmo, o alcance mútuo é simétrico e os caminhos podem ser concatenados. Assim, os estados ficam agrupados em classes de comunicação.",
+      "section": "2. Cadeias de Markov em tempo discreto",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na convenção em que linhas representam estados de origem, uma distribuição-linha evolui pela multiplicação à esquerda por P.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Se πk é vetor-linha, então πk+1=πkP. Para vetor-coluna seria necessária a convenção transposta correspondente; misturar as duas convenções troca a orientação das probabilidades.",
+      "section": "2. Cadeias de Markov em tempo discreto",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma CTMC, a probabilidade de um salto de i para j durante um intervalo curto h é aproximadamente qij vezes h, quando i e j são distintos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A taxa instantânea qij determina a probabilidade de transição em primeira ordem no intervalo pequeno: qij h mais termos de ordem menor. A aproximação não trata qij como uma probabilidade válida para qualquer intervalo.",
+      "section": "3. Cadeias de Markov em tempo contínuo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No gerador de uma CTMC, cada linha soma um, pois a diagonal representa a probabilidade de permanecer no estado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Define-se qii=−Σj≠i qij. As taxas fora da diagonal são não negativas e a diagonal é a soma negativa correspondente; por isso as linhas somam zero, não um, e a diagonal não é probabilidade de permanência.",
+      "section": "3. Cadeias de Markov em tempo contínuo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A diagonal qii do gerador é a probabilidade de o processo permanecer em i durante todo o próximo intervalo de unidade de tempo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. qii é o negativo da taxa total de saída e serve para fechar a soma da linha do gerador em zero. Probabilidades de permanência são obtidas da dinâmica temporal, não pela leitura direta dessa diagonal como probabilidade.",
+      "section": "3. Cadeias de Markov em tempo contínuo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um estado tem taxa total de saída q, seu tempo de permanência numa CTMC markoviana é exponencial com média 1/q.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A probabilidade de ainda não ter ocorrido saída até t é exp(−qt), a sobrevivência exponencial. Para q positivo, a esperança desse tempo é 1/q.",
+      "section": "3. Cadeias de Markov em tempo contínuo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se duas transições concorrentes têm tempos exponenciais independentes de taxas a e b, a próxima delas ocorre com taxa total a+b.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O mínimo de tempos exponenciais independentes é exponencial com taxa igual à soma. Condicionado a ocorrer uma transição, a chance de ser a de taxa a é a/(a+b).",
+      "section": "3. Cadeias de Markov em tempo contínuo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma distribuição estacionária de uma CTMC, na convenção de vetor-linha, satisfaz πQ=0 e soma total igual a um.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A condição de balanço estacionário zera a derivada π'(t)=π(t)Q. A normalização e não negatividade também são necessárias para que π represente uma distribuição de probabilidade.",
+      "section": "3. Cadeias de Markov em tempo contínuo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma taxa de transição qij pode ser interpretada diretamente como probabilidade de passar de i para j durante qualquer período de duração um.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. qij é uma taxa instantânea, não uma probabilidade para intervalo arbitrário. Para intervalo pequeno h, qij h aproxima a probabilidade de um salto específico; em intervalos maiores a dinâmica completa precisa ser considerada.",
+      "section": "3. Cadeias de Markov em tempo contínuo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um processo nascimento-morte sobre contagens, nascimentos elevam o estado em uma unidade e mortes o reduzem em uma unidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O estado normalmente representa uma população ou quantidade presente. Uma chegada ou nascimento aumenta a contagem; uma saída ou morte diminui a contagem, se o estado não for zero.",
+      "section": "3. Cadeias de Markov em tempo contínuo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na M/M/1 infinita usual, λ menor que μ garante estabilidade; quando λ se aproxima de μ por baixo, a média de clientes cresce sem limite no limite.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A utilização é ρ=λ/μ. Para ρ<1 há distribuição estacionária geométrica; L=ρ/(1−ρ), que diverge quando ρ tende a um. Com λ≥μ, não existe distribuição estacionária normalizável para a fila infinita padrão.",
+      "section": "4. Teoria das filas e modelos de nascimento e morte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na lei de Little aplicada à fila de espera, Lq corresponde à quantidade média de clientes que aguardam, sem contar o que está em atendimento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Lq é a população média na fila antes do serviço. No sistema inteiro, L inclui os clientes que aguardam e o cliente ou clientes em serviço.",
+      "section": "4. Teoria das filas e modelos de nascimento e morte",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma fila com bloqueio de clientes, a lei de Little deve usar a taxa de chegada oferecida mesmo quando parte das tentativas não entra no sistema medido.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A taxa de fluxo da população que efetivamente atravessa o sistema deve ser compatível com o L e o W medidos. Se há perdas, usar a taxa de tentativa como se todas as chegadas entrassem mistura populações diferentes.",
+      "section": "4. Teoria das filas e modelos de nascimento e morte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A notação M/M/1, por si só, informa que a capacidade do sistema é infinita e que a disciplina de serviço é prioridade por ordem de chegada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. M/M/1 informa chegadas Markovianas, serviço exponencial e um servidor. Capacidade e disciplina devem ser declaradas separadamente quando não forem as hipóteses convencionais do problema.",
+      "section": "4. Teoria das filas e modelos de nascimento e morte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na simulação de eventos discretos de uma fila, o relógio pode avançar diretamente ao próximo instante de chegada ou conclusão de serviço, sem processar cada instante intermediário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Entre eventos, o estado da fila pode ficar constante. O simulador agenda o próximo evento, avança o relógio até ele e atualiza a população ou a ocupação do servidor.",
+      "section": "4. Teoria das filas e modelos de nascimento e morte",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na fila M/M/1, a fórmula L=ρ/(1−ρ) continua produzindo uma média estacionária finita quando ρ é igual a um.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Quando ρ=1, o denominador se anula e a distribuição geométrica não pode ser normalizada como distribuição estacionária da fila infinita usual. A condição de estabilidade é estrita: ρ<1.",
+      "section": "4. Teoria das filas e modelos de nascimento e morte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A simulação pode estimar a probabilidade de uma fila ultrapassar um limite contando a fração de repetições em que esse evento ocorreu.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Em cada repetição registra-se se a fila ultrapassou o limite; a média dos indicadores zero-um é a proporção observada, que estima a probabilidade sob as hipóteses do modelo.",
+      "section": "1. Simulação estocástica e passeio aleatório",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um passeio simples começa em 0 e soma incrementos independentes +1 com probabilidade 0,6 e −1 com probabilidade 0,4. Qual é a esperança da posição após cinco passos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "0, pois os incrementos positivos e negativos se anulam em toda sequência de cinco passos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "1, pois a esperança de cada incremento é 0,2 e há cinco incrementos independentes.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "2, pois a probabilidade positiva excede a negativa por 0,2 em cada passo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "3, pois se espera obter três passos positivos em cinco tentativas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "5, pois cada etapa aumenta a posição em uma unidade, em média.",
+          "correct": false
+        }
+      ],
+      "explanation": "A esperança de cada incremento é 0,6(1)+0,4(−1)=0,2. Pela linearidade da esperança, a posição esperada após cinco passos é 5×0,2=1. Isso é uma média sobre trajetórias, não uma posição garantida.",
+      "section": "1. Simulação estocástica e passeio aleatório",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um passeio simétrico com passos independentes de +1 ou −1, qual afirmação descreve corretamente a posição após n passos a partir de zero?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sua esperança é zero e sua variância é n, embora trajetórias individuais possam terminar fora da origem.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Sua esperança e sua variância são zero, porque cada passo positivo é cancelado pelo seguinte.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sua esperança é n e sua variância é zero, pois o número de passos determina o destino final.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sua esperança é zero e a posição final precisa ser zero em todo número par de passos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sua esperança é n/2 e sua variância é n/4, porque metade dos passos é sempre positiva.",
+          "correct": false
+        }
+      ],
+      "explanation": "Cada incremento simétrico tem média zero e variância um. A soma de n incrementos independentes tem média zero e variância n. Em número par de passos é possível retornar à origem, mas também é possível terminar em outra posição par.",
+      "section": "1. Simulação estocástica e passeio aleatório",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma simulação estima a chance de falha de um equipamento. Qual procedimento produz a estimativa direta pela frequência relativa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somar os tempos de todas as execuções e dividir pelo número de falhas observadas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Registrar falha como 1 e ausência de falha como 0 em cada repetição e calcular a média.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Escolher a execução mais longa, pois ela representa a probabilidade média do evento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Multiplicar a taxa de falha pelo número de repetições sem observar trajetórias individuais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ordenar as repetições pelo resultado e usar sempre a observação central como chance estimada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O indicador de falha vale um quando falha ocorre e zero caso contrário. A média desses indicadores é exatamente a proporção de repetições com falha e estima sua probabilidade no modelo. Uma execução individual não estima diretamente essa frequência.",
+      "section": "1. Simulação estocástica e passeio aleatório",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma partícula caminha em um grafo escolhendo uniformemente um vizinho em cada passo. Em qual situação a posição pode ser modelada como cadeia de Markov discreta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Quando o próximo vértice é escolhido segundo uma regra que depende apenas do vértice atualmente ocupado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Quando cada vértice é escolhido com a mesma probabilidade, ainda que não esteja ligado por aresta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Quando a escolha do próximo vértice depende de toda a sequência percorrida desde a origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quando os tempos entre passos são contínuos, pois isso torna o número de passos discreto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Quando a partícula retorna à origem em todos os passos pares, independentemente do grafo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A condição markoviana é que, conhecido o vértice atual, a distribuição do próximo dependa dele e da regra de transição, não da trajetória completa. Escolher entre vizinhos existentes é uma regra possível; ela não torna todos os vértices igualmente alcançáveis.",
+      "section": "1. Simulação estocástica e passeio aleatório",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma simulação de chegadas e atendimentos, qual medida distingue a média de clientes aguardando da média no sistema completo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Lq inclui quem espera e quem recebe serviço, enquanto L exclui os clientes em atendimento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "L conta somente clientes que já concluíram o serviço, enquanto Lq conta os demais.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Lq conta apenas os clientes aguardando; L inclui os que aguardam e os que estão em serviço.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "L e Lq são iguais sempre que a chegada ocorre segundo um processo de Poisson.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "L mede o tempo de serviço e Lq mede a taxa de chegadas durante a observação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Lq é a população média que espera antes do serviço. L abrange o sistema inteiro e inclui quem espera e quem está sendo atendido. Poisson descreve chegadas e não torna essas medidas iguais.",
+      "section": "4. Teoria das filas e modelos de nascimento e morte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe tem uma estimativa simulada estável, mas suspeita que escolheu a distribuição errada para os intervalos de serviço. O que mais repetições garantem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Eliminam o viés, porque trajetórias suficientes sempre aproximam o sistema real, mesmo com hipótese inadequada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reduzem a variabilidade amostral sob o modelo adotado, sem corrigir a distribuição de serviço mal especificada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Tornam os tempos simulados exponenciais, ainda que o gerador tenha outra distribuição configurada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Provam que a taxa de serviço medida coincide com a taxa real em toda condição de operação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transformam automaticamente uma fila instável em uma fila com distribuição estacionária.",
+          "correct": false
+        }
+      ],
+      "explanation": "Repetições diminuem a incerteza de amostragem da estimativa calculada com o modelo programado. Não alteram os pressupostos desse modelo nem corrigem entrada inadequada; a validade exige confrontar hipóteses com o sistema estudado.",
+      "section": "1. Simulação estocástica e passeio aleatório",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cadeia de dois estados tem matriz P=[[0,6; 0,4],[0,3; 0,7]], com linhas como origens. Qual é a probabilidade de passar do primeiro estado ao segundo em um passo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "0,3, lida na linha do segundo estado e coluna do primeiro como probabilidade de saída.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "0,4, lida na linha do primeiro estado e coluna do segundo como probabilidade de permanência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "0,6, porque a diagonal sempre indica a chance de sair do estado de origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "0,4, na entrada da linha do primeiro estado e coluna do segundo estado.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "0,7, pois a segunda linha contém todas as probabilidades de saída do primeiro estado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com linhas como origem, a transição do estado 1 ao estado 2 está em P12, a segunda entrada da primeira linha: 0,4. A diagonal P11=0,6 é a chance de permanecer no estado 1 em um passo.",
+      "section": "2. Cadeias de Markov em tempo discreto",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cadeia tem vetor inicial π0=(1,0) e matriz P=[[0,5; 0,5],[0,2; 0,8]]. Qual é π1 usando vetor-linha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "(0,5; 0,5), pois a primeira linha da matriz descreve as probabilidades a partir do estado inicial.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "(0,7; 1,3), pois se somam as colunas sem ponderar pelo estado inicial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "(0,2; 0,8), pois a segunda linha representa a distribuição após um passo em qualquer cadeia.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "(1; 0), pois vetor inicial concentrado permanece inalterado por um único passo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "(0,25; 0,25), pois cada probabilidade de transição precisa ser dividida pelo número de estados.",
+          "correct": false
+        }
+      ],
+      "explanation": "π1=π0P. Como π0 concentra toda a massa no primeiro estado, o resultado é a primeira linha de P: (0,5; 0,5). O vetor continua somando um.",
+      "section": "2. Cadeias de Markov em tempo discreto",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para P=[[0,7; 0,3],[0,4; 0,6]], qual é a probabilidade de ir do estado 1 ao estado 2 em exatamente dois passos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "0,21, pois basta multiplicar a chance de sair do estado 1 pela chance de voltar ao mesmo estado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "0,30, pois a probabilidade em dois passos permanece igual à transição direta da primeira linha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "0,39, somando os caminhos 1→1→2 e 1→2→2: 0,7×0,3+0,3×0,6.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "0,42, pois o caminho 1→1→2 é o único possível para terminar no segundo estado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "0,60, pois a probabilidade de permanecer no estado 2 após uma transição é a probabilidade procurada.",
+          "correct": false
+        }
+      ],
+      "explanation": "É a entrada (1,2) de P². Há dois estados intermediários possíveis: 0,7×0,3 para 1→1→2 e 0,3×0,6 para 1→2→2. A soma é 0,21+0,18=0,39.",
+      "section": "2. Cadeias de Markov em tempo discreto",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual vetor estacionário corresponde à matriz P=[[0,8; 0,2],[0,4; 0,6]]?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "(1/3; 2/3), pois se deve normalizar as probabilidades da segunda linha da matriz.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "(2/3; 1/3), que satisfaz πP=π e tem componentes somando um.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "(0,8; 0,6), porque as entradas diagonais são as probabilidades estacionárias.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "(1/2; 1/2), porque qualquer matriz estocástica tem distribuição uniforme estacionária.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "(0,4; 0,2), pois as entradas de transição entre estados devem ser invertidas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se π=(x,1−x), a primeira componente estacionária exige x=0,8x+0,4(1−x), daí 0,6x=0,4 e x=2/3. A outra componente é 1/3; substituindo, o vetor satisfaz πP=π.",
+      "section": "2. Cadeias de Markov em tempo discreto",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma cadeia alterna deterministicamente entre A e B. Qual descrição de sua distribuição estacionária e de sua evolução partindo de A está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A distribuição estacionária é (1/2,1/2), mas a distribuição partindo de A oscila entre concentrações em A e em B.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A distribuição estacionária não existe, porque as probabilidades de transição são determinísticas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A distribuição após um passo é (1/2,1/2) e permanece assim mesmo começando certamente em A.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A cadeia converge para A, pois toda alternância de dois estados absorve o primeiro estado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A distribuição estacionária é (1,0), porque a condição inicial determina todos os passos futuros.",
+          "correct": false
+        }
+      ],
+      "explanation": "A matriz de alternância troca integralmente a massa entre A e B. O vetor uniforme permanece invariável, mas partindo de A a distribuição alterna entre (1,0) e (0,1), sem convergir passo a passo. É o exemplo de periodicidade dois.",
+      "section": "2. Cadeias de Markov em tempo discreto",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma cadeia finita, estados 1 e 2 se alcançam mutuamente, enquanto 3 só pode ser alcançado a partir deles e não retorna. Qual conclusão é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os três estados formam uma única classe comunicante porque existe um caminho de 1 até 3.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Estados 1 e 2 comunicam entre si; o estado 3 não comunica de volta e pode ser transitório.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O estado 3 é absorvente necessariamente, pois nenhum caminho retorna dele aos demais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os estados 1 e 2 são periódicos necessariamente por se comunicarem mutuamente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Nenhuma classe pode ser identificada sem conhecer a distribuição inicial da cadeia.",
+          "correct": false
+        }
+      ],
+      "explanation": "Comunicação exige alcance nos dois sentidos. Assim, 1 e 2 pertencem à mesma classe, enquanto um caminho de ida sem retorno não une 3 a essa classe. A falta de retorno torna 3 transitório no cenário descrito, mas não necessariamente absorvente, pois pode haver saída para outros estados.",
+      "section": "2. Cadeias de Markov em tempo discreto",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma empresa registra a condição de uma máquina como operante ou parada a cada dia. A chance de falha amanhã depende da condição observada hoje, e as probabilidades são constantes. Qual modelo é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma cadeia homogênea em tempo discreto com dois estados e matriz de transição por dia.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Uma CTMC, pois qualquer processo que descreva falha usa necessariamente tempo contínuo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um passeio aleatório simétrico, pois a máquina alterna entre dois nomes de estado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma distribuição estacionária diretamente, pois não é necessário especificar transições.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma fila M/M/1, pois a máquina pode receber manutenção de um servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "As observações ocorrem em épocas diárias e a condição de amanhã depende da condição de hoje com probabilidades constantes. A matriz de duas linhas descreve a transição entre operante e parada em cada dia.",
+      "section": "2. Cadeias de Markov em tempo discreto",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma loja estima a probabilidade de estar aberta ou fechada amanhã a partir da situação de hoje. O que caracteriza uma matriz de transição válida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todas as entradas devem ser positivas e a soma de toda a matriz precisa ser exatamente um.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Cada coluna deve somar um, mesmo que as linhas indiquem os estados de origem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As entradas devem ser não negativas e cada linha que representa uma origem deve somar um.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A diagonal deve ser zero para que a cadeia não permaneça no estado atual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A matriz deve ser simétrica, porque a chance de ida precisa igualar a chance de volta.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com a convenção de linhas como origens, cada linha distribui a probabilidade total do próximo estado condicionado ao estado atual. As probabilidades são não negativas e somam um; não precisam ser positivas, simétricas ou sem permanência.",
+      "section": "2. Cadeias de Markov em tempo discreto",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma população de bactéria pode aumentar em uma unidade à taxa λ e diminuir em uma unidade à taxa proporcional ao número presente. Que estrutura contínua descreve essa dinâmica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma cadeia discreta em que a matriz de transição deve somar zero em cada linha.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um processo nascimento-morte, com saltos entre contagens vizinhas e taxas associadas aos eventos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Um passeio simétrico, pois toda população tem probabilidade igual de subir e descer.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma fila M/M/1, ainda que não existam chegadas nem servidores no fenômeno descrito.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma distribuição estacionária que determina sozinha as taxas de reprodução e mortalidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "O estado é a contagem. Nascimento leva n a n+1 e morte leva n a n−1, com taxas que podem depender do estado. Essa é a estrutura de nascimento-morte em tempo contínuo; estabilidade e existência estacionária dependem das taxas.",
+      "section": "3. Cadeias de Markov em tempo contínuo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma CTMC tem, a partir do estado A, taxas qAB=2 e qAC=3. Qual é a taxa total de saída e o tempo médio de permanência em A?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Taxa 5 e permanência média 1/5 unidade de tempo, antes de um dos saltos concorrentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Taxa 1 e permanência média 5 unidades, pois as taxas devem ser invertidas antes de somar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Taxa 6 e permanência média 1/6, pois também se conta a diagonal como taxa de saída.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Taxa 2 e permanência média 1/2, pois só a transição para o primeiro destino determina a espera.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Taxa 3 e permanência média 1/3, pois a transição mais rápida sempre ocorre primeiro com certeza.",
+          "correct": false
+        }
+      ],
+      "explanation": "A taxa total de saída é a soma das taxas para destinos distintos: 2+3=5. O tempo até algum salto é exponencial de taxa 5 e tem média 1/5. O destino é B com probabilidade 2/5 e C com probabilidade 3/5.",
+      "section": "3. Cadeias de Markov em tempo contínuo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma máquina operante falha à taxa p e uma máquina parada é reparada à taxa r. Qual é a probabilidade estacionária de estar operante?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "p/(p+r), porque a probabilidade operante acompanha a taxa de saída do estado parado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "r/(p+r), obtida ao igualar fluxo de reparos para operante e fluxo de falhas para parada.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "p/r, pois a razão direta entre as taxas já é uma probabilidade normalizada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "1, porque toda máquina parada eventualmente recebe reparo em tempo contínuo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "1/2, independentemente das taxas, porque há dois estados possíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "No equilíbrio, a probabilidade de parada vezes r iguala a probabilidade de operação vezes p. Com as probabilidades somando um, a probabilidade operante é r/(p+r), e a de parada é p/(p+r). Reparos mais rápidos aumentam a fração de tempo operante.",
+      "section": "3. Cadeias de Markov em tempo contínuo",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um estado de CTMC tem taxas para dois destinos: 4 por hora para B e 1 por hora para C. Dado que o próximo salto ocorreu, qual a probabilidade de ele ir para B?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "1/5, porque se divide a taxa total pela taxa do destino mais lento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "4/5, pois a chance de destino é a taxa daquele salto dividida pela taxa total de saída.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "4, porque a taxa de B é a probabilidade condicional de destino sem normalização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "1/4, porque o tempo médio de permanência é o inverso da taxa de B isolada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "1/2, porque dois destinos possíveis recebem chances iguais independentemente das taxas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A taxa total de saída é 4+1=5. Condicionado a haver um salto, a probabilidade de destino B é 4/5; as taxas determinam a competição entre transições. A taxa não é uma probabilidade por si só.",
+      "section": "3. Cadeias de Markov em tempo contínuo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma CTMC usa vetor-linha π(t) e gerador Q. Qual equação descreve a evolução da distribuição?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "π'(t)=π(t)Q, com Q de linhas que somam zero e taxas fora da diagonal.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "π'(t)=Q, pois o gerador sozinho contém também a distribuição inicial e sua evolução.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "π'(t)=π(t)P, pois toda cadeia contínua precisa de matriz estocástica por unidade de tempo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "π'(t)=π(t)+Q, pois derivar uma probabilidade exige somar a taxa de saída à massa atual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "π'(t)=Qπ(t), sem relação com a convenção de linha ou coluna adotada no modelo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na convenção de distribuição-linha, a equação de Kolmogorov para a evolução usa π'(t)=π(t)Q. Se fossem vetores-coluna, usa-se a forma transposta compatível. Q não é uma matriz de probabilidades por intervalo unitário.",
+      "section": "3. Cadeias de Markov em tempo contínuo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para uma CTMC com estados A e B, as taxas são A→B=α e B→A=β. Qual distribuição satisfaz o balanço estacionário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "πA=α/(α+β) e πB=β/(α+β), pois cada estado recebe a taxa que sai dele.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "πA=β/(α+β) e πB=α/(α+β), pois o fluxo πAα deve igualar πBβ.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "πA=πB=1/2 para quaisquer taxas, pois há exatamente dois estados conectados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "πA=α/β e πB=β/α, sem normalização porque o equilíbrio fixa a escala total.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "πA=1 e πB=0, pois o primeiro estado listado é o estado inicial do processo.",
+          "correct": false
+        }
+      ],
+      "explanation": "O balanço exige πAα=πBβ. Com πA+πB=1, resulta πA=β/(α+β) e πB=α/(α+β). O estado com saída mais lenta tende a ocupar maior fração do tempo.",
+      "section": "3. Cadeias de Markov em tempo contínuo",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe precisa modelar atendimentos em um balcão: chegadas Poisson, duração de serviço exponencial e um atendente. Que modelo básico descreve o caso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "M/M/1, com taxas de chegada e serviço e estado igual ao número de clientes no sistema.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "M/D/1, pois toda duração de serviço exponencial é determinística em cada atendimento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "M/M/2, pois o segundo M indica dois servidores em paralelo no balcão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "D/M/1, pois chegadas Poisson ocorrem em intervalos determinísticos igualmente espaçados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma cadeia discreta absorvente, pois a fila deixa de existir quando um cliente é atendido.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na notação de Kendall, os dois M representam chegadas Markovianas/Poisson e serviço exponencial; o 1 indica um servidor. O estado pode ser o número total de clientes, que sobe com chegadas e desce com conclusões de serviço.",
+      "section": "4. Teoria das filas e modelos de nascimento e morte",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila M/M/1 tem taxa de chegada de 6 clientes por hora e taxa de serviço de 8 por hora. Qual é a utilização e a condição de estabilidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ρ=0,75 e a fila infinita usual é estável, pois a chegada é menor que a capacidade de serviço.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "ρ=1,33 e a fila é estável, porque a taxa de serviço é maior que a taxa de chegada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ρ=2 e a fila é instável, pois se somam as taxas de chegada e atendimento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ρ=0,25 e estabilidade exige que a diferença entre as taxas seja menor que um.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "ρ=1 e a fila é estável, pois existe somente um servidor para qualquer volume de chegada.",
+          "correct": false
+        }
+      ],
+      "explanation": "ρ=λ/μ=6/8=0,75. Como λ<μ, a fila M/M/1 infinita padrão satisfaz a condição de estabilidade. A razão inversa μ/λ não é a utilização definida para o servidor.",
+      "section": "4. Teoria das filas e modelos de nascimento e morte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para a M/M/1 do exemplo com λ=6 por hora e μ=8 por hora, qual é o número médio de clientes no sistema em regime estacionário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "0,75, que corresponde à utilização do servidor e também ao número médio no sistema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "3, pois ρ/(1−ρ)=0,75/0,25=3 clientes em média no sistema.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "4, pois a diferença entre capacidade de serviço e chegadas é o número médio de clientes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "1,5, obtido ao dividir a taxa de chegada pela diferença entre chegada e serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "6, pois o número médio deve igualar o total de chegadas por hora observado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para M/M/1 estável, L=ρ/(1−ρ). Com ρ=0,75, L=0,75/0,25=3. Utilização é fração ocupada do servidor, não a quantidade média de clientes no sistema.",
+      "section": "4. Teoria das filas e modelos de nascimento e morte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um sistema estável, há em média 12 clientes no sistema e o fluxo efetivo é de 3 clientes por hora. Qual é o tempo médio no sistema pela lei de Little?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "4 horas, pois W=L/λ=12/3 para grandezas médias compatíveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "36 horas, pois a população média deve ser multiplicada pela taxa horária.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "9 horas, pois se subtrai a taxa de chegada do número médio no sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "0,25 hora, pois se divide o fluxo efetivo pela população média observada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "15 horas, pois a lei de Little soma a população e o fluxo no mesmo sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "A lei de Little é L=λW. Logo W=L/λ=12/3=4 horas. As grandezas precisam referir-se ao mesmo sistema e ao mesmo fluxo efetivo.",
+      "section": "4. Teoria das filas e modelos de nascimento e morte",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um modelo M/M/1 tem λ=4 por hora e μ=10 por hora. Qual é o tempo médio total no sistema segundo a fórmula do modelo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "0,1 hora, pois o tempo médio depende apenas do inverso da taxa de serviço.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "1/6 hora, porque W=1/(μ−λ)=1/6 hora sob estabilidade M/M/1.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "6 horas, pois a diferença entre serviço e chegada expressa diretamente a duração média.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "0,4 hora, pois se multiplica a utilização pela taxa de serviço para obter W.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "1/14 hora, pois o tempo de espera usa a soma das taxas de chegada e atendimento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Como λ<μ, o modelo é estável. Para M/M/1, W=1/(μ−λ)=1/(10−4)=1/6 hora. O inverso de μ isolado é o tempo médio de serviço, não o tempo total com espera.",
+      "section": "4. Teoria das filas e modelos de nascimento e morte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila M/M/1 tem λ=4 por hora e μ=10 por hora. Qual é a espera média na fila, excluído o atendimento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "1/10 hora, pois toda espera é igual ao tempo médio de serviço exponencial.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "1/15 hora, pois Wq=λ/[μ(μ−λ)]=4/(10×6) hora neste modelo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "1/6 hora, que é o tempo total no sistema e exclui automaticamente o serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "4/10 hora, pois a razão λ/μ já mede diretamente o tempo de espera em horas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "6 horas, pois a diferença entre serviço e chegada é a espera que cada cliente enfrenta.",
+          "correct": false
+        }
+      ],
+      "explanation": "O tempo total é W=1/(μ−λ)=1/6 hora; o tempo médio de serviço é 1/μ=1/10 hora. Logo Wq=W−1/μ=1/6−1/10=1/15 hora. Equivalentemente, Wq=λ/[μ(μ−λ)].",
+      "section": "4. Teoria das filas e modelos de nascimento e morte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma central rejeita chamadas quando todos os canais estão ocupados. Ao aplicar a lei de Little aos clientes efetivamente atendidos, que taxa deve ser compatibilizada com a população e o tempo medidos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A taxa efetiva de chamadas que entram e percorrem o sistema, não todas as tentativas bloqueadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A taxa de tentativas mais a taxa de chamadas bloqueadas, pois toda solicitação compõe L.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A capacidade nominal de cada canal, mesmo se a população medida contar apenas chamadas aceitas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A taxa de chamadas perdidas, pois somente os bloqueios permanecem no sistema observado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A taxa de serviço de um canal multiplicada pela quantidade de chamadas tentadas na hora.",
+          "correct": false
+        }
+      ],
+      "explanation": "A lei de Little relaciona a população média de uma população definida à taxa efetiva que atravessa esse sistema e ao seu tempo médio. Tentativas bloqueadas não entram na população de chamadas aceitas e não devem ser incluídas sem redefinir as medidas.",
+      "section": "4. Teoria das filas e modelos de nascimento e morte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma simulação de fila começa com o sistema vazio e mede o regime estacionário desde o primeiro instante. Qual cuidado metodológico pode reduzir o viés de inicialização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descartar ou tratar separadamente um período inicial de aquecimento antes de calcular médias estacionárias.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Fixar todas as chegadas na mesma hora para que a fila alcance mais rapidamente sua média final.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar uma só trajetória longa, pois o início vazio não influencia qualquer medida temporal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir todas as durações aleatórias pelo tempo médio, mantendo o nome de simulação estocástica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar a taxa de serviço até a fila nunca se formar, preservando a distribuição desejada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A condição inicial vazia pode distorcer médias calculadas antes de o processo se aproximar do regime de interesse. Um aquecimento descartado ou uma inicialização apropriada reduz esse efeito; ainda são necessárias repetições e avaliação da variabilidade.",
+      "section": "4. Teoria das filas e modelos de nascimento e morte",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila M/M/1 tem λ=μ. O analista quer usar a distribuição geométrica estacionária padrão. Qual conclusão é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A distribuição é normalizável com ρ=1, pois cada estado tem a mesma probabilidade de ocupação.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A fila infinita padrão não tem distribuição estacionária normalizável, pois a condição λ<μ falha.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A fila é estável porque igualdade entre chegada e serviço garante equilíbrio em cada instante.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número médio é um cliente, pois igualar as taxas limita a fila a um atendimento por vez.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A condição correta é λ>μ, já que as chegadas precisam superar o serviço para formar equilíbrio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na fórmula geométrica, ρ=λ/μ precisa ser menor que um para que a série das probabilidades possa ser normalizada. Em igualdade, ρ=1 e não há distribuição estacionária da M/M/1 infinita usual.",
+      "section": "4. Teoria das filas e modelos de nascimento e morte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila tem média de 2 clientes aguardando e taxa efetiva de 5 clientes por hora. Qual espera média em fila segue da lei de Little?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "0,4 hora, pois Wq=Lq/λ=2/5 hora quando as medidas são compatíveis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "10 horas, pois se multiplica o número que aguarda pela taxa horária de entrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "3 horas, pois se subtrai a taxa de fluxo da população na fila.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "2,5 horas, pois se inverte Lq e se interpreta o resultado como tempo de espera.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "7 horas, pois a espera inclui a fila e a taxa efetiva somadas em uma unidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "Para a fila, Lq=λWq. Portanto Wq=2/5 hora, isto é, 0,4 hora. A unidade confirma: clientes divididos por clientes por hora resultam em horas.",
+      "section": "4. Teoria das filas e modelos de nascimento e morte",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário atende às hipóteses básicas de uma M/M/1?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Chegadas em fluxo de Poisson, tempos de serviço exponenciais e um servidor atendendo a fila.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Chegadas em horários determinísticos, serviços de duração fixa e dois servidores paralelos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Chegadas em lote com dependência da fila, serviços uniformes e um servidor prioritário.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ausência de chegadas aleatórias, atendimento instantâneo e número de servidores variável no tempo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Chegadas exponenciais, atendimento sempre determinístico e capacidade necessariamente finita.",
+          "correct": false
+        }
+      ],
+      "explanation": "M/M/1 pressupõe chegadas Markovianas, usualmente um processo de Poisson, serviço com duração exponencial e um servidor. Outras hipóteses como capacidade finita ou disciplina especial não decorrem automaticamente dessa notação.",
+      "section": "4. Teoria das filas e modelos de nascimento e morte",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe simula uma fila e quer contar clientes no sistema ao longo do tempo. Qual regra de atualização do estado está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Incrementar a contagem em uma chegada aceita e decrementá-la em uma conclusão de serviço.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Decrementar em cada chegada e incrementar em cada atendimento concluído para manter a fila estável.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Incrementar em qualquer tentativa, inclusive bloqueada, e nunca reduzir após conclusão do serviço.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Atualizar somente quando o relógio alcançar intervalos inteiros, ignorando eventos intermediários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somar a taxa de chegada e a de serviço ao estado a cada evento, sem acompanhar clientes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma chegada que entra acrescenta uma unidade à população do sistema; o término de serviço remove uma unidade. Se houver capacidade limitada, uma tentativa bloqueada não altera a população aceita.",
+      "section": "4. Teoria das filas e modelos de nascimento e morte",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Introduction to Stochastic Processes — Lecture Notes",
+      "publisher": "MIT OpenCourseWare",
+      "reference": "Aulas sobre cadeias finitas, distribuições estacionárias, passeio aleatório em redes, tempos de hitting, processo de Poisson, CTMC e gerador infinitesimal.",
+      "url": "https://ocw.mit.edu/courses/18-445-introduction-to-stochastic-processes-spring-2015/pages/lecture-notes/",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Part III: Random Processes — Introduction to Probability",
+      "publisher": "MIT OpenCourseWare",
+      "reference": "Aulas 24 a 26: cadeias discretas finitas, probabilidades em n passos, recorrência, periodicidade, distribuição estacionária, nascimento-morte, absorção e tempo esperado de absorção.",
+      "url": "https://ocw.mit.edu/courses/res-6-012-introduction-to-probability-spring-2018/pages/part-iii-random-processes/",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Queueing Systems: Lecture 3",
+      "publisher": "MIT OpenCourseWare",
+      "reference": "Terminologia de filas, lei de Little, filas nascimento-morte, equações de balanço de estado, M/M/1, prioridades, comportamento dinâmico e aplicações.",
+      "url": "https://ocw.mit.edu/courses/1-203j-logistical-and-transportation-planning-methods-fall-2006/resources/lec5/",
+      "accessedAt": "2026-11-08"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Markov Processes and Queues",
+      "publisher": "MIT OpenCourseWare",
+      "reference": "Taxas de transição em tempo contínuo, gerador, equações de evolução, permanência exponencial, processo de Poisson e exemplos de filas.",
+      "url": "https://ocw.mit.edu/courses/2-854-introduction-to-manufacturing-systems-fall-2016/5d3e9532c2ff6e156d48e41f9bd9576f_MIT2_854F16_Queueing.pdf",
+      "accessedAt": "2026-11-08"
+    }
+  ]
+}

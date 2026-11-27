@@ -1,0 +1,773 @@
+{
+  "id": "informatica.arquitetura-micro-frontend",
+  "subject": "Informática",
+  "title": "Arquitetura de micro front end",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Micro front end.",
+    "Micro frontends e aplicações independentes",
+    "Arquitetura de micro frontends web",
+    "Desenvolvimento de micro frontends",
+    "Composição de aplicações front-end",
+    "Aplicações web distribuídas por equipes",
+    "Integração de interfaces independentes",
+    "Micro front ends com Module Federation",
+    "Arquitetura de interface modular",
+    "Aplicações independentes no navegador"
+  ],
+  "scope": {
+    "covers": "Arquitetura micro front end: motivação e limites; decomposição por domínio e equipes; shell ou root config; composição em tempo de execução e de compilação; roteamento e ciclo de vida; integração por single-spa, Module Federation, Web Components e import maps; contratos, comunicação, estado e dependências compartilhadas; implantação independente, testes, observabilidade, segurança, desempenho, acessibilidade e estratégias de migração.",
+    "excludes": "Microserviços de backend, implementação completa de frameworks específicos, configuração exaustiva de ferramentas, protocolos de rede de backend e comparação de fornecedores comerciais."
+  },
+  "theoryTitle": "Como dividir e integrar interfaces web independentes",
+  "chapters": [
+    {
+      "title": "1. O que é micro front end e quando dividir",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplicação web grande pode concentrar muitas telas, regras e equipes em um só repositório e em uma só implantação. Uma pequena mudança exige coordenar todos os módulos, executar uma esteira extensa e publicar o conjunto inteiro. A arquitetura **micro front end** aplica à interface uma ideia de decomposição: partes da experiência do usuário são desenvolvidas, testadas e implantadas por equipes com autonomia, mas reunidas para funcionar como uma aplicação coerente no navegador.\n\nA unidade não precisa ser um componente visual minúsculo. Em geral, o recorte representa uma capacidade ou domínio reconhecível — por exemplo, catálogo, pedidos ou área financeira — e tem uma equipe responsável por comportamento, testes e operação. Um **shell** (casca ou aplicação contêiner) fornece a estrutura comum e decide como carregar ou exibir as partes. Uma página pode combinar micro front ends por rota, por região da tela ou por composição de componentes.\n\n> **Siglas e termos deste capítulo**\n> - **Micro front end**: parte da interface entregue com autonomia de desenvolvimento e, conforme a arquitetura, de implantação.\n> - **Shell**: aplicação hospedeira que organiza navegação, identidade visual e carregamento das partes.\n> - **Domínio**: área de negócio com linguagem, regras e responsabilidades próprias.\n> - **Acoplamento**: dependência que obriga duas partes a mudar ou implantar juntas.\n> - **Monólito front-end**: aplicação de interface construída e publicada como uma unidade fortemente coordenada.\n\n### Limites de responsabilidade e decomposição\n\nUma divisão útil tende a acompanhar capacidades do negócio e equipes duradouras, não apenas camadas técnicas. Dividir um mesmo fluxo entre “componentes”, “serviços” e “telas” pode aumentar a coordenação em vez de reduzi-la: para entregar uma funcionalidade, várias equipes passam a negociar interfaces e versões. Recortes por domínio deixam mais claro quem decide a regra, mantém a parte e responde por falhas.\n\n| Critério | Sinal favorável à separação | Sinal de alerta |\n| --- | --- | --- |\n| Equipes | Times conseguem decidir e publicar sem esperar uns pelos outros | Toda mudança exige sincronização entre muitos times |\n| Domínio | A parte tem fluxo e linguagem de negócio reconhecíveis | O corte separa uma mesma regra em diversos módulos |\n| Implantação | É valioso publicar a parte sem reconstruir o portal inteiro | A página sempre precisa mudar como um bloco só |\n| Interface | Contrato entre partes é pequeno e estável | Muitas chamadas internas e estado compartilhado |\n| Operação | Cada equipe consegue monitorar sua contribuição | Incidentes não permitem identificar qual parte falhou |\n\nMicro front ends não são automaticamente mais rápidos, menores ou mais simples. Eles acrescentam carregamento remoto, contratos, monitoramento distribuído, coordenação visual, risco de falha parcial e trabalho de plataforma. Uma aplicação única bem modularizada pode ser melhor quando há uma equipe, pouca necessidade de implantação independente ou fronteiras de domínio instáveis.\n\n### O que significa independência\n\nIndependência é uma propriedade graduada. Uma equipe pode ter código e testes próprios, mas depender do shell para publicar rotas; ou pode publicar um artefato remoto com seu próprio ciclo, mantendo contratos compartilhados. Independência de implantação não significa ausência de integração: o consumidor ainda precisa saber onde encontrar a parte e como ela se comporta. Também não significa que cada fragmento deva usar tecnologia ou design visual próprios.\n\nA equipe de plataforma pode oferecer modelos de projeto, pipeline, observabilidade e componentes comuns. A autonomia funciona melhor quando há padrões mínimos de integração e responsabilidades explícitas: quem mantém o shell, quem aprova mudanças de navegação, como evoluem contratos e quem atende um alerta.\n\n### Como cai na prova\n\n- Micro front end busca autonomia de partes da interface e alinhamento com capacidades de negócio; não é simplesmente “um componente por equipe”.\n- O ganho de publicação independente vem acompanhado de complexidade de composição, contratos, versões, segurança e diagnóstico.\n- Uma arquitetura monolítica modular pode ser adequada; dividir sem fronteiras estáveis cria acoplamento distribuído."
+    },
+    {
+      "title": "2. Shell, composição, roteamento e ciclo de vida",
+      "markdown": "### O problema que este assunto resolve\n\nAs partes precisam aparecer no lugar certo, no momento certo, e deixar a página limpa quando deixam de estar ativas. O shell coordena esse trabalho: define a estrutura global, reconhece rotas ou regiões, carrega o módulo apropriado e fornece propriedades de integração. O shell deve permanecer pequeno o bastante para não virar um novo monólito que contenha todas as regras de negócio.\n\n> **Siglas e termos deste capítulo**\n> - **Root config**: configuração raiz que registra aplicações e inicia o orquestrador.\n> - **Rota**: endereço ou estado de navegação que seleciona uma tela.\n> - **Lifecycle**: conjunto de etapas de inicialização, montagem e remoção de uma aplicação.\n> - **Mount/unmount**: inserir a interface e seus efeitos na página; removê-los e liberar recursos.\n> - **Composição**: combinação de partes em uma experiência visível ao usuário.\n\n### Composição por rota, região ou componente\n\nNa composição **por rota**, cada aplicação controla uma área de navegação, por exemplo `/pedidos/*`; é mais fácil definir propriedade e evitar que duas equipes disputem o mesmo espaço. Na composição **por região**, partes diferentes ocupam áreas simultâneas, como cabeçalho e painel de conta; isso aumenta a necessidade de coordenar dimensões, acessibilidade e estado compartilhado. Um widget reutilizável pode ser composto como componente sem controlar a navegação principal.\n\n| Forma | Exemplo de contrato | Principal cuidado |\n| --- | --- | --- |\n| Página/rota | O shell carrega a aplicação para `/financeiro/*` | Alinhar navegação, URL e fallback |\n| Região da página | O shell reserva um contêiner para um painel | Evitar conflito de layout, foco e estilos |\n| Componente/widget | Um elemento de busca é inserido em várias telas | Contrato de propriedades e eventos estável |\n\nCom **single-spa**, o root config registra aplicações e escolhe quando elas estão ativas. Uma aplicação registrada implementa `bootstrap`, `mount` e `unmount`; as funções retornam promessa ou são assíncronas. `bootstrap` roda uma vez antes da primeira montagem; `mount` cria a interface para a aplicação ativa; `unmount` limpa elementos, ouvintes, inscrições e outros recursos. `unload` é opcional e serve para descarregar/reinicializar uma aplicação em situações específicas. O shell precisa chamar `start()` para que o orquestrador efetivamente monte e desmonte aplicações.\n\n### Carregamento não é o mesmo que montagem\n\nUma parte pode ser baixada e avaliada antes de ser exibida. Separar **carregar código** de **montar interface** permite antecipar downloads sem iniciar efeitos visuais ou requisições de uma rota ainda inativa. Já um carregamento remoto pode falhar por indisponibilidade de rede ou por endereço incorreto; a navegação deve prever tela de erro, registro do problema e, quando fizer sentido, nova tentativa.\n\nO roteamento requer um dono claro da URL. Se o shell e a aplicação filha reagirem independentemente a `popstate`, podem ocorrer navegações duplicadas. O contrato deve decidir quem interpreta cada prefixo, como se preservam parâmetros e histórico e como o usuário retorna à tela anterior. Links devem continuar funcionando com teclado e oferecer destinos compreensíveis.\n\n### Como cai na prova\n\n- Em single-spa, `bootstrap`, `mount` e `unmount` são ciclos distintos; `unmount` deve retirar efeitos criados na montagem.\n- Registrar aplicações não basta: `start()` habilita a montagem e a desmontagem.\n- A aplicação filha controla o roteamento interno de sua área, enquanto o shell coordena fronteiras entre aplicações."
+    },
+    {
+      "title": "3. Técnicas de integração e compartilhamento",
+      "markdown": "### O problema que este assunto resolve\n\nCada equipe precisa entregar uma parte compatível com a página hospedeira. A integração pode ocorrer durante a compilação, no navegador em tempo de execução ou por elementos web padronizados. As escolhas definem o que pode ser publicado separadamente, como se resolvem dependências e onde o contrato fica explícito.\n\n> **Siglas e termos deste capítulo**\n> - **Module Federation**: recurso do webpack para builds independentes exporem e consumirem módulos em tempo de execução.\n> - **Remote/container**: build remoto que publica módulos e os disponibiliza a outros builds.\n> - **Import map**: mapa do navegador que associa nomes de módulos a URLs.\n> - **Web Component**: conjunto de recursos de plataforma, como custom elements e Shadow DOM, para elementos reutilizáveis.\n> - **Shadow DOM**: árvore DOM encapsulada associada a um elemento.\n\n### Module Federation e módulos no navegador\n\nNo Module Federation, um build pode expor módulos e outro pode consumi-los de um contêiner remoto. O arquivo de entrada remoto (comumente `remoteEntry.js`) identifica o contêiner; sua interface oferece carregamento de módulo e inicialização do escopo compartilhado. A leitura do módulo remoto é assíncrona. Os builds na mesma página precisam ter nomes globais únicos para evitar colisões nos runtimes.\n\nA configuração `shared` permite que builds forneçam e consumam bibliotecas por um escopo compartilhado. Isso pode evitar baixar cópias grandes repetidas, mas versões incompatíveis e opções como `singleton` afetam o resultado. `singleton` restringe o escopo a uma instância, algo relevante para bibliotecas com estado global; não é uma solução genérica para qualquer dependência. Compartilhar demais obriga equipes a coordenar atualização de versões e diminui a autonomia.\n\nUm **import map** permite mapear um especificador, como `@empresa/pedidos`, para uma URL de módulo. Ele torna possível alterar a URL de uma aplicação sem recompilar todos os consumidores que usam o mapa; o mapa é definido para o documento, e não automaticamente para workers. O navegador ainda precisa obter módulos compatíveis e servidos com tipo MIME JavaScript correto. Import maps organizam resolução de módulos, mas não fornecem por si só roteamento, ciclo de vida ou isolamento de CSS.\n\n### Web Components e isolamento de apresentação\n\nWeb Components combinam tecnologias de plataforma. Um **custom element** é registrado pelo nome, por exemplo `empresa-pesquisa`, por meio de `customElements.define()`. Elementos autônomos estendem `HTMLElement`. O **Shadow DOM**, anexado com `attachShadow()`, encapsula a árvore interna e ajuda a evitar colisões de seletores e identificadores. `<template>` e `<slot>` permitem estruturar conteúdo reutilizável e pontos de inserção.\n\nO Shadow DOM não isola automaticamente rede, armazenamento, permissões, lógica JavaScript ou todos os canais de estilo. Custom elements também não criam uma arquitetura micro front end por si sós: ainda é preciso definir implantação, carregamento, propriedade, comunicação e integração com navegação. A especificação HTML e as APIs do navegador oferecem mecanismos, mas decisões sobre fallback e compatibilidade continuam necessárias.\n\n| Técnica | Resolve diretamente | Não resolve sozinha |\n| --- | --- | --- |\n| Module Federation | Exposição e consumo remoto de módulos em builds separados | Contratos de negócio, roteamento global e operação |\n| Import maps | Resolução de nomes de módulos para URLs no navegador | Ciclo de vida e composição de interface |\n| Web Components | Contrato de elemento reutilizável e encapsulamento do DOM/estilos | Deploy independente e coordenação de domínio |\n| single-spa | Registro e ciclo de vida de aplicações no navegador | Compartilhamento automático de estado ou dependências |\n\n### Como cai na prova\n\n- Module Federation separa builds e carrega módulos remotos em runtime; o remote não é apenas uma biblioteca publicada no npm.\n- `shared` pode compartilhar dependências, mas também introduz decisões sobre compatibilidade e instâncias.\n- Shadow DOM encapsula a árvore e os estilos internos; não equivale a uma sandbox de segurança."
+    },
+    {
+      "title": "4. Contratos, estado, operação e riscos",
+      "markdown": "### O problema que este assunto resolve\n\nQuando equipes implantam partes separadamente, incompatibilidades podem surgir depois da publicação: uma aplicação envia um evento com formato novo e outra ainda espera o formato antigo; um remoto fica indisponível; uma dependência compartilhada escolhe versão inesperada. A arquitetura precisa de contratos claros e de capacidade para localizar e limitar falhas.\n\n> **Siglas e termos deste capítulo**\n> - **Contrato**: interface acordada para integração, como propriedades, eventos, rotas ou módulos públicos.\n> - **Compatibilidade retroativa**: consumidor antigo continua funcionando com uma evolução do provedor.\n> - **Fallback**: comportamento alternativo quando uma parte necessária não pode ser carregada.\n> - **Observabilidade**: uso de logs, métricas e rastros para compreender o comportamento em execução.\n> - **CSP**: Content Security Policy, política do navegador que restringe origens e tipos de recurso.\n\n### Comunicação e estado\n\nA primeira opção costuma ser manter o estado dentro da aplicação que o possui e trocar apenas o necessário por interfaces estáveis: propriedades para dados de entrada, eventos para notificar uma ação, APIs para consultar dados ou uma função pública documentada. Eventos globais podem ser úteis para acontecimentos raros, mas uma malha de eventos implícitos cria dependências difíceis de descobrir. Estado compartilhado em um store central faz todos os participantes dependerem da mesma forma e cadência de alteração.\n\nEvite usar o DOM como API interna informal — por exemplo, procurar nós da aplicação vizinha e alterar seus elementos. Isso contorna contratos e quebra quando a implementação visual muda. Se várias partes precisam coordenar continuamente o mesmo estado, talvez a divisão esteja excessiva ou haja um domínio compartilhado que precise de uma API explícita.\n\n### Versionamento, implantação e confiabilidade\n\nPublique uma interface de contrato versionada e mantenha consumidores antigos durante uma transição quando possível. Mudanças aditivas — incluir campo opcional ou novo evento sem alterar o antigo — tendem a permitir migração gradual. Remover ou renomear de imediato uma propriedade usada por consumidores quebra compatibilidade. Testes de contrato verificam expectativas entre produtor e consumidor sem exigir que toda combinação execute a aplicação completa.\n\nArmazene artefatos imutáveis e identifique a versão implantada. Um catálogo de remotos ou mapa de importação controlado pode apontar cada aplicação para uma versão conhecida e permitir reversão da configuração. Antes de promover uma mudança, verifique saúde do remoto, compatibilidade e erros de carregamento. Uma falha de remoto não deve necessariamente derrubar toda a navegação: a experiência pode exibir estado degradado, repetir a carga com critério ou oferecer retorno à página anterior.\n\nMonitore tempos de carregamento e montagem, erros JavaScript, falhas de rede e rotas. Correlacione o erro com a aplicação e sua versão. Registre a origem dos scripts remotos e restrinja as origens permitidas. Como código remoto executado no mesmo documento tem privilégios semelhantes aos do shell, ele pode interagir com a página e seus recursos acessíveis; hospedar um remoto não confiável não é isolamento. Use controle de acesso, revisão, integridade de cadeia de entrega e políticas de conteúdo apropriadas.\n\n### Desempenho, acessibilidade e experiência\n\nCada fragmento pode trazer runtime e dependências; carregar vários frameworks ou duplicar bibliotecas aumenta bytes, parse e execução. Meça a rota completa e o custo de inicialização, não só o tamanho individual do pacote. Carregamento sob demanda reduz download inicial, mas pode aumentar a espera ao navegar. Compartilhar uma biblioteca pode reduzir duplicação, mas deve ser comparado ao custo de acoplamento e versionamento.\n\nA composição precisa preservar navegação por teclado, foco previsível, nomes acessíveis e consistência visual. Ao desmontar uma aplicação, remova ouvintes e inscrições para evitar efeitos duplicados em montagens futuras. Em transições de rota, atualize o título e o foco conforme o contexto. Uma interface distribuída continua responsável por oferecer uma experiência única.\n\n### Como cai na prova\n\n- A equipe dona dos dados deve conservar seu estado; compartilhamento excessivo costuma revelar fronteira ruim.\n- Um remoto executado no mesmo documento não ganha isolamento de segurança apenas por estar em outro servidor.\n- Independência de deploy exige contratos, monitoramento, fallback e estratégia de reversão para as partes integradas."
+    },
+    {
+      "title": "5. Migração e escolhas arquiteturais",
+      "markdown": "### O problema que este assunto resolve\n\nSubstituir de uma vez uma aplicação consolidada por vários remotos é uma mudança arriscada. Uma migração gradual permite aprender sobre fronteiras e integração enquanto o sistema continua entregando valor. O desenho começa por mapear capacidades, dependências, rotas e propriedade; depois escolhe um primeiro recorte com benefício claro e risco controlável.\n\n> **Siglas e termos deste capítulo**\n> - **Strangler pattern**: substituição progressiva de partes de um sistema antigo por novas implementações.\n> - **Monólito modular**: aplicação única de implantação, mas organizada internamente em módulos com limites explícitos.\n> - **Canary release**: liberação inicial para uma parcela controlada do tráfego ou dos usuários.\n> - **Design system**: conjunto compartilhado de tokens, padrões e componentes visuais.\n\n### Caminho de adoção\n\nUma sequência possível é: (1) mapear rotas e responsabilidades; (2) estabilizar interfaces internas e separar módulos no monólito; (3) escolher uma capacidade que possa ser extraída com poucos contratos; (4) instalar o shell e integrar a aplicação nova; (5) publicar com monitoramento e fallback; (6) migrar usuários ou rotas gradualmente; (7) remover a implementação antiga depois de validar a nova. O padrão strangler descreve esse deslocamento progressivo, não exige tecnologia específica.\n\nComeçar pela fragmentação de uma tela sem medir coordenação, frequência de mudança ou tamanho de equipe pode não trazer benefício. Primeiro é possível obter autonomia de código e testes dentro de um monólito modular; separar o processo de build e deploy só quando a necessidade justificar os custos.\n\n### Critérios de escolha\n\n| Pergunta | Indício para manter uma aplicação modular | Indício para micro front ends\n| --- | --- |\n| Há equipes autônomas por domínio? | Uma equipe pequena mantém o produto inteiro | Equipes duradouras precisam publicar sem sincronização diária |\n| A implantação precisa ser independente? | Todas as telas mudam juntas | Partes têm ciclos e riscos de liberação diferentes |\n| Os limites de domínio são claros? | Regras cruzam fronteiras com frequência | Cada capacidade tem contratos relativamente estáveis |\n| A plataforma comporta a operação? | Não há monitoramento ou equipe de runtime | Há suporte para catálogo, pipeline e observabilidade |\n\nUma migração deve definir como coexistem rotas antigas e novas, como são tratados links salvos, como voltar à versão anterior e quem atende incidentes. Compare indicadores antes e depois: tempo de entrega, falhas de implantação, tempo de carregamento, retrabalho entre equipes e incidentes. A contagem de repositórios ou aplicações não prova sucesso.\n\n### Como cai na prova\n\n- Uma estratégia gradual extrai primeiro capacidades com fronteiras claras e permite reversão.\n- O monólito modular preserva uma implantação única e ainda pode ter limites internos úteis.\n- O resultado deve ser avaliado por autonomia e qualidade de entrega, não pelo número de fragmentos."
+    }
+  ],
+  "summary": "Micro front end divide uma interface em aplicações ou partes alinhadas a capacidades do negócio, com equipes responsáveis e possibilidade de entrega independente. O shell coordena carregamento, rotas e composição; single-spa registra aplicações e usa os ciclos bootstrap, mount e unmount. Module Federation permite expor e consumir módulos entre builds em tempo de execução; import maps associam nomes a URLs; Web Components oferecem custom elements e encapsulamento de DOM/estilos com Shadow DOM. Essas técnicas cobrem funções diferentes e não substituem contratos, roteamento, operação nem segurança. Estado deve ficar com seu domínio sempre que possível; comunicação usa interfaces públicas e estáveis. A separação traz custos de rede, dependências, observabilidade e consistência de experiência. Contratos versionados, testes, fallback, monitoramento, acessibilidade e implantação reversível sustentam a autonomia. Uma migração gradual pode extrair capacidades de um monólito modular, que continua sendo uma alternativa válida quando os limites ou ganhos de implantação não justificam a distribuição. Código remoto no mesmo documento executa com acesso semelhante ao restante da página; origem separada não é sandbox.",
+  "flashcards": [
+    { "front": "O que define um micro front end?", "back": "Uma parte da interface com fronteira de responsabilidade e autonomia de desenvolvimento e, conforme o desenho, de implantação, integrada à experiência maior." },
+    { "front": "Qual é a função principal do shell?", "back": "Coordenar a estrutura global, navegação e carregamento das aplicações, mantendo as regras de negócio nas partes responsáveis." },
+    { "front": "Qual é um recorte de domínio melhor que uma divisão por camada técnica?", "back": "Uma capacidade de negócio, como pedidos, com equipe responsável por suas regras e interface." },
+    { "front": "Quais são as três funções de ciclo de vida obrigatórias numa aplicação single-spa registrada?", "back": "bootstrap, mount e unmount." },
+    { "front": "Quando bootstrap é chamado?", "back": "Uma vez, imediatamente antes da primeira montagem da aplicação registrada." },
+    { "front": "O que deve ocorrer em unmount?", "back": "Remover interface e limpar ouvintes, inscrições e recursos criados durante a montagem." },
+    { "front": "O que habilita single-spa a efetivamente montar aplicações?", "back": "A chamada singleSpa.start() no root config." },
+    { "front": "O que é Module Federation?", "back": "Recurso para que builds independentes exponham e consumam módulos em tempo de execução por contêineres." },
+    { "front": "Para que serve remoteEntry.js em configuração webpack comum?", "back": "É a entrada do contêiner remoto que dá acesso aos módulos expostos pelo build." },
+    { "front": "Por que nomes únicos de builds importam com Module Federation?", "back": "Builds na mesma página podem colidir em nomes globais e runtimes de carregamento de chunks." },
+    { "front": "Que compromisso traz a opção shared?", "back": "Pode reduzir bibliotecas duplicadas, mas cria dependência de versões e configuração de escopo compartilhado." },
+    { "front": "O que significa singleton em módulo compartilhado?", "back": "Restringe o compartilhamento a uma única instância daquele módulo no escopo." },
+    { "front": "O que faz um import map?", "back": "Mapeia nomes de módulos para URLs usadas pelo navegador ao resolver importações." },
+    { "front": "O import map do documento também rege automaticamente workers?", "back": "Não; o padrão de import map se aplica ao documento, sem definir automaticamente seu uso em workers." },
+    { "front": "O que é custom element?", "back": "Elemento HTML de comportamento definido por código, registrado no CustomElementRegistry." },
+    { "front": "O que o Shadow DOM encapsula?", "back": "Uma árvore DOM interna e, em boa medida, seu escopo de estilos e identificadores." },
+    { "front": "Shadow DOM é uma barreira de segurança para JavaScript remoto?", "back": "Não. Encapsula DOM e estilos, mas não isola permissões, rede ou execução do mesmo documento." },
+    { "front": "Qual é uma forma explícita de comunicação entre micro front ends?", "back": "Propriedades e eventos públicos documentados ou uma API estável, com formato de dados definido." },
+    { "front": "Por que evitar compartilhar todo o estado da interface?", "back": "Isso acopla as equipes e faz mudanças internas de uma parte quebrarem consumidores." },
+    { "front": "Como tornar uma mudança de contrato gradual?", "back": "Introduzir interface aditiva e compatível, migrar consumidores e só depois remover a forma antiga." },
+    { "front": "O que um fallback de remoto deve oferecer?", "back": "Estado degradado compreensível ou alternativa de navegação quando a parte não carrega." },
+    { "front": "Que sinais operacionais observar por micro front end?", "back": "Falhas de carregamento e JavaScript, tempo de montagem, rota, origem e versão implantada." },
+    { "front": "O que caracteriza o strangler pattern na migração?", "back": "Substituir partes do sistema antigo gradualmente e retirar cada versão anterior após validação." },
+    { "front": "Quando monólito modular pode ser suficiente?", "back": "Quando equipes e ciclos de entrega não exigem implantação independente, mas limites internos ainda são valiosos." },
+    { "front": "O que medir para avaliar uma adoção de micro front ends?", "back": "Autonomia e tempo de entrega, falhas, desempenho, retrabalho de coordenação e incidentes, comparados ao estado anterior." }
+  ],
+  "tips": [
+    "Associe micro front end a capacidade de negócio e equipe dona; a técnica de carregamento é decisão posterior.",
+    "Memorize a sequência single-spa: bootstrap uma vez, mount ao ativar e unmount ao desativar; start põe o orquestrador em operação.",
+    "Separe as funções: Module Federation troca módulos entre builds; import maps resolvem nomes para URLs; Web Components padronizam elementos; single-spa orquestra ciclos.",
+    "Procure a fronteira de segurança: script remoto no mesmo documento tem privilégios da página; Shadow DOM não é sandbox.",
+    "Quando a alternativa disser que independência elimina contratos, falhas ou coordenação, desconfie: a integração continua existindo.",
+    "A arquitetura não se prova pelo número de aplicações: compare autonomia obtida com complexidade de deploy, desempenho e suporte."
+  ],
+  "traps": [
+    "Confundir micro front end com cada botão ser um micro front end; o recorte deve ter autonomia e responsabilidade coerentes.",
+    "Afirmar que a chamada registerApplication já monta a aplicação; em single-spa, start é necessário para habilitar a montagem.",
+    "Trocar as responsabilidades de bootstrap e mount; bootstrap ocorre uma vez antes da primeira montagem, mount pode ocorrer novamente.",
+    "Tratar shared ou singleton como garantia automática de compatibilidade; versões e escopos precisam ser configurados e verificados.",
+    "Supor que Shadow DOM impede código malicioso ou acesso ao armazenamento; seu isolamento é de árvore e estilos, não de segurança geral.",
+    "Afirmar que equipes independentes dispensam shell, contratos, observabilidade e fallback; são justamente esses elementos que tornam a integração operável."
+  ],
+  "activeRecall": [
+    { "question": "Como um recorte alinhado a domínio reduz coordenação entre equipes?", "answer": "A equipe responsável pode decidir e alterar as regras e a interface daquela capacidade, com contrato claro nas fronteiras." },
+    { "question": "Explique a diferença entre montar e carregar uma aplicação single-spa.", "answer": "Carregar baixa e avalia o código; montar insere a interface ativa e seus efeitos no DOM. O código pode estar carregado sem estar montado." },
+    { "question": "Por que o shell deve evitar conter regras de negócio de todas as partes?", "answer": "Isso o transforma em ponto central de coordenação e publicação, anulando a autonomia que a decomposição pretende oferecer." },
+    { "question": "Dê uma diferença prática entre composição por rota e por região da página.", "answer": "Por rota, uma aplicação controla uma área de URL; por região, várias partes coexistem e precisam coordenar espaço, foco e estilos." },
+    { "question": "Como compartilhamento de dependência pode prejudicar autonomia?", "answer": "Uma equipe pode precisar coordenar a versão com todos os consumidores e uma atualização conjunta pode quebrar partes distintas." },
+    { "question": "Por que um evento global não deve virar o único meio de comunicação?", "answer": "Consumidores e produtores ficam ligados por convenções implícitas, difíceis de descobrir, versionar e testar." },
+    { "question": "Como permitir reversão de um remoto implantado com defeito?", "answer": "Usar artefatos identificados por versão e configuração/catálogo que possa voltar a apontar para uma versão conhecida." },
+    { "question": "Quais fatores justificam manter o sistema como monólito modular?", "answer": "Poucas equipes, baixa necessidade de deploy independente, fronteiras ainda instáveis ou custo operacional maior que o benefício esperado." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Independência sem integração", "summary": "Confundir autonomia de equipes com ausência de contrato: partes separadas ainda precisam de interface, roteamento, compatibilidade e shell." },
+    { "key": "e2", "title": "Ciclos single-spa confundidos", "summary": "Bootstrap inicializa antes da primeira montagem; mount cria a UI quando ativa; unmount limpa os efeitos. start é necessário para efetivar os ciclos." },
+    { "key": "e3", "title": "Ferramentas com funções trocadas", "summary": "Module Federation carrega módulos de builds remotos; import maps resolvem nomes para URLs; custom elements encapsulam um elemento; single-spa coordena aplicações." },
+    { "key": "e4", "title": "Encapsulamento confundido com segurança", "summary": "Shadow DOM ajuda a conter seletores e árvore de apresentação, mas código do mesmo documento não fica isolado de privilégios ou recursos da página." },
+    { "key": "e5", "title": "Benefícios sem custos operacionais", "summary": "Deploy independente depende de contratos, versão, fallback, testes, telemetria e governança; múltiplos bundles também afetam desempenho e consistência." }
+  ],
+  "questions": [
+    {
+      "statement": "Uma organização tem quatro equipes que entregam capacidades de negócio em ritmos diferentes. Qual característica justifica avaliar micro front ends?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Separar cada regra CSS em um processo de implantação próprio.", "correct": false },
+        { "key": "B", "text": "Permitir que capacidades delimitadas sejam mantidas e publicadas por suas equipes.", "correct": true },
+        { "key": "C", "text": "Garantir que cada equipe use um framework diferente, ainda que a troca de tecnologia não seja necessária para entregar sua capacidade.", "correct": false },
+        { "key": "D", "text": "Eliminar qualquer contrato entre as telas e o shell central.", "correct": false },
+        { "key": "E", "text": "Converter todas as interfaces existentes em widgets isolados.", "correct": false }
+      ],
+      "explanation": "A arquitetura faz sentido quando capacidades com fronteiras reconhecíveis podem ser mantidas com autonomia. Ela não exige separar CSS, adotar frameworks distintos ou converter cada componente, e os contratos de integração continuam necessários.",
+      "section": "1. O que é micro front end e quando dividir",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Micro front ends são uma escolha adequada para qualquer aplicação, pois sua divisão sempre reduz complexidade e aumenta o desempenho.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A decomposição adiciona carregamento remoto, contratos, monitoramento e coordenação visual. Uma aplicação modular única pode ser mais simples quando não há necessidade real de deploy independente.",
+      "section": "1. O que é micro front end e quando dividir", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual critério tende a produzir fronteiras mais sustentáveis para micro front ends?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Separar cada camada técnica para que seja mantida por um grupo especialista.", "correct": false },
+        { "key": "B", "text": "Criar um fragmento para cada componente visual reutilizado em uma página.", "correct": false },
+        { "key": "C", "text": "Distribuir telas aleatoriamente entre equipes de tamanhos semelhantes.", "correct": false },
+        { "key": "D", "text": "Agrupar uma capacidade de negócio com regras e propriedade identificáveis.", "correct": true },
+        { "key": "E", "text": "Manter toda navegação em um fragmento e toda validação em outro, ainda que uma mesma capacidade dependa de mudanças nos dois.", "correct": false }
+      ],
+      "explanation": "O recorte por capacidade de negócio e equipe responsável reduz coordenação cruzada e torna a propriedade explícita. Separar por camada técnica, componente isolado ou partes de uma mesma regra pode ampliar dependências.",
+      "section": "1. O que é micro front end e quando dividir", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe consegue publicar seu artefato sem reconstruir as outras aplicações, mas o shell ainda precisa conhecer a rota e o contrato do módulo. Isso é compatível com independência de implantação.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Deploy independente significa que a equipe pode entregar sua parte separadamente; não elimina os pontos de integração que permitem ao shell localizá-la e utilizá-la.",
+      "section": "1. O que é micro front end e quando dividir", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um portal possui uma equipe pequena, muda como uma unidade e não tem pressão por liberações independentes. Qual alternativa é uma decisão tecnicamente razoável?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Adotar um monólito modular com limites internos claros e reavaliar depois.", "correct": true },
+        { "key": "B", "text": "Criar aplicações remotas para cada rota, mesmo sem equipe responsável.", "correct": false },
+        { "key": "C", "text": "Distribuir o estado global por eventos entre todos os componentes.", "correct": false },
+        { "key": "D", "text": "Mover as telas para domínios diferentes para reduzir o tamanho dos bundles.", "correct": false },
+        { "key": "E", "text": "Usar uma tecnologia visual distinta para cada módulo, mesmo que isso aumente o suporte e a quantidade de código entregue.", "correct": false }
+      ],
+      "explanation": "A implantação distribuída tem custo e só se justifica quando os ganhos de autonomia ou entrega compensam. Um monólito modular preserva limites internos sem introduzir várias unidades operacionais prematuramente.",
+      "section": "1. O que é micro front end e quando dividir", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma adoção de micro front ends, o shell deve concentrar todas as regras de negócio para que as aplicações remotas não precisem manter lógica própria.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O shell coordena estrutura, carregamento e navegação global. As regras de cada capacidade devem permanecer na aplicação responsável; concentrá-las no shell recria um ponto central de acoplamento.",
+      "section": "1. O que é micro front end e quando dividir", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual forma de composição costuma atribuir com clareza uma capacidade de negócio a uma equipe e a uma área da URL?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Distribuir os seletores CSS entre diversos repositórios sem rota própria.", "correct": false },
+        { "key": "B", "text": "Compor por região, deixando todos os módulos alterar a URL completa.", "correct": false },
+        { "key": "C", "text": "Compor por rota, reservando um prefixo para a aplicação responsável.", "correct": true },
+        { "key": "D", "text": "Injetar scripts no cabeçalho sem definir qualquer regra de navegação.", "correct": false },
+        { "key": "E", "text": "Executar cada micro front end em uma aba de navegador separada.", "correct": false }
+      ],
+      "explanation": "Composição por rota separa áreas da URL e facilita atribuir propriedade e definir qual aplicação responde a cada caminho. Composição por regiões simultâneas é possível, mas exige coordenar espaços e comportamento compartilhado.",
+      "section": "2. Shell, composição, roteamento e ciclo de vida", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na composição por regiões simultâneas, as partes podem exigir maior coordenação de layout, foco e consistência visual do que em uma separação exclusivamente por rotas.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Partes que aparecem lado a lado compartilham a mesma tela e precisam ajustar espaço, navegação por teclado e aparência; composição por rota reduz essa simultaneidade, embora também exija integração.",
+      "section": "2. Shell, composição, roteamento e ciclo de vida", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação single-spa deve implementar quais funções para o ciclo de vida registrado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "compile, publish e rollback como funções executadas a cada navegação.", "correct": false },
+        { "key": "B", "text": "register, resolve e commit como operações dentro do componente visual.", "correct": false },
+        { "key": "C", "text": "load, render e destroy sem qualquer resultado assíncrono.", "correct": false },
+        { "key": "D", "text": "start, route e stop exportados obrigatoriamente pela aplicação filha.", "correct": false },
+        { "key": "E", "text": "bootstrap, mount e unmount, com unload opcional.", "correct": true }
+      ],
+      "explanation": "O ciclo requerido para uma aplicação registrada inclui bootstrap, mount e unmount. Unload é opcional. As funções do ciclo retornam promessa ou são assíncronas, e start pertence ao controle de inicialização do root config.",
+      "section": "2. Shell, composição, roteamento e ciclo de vida", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O ciclo bootstrap de uma aplicação single-spa é chamado repetidamente sempre que o usuário retorna à rota da aplicação.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Bootstrap ocorre uma vez antes da primeira montagem. Ao reativar a aplicação, mount pode ser executado novamente; a lógica de montagem não deve depender de nova inicialização de bootstrap.",
+      "section": "2. Shell, composição, roteamento e ciclo de vida", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao deixar de ser ativa, uma aplicação remove a tela, mas mantém ouvintes globais e inscrições criados em mount para que não precise recriá-los depois. Qual avaliação está correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O comportamento é correto porque unmount só oculta elementos e preserva todos os efeitos.", "correct": false },
+        { "key": "B", "text": "O shell deve executar bootstrap no lugar de limpar os ouvintes da aplicação.", "correct": false },
+        { "key": "C", "text": "Os ouvintes devem ser removidos ao desmontar para evitar efeitos duplicados.", "correct": true },
+        { "key": "D", "text": "O root config precisa registrar a aplicação novamente em toda mudança de rota.", "correct": false },
+        { "key": "E", "text": "A solução é evitar a chamada unmount e deixar as duas telas montadas.", "correct": false }
+      ],
+      "explanation": "Unmount deve desfazer os efeitos criados durante mount, incluindo ouvintes, inscrições e elementos. Mantê-los ativos pode duplicar respostas a eventos quando a aplicação for montada novamente.",
+      "section": "2. Shell, composição, roteamento e ciclo de vida", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um root config registra uma aplicação e as aplicações ficam carregadas, mas nenhuma é montada até a chamada de start. Esse fluxo é esperado em single-spa.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O root config registra as aplicações e chama start quando está pronto para permitir bootstrap, mount e unmount. O registro sozinho não ativa as aplicações.",
+      "section": "2. Shell, composição, roteamento e ciclo de vida", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao compartilhar o controle da URL entre shell e aplicação filha, qual prática reduz disputas de navegação?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Documentar quem decide as rotas globais e quais caminhos pertencem à filha.", "correct": true },
+        { "key": "B", "text": "Fazer cada aplicação interceptar toda alteração de histórico do navegador.", "correct": false },
+        { "key": "C", "text": "Evitar qualquer uso de URL e manter toda navegação em variáveis globais.", "correct": false },
+        { "key": "D", "text": "Duplicar os prefixos de rota em todas as aplicações registradas.", "correct": false },
+        { "key": "E", "text": "Permitir que cada equipe substitua o histórico sem avisar o shell.", "correct": false }
+      ],
+      "explanation": "A propriedade das rotas precisa estar explícita: o shell coordena fronteiras entre aplicações e a filha controla a navegação interna de sua área. Se todas interceptam o histórico, podem ocorrer respostas duplicadas e URLs inconsistentes.",
+      "section": "2. Shell, composição, roteamento e ciclo de vida", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Carregar o código de uma aplicação remota e montar sua interface no DOM são etapas distintas, o que permite baixar um módulo antes de ativá-lo.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O carregamento obtém e avalia o código, enquanto a montagem insere a UI e inicia seus efeitos. A separação pode antecipar o download sem apresentar uma rota ainda inativa.",
+      "section": "2. Shell, composição, roteamento e ciclo de vida", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer carregar um módulo exposto por um build remoto de webpack, sem publicar primeiro uma biblioteca estática incluída na compilação do consumidor. Qual recurso se aplica?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Shadow DOM, que disponibiliza funções de outro servidor como módulos remotos.", "correct": false },
+        { "key": "B", "text": "Module Federation, que expõe e consome módulos entre builds em runtime.", "correct": true },
+        { "key": "C", "text": "Custom elements, que substituem automaticamente a resolução de pacotes.", "correct": false },
+        { "key": "D", "text": "single-spa unmount, que baixa módulos de outras equipes após a rota.", "correct": false },
+        { "key": "E", "text": "CSP, que converte um pacote local em entrada de contêiner remoto.", "correct": false }
+      ],
+      "explanation": "Module Federation permite que builds separados exponham e consumam módulos em runtime por contêineres. Shadow DOM trata de encapsulamento da árvore, custom elements definem elementos web, unmount encerra uma aplicação montada e CSP restringe recursos.",
+      "section": "3. Técnicas de integração e compartilhamento", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No Module Federation, o acesso a um módulo remoto ocorre sempre de modo síncrono e não depende de carregamento assíncrono de chunks.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O acesso ao módulo remoto é assíncrono porque o contêiner e os chunks precisam ser carregados. O módulo é avaliado depois que o carregamento foi concluído.",
+      "section": "3. Técnicas de integração e compartilhamento", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Dois builds federados de uma página mantêm o mesmo nome global de runtime após serem separados de uma aplicação antiga. Qual risco concreto existe?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O mapa de importação do navegador passa a rejeitar módulos HTML válidos.", "correct": false },
+        { "key": "B", "text": "O Shadow DOM combina as árvores internas em um único custom element.", "correct": false },
+        { "key": "C", "text": "O ciclo bootstrap se transforma em uma função síncrona compartilhada.", "correct": false },
+        { "key": "D", "text": "Os runtimes podem colidir e confundir o carregamento de chunks dos builds.", "correct": true },
+        { "key": "E", "text": "O browser impede que rotas com prefixos diferentes sejam carregadas.", "correct": false }
+      ],
+      "explanation": "Builds carregados no mesmo documento precisam de nomes únicos para identificar seus runtimes e carregar chunks. Nomes repetidos podem fazer runtimes distintos se tornarem indistinguíveis; as demais técnicas citadas não corrigem essa colisão.",
+      "section": "3. Técnicas de integração e compartilhamento", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A configuração shared pode evitar cópias duplicadas de bibliotecas, mas exige atenção às versões e ao escopo de dependências usado pelos builds.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O escopo compartilhado pode reduzir downloads duplicados, mas builds precisam concordar sobre nome, escopo e compatibilidade de versões. Compartilhamento indiscriminado pode criar coordenação adicional.",
+      "section": "3. Técnicas de integração e compartilhamento", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer mapear o especificador `@empresa/catalogo` para a URL de um módulo no navegador e atualizar esse endereço sem recompilar cada consumidor. Qual mecanismo ajuda?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Um import map no documento associando o nome ao endereço do módulo.", "correct": true },
+        { "key": "B", "text": "Um listener popstate que compila novamente todos os consumidores sempre que o usuário acessa aquela rota.", "correct": false },
+        { "key": "C", "text": "Um ShadowRoot que transforma o especificador em recurso de rede.", "correct": false },
+        { "key": "D", "text": "Um lifecycle unload que registra importações dentro do CSS remoto.", "correct": false },
+        { "key": "E", "text": "Uma propriedade singleton que troca as URLs ao carregar o DOM.", "correct": false }
+      ],
+      "explanation": "Import maps associam especificadores de módulo a URLs no documento, permitindo alterar a resolução pelo mapa. Eles não compilam consumidores nem substituem Shadow DOM, ciclo de vida ou configuração de singleton.",
+      "section": "3. Técnicas de integração e compartilhamento", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um import map definido no documento se aplica automaticamente a todos os workers e worklets criados pela página.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A especificação de import maps trata sua aplicação no documento; ela não define que o mesmo mapa seja aplicado automaticamente a workers ou worklets.",
+      "section": "3. Técnicas de integração e compartilhamento", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual implementação registra um custom element autônomo seguindo os recursos de Web Components?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Definir um objeto CSS e associá-lo à rota pelo histórico do navegador.", "correct": false },
+        { "key": "B", "text": "Criar uma classe que estende HTMLElement e registrá-la no customElements.", "correct": true },
+        { "key": "C", "text": "Declarar um arquivo remoteEntry para o browser registrar um novo atributo.", "correct": false },
+        { "key": "D", "text": "Invocar singleSpa.start dentro do construtor de cada elemento HTML.", "correct": false },
+        { "key": "E", "text": "Mapear uma dependência npm para URL dentro de um shadow root.", "correct": false }
+      ],
+      "explanation": "Um custom element autônomo é implementado por uma classe que estende HTMLElement e registrado com CustomElementRegistry, normalmente via window.customElements.define(). As outras opções pertencem a estilos, contêineres remotos, orquestração e resolução de módulos.",
+      "section": "3. Técnicas de integração e compartilhamento", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe anexou Shadow DOM a um custom element e passou a contar com isolamento completo contra código JavaScript remoto executado na mesma página.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Shadow DOM encapsula a árvore de apresentação e ajuda a evitar colisões de estilos e identificadores, mas não cria uma sandbox de segurança para código JavaScript executado no mesmo documento.",
+      "section": "3. Técnicas de integração e compartilhamento", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual combinação de tecnologias associa cada função à ferramenta correspondente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Import map: ciclo de vida; single-spa: URL de módulos; Shadow DOM: deploy remoto.", "correct": false },
+        { "key": "B", "text": "Module Federation: acessibilidade; import map: lifecycle; custom element: roteamento global.", "correct": false },
+        { "key": "C", "text": "single-spa: resolução de pacotes; Shadow DOM: contrato de API; webpack: histórico de rotas.", "correct": false },
+        { "key": "D", "text": "Web Components: observabilidade; single-spa: dependências npm; import map: encapsulamento de estilos.", "correct": false },
+        { "key": "E", "text": "Module Federation: módulos remotos; import map: nomes para URLs; single-spa: ciclos de aplicações.", "correct": true }
+      ],
+      "explanation": "Module Federation expõe e consome módulos de builds distintos; import maps resolvem especificadores para URLs; single-spa registra e coordena o ciclo de vida das aplicações. As outras opções trocam funções que essas ferramentas não fornecem diretamente.",
+      "section": "3. Técnicas de integração e compartilhamento", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação remota usa outro framework e outra origem de hospedagem; por isso, o código carregado não pode acessar o DOM e os recursos do shell.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Um script remoto incorporado à mesma página pode interagir com os recursos acessíveis ao documento, independentemente do framework ou da origem em que foi hospedado. A origem separada não o transforma em processo isolado.",
+      "section": "4. Contratos, estado, operação e riscos", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma parte publica um evento global com nome e formato documentados, enquanto a aplicação dona dos dados mantém o estado e informa mudanças relevantes. Qual é uma vantagem desse desenho?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "As partes comunicam o necessário sem compartilhar automaticamente todo o estado interno.", "correct": true },
+        { "key": "B", "text": "A aplicação consumidora passa a controlar a árvore DOM privada do produtor.", "correct": false },
+        { "key": "C", "text": "O shell deixa de precisar observar erros e falhas de carregamento remotos.", "correct": false },
+        { "key": "D", "text": "Os eventos passam a funcionar como isolamento de segurança entre scripts.", "correct": false },
+        { "key": "E", "text": "O contrato elimina a necessidade de tratar versões incompatíveis.", "correct": false }
+      ],
+      "explanation": "Uma API pública de eventos pode comunicar mudanças pontuais sem expor o estado interno ou exigir que consumidores manipulem o DOM do produtor. Ela não substitui observabilidade, segurança ou compatibilidade de versões.",
+      "section": "4. Contratos, estado, operação e riscos", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Se várias partes precisam observar e modificar constantemente o mesmo estado global, isso pode indicar fronteiras de domínio excessivamente acopladas.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A necessidade contínua de sincronizar estado interno entre partes reduz a independência. Pode ser melhor revisar a decomposição ou definir uma API explícita para o domínio compartilhado.",
+      "section": "4. Contratos, estado, operação e riscos", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um provedor pretende remover de imediato uma propriedade usada por consumidores ainda não atualizados. Que estratégia reduz o risco de quebra?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Remover o campo e confiar que todos os navegadores atualizem o remoto ao mesmo tempo.", "correct": false },
+        { "key": "B", "text": "Manter a interface antiga e lançar uma forma compatível durante a migração.", "correct": true },
+        { "key": "C", "text": "Renomear o evento e fazer o shell inferir a propriedade antiga pelo DOM.", "correct": false },
+        { "key": "D", "text": "Desligar os testes de contrato para permitir que as equipes publiquem mais rápido.", "correct": false },
+        { "key": "E", "text": "Duplicar o estado no shell e obrigar os consumidores a ignorar o provedor.", "correct": false }
+      ],
+      "explanation": "Uma transição compatível permite atualizar consumidores gradualmente e remover a interface antiga depois de confirmar que não é mais utilizada. Remoção imediata, inferência pelo DOM ou desligar testes não resolve a incompatibilidade.",
+      "section": "4. Contratos, estado, operação e riscos", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Testes de contrato verificam expectativas de interface entre produtor e consumidor e podem detectar incompatibilidades sem executar toda combinação de aplicações em uma suíte integrada.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Testes de contrato focam nas interfaces acordadas. Eles complementam testes unitários e de integração, reduzindo a necessidade de validar toda combinação possível por uma execução ponta a ponta.",
+      "section": "4. Contratos, estado, operação e riscos", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um remoto falha ao carregar durante a navegação. Qual resposta operacional é mais apropriada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Exibir estado degradado ou alternativa útil, registrar o erro e decidir se cabe nova tentativa.", "correct": true },
+        { "key": "B", "text": "Recarregar toda a aplicação em ciclo até que a origem responda.", "correct": false },
+        { "key": "C", "text": "Silenciar a falha e deixar a região vazia sem informar o usuário.", "correct": false },
+        { "key": "D", "text": "Executar o código de uma versão local não revisada como substituição.", "correct": false },
+        { "key": "E", "text": "Alterar o estado interno de todas as outras aplicações para contornar a rota.", "correct": false }
+      ],
+      "explanation": "Uma aplicação distribuída deve tratar falha parcial de modo compreensível, registrar informação útil e usar retentativa com critério. Recarregar sem limite, ocultar o erro ou executar código não revisado traz riscos maiores.",
+      "section": "4. Contratos, estado, operação e riscos", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Dois scripts remotos são servidos por origens diferentes, portanto um não pode afetar o DOM criado pelo outro quando ambos são carregados na mesma página.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Depois de incorporado como código da página, um script remoto opera no mesmo contexto do documento e pode interagir com o DOM acessível. A separação de origem do servidor não equivale a sandbox.",
+      "section": "4. Contratos, estado, operação e riscos", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de sinais ajuda a identificar a aplicação responsável por uma falha percebida pelo usuário?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Número de arquivos CSS e nome informal do repositório de origem.", "correct": false },
+        { "key": "B", "text": "Quantidade de equipes e ordem alfabética dos módulos no shell.", "correct": false },
+        { "key": "C", "text": "Versão implantada, rota, erro de carregamento e tempo de montagem.", "correct": true },
+        { "key": "D", "text": "Identificador do navegador, sem informação de rota ou versão.", "correct": false },
+        { "key": "E", "text": "Lista de pacotes no lockfile sem dados de execução da interface.", "correct": false }
+      ],
+      "explanation": "Associar telemetria à aplicação, versão, rota e tempo de carregamento ou montagem ajuda a localizar qual parte contribuiu para o incidente. Contagem de arquivos e dependências não mostra o que ocorreu em execução.",
+      "section": "4. Contratos, estado, operação e riscos", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema distribuído em micro front ends pode adiar a carga de rotas menos usadas, mas essa decisão pode aumentar a espera no primeiro acesso à rota.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Carregamento sob demanda reduz código baixado no início, porém o usuário pode aguardar a rede e a avaliação do remoto na primeira navegação. A medição deve considerar a rota completa.",
+      "section": "4. Contratos, estado, operação e riscos", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer limitar as origens de scripts e outros recursos que o navegador pode carregar para a aplicação. Qual medida tem relação direta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Configurar uma política de conteúdo que restrinja origens e tipos de recurso.", "correct": true },
+        { "key": "B", "text": "Adicionar ouvintes globais ao ciclo unmount de cada aplicação remota.", "correct": false },
+        { "key": "C", "text": "Declarar um Shadow DOM para bloquear requisições de rede do shell.", "correct": false },
+        { "key": "D", "text": "Ativar singleton para transformar todo script em execução confiável.", "correct": false },
+        { "key": "E", "text": "Publicar os mapas de importação sem revisão de suas URLs.", "correct": false }
+      ],
+      "explanation": "Content Security Policy (CSP) pode restringir origens e tipos de recursos permitidos pelo navegador. Ela é parte da defesa em profundidade; lifecycle, Shadow DOM e singleton não são substitutos de controle de origem.",
+      "section": "4. Contratos, estado, operação e riscos", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao desmontar uma tela, a equipe remove ouvintes globais e inscrições criados na montagem para que futuras montagens não acumulem efeitos duplicados.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A limpeza em unmount evita vazamento de recursos e múltiplos handlers respondendo ao mesmo evento quando a aplicação voltar a ser montada.",
+      "section": "4. Contratos, estado, operação e riscos", "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Durante uma migração, um portal retira gradualmente rotas antigas após validar as novas e mantém uma possibilidade de retorno à versão anterior. Qual abordagem descreve esse processo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Substituição progressiva de partes, semelhante ao strangler pattern.", "correct": true },
+        { "key": "B", "text": "Reescrita big bang que publica simultaneamente todas as telas novas.", "correct": false },
+        { "key": "C", "text": "Compartilhamento obrigatório de estado entre a aplicação antiga e a nova.", "correct": false },
+        { "key": "D", "text": "Conversão de todo o CSS em módulos carregados pelo navegador.", "correct": false },
+        { "key": "E", "text": "Execução paralela permanente de duas versões sem métrica de adoção.", "correct": false }
+      ],
+      "explanation": "O strangler pattern substitui gradualmente partes do sistema legado, mantendo convivência e opção de retorno enquanto a nova implementação é validada. Uma troca total simultânea não representa a migração progressiva.",
+      "section": "5. Migração e escolhas arquiteturais", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A existência de uma equipe de plataforma e de fronteiras claras garante, por si só, que a migração para micro front ends reduzirá o tempo de entrega.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. São condições favoráveis, mas o ganho precisa ser medido frente ao custo de contratos, pipelines, operação e coordenação. Arquitetura e plataforma não garantem resultado sem validação da experiência real das equipes.",
+      "section": "5. Migração e escolhas arquiteturais", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual é uma sequência prudente para extrair uma capacidade de um portal existente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Escolher uma parte clara, estabilizar seu contrato, integrar, observar e retirar a versão antiga após validar.", "correct": true },
+        { "key": "B", "text": "Dividir todas as telas em remotos, remover o shell e medir apenas o número de builds.", "correct": false },
+        { "key": "C", "text": "Desativar testes no legado antes de escolher quais capacidades serão movidas.", "correct": false },
+        { "key": "D", "text": "Trocar o framework de toda a aplicação antes de definir fronteiras de negócio.", "correct": false },
+        { "key": "E", "text": "Migrar primeiro as partes com mais dependências cruzadas e contratos instáveis.", "correct": false }
+      ],
+      "explanation": "Uma extração gradual começa com fronteira compreensível, contrato e integração controlada; observa o comportamento e só remove o legado após validar. Fragmentar tudo primeiro e começar pelos limites mais instáveis eleva o risco.",
+      "section": "5. Migração e escolhas arquiteturais", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um monólito modular pode manter uma implantação única enquanto estabelece fronteiras internas que facilitem manutenção e eventual extração futura.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Modularidade interna e implantação distribuída são decisões distintas. Um monólito modular pode organizar domínios sem assumir desde já os custos de várias aplicações e runtimes.",
+      "section": "5. Migração e escolhas arquiteturais", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de indicadores compara melhor resultados da adoção com a situação anterior?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Número de repositórios, frameworks usados e arquivos independentes de estilo.", "correct": false },
+        { "key": "B", "text": "Quantidade de equipes, rotas registradas e custom elements publicados.", "correct": false },
+        { "key": "C", "text": "Tempo de entrega, falhas, desempenho, retrabalho de coordenação e incidentes.", "correct": true },
+        { "key": "D", "text": "Tamanho do shell, número de mapas de importação e linhas de configuração.", "correct": false },
+        { "key": "E", "text": "Volume total de código fonte sem relacionar o resultado à operação.", "correct": false }
+      ],
+      "explanation": "A avaliação precisa medir autonomia e qualidade de entrega junto com desempenho e custo operacional. Quantidade de repositórios, frameworks ou arquivos não demonstra, isoladamente, que a arquitetura melhorou o produto ou o trabalho das equipes.",
+      "section": "5. Migração e escolhas arquiteturais", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na composição por rotas, links salvos e navegação de retorno ainda precisam ser tratados para que as fronteiras entre shell e aplicação filha funcionem como uma experiência única.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Separar prefixos de URL ajuda a definir propriedade, mas não elimina a necessidade de preservar links diretos, parâmetros e histórico. O shell e as aplicações precisam cooperar na navegação.",
+      "section": "5. Migração e escolhas arquiteturais", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação remota de rota crítica leva muito tempo para aparecer, embora seus arquivos sejam pequenos. Qual investigação é mais útil?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Avaliar a cadeia de carregamento, dependências duplicadas e tempo de montagem da rota.", "correct": true },
+        { "key": "B", "text": "Contar quantos domínios de negócio existem no organograma da equipe, sem medir a navegação do usuário.", "correct": false },
+        { "key": "C", "text": "Aumentar todos os bundles para evitar que o navegador faça requisições adicionais.", "correct": false },
+        { "key": "D", "text": "Remover os testes de contrato para acelerar o download do remoteEntry, sem investigar as requisições feitas pela rota.", "correct": false },
+        { "key": "E", "text": "Converter os seletores do remoto em Shadow DOM sem medir carregamento nem custo de inicialização.", "correct": false }
+      ],
+      "explanation": "A percepção de lentidão depende da sequência completa de rede, chunks, dependências e montagem, e não somente do tamanho dos arquivos principais. Medir essa cadeia permite identificar custo de inicialização ou duplicação de bibliotecas.",
+      "section": "4. Contratos, estado, operação e riscos", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Usar frameworks diferentes em aplicações independentes é requisito necessário para que uma arquitetura seja considerada micro front end.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A autonomia de domínio, equipe e entrega é o aspecto arquitetural relevante. Frameworks diferentes podem ser usados, mas também ampliam bytes, complexidade e suporte e não são requisito da abordagem.",
+      "section": "1. O que é micro front end e quando dividir", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação filha deve reagir a qualquer evento de rota global e alterar toda a URL, mesmo quando o caminho pertence a outra aplicação, para garantir independência.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A propriedade do roteamento precisa ser definida. A filha controla sua área e o shell coordena transições entre aplicações; reagir a qualquer rota causa disputas e acoplamento em vez de autonomia.",
+      "section": "2. Shell, composição, roteamento e ciclo de vida", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma biblioteca com estado global interno está compartilhada por vários remotos, que precisam usar uma única instância. Qual recurso do compartilhamento federado expressa essa restrição?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A opção singleton, acompanhada de compatibilidade de versão definida.", "correct": true },
+        { "key": "B", "text": "O callback unmount, que mantém a biblioteca em memória para todos.", "correct": false },
+        { "key": "C", "text": "O Shadow DOM, que combina instâncias JavaScript de builds distintos.", "correct": false },
+        { "key": "D", "text": "O import map, que força qualquer versão a ser compatível.", "correct": false },
+        { "key": "E", "text": "A regra de rota, que elimina dependências do runtime compartilhado.", "correct": false }
+      ],
+      "explanation": "A opção singleton limita o escopo a uma instância do módulo, o que pode ser relevante para bibliotecas com estado global. Essa escolha deve vir acompanhada de requisitos de versão, pois instância única não garante compatibilidade semântica.",
+      "section": "3. Técnicas de integração e compartilhamento", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Web Components fornecem elementos personalizados e mecanismos como Shadow DOM, mas a arquitetura ainda precisa definir carregamento, contratos e implantação das partes.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. As APIs de plataforma ajudam a criar componentes reutilizáveis e encapsular apresentação, mas não estabelecem sozinhas autonomia de equipes, catálogo de módulos ou política de implantação.",
+      "section": "3. Técnicas de integração e compartilhamento", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A equipe publica uma nova versão imutável do remoto e aponta a configuração do shell para ela. Por que essa prática ajuda a operação?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Permite identificar qual artefato está em uso e reverter a referência se preciso.", "correct": true },
+        { "key": "B", "text": "Garante que a nova versão não tenha falhas nem incompatibilidades.", "correct": false },
+        { "key": "C", "text": "Dispensa monitoramento porque o navegador verifica o conteúdo do módulo.", "correct": false },
+        { "key": "D", "text": "Elimina a necessidade de uma interface compatível com o shell.", "correct": false },
+        { "key": "E", "text": "Faz o código remoto executar em processo isolado do documento.", "correct": false }
+      ],
+      "explanation": "Artefatos imutáveis e referências versionadas facilitam rastrear a implantação e voltar para uma versão conhecida. Isso não prova ausência de defeitos, não elimina contratos e não cria isolamento do navegador.",
+      "section": "4. Contratos, estado, operação e riscos", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A atualização de uma tela distribuída deve preservar navegação por teclado e foco previsível, pois a composição em vários módulos não reduz as responsabilidades de acessibilidade.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A aplicação composta continua sendo uma experiência para o usuário. A separação de código não dispensa ordem de foco, links compreensíveis, nomes acessíveis e transições de rota utilizáveis.",
+      "section": "4. Contratos, estado, operação e riscos", "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe deseja evitar que estilos internos de um elemento personalizado colidam com seletores gerais do portal. Qual mecanismo atende mais diretamente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Um import map com prefixo que reescreve automaticamente todos os seletores CSS.", "correct": false },
+        { "key": "B", "text": "Uma atividade de rota single-spa que bloqueia regras globais de estilo.", "correct": false },
+        { "key": "C", "text": "Um Shadow DOM associado ao elemento personalizado.", "correct": true },
+        { "key": "D", "text": "Um container remoto que transforma estilos em propriedades de navegador.", "correct": false },
+        { "key": "E", "text": "Uma shared dependency que encapsula identificadores HTML do shell e reescreve os seletores globais usados por outras telas.", "correct": false }
+      ],
+      "explanation": "Shadow DOM estabelece uma árvore encapsulada para o elemento e ajuda a impedir que seletores e identificadores internos colidam com o DOM externo. Import maps, single-spa e compartilhamento de módulos exercem outras funções.",
+      "section": "3. Técnicas de integração e compartilhamento", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Compartilhar uma dependência grande entre vários remotos pode reduzir duplicação de downloads, mas ainda é necessário medir o custo e controlar compatibilidade.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Compartilhar bibliotecas grandes pode melhorar o peso entregue, mas requer compatibilidade e governança de versões. O ganho deve ser avaliado junto com o acoplamento que a dependência comum cria.",
+      "section": "3. Técnicas de integração e compartilhamento", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um portal deseja começar a migração de partes com dependências cruzadas numerosas e contratos que mudam semanalmente, pois são as candidatas de menor risco para extração.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Dependências numerosas e contratos instáveis dificultam a extração e aumentam coordenação. Um primeiro recorte de risco menor tende a ter fronteira de domínio clara e poucas dependências.",
+      "section": "5. Migração e escolhas arquiteturais", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A equipe de plataforma publica um guia de integração, mas cada domínio continua dono de suas regras e testes. Que função útil o guia pode cumprir?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Substituir a decisão das equipes sobre limites de domínio e propriedade das regras.", "correct": false },
+        { "key": "B", "text": "Centralizar no shell a implementação de todas as interfaces e serviços do produto.", "correct": false },
+        { "key": "C", "text": "Oferecer padrões mínimos de pipeline, observabilidade e integração entre as partes.", "correct": true },
+        { "key": "D", "text": "Determinar que todas as aplicações adotem uma mesma versão de framework para sempre.", "correct": false },
+        { "key": "E", "text": "Impedir que as equipes revisem ou versionem os contratos usados pelos consumidores.", "correct": false }
+      ],
+      "explanation": "A plataforma pode reduzir trabalho repetido ao oferecer padrões de implantação, integração e suporte sem assumir as regras de negócio. A autonomia não requer congelar frameworks ou retirar das equipes a propriedade dos contratos.",
+      "section": "1. O que é micro front end e quando dividir", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um widget aparece em várias aplicações, mas não escolhe rotas nem controla navegação. No ecossistema single-spa, qual abstração descreve melhor esse componente?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Uma aplicação registrada, que deve controlar a URL global do portal.", "correct": false },
+        { "key": "B", "text": "Um parcel, componente independente que pode renderizar sem controlar rotas.", "correct": true },
+        { "key": "C", "text": "Um import map, contêiner que monta elementos diretamente na tela.", "correct": false },
+        { "key": "D", "text": "Um shell secundário, que precisa iniciar outro orquestrador single-spa.", "correct": false },
+        { "key": "E", "text": "Um ciclo unload, unidade que substitui os módulos e o roteador da página.", "correct": false }
+      ],
+      "explanation": "Um parcel é uma parte de interface que pode ser montada sem possuir o roteamento global. Aplicações registradas são a unidade principal para controlar rotas; import maps resolvem módulos e unload é um ciclo opcional.",
+      "section": "2. Shell, composição, roteamento e ciclo de vida", "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação filha publica um novo evento sem alterar os consumidores atuais e documenta seu formato para futuras integrações. Essa mudança é considerada aditiva e tende a preservar compatibilidade.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Acrescentar uma capacidade sem remover ou alterar os contratos existentes tende a permitir atualização gradual. Ainda é preciso testar consumidores e manter o evento novo documentado.",
+      "section": "4. Contratos, estado, operação e riscos", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A origem do JavaScript remoto e a presença de Shadow DOM bastam para impedir que a aplicação acesse recursos que o navegador disponibiliza ao documento hospedeiro.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A origem de hospedagem separada e Shadow DOM não isolam um script que é executado no mesmo documento. Restrições como CSP e controle de cadeia de entrega compõem a defesa, mas não se deve tratar encapsulamento visual como sandbox.",
+      "section": "4. Contratos, estado, operação e riscos", "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Antes de extrair um módulo remoto, uma equipe separa suas regras em um módulo interno do monólito e reduz dependências informais. Essa etapa pode facilitar uma futura extração sem distribuir a implantação imediatamente.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Criar fronteiras internas claras pode preparar uma migração futura, enquanto a aplicação continua com implantação única. Não é necessário distribuir o processo de build no mesmo momento em que se melhora a modularidade.",
+      "section": "5. Migração e escolhas arquiteturais", "errorConceptKey": null,
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A implantação independente elimina a necessidade de testes de integração, pois as equipes não compartilham o mesmo navegador nem a mesma experiência final.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. As partes continuam compondo a mesma página e podem falhar em contratos, rotas ou estilos. A implantação independente reduz sincronização de publicação, mas testes de contrato e integração continuam relevantes.",
+      "section": "4. Contratos, estado, operação e riscos", "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Microfrontends Concept",
+      "publisher": "single-spa",
+      "reference": "Conceito de micro front ends, aplicações registradas e parcels",
+      "url": "https://single-spa.js.org/docs/microfrontends-concept/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Building single-spa applications",
+      "publisher": "single-spa",
+      "reference": "Ciclo de vida bootstrap, mount, unmount e unload de aplicações",
+      "url": "https://single-spa.js.org/docs/5.x/building-applications/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Configuring single-spa",
+      "publisher": "single-spa",
+      "reference": "Root config, registro de aplicações e inicialização com start",
+      "url": "https://single-spa.js.org/docs/configuration/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Recommended Setup",
+      "publisher": "single-spa",
+      "reference": "Import maps, Module Federation, dependências compartilhadas e comunicação entre partes",
+      "url": "https://single-spa.js.org/docs/recommended-setup/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Module Federation",
+      "publisher": "webpack",
+      "reference": "Builds independentes, contêineres, módulos locais/remotos, share scopes e carregamento assíncrono",
+      "url": "https://webpack.js.org/concepts/module-federation/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Web Components",
+      "publisher": "MDN Web Docs",
+      "reference": "Custom elements, Shadow DOM, templates e slots",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/Web_components",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Using modules on the web",
+      "publisher": "MDN Web Docs",
+      "reference": "Módulos JavaScript, MIME type e import maps no documento",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules/Modules_on_the_web",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

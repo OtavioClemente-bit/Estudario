@@ -1,0 +1,1805 @@
+{
+  "id": "informatica.redes-gerenciamento-trafego-traffic-shaping",
+  "subject": "Informática",
+  "title": "Gerenciamento de tráfego: traffic shaping",
+  "version": 2,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Traffic shaping.",
+    "Traffic shaping em redes de computadores",
+    "Gerenciamento de tráfego por shaping",
+    "Modelagem de tráfego em redes IP",
+    "Suavização da taxa de saída de pacotes",
+    "Conformação de tráfego e perfis de rede",
+    "Shaper, buffer e fila de pacotes",
+    "Traffic shaping e token bucket",
+    "Controle de rajadas em redes de dados"
+  ],
+  "scope": {
+    "covers": "Traffic shaping: finalidade, perfil de tráfego, classificação, medição, enfileiramento e atraso de pacotes, buffer finito, taxa de saída, token bucket, localização em condicionadores de tráfego, diferença em relação a policing, marcação, escalonamento e gerenciamento ativo de filas, efeitos sobre atraso, jitter, perda e conformidade em DiffServ.",
+    "excludes": "Configuração específica de fabricantes, sintaxe de comandos de roteadores, dimensionamento de QoS para produto particular e garantias de desempenho não definidas por um perfil ou contrato de serviço."
+  },
+  "theoryTitle": "Traffic shaping: controlar o ritmo dos pacotes",
+  "chapters": [
+    {
+      "title": "1. O que o shaping faz",
+      "markdown": "### O problema que este assunto resolve\n\nUma rede precisa transportar dados que nem sempre chegam em ritmo constante. Um computador pode produzir uma rajada de pacotes em poucos instantes, enquanto o enlace de saída — o caminho físico ou lógico pelo qual os dados deixam o equipamento — só consegue transmitir em ritmo menor. Sem algum controle, essa diferença pode causar filas imprevisíveis em outro ponto da rede, disputa entre serviços e descarte quando um buffer fica cheio. **Traffic shaping**, ou modelagem de tráfego, resolve esse problema ao segurar pacotes por algum tempo e liberá-los de maneira mais regular, conforme um perfil configurado.\n\nO **perfil de tráfego** descreve o comportamento que se pretende permitir, como a taxa sustentada e a tolerância a rajadas. A **taxa** é a quantidade de dados transmitida por unidade de tempo. **Rajada** é uma concentração temporária de pacotes acima do ritmo médio desejado. O **shaper** é a função que retém e agenda a liberação dos pacotes; o **fluxo** é o conjunto de pacotes selecionado para receber esse tratamento. As RFCs 2475 e 7640 descrevem shaping como atraso deliberado de pacotes e suavização da taxa de saída por armazenamento em buffer.\n\n### O que acontece com cada pacote\n\nO funcionamento pode ser entendido em sequência. Primeiro, um **classificador** aplica regras para decidir quais pacotes pertencem ao fluxo controlado. As regras podem considerar características disponíveis no pacote ou uma classe já configurada. Em seguida, o equipamento compara o fluxo com o perfil. Se os pacotes puderem sair sem ultrapassar o ritmo ou a rajada autorizados, seguem para transmissão. Se a política exigir espaçamento, ficam aguardando numa fila associada ao shaper. O shaper libera essa fila à medida que o enlace pode transmitir e o perfil permite.\n\nEssa espera é intencional: o pacote não desaparece só por ter chegado num momento de pico. Ainda assim, a fila não é infinita. Se chegam continuamente mais dados do que o shaper consegue liberar, a ocupação cresce. Quando não há espaço, a implementação precisa aplicar uma ação para o pacote excedente, que pode incluir descarte. Portanto, shaping pode suavizar rajadas, mas não garante que todo pacote será entregue nem que o atraso será pequeno.\n\nConsidere um enlace cuja política permite um fluxo médio menor que a capacidade instantânea do enlace. Se Ana envia um arquivo grande, o computador pode entregar muitos pacotes ao roteador de uma vez. O shaper guarda parte deles e transmite em intervalos ao longo do tempo. Ana pode perceber que a transferência demora mais do que numa saída sem limite; em compensação, o fluxo não despeja toda a rajada de uma vez no próximo trecho. Se Ana mantiver o envio por muito tempo acima da taxa configurada, a fila continua aumentando até esgotar a capacidade de armazenamento disponível, e pode haver perda.\n\n### Shaping não aumenta a capacidade\n\nO mecanismo regula quando os pacotes saem; não torna mais rápido o cabo, a fibra, o rádio nem o serviço contratado. Também não elimina congestionamento em todos os pontos do caminho. Ele pode controlar o tráfego antes de um gargalo para que esse tráfego chegue de modo mais regular, mas o resultado depende do ponto de aplicação, da taxa configurada, da concorrência com outros fluxos e da capacidade real dos equipamentos.\n\nÉ útil separar três efeitos. A **taxa de saída** é o ritmo observado na interface; o **atraso de fila** é o tempo adicional que o pacote espera dentro do equipamento; o **atraso de propagação** decorre do tempo que o sinal leva para atravessar o meio. Shaping pode aumentar o segundo, mas não altera diretamente o terceiro. Se o enlace está livre e a entrada já chega abaixo do perfil, talvez quase nenhum pacote precise esperar.\n\n| O que se observa | O que pode significar |\n| --- | --- |\n| Rajada de entrada aparece mais espaçada na saída | O buffer reteve pacotes e o shaper os liberou em ritmo controlado |\n| Pacotes demoram mais no equipamento | A fila acrescentou espera deliberada |\n| Descartes aumentam quando a fila está cheia | A demanda superou por tempo suficiente o espaço e o serviço disponíveis |\n| Taxa média de saída acompanha o perfil | A função está limitando o fluxo nas condições observadas |\n\n### Exemplo passo a passo\n\nImagine que Ana trabalha numa filial e envia uma cópia de segurança para o escritório central. O computador cria uma rajada porque lê os arquivos depressa. O roteador da filial aplica shaping na interface que leva ao provedor.\n\n1. A regra de classificação identifica os pacotes da cópia de segurança.\n2. O medidor verifica o perfil definido para esse tráfego.\n3. Os pacotes que chegaram juntos são colocados numa fila, em vez de todos disputarem imediatamente a saída.\n4. O shaper transmite os pacotes aos poucos, respeitando o ritmo configurado.\n5. Se Ana iniciar outras cópias e a fila não conseguir esvaziar, ela cresce; ao chegar ao limite do buffer, alguns pacotes podem ser descartados.\n\nO cenário mostra por que se escolhe shaping: a rede pode evitar que uma rajada curta domine o enlace seguinte. Também mostra o custo: a cópia pode sofrer mais atraso e uma sobrecarga persistente pode produzir perda. Se a aplicação depende de resposta imediata, o administrador deve avaliar esse efeito junto com o benefício de controlar a rajada.\n\n### Pegadinha\n\n**Pegadinha:** a banca descreve “reter os pacotes excedentes e liberá-los depois, suavizando a saída” e chama isso de policing. A característica central de shaping é justamente a espera em fila para regular o instante de transmissão. Policing impõe o perfil por outra ação, como descartar ou remarcar o excedente, sem necessariamente aguardar que ele se torne conforme. Outra troca comum é afirmar que shaping amplia a largura de banda: ele usa a capacidade existente de forma controlada.\n\n### Resumo para a prova\n\n- Shaping seleciona um fluxo e pode reter pacotes em buffer para suavizar a saída segundo um perfil.\n- A espera aumenta o atraso de fila; buffer finito e excesso sustentado podem levar a descartes.\n- O mecanismo regula o ritmo, mas não aumenta a capacidade física do enlace nem controla automaticamente toda a rota.\n- Diferencie atraso de fila, que pode ser introduzido pelo shaper, de atraso de propagação do meio.\n"
+    },
+    {
+      "title": "2. Perfis, tokens e rajadas",
+      "markdown": "### O problema que este assunto resolve\n\nUma taxa média, sozinha, não informa se um fluxo pode fazer uma rajada curta. Uma aplicação pode enviar muitos dados durante um instante e ficar quieta depois; outra pode enviar continuamente. As duas podem ter a mesma média calculada ao longo de um período, mas pressionam a fila de maneiras diferentes. O perfil de tráfego permite definir tanto um ritmo sustentado quanto uma quantidade temporária de dados que pode ser enviada de uma vez.\n\nUm modelo comum para representar essas propriedades é o **token bucket**, ou balde de tokens. Um **token** é uma unidade abstrata de permissão para transmitir certa quantidade de dados. O balde recebe tokens ao longo do tempo numa taxa definida e tem capacidade máxima. Os tokens não usados podem se acumular até esse limite. Ao transmitir, o fluxo consome tokens. A **taxa de reposição** representa o ritmo sustentado permitido; a **capacidade do balde** representa quanta permissão pode estar acumulada para uma rajada.\n\n### Como ler um token bucket\n\nImagine um balde vazio que recebe fichas regularmente. Se os dados chegam devagar, há fichas suficientes e o fluxo segue. Se houve um período sem tráfego, as fichas puderam se acumular; quando uma rajada chega, ela pode consumir essa reserva e sair mais depressa por algum tempo. Quando a reserva termina, o fluxo precisa aguardar a chegada de novas fichas. O perfil não transforma a taxa sustentada em ilimitada: apenas permite um pico temporário, limitado pela quantidade acumulada.\n\nHá duas grandezas que não devem ser confundidas. Uma taxa de reposição maior permite repor permissões mais depressa ao longo do tempo. Uma capacidade de balde maior permite acumular uma reserva maior entre períodos de atividade. Aumentar a capacidade do balde pode acomodar uma rajada maior, mas não significa que o serviço sustentará aquele pico indefinidamente.\n\n### Exemplo concreto passo a passo\n\nSuponha que Ana administra um servidor que envia relatórios para clientes. Durante a madrugada, quase não há envio; pela manhã, muitos clientes consultam os relatórios ao mesmo tempo.\n\n1. Enquanto o servidor está ocioso, os tokens se acumulam, até o máximo permitido pelo balde.\n2. Quando os pedidos da manhã chegam, os pacotes consomem os tokens disponíveis e parte da rajada pode ser transmitida rapidamente.\n3. Ao se esgotarem os tokens, novas permissões continuam chegando apenas à taxa de reposição configurada.\n4. Num medidor, os pacotes que não encontram tokens suficientes são classificados como **fora do perfil** (out-of-profile); os que obedecem ao perfil são **conformes** (in-profile).\n5. Se houver shaping, os pacotes que precisam esperar podem ficar na fila até que o envio volte a caber no perfil. A política também pode combinar outras ações, conforme a função configurada.\n\nO exemplo evidencia que a tolerância a rajadas e o ritmo sustentado são dimensões diferentes. Se o balde for pequeno, a rajada permitida também será menor, embora a taxa de reposição permaneça igual. Se a reposição for lenta, a espera para transmitir uma grande quantidade de dados tende a durar mais, ainda que a capacidade de rajada seja grande.\n\n### Medição, fila e ação são etapas diferentes\n\nUm **medidor** compara o tráfego observado com o perfil e informa se ele está conforme. O resultado da medição, por si só, não determina o que ocorrerá com o pacote. A política pode mandar o shaper retê-lo para envio posterior, pode mandar um policing descartar ou remarcar o pacote, ou pode atribuir uma indicação para que outro equipamento o trate de modo diferente. Assim, “fora do perfil” descreve uma relação com os parâmetros; não significa automaticamente “descartado”.\n\nTambém é preciso distinguir os tokens do espaço físico da fila. Os tokens representam permissão temporal; o buffer armazena pacotes reais à espera. Um perfil pode permitir uma certa rajada, mas a implementação ainda precisa ter memória suficiente para armazenar o tráfego que escolheu atrasar. Se a fila encher, a política de fila pode descartar pacotes mesmo que o mecanismo de perfil esteja funcionando como previsto.\n\n### Parâmetros não são garantias universais\n\nOs valores de taxa e rajada vêm da configuração, do serviço ou do acordo aplicável. Sem os parâmetros concretos não se calcula um limite numérico de transmissão, nem se promete um atraso máximo. O comportamento ainda depende de qual tráfego foi classificado, de onde o perfil é aplicado, da direção da interface, da carga concorrente e dos recursos do equipamento. Em uma questão, se o enunciado não fornece esses dados, a resposta segura é explicar a relação entre taxa, reserva e rajada, sem inventar um número.\n\n| Elemento do modelo | Pergunta que responde | O que não significa |\n| --- | --- | --- |\n| Taxa de reposição | Em que ritmo a permissão volta a ficar disponível? | Tamanho máximo da rajada imediata |\n| Capacidade do balde | Quanto de permissão pode ficar acumulado? | Taxa sustentada ilimitada |\n| Medidor | O tráfego observado atende ao perfil agora? | Ação obrigatória de descarte |\n| Buffer | Quantos pacotes podem esperar armazenados? | Tokens ou capacidade adicional do enlace |\n\n### Pegadinha\n\n**Pegadinha:** a banca troca o significado da taxa e da profundidade do bucket: diz que a profundidade determina o ritmo sustentado ou que a taxa de reposição define o tamanho máximo de uma rajada. A taxa controla a reposição ao longo do tempo; a capacidade limita o acúmulo de permissão. Outra armadilha é afirmar que todo pacote sem token será descartado. Isso depende da função e da política: um shaper pode segurá-lo para liberar depois.\n\n### Resumo para a prova\n\n- Token bucket representa uma taxa de reposição e uma capacidade máxima de tokens acumulados.\n- A taxa está ligada ao comportamento sustentado; a capacidade acumulada explica a tolerância a rajadas.\n- O medidor classifica conformidade; a política decide entre esperar, descartar, remarcar ou outra ação.\n- Tokens representam permissão abstrata; buffer armazena pacotes reais. Nenhum dos dois cria capacidade física.\n- Não invente números nem latência garantida sem os parâmetros do perfil e da fila.\n"
+    },
+    {
+      "title": "3. Shaping, policing e outras funções",
+      "markdown": "### O problema que este assunto resolve\n\nGerenciamento de tráfego não é uma única operação. Um equipamento pode selecionar pacotes, medir o comportamento, marcar uma classe, escolher qual fila transmite primeiro e limitar o ritmo de saída. Como várias funções aparecem na mesma política, é fácil confundir nomes. Para reconhecer cada uma, acompanhe o que acontece com o pacote depois de identificado: ele espera, é descartado, recebe uma marca ou apenas perde a vez para outra fila?\n\n**Policing** é a aplicação de uma regra de conformidade na qual o excedente pode ser descartado ou remarcado. **Marcação** (marking) é a alteração de uma indicação associada ao pacote para orientar o tratamento dele. **Escalonamento** (scheduling) determina qual fila ou classe recebe oportunidade de transmissão primeiro. **AQM**, sigla de gerenciamento ativo de filas, é uma família de técnicas que observa a fila e pode reagir ao congestionamento antes que ela fique cheia. **DiffServ**, abreviação de serviços diferenciados, é uma arquitetura de rede que classifica tráfego e aplica comportamentos definidos por salto.\n\n### Comparação das funções\n\n| Função | Pergunta principal | Ação típica |\n| --- | --- | --- |\n| Shaping | Quando o pacote pode sair para obedecer ao perfil? | Retém em buffer e regula o instante de saída |\n| Policing | O pacote está dentro do perfil imposto? | Pode descartar ou remarcar o excedente |\n| Marcação | Que indicação deve acompanhar o pacote? | Altera uma marca para orientar tratamento posterior |\n| Escalonamento | Qual fila transmite primeiro? | Escolhe a ordem de serviço entre filas ou classes |\n| AQM | A fila indica congestionamento crescente? | Pode descartar ou remarcar para sinalizar o problema |\n\nAs funções podem coexistir. Por exemplo, o classificador seleciona um conjunto de pacotes, o medidor avalia o perfil, o marcador indica uma classe e o shaper organiza o ritmo de saída. Um escalonador pode então repartir a oportunidade de transmissão entre filas. Essa composição não obriga todos os equipamentos a executar cada etapa nem fixa uma ordem universal: a política e a implementação definem a combinação.\n\nO ponto que mais ajuda a separar shaping de policing é a espera. Shaping costuma reter pacotes para que possam sair mais tarde dentro do perfil. Policing impõe o limite tratando o excedente, frequentemente com descarte ou remarcação, sem prometer que ele será guardado para transmissão posterior. Ambos podem usar um medidor e parâmetros de tráfego; compartilhar um perfil não torna suas ações iguais.\n\n### Escalonamento e AQM não são sinônimos de shaping\n\nSe um roteador tem uma fila de voz e outra de cópia de arquivos, o escalonador define como elas dividem as oportunidades de transmissão. Ele pode priorizar uma fila ou distribuir o serviço segundo uma regra. Isso não implica, por si só, que cada fluxo tenha um limite de taxa ou que os pacotes sejam atrasados para obedecer a um perfil de rajada.\n\nO AQM observa condições da fila e pode reagir antes de ela atingir sua ocupação máxima, por exemplo descartando ou marcando pacotes de modo a sinalizar congestionamento. O objetivo é administrar a fila e a reação dos emissores; a função característica de shaping é regular o ritmo de saída por espera deliberada. Um mesmo sistema pode ter AQM associado a filas que também participam de uma política de shaping, mas as funções continuam distintas.\n\n### DiffServ e condicionadores de tráfego\n\nNa arquitetura DiffServ, pacotes recebem classificação e podem ser submetidos a condicionamento nos limites de um domínio administrativo. **Domínio** aqui significa um conjunto de redes ou equipamentos operados sob uma política comum. Um **condicionador de tráfego** é o conjunto de funções que ajusta o tráfego para atender regras acordadas; pode incluir medição, marcação, shaping ou policing. Por isso, shaping é uma função possível dentro do condicionamento, e não outro nome para DiffServ.\n\nO **DS field** (campo de serviços diferenciados) é uma parte do cabeçalho do pacote IP usada para indicar tratamento. Um **codepoint DS** é o valor interpretado nesse campo para associar o pacote a um comportamento por salto. Um classificador pode selecionar tráfego por características de cabeçalho ou por essas indicações, conforme as regras disponíveis. A marca informa o tratamento pretendido; ela não reserva banda automaticamente nem garante que todos os equipamentos do caminho agirão da mesma maneira se a política não estiver configurada.\n\n### Exemplo passo a passo\n\nAna administra uma rede em que cópias de segurança não devem ocupar toda a saída do escritório. O roteador tem uma classe para essas cópias e outra para aplicações interativas.\n\n1. O classificador reconhece os pacotes de cópia e os coloca na classe correspondente.\n2. O medidor verifica se o tráfego está dentro do perfil configurado.\n3. O marcador pode identificar a classe no pacote para orientar o tratamento no domínio.\n4. O shaper retém pacotes de cópia quando a rajada excede o ritmo de saída permitido.\n5. O escalonador decide como as filas de cópia e de aplicações interativas compartilham o enlace.\n6. Um mecanismo AQM pode observar a fila e reagir ao crescimento excessivo.\n\nSe a pergunta disser que pacotes excedentes são guardados e transmitidos depois em ritmo controlado, a pista é shaping. Se disser que são descartados ou marcados como menos prioritários para impor o perfil, pense em policing e marcação, de acordo com a ação descrita. Se a questão perguntar qual fila tem prioridade, trata de escalonamento.\n\n### Pegadinha\n\n**Pegadinha:** a banca afirma que qualquer fila caracteriza shaping. Toda transmissão em rede pode envolver filas, mas shaping requer que o armazenamento seja usado para controlar a saída conforme um perfil. Uma fila que apenas define a ordem de atendimento descreve escalonamento. Também não confunda AQM com shaping: o primeiro monitora e reage à fila; o segundo segura pacotes para suavizar o ritmo. DiffServ é a arquitetura que pode reunir essas funções, não uma delas isoladamente.\n\n### Resumo para a prova\n\n- Shaping retém e espaça; policing impõe conformidade e pode descartar ou remarcar o excedente.\n- Marcação identifica tratamento; escalonamento define ordem; AQM observa e administra congestionamento da fila.\n- Funções diferentes podem coexistir numa política de tráfego.\n- DiffServ classifica e condiciona tráfego; shaping pode ser um dos componentes do condicionador.\n- Identifique a função pela ação narrada, não apenas pela presença de uma fila ou de um perfil.\n"
+    },
+    {
+      "title": "4. Localização, efeitos e diagnóstico",
+      "markdown": "### O problema que este assunto resolve\n\nPara regular uma transmissão, o shaper precisa estar num ponto em que consiga controlar os pacotes antes de eles atravessarem o enlace relevante. Por isso, é comum configurar a função na saída de uma interface. **Egress** significa saída; **ingress** significa entrada. Essas palavras são relativas ao equipamento ou ao domínio observado: o mesmo pacote entra por uma interface e sai por outra. Uma regra aplicada numa direção não controla automaticamente a direção inversa.\n\nO ponto de aplicação importa porque o objetivo pode ser evitar que uma rajada chegue de uma vez a um enlace mais lento ou a uma rede vizinha. Também pode haver condicionamento na entrada de um domínio, conforme o acordo e a arquitetura. É necessário saber qual classe está selecionada, onde o perfil é aplicado e qual direção ele cobre antes de concluir que o shaper controla determinado fluxo.\n\n### Efeitos desejados e custos\n\n**Latência** é o tempo que um pacote leva para atravessar o caminho, incluindo componentes de processamento e espera. **Jitter** é a variação do atraso entre pacotes. **Largura de banda** é a capacidade de transmissão disponível. Shaping pode aumentar a latência porque o pacote espera no buffer; se a espera variar entre pacotes, pode afetar o jitter. Ele não aumenta a largura de banda física.\n\n| Aspecto | Efeito possível | O que verificar |\n| --- | --- | --- |\n| Rajada curta | Pode ser distribuída ao longo do tempo | Espaçamento dos pacotes na saída |\n| Entrada continuamente acima do perfil | Fila pode crescer até o limite | Ocupação, tendência da fila e taxa de serviço |\n| Fila cheia | Pode haver descarte | Contadores de perda e política de fila |\n| Aplicação interativa | Espera adicional pode prejudicar resposta | Latência e variação do atraso |\n| Enlace seguinte congestionado | Fluxo pode ser limitado antes do gargalo | Localização do shaper e capacidade do próximo enlace |\n| Capacidade física | Não muda por causa do shaper | Velocidade e recursos reais do enlace |\n\nO buffer pode absorver uma rajada, mas não resolve indefinidamente uma diferença sustentada entre chegada e serviço. Se chegam mais dados por unidade de tempo do que podem sair, a fila cresce. Aumentar sua capacidade permite guardar mais pacotes, porém também pode fazer os primeiros aguardarem mais; quando a fila finalmente enche, ainda pode haver descarte. Uma solução de diagnóstico deve considerar a taxa sustentada e a carga concorrente, em vez de presumir que buffer maior elimina congestionamento.\n\n### Exemplo concreto passo a passo\n\nAna configura um shaper na saída do roteador de uma filial. A interface conecta a filial a um serviço de menor capacidade do que a rede local. O envio de vídeos para a nuvem gera rajadas.\n\n1. Ana confirma que a regra seleciona os pacotes de vídeo, e não todo o tráfego da filial por engano.\n2. Confirma que o shaper está aplicado à interface de saída que leva ao serviço limitado.\n3. Durante uma rajada, os pacotes selecionados aguardam e deixam a interface em ritmo mais regular.\n4. Ana observa a taxa de entrada e de saída, a ocupação da fila e os descartes.\n5. Se a fila cresce mesmo fora dos picos, verifica se a demanda sustentada supera o perfil ou se outros fluxos compartilham a classe.\n6. Ela também mede latência e jitter para verificar se o benefício de reduzir rajadas não prejudicou aplicações que precisam de resposta rápida.\n\nEsse teste não permite concluir que o tráfego de retorno também está moldado. Para isso, seria preciso haver uma política aplicável àquela direção e ao ponto onde o equipamento pode controlar a saída correspondente. Tampouco uma medição isolada prova o comportamento para todas as cargas futuras.\n\n### Diagnóstico e leitura de testes\n\nAo investigar uma fila que cresce, reúna dados que respondam a perguntas concretas: qual perfil está ativo? Qual classe está sendo selecionada? Qual é a taxa de chegada e qual a taxa de saída? A ocupação da fila sobe só durante rajadas ou não volta a cair? Há descartes? O controle está no ingresso ou no egresso relevante? Há outros fluxos concorrendo pelo mesmo recurso? Essas observações ajudam a localizar se o problema está em classificação, perfil, capacidade de serviço, política de fila ou carga sustentada.\n\nUm teste de shaping pode enviar rajadas controladas e observar se a saída é espaçada de acordo com o perfil, além de medir o comportamento da fila e eventuais perdas. **Métrica** é uma medida usada para descrever esse comportamento, como taxa de saída, atraso, ocupação ou descartes. A RFC 7640 apresenta metodologia de avaliação; uma média agregada, sozinha, não mostra a resposta a cada rajada. Os resultados valem para as condições ensaiadas, a configuração, o equipamento e as métricas escolhidas. Não transformam uma observação num limite universal.\n\n### Pegadinha\n\n**Pegadinha:** a questão diz que um shaper instalado na saída de um roteador também limita o tráfego recebido pela mesma interface ou o tráfego de retorno. O controle vale para os pacotes selecionados no ponto e na direção configurados. Outra armadilha é concluir que uma fila maior necessariamente melhora o desempenho: ela pode absorver rajadas maiores, mas aumentar o tempo de espera e não impedir que uma carga sustentada excessiva acabe enchendo o buffer.\n\n### Resumo para a prova\n\n- Ingress é entrada; egress é saída, sempre em relação ao ponto observado.\n- O shaper controla a saída configurada e não age automaticamente no sentido inverso.\n- Shaping pode suavizar rajadas, aumentar atraso de fila e, em sobrecarga persistente, terminar em perda.\n- Buffer maior pode acomodar rajadas e também ampliar a espera; não substitui capacidade de serviço.\n- Diagnóstico combina perfil, classe, direção, taxas, fila, descartes, latência e jitter.\n- Testes caracterizam condições ensaiadas; taxa média isolada não descreve todo o comportamento temporal.\n"
+    }
+  ],
+  "summary": "Traffic shaping conforma o ritmo de um fluxo ao armazenar e atrasar pacotes em uma fila antes de liberá-los segundo um perfil, suavizando rajadas e controlando a taxa de saída. O perfil pode ser descrito por taxa e tamanho de rajada, inclusive pelo modelo token bucket. Como o buffer é finito, tráfego sustentado acima da taxa pode encher a fila e causar descarte; a espera também pode aumentar latência e jitter. Policing normalmente descarta ou remarca o excedente, escalonamento escolhe a ordem das filas, marcação altera indicadores e AQM reage ao estado da fila. Em DiffServ, shaping é uma possível função de condicionamento, frequentemente aplicada em nós de borda ou na saída controlada. Ele não aumenta a capacidade do enlace.",
+  "flashcards": [
+    {
+      "front": "O que é traffic shaping?",
+      "back": "Atrasar e enfileirar pacotes de um fluxo para regular a taxa de saída e aproximá-la de um perfil de tráfego."
+    },
+    {
+      "front": "O que o shaper faz com pacotes que não devem sair imediatamente?",
+      "back": "Mantém-nos temporariamente em uma fila e os libera quando o perfil permite."
+    },
+    {
+      "front": "O que é um perfil de tráfego?",
+      "back": "Descrição das propriedades temporais esperadas do fluxo, como taxa e tamanho de rajada."
+    },
+    {
+      "front": "Qual é a função do token bucket?",
+      "back": "Modelar uma taxa de reposição de permissões e uma capacidade que representa tolerância a rajadas."
+    },
+    {
+      "front": "O que tokens representam no token bucket?",
+      "back": "Permissão acumulada para transmitir dados; a transmissão consome tokens."
+    },
+    {
+      "front": "O que a capacidade do bucket influencia?",
+      "back": "A quantidade de tráfego em rajada que pode ser admitida conforme o perfil."
+    },
+    {
+      "front": "Taxa do bucket e capacidade são a mesma coisa?",
+      "back": "Não. A taxa controla reposição ao longo do tempo; a capacidade limita tokens acumulados e tolerância à rajada."
+    },
+    {
+      "front": "Qual é o efeito esperado do shaping sobre uma rajada?",
+      "back": "Espalhá-la no tempo para suavizar a taxa de saída."
+    },
+    {
+      "front": "Por que shaping pode causar perda?",
+      "back": "O buffer é finito; se não houver espaço para reter mais pacotes, alguns podem ser descartados."
+    },
+    {
+      "front": "Como shaping difere de policing?",
+      "back": "Shaping tende a reter excedentes para transmissão posterior; policing pode descartá-los ou remarcá-los para impor o perfil."
+    },
+    {
+      "front": "O que faz um classificador em um condicionador?",
+      "back": "Seleciona os pacotes ou fluxos aos quais será aplicado o tratamento configurado."
+    },
+    {
+      "front": "Qual a função do medidor?",
+      "back": "Avaliar o tráfego em relação a um perfil, indicando conformidade ou excesso."
+    },
+    {
+      "front": "Qual a função da marcação?",
+      "back": "Ajustar uma indicação no pacote, como o DS codepoint, para orientar tratamento posterior."
+    },
+    {
+      "front": "O que define o escalonador?",
+      "back": "A ordem em que filas ou classes recebem oportunidade de transmissão."
+    },
+    {
+      "front": "O que é AQM?",
+      "back": "Gerenciamento ativo de filas que observa o estado da fila e pode descartar ou remarcar pacotes proativamente."
+    },
+    {
+      "front": "O que significa egress?",
+      "back": "Tráfego que sai de uma interface ou domínio de rede."
+    },
+    {
+      "front": "O shaping de saída controla automaticamente o retorno?",
+      "back": "Não. O controle vale para a direção e ponto em que foi aplicado."
+    },
+    {
+      "front": "Shaping aumenta a capacidade física do enlace?",
+      "back": "Não. Ele regula como a capacidade existente é usada."
+    },
+    {
+      "front": "Qual efeito na latência pode ocorrer?",
+      "back": "A latência pode aumentar porque os pacotes aguardam na fila do shaper."
+    },
+    {
+      "front": "O que pode acontecer com jitter sob shaping?",
+      "back": "Pode variar conforme os pacotes experimentam tempos diferentes de espera."
+    },
+    {
+      "front": "Onde condicionadores DiffServ costumam ser implantados?",
+      "back": "Frequentemente em nós de borda do domínio, embora outras localizações sejam possíveis."
+    },
+    {
+      "front": "Quais funções podem compor um condicionador de tráfego?",
+      "back": "Medidor, marcador, shaper e dropper, sem obrigação de conter todos em qualquer configuração."
+    },
+    {
+      "front": "O que ocorre se a entrada exceder sustentadamente a taxa de saída?",
+      "back": "A fila tende a crescer até o limite e pode provocar descarte."
+    },
+    {
+      "front": "Como um teste básico verifica um shaper?",
+      "back": "Envia rajadas à entrada e mede se o tráfego de saída segue o perfil configurado."
+    }
+  ],
+  "tips": [
+    "Para reconhecer shaping, procure os verbos reter, enfileirar, atrasar e suavizar a saída.",
+    "No token bucket, associe taxa à reposição dos tokens e capacidade à tolerância a rajadas.",
+    "Buffer finito significa que shaping pode descartar pacotes quando a fila enche.",
+    "Leia com atenção a direção da interface: egress molda a saída daquela interface.",
+    "Separe as funções: policing age sobre excedente; escalonamento escolhe a ordem; marcação altera uma indicação.",
+    "Ao avaliar shaping, considere taxa, rajada, ocupação de fila, atraso, jitter e descarte."
+  ],
+  "traps": [
+    "Dizer que shaping descarta imediatamente todo excedente descreve mais diretamente policing.",
+    "Confundir o tamanho do token bucket com a taxa média troca tolerância à rajada por ritmo de reposição.",
+    "Supor que uma fila grande elimina perdas ignora que a fila continua finita e a carga pode ser sustentada.",
+    "Afirmar que shaping aumenta a largura de banda confunde controle de tráfego com expansão da capacidade física.",
+    "Tratar escalonamento como sinônimo de shaping ignora que ordem entre filas e ritmo de saída são questões diferentes.",
+    "Supor controle automático do tráfego de retorno ignora a direção específica em que o shaper foi aplicado."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique o caminho de um pacote quando o shaper precisa atrasá-lo.",
+      "answer": "O classificador seleciona o fluxo; conforme a medição e o perfil, o pacote aguarda na fila; o shaper o libera quando isso é compatível com o ritmo configurado."
+    },
+    {
+      "question": "Como token bucket representa taxa e rajada?",
+      "answer": "Tokens são repostos a uma taxa configurada e acumulam até a capacidade do bucket; transmitir consome tokens, e os tokens acumulados permitem uma rajada limitada."
+    },
+    {
+      "question": "Por que uma fila de shaping pode descartar pacotes?",
+      "answer": "Porque tem capacidade finita. Se chegarem pacotes enquanto não há espaço para reter os anteriores, o equipamento pode descartá-los."
+    },
+    {
+      "question": "Compare shaping e policing pelo tratamento do excedente.",
+      "answer": "Shaping retém e atrasa pacotes para transmiti-los conforme o perfil; policing aplica o limite e pode descartar ou remarcar o tráfego excedente."
+    },
+    {
+      "question": "Diferencie shaping, escalonamento e marcação.",
+      "answer": "Shaping regula o ritmo com espera em fila; escalonamento escolhe a ordem de serviço; marcação altera uma indicação do pacote."
+    },
+    {
+      "question": "Que funções DiffServ pode reunir no condicionamento?",
+      "answer": "Medição, marcação, shaping e policing, aplicados conforme as regras de classificação e perfil do serviço."
+    },
+    {
+      "question": "Quais efeitos colaterais devem ser avaliados ao moldar tráfego?",
+      "answer": "Aumento de latência, variação de atraso, crescimento da fila e possível descarte quando o buffer se esgota."
+    },
+    {
+      "question": "Como diagnosticar uma fila que cresce continuamente?",
+      "answer": "Verificar perfil e classe aplicados, taxas de entrada e saída, direção da interface, ocupação do buffer e descartes; crescimento sustentado sugere carga acima da taxa atendida."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Shaping confundido com descarte",
+      "summary": "Shaping retém e atrasa pacotes para regular a saída; policing pode descartar ou remarcar excedentes. Buffer finito ainda permite perdas no shaper."
+    },
+    {
+      "key": "e2",
+      "title": "Taxa e rajada confundidas",
+      "summary": "No token bucket, taxa de reposição e capacidade do bucket são parâmetros distintos; a capacidade expressa tolerância à rajada."
+    },
+    {
+      "key": "e3",
+      "title": "Espera tratada como ausência de efeitos",
+      "summary": "Fila de shaping pode aumentar latência e jitter; com excesso sustentado pode lotar e descartar pacotes."
+    },
+    {
+      "key": "e4",
+      "title": "Controle de tráfego confundido com capacidade",
+      "summary": "Shaping regula o uso da largura de banda disponível, sem aumentar a capacidade física do enlace."
+    },
+    {
+      "key": "e5",
+      "title": "Funções de QoS misturadas",
+      "summary": "Classificação seleciona; medição avalia perfil; marcação identifica; escalonamento escolhe ordem; AQM reage ao estado da fila; shaping regula o ritmo por atraso."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Um roteador mantém pacotes em fila e os libera gradualmente para adequar a saída a uma taxa configurada. A descrição corresponde a traffic shaping?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Shaping retém pacotes no buffer e controla o instante de saída para aproximar o fluxo do perfil configurado. Esse atraso deliberado suaviza rajadas, conforme a definição da RFC 2475.",
+      "section": "1. O que o shaping faz",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O shaping aumenta a capacidade física do enlace ao reduzir as rajadas que chegam à interface. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Shaping controla o ritmo de uso da capacidade disponível; não altera a capacidade física do meio ou da interface. A fila pode espaçar a transmissão, mas não acrescenta banda ao enlace.",
+      "section": "1. O que o shaping faz",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como o buffer de um shaper é finito, uma fila cheia pode levar ao descarte de pacotes. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A RFC 2475 observa que o shaper costuma ter buffer finito e que pode descartar pacotes se não houver espaço para armazenar os atrasados.",
+      "section": "1. O que o shaping faz",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um token bucket, a capacidade do recipiente representa diretamente a taxa de reposição de tokens. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A taxa de reposição e a capacidade são distintas: a primeira define o ritmo de novos tokens e a segunda limita quanto pode se acumular para uma rajada.",
+      "section": "2. Perfis, tokens e rajadas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No token bucket, tokens acumulados podem permitir uma rajada, limitada pela capacidade do bucket e pelos demais recursos da fila. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "O modelo permite que tokens acumulados sejam consumidos por transmissões em rajada, até o limite do recipiente e dos recursos disponíveis.",
+      "section": "2. Perfis, tokens e rajadas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um shaper normalmente precisa descartar o excedente no mesmo instante em que o perfil é ultrapassado, sem mantê-lo em fila. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A característica do shaping é atrasar pacotes em buffer; descarte imediato ou remarcação do excedente está mais associado a policing, embora fila cheia também possa causar perda no shaper.",
+      "section": "3. Shaping, policing e outras funções",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Escalonamento escolhe a ordem de transmissão entre filas ou classes, enquanto shaping regula o ritmo de saída por espera de pacotes. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A RFC 7640 distingue scheduling, que direciona pacotes a filas e define a sequência de envio, de shaping, que usa buffer para suavizar a taxa de saída.",
+      "section": "3. Shaping, policing e outras funções",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um classificador seleciona o tráfego e um medidor pode avaliar sua conformidade ao perfil antes de uma ação de condicionamento. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Na arquitetura DiffServ, o classificador seleciona fluxos e o medidor avalia o tráfego frente ao perfil; o resultado pode orientar marcação, descarte ou shaping.",
+      "section": "3. Shaping, policing e outras funções",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Marcação escolhe qual fila transmitirá primeiro, e escalonamento altera o DS codepoint do pacote. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "As funções foram invertidas: marcação altera uma indicação do pacote; escalonamento define a ordem de serviço das filas.",
+      "section": "3. Shaping, policing e outras funções",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na arquitetura DiffServ, shaping pode ser uma das funções de condicionamento aplicadas a fluxos classificados segundo regras do domínio. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A RFC 2475 inclui shaping entre as funções de condicionamento, junto com medição, marcação e policing, para atender regras de tráfego.",
+      "section": "3. Shaping, policing e outras funções",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um shaper foi configurado na saída de uma interface, o mesmo controle necessariamente se aplica ao tráfego que entra por ela no sentido oposto. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "O controle é direcional e depende do ponto em que foi configurado; moldar a saída de uma interface não controla automaticamente o tráfego de retorno.",
+      "section": "4. Localização, efeitos e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma carga que excede de modo sustentado a taxa de serviço do shaper pode fazer a fila crescer até esgotar seu espaço. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Se a entrada continua acima da saída, os pacotes se acumulam; como o buffer é finito, a fila pode lotar e causar descarte.",
+      "section": "4. Localização, efeitos e diagnóstico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aumentar o buffer pode acomodar rajadas maiores, mas elimina qualquer possibilidade de espera e perda mesmo com excesso sustentado. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Buffer maior pode acomodar mais pacotes, mas não remove a espera e continua finito; excesso sustentado ainda pode enchê-lo, frequentemente com maior atraso antes da perda.",
+      "section": "4. Localização, efeitos e diagnóstico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma avaliação de shaper, enviar rajadas à entrada e medir se a saída segue o perfil é uma forma coerente de testar a função. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "A RFC 7640 descreve testes que enviam tráfego em rajadas à entrada e verificam se a saída é moldada de acordo com o perfil configurado.",
+      "section": "4. Localização, efeitos e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como shaping suaviza rajadas, ele necessariamente reduz latência e jitter para todos os pacotes e aplicações. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A espera introduzida pelo shaper pode elevar latência e variar entre pacotes, alterando jitter; o efeito depende da carga, fila, perfil e aplicação.",
+      "section": "4. Localização, efeitos e diagnóstico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O condicionamento de tráfego em DiffServ ocorre somente em nós internos, pois os nós de borda não classificam nem regulam fluxos. A afirmação está correta?",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "A RFC 2475 indica que condicionadores e classificadores multif campo são normalmente posicionados em nós de borda, embora também possam existir em outros locais.",
+      "section": "4. Localização, efeitos e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comportamento identifica mais diretamente um shaper?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descartar o pacote excedente ao medir que ele ultrapassou o perfil.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reter pacotes e liberar segundo o perfil.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Alterar o endereço IP para encaminhar o pacote a outra rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escolher a rota de menor custo para cada conexão ativa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aumentar a velocidade física do enlace durante uma rajada.",
+          "correct": false
+        }
+      ],
+      "explanation": "O shaper usa buffer para atrasar alguns pacotes e suavizar a taxa de saída, adequando o fluxo ao perfil. Descarte é ação típica de policing ou de fila cheia; as demais opções tratam de funções diferentes ou impossíveis para shaping.",
+      "section": "1. O que o shaping faz",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual consequência pode ocorrer quando a fila finita de um shaper fica sem espaço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Os pacotes retidos são descartados por falta de espaço na fila.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O enlace ganha capacidade para transmitir a rajada acumulada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O medidor transforma automaticamente a fila em memória ilimitada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O endereço de destino dos pacotes muda para uma interface livre.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A taxa configurada deixa de limitar o fluxo de modo permanente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A RFC 2475 descreve buffers de tamanho finito e permite descarte quando falta espaço para guardar pacotes atrasados. Shaping não cria memória ilimitada nem banda adicional.",
+      "section": "1. O que o shaping faz",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que o perfil de tráfego descreve no contexto do shaping?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A sequência de rotas escolhida para cada pacote no domínio, definida pelo perfil de tráfego em vez das tabelas de roteamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A lista de portas físicas que podem formar uma VLAN.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "As propriedades temporais do fluxo, como taxa e tamanho da rajada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A tradução de endereços aplicada ao pacote em cada roteador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ordem alfabética dos nomes atribuídos às filas de saída.",
+          "correct": false
+        }
+      ],
+      "explanation": "A RFC 2475 define perfil como descrição de propriedades temporais do fluxo, incluindo taxa e tamanho de rajada, usadas para avaliar conformidade.",
+      "section": "2. Perfis, tokens e rajadas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um token bucket, qual é a interpretação adequada dos tokens acumulados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cópias de pacotes que o roteador usa para retransmissão automática.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Marcadores DSCP reservados para tráfego de voz prioritário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Slots permanentes de memória para aumentar o tamanho do enlace.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permissões de transmissão que podem ser consumidas pelo fluxo.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Rotas alternativas calculadas para contornar filas congestionadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tokens representam permissões acumuladas para transmitir. A taxa de reposição e a capacidade do bucket determinam, respectivamente, o ritmo de reposição e a tolerância à rajada.",
+      "section": "2. Perfis, tokens e rajadas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que a capacidade de um token bucket representa principalmente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O total de interfaces físicas ativas no roteador de borda.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A taxa média que será reposta a cada unidade de tempo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O limite de tokens acumulados e a tolerância à rajada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A quantidade de rotas que podem ser anunciadas ao domínio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O atraso fixo de propagação entre duas redes distintas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A capacidade limita o acúmulo de tokens e, portanto, o volume que pode ser transmitido em rajada; a taxa de reposição é parâmetro distinto.",
+      "section": "2. Perfis, tokens e rajadas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve corretamente uma diferença entre shaping e policing?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Shaping só classifica pacotes por endereço e policing apenas escolhe a rota do fluxo, sem medir limites nem tratar excedentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Shaping tende a atrasar excedentes; policing pode descartá-los ou remarcá-los.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Shaping altera endereços; policing amplia a capacidade do enlace.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Shaping define DNS; policing estabelece sessões de transporte.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Shaping escolhe a ordem das filas; policing mede apenas latência.",
+          "correct": false
+        }
+      ],
+      "explanation": "A RFC 2475 caracteriza shaping como atraso de pacotes para conformidade; policing pode descartar excedentes. Em DiffServ, tráfego fora do perfil também pode ser remarcado.",
+      "section": "3. Shaping, policing e outras funções",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual função seleciona pacotes com base em campos do cabeçalho ou em um codepoint de serviço?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O classificador, que direciona o fluxo à instância de condicionamento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O shaper, que seleciona pacotes pelo cabeçalho e altera seus endereços antes de encaminhá-los para a instância de condicionamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O token bucket, que calcula a rota de menor latência disponível.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O escalonador, que identifica a origem física do cabo conectado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O AQM, que negocia automaticamente um novo perfil de serviço.",
+          "correct": false
+        }
+      ],
+      "explanation": "Classificadores selecionam o tráfego por campos do cabeçalho ou por DS codepoint e o direcionam para tratamento. Shaping, scheduling e AQM têm papéis distintos.",
+      "section": "3. Shaping, policing e outras funções",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que tarefa caracteriza o escalonamento de tráfego?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Medir tokens e armazená-los em um recipiente de capacidade finita.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Remarcar o DS codepoint de todos os pacotes do fluxo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir a ordem em que filas recebem oportunidade de envio.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Atrasar todas as conexões até que o enlace fique ocioso, pois o escalonamento impede transmissões enquanto qualquer fila contiver pacotes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Descartar pacotes antes de classificá-los por qualquer regra.",
+          "correct": false
+        }
+      ],
+      "explanation": "Scheduling dirige pacotes a filas e aplica uma disciplina para determinar a sequência de encaminhamento; não é a mesma ação de regular taxa por buffering.",
+      "section": "3. Shaping, policing e outras funções",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa melhor descreve AQM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumenta a banda física assim que a ocupação da fila cresce.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Monitora filas e pode descartar ou remarcar antes do limite cheio.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Armazena pacotes por tempo fixo para cumprir um token bucket.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escolhe endereços IP para identificar o servidor de destino.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transforma o condicionador de tráfego em um resolvedor DNS.",
+          "correct": false
+        }
+      ],
+      "explanation": "AQM monitora o estado de filas e pode descartar ou remarcar pacotes proativamente para sinalizar congestionamento, conforme a RFC 7640.",
+      "section": "3. Shaping, policing e outras funções",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em DiffServ, qual afirmação sobre o condicionamento de tráfego é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pode combinar medição, marcação, shaping e policing conforme as regras.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "É um mecanismo exclusivo de criptografia de todos os cabeçalhos IP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Substitui a classificação por uma única fila obrigatória no domínio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Impede qualquer descarte em todos os enlaces congestionados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Opera apenas em roteadores finais e não pode ocorrer em bordas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A RFC 2475 descreve condicionamento com funções de medição, marcação, shaping e policing para aplicar regras de tráfego; a composição depende do serviço.",
+      "section": "3. Shaping, policing e outras funções",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual efeito do shaping é mais provável quando pacotes precisam aguardar na fila?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Redução obrigatória do tempo de propagação no meio físico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumento inevitável da largura de banda contratada pelo usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conversão do protocolo de transporte para uma versão mais recente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Possível aumento de latência e mudança na variação do atraso.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Eliminação da necessidade de medir o perfil do fluxo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Pacotes retidos aguardam antes de sair, o que pode elevar latência e alterar jitter. O efeito depende da carga e da configuração.",
+      "section": "4. Localização, efeitos e diagnóstico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um enlace recebe tráfego de entrada sustentado acima da taxa configurada no shaper. Qual tendência pode ocorrer?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A fila pode crescer até encher e causar descartes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A fila desaparece porque os tokens se tornam permanentes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O shaper converte a taxa excedente em capacidade adicional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A interface inverte automaticamente o sentido do tráfego.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A classificação deixa de ser necessária para todos os fluxos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Se a chegada sustentada supera o ritmo de saída, os pacotes se acumulam; o buffer finito pode se esgotar e provocar perdas.",
+      "section": "4. Localização, efeitos e diagnóstico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Onde condicionadores DiffServ costumam estar posicionados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente em servidores de aplicação dentro de cada sub-rede.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Em nós de borda do domínio, embora outros locais sejam possíveis.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Apenas em clientes que recebem endereço por DHCP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Exclusivamente em enlaces físicos sem qualquer dispositivo ativo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Somente em resolvers DNS que traduzem nomes de domínio.",
+          "correct": false
+        }
+      ],
+      "explanation": "A RFC 2475 indica que condicionadores são normalmente colocados em nós de borda, mas podem aparecer também em nós internos ou outros domínios.",
+      "section": "4. Localização, efeitos e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um engenheiro precisa validar se o shaper cumpre seu perfil diante de rajadas. Qual observação é mais diretamente pertinente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conferir se a saída respeita o perfil após as rajadas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Contar quantos nomes DNS foram resolvidos durante o ensaio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Medir apenas o número de rotas estáticas instaladas no equipamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Comparar o endereço MAC do roteador com o do servidor remoto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Confirmar que todos os pacotes foram criptografados na camada de aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "A RFC 7640 descreve testes que enviam rajadas à entrada e verificam a conformidade do tráfego moldado na saída; medições de fila e perdas também ajudam a caracterizar o resultado.",
+      "section": "4. Localização, efeitos e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que significa dizer que um pacote está out-of-profile?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O pacote foi criptografado com um perfil de segurança diferente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O fluxo não atende aos parâmetros temporais medidos naquele momento.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O pacote pertence a uma rota que não tem endereço de origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O enlace está operando acima da sua capacidade física nominal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A fila foi removida da configuração do escalonador do roteador.",
+          "correct": false
+        }
+      ],
+      "explanation": "O perfil determina conformidade temporal, como taxa e rajada; tráfego fora do perfil não atende a esses parâmetros na medição considerada.",
+      "section": "2. Perfis, tokens e rajadas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que um bucket com maior capacidade não implica taxa média ilimitada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Porque todos os tokens ficam inutilizáveis assim que um pacote é transmitido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A taxa limita a reposição; a capacidade limita o acúmulo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Porque a capacidade determina apenas qual endereço IP será usado no fluxo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Porque um bucket maior desativa automaticamente o buffer do equipamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Porque o escalonador converte qualquer token acumulado em perda de pacote.",
+          "correct": false
+        }
+      ],
+      "explanation": "Capacidade controla o máximo acumulável e a tolerância a rajadas; taxa de reposição continua determinando o ritmo sustentado de novos tokens.",
+      "section": "2. Perfis, tokens e rajadas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador aumenta o buffer para absorver rajadas maiores. Qual custo deve considerar?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A fila maior pode manter pacotes esperando por mais tempo antes da saída.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O endereço de destino passa a ser reescrito em cada interface ativa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A taxa de serviço do enlace torna-se independente do meio físico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O medidor deixa de comparar o fluxo com qualquer perfil configurado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A classificação por cabeçalho torna-se impossível em redes IP quando se aumenta o buffer, mesmo que campos e regras continuem disponíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Buffer maior pode acomodar mais rajadas, mas permite acumular mais pacotes e aumentar a espera; ele não amplia a taxa física de serviço.",
+      "section": "4. Localização, efeitos e diagnóstico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma política de saída, o que é controlado diretamente pelo shaper daquela interface?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A prioridade de CPU dos processos no servidor de origem.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O ritmo de entrada em toda interface remota do caminho de retorno.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A capacidade nominal contratada de cada enlace do provedor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A sequência de resolução DNS usada pelas aplicações clientes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A taxa de saída dos pacotes selecionados nessa interface.",
+          "correct": true
+        }
+      ],
+      "explanation": "Shaping atua sobre os pacotes selecionados no ponto e na direção em que foi aplicado; não controla automaticamente outras interfaces ou o sentido oposto.",
+      "section": "4. Localização, efeitos e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto de observações ajuda a diagnosticar fila de shaping que cresce?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Somente taxa de CPU da aplicação e quantidade de arquivos abertos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Somente nomes de host, certificados TLS e versão do navegador cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apenas tabela ARP, relógio do sistema e marca do cabo conectado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Número de usuários DNS, rotas BGP e resolução de endereços locais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Taxas, perfil aplicado, ocupação da fila e descartes.",
+          "correct": true
+        }
+      ],
+      "explanation": "Comparar chegada com serviço, confirmar classificação e perfil e observar fila e perdas permite verificar se a demanda excede sustentadamente a taxa atendida.",
+      "section": "4. Localização, efeitos e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve adequadamente a relação entre shaping e AQM?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "São idênticos: ambos criptografam os pacotes, liberam tokens a uma taxa fixa e aumentam a capacidade física quando a fila cresce.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Shaping regula a saída com espera; AQM observa filas e pode sinalizar congestionamento.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "AQM classifica rotas; shaping troca o protocolo de transporte da sessão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Shaping só marca pacotes; AQM amplia fisicamente a capacidade do enlace.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ambos existem apenas para criptografar fluxos que excedem o perfil.",
+          "correct": false
+        }
+      ],
+      "explanation": "A RFC 7640 separa shaping, que armazena e suaviza a taxa de saída, de AQM, que monitora filas e pode descartar ou remarcar proativamente.",
+      "section": "3. Shaping, policing e outras funções",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um fluxo DiffServ com tráfego fora do perfil, que ação pode ser adotada por um condicionador conforme a política?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atrasar, descartar ou remarcar pacotes excedentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Converter obrigatoriamente os pacotes em datagramas DNS com nova origem.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar a largura de banda do domínio e remover os limites do acordo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Reduzir o tamanho físico dos quadros Ethernet em todas as interfaces.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Impedir que qualquer classificador examine campos dos cabeçalhos IP.",
+          "correct": false
+        }
+      ],
+      "explanation": "A RFC 2475 permite que tráfego fora do perfil seja enfileirado até se conformar (shaping), descartado (policing) ou remarcado, conforme as regras do condicionador.",
+      "section": "3. Shaping, policing e outras funções",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fila enche apesar de o tráfego ter sido classificado corretamente. Qual causa combina com a função do shaper?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A chegada supera a liberação e ocupa o buffer finito.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A marcação do DS field criou memória adicional além do equipamento instalado.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A classificação correta obriga o enlace a duplicar sua capacidade automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O escalonador resolveu nomes em excesso e ocupou toda a fila de pacotes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O perfil de rajada alterou a velocidade de propagação do meio físico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Mesmo com classificação correta, carga sustentada maior que o serviço do shaper acumula pacotes até o buffer finito se esgotar.",
+      "section": "4. Localização, efeitos e diagnóstico",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual interpretação de um teste de capacidade de shaper é tecnicamente prudente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O resultado vale para as condições e configuração testadas, com métricas de saída e fila.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Um teste isolado garante a mesma latência para qualquer fluxo futuro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A taxa observada prova que o enlace físico mudou sua capacidade nominal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Se não houve perda, o buffer pode ser tratado como memória ilimitada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A saída média basta para provar comportamento idêntico em toda rajada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A RFC 7640 estrutura testes e métricas para as condições ensaiadas; taxa média isolada não demonstra resposta universal a cargas e rajadas diferentes.",
+      "section": "4. Localização, efeitos e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço quer permitir rajadas breves, mas limitar o ritmo sustentado. Qual modelo representa naturalmente as duas propriedades?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Token bucket, com taxa de reposição e capacidade de tokens distintas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Resolução DNS, com tempo de vida e lista de servidores autoritativos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tabela ARP, com endereço de rede e contador de retransmissões.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escalonamento FIFO, com apenas uma ordem global e sem perfil temporal.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tradução NAT, com número de portas e endereço público do gateway.",
+          "correct": false
+        }
+      ],
+      "explanation": "O token bucket modela reposição a uma taxa e acúmulo até uma capacidade. Assim representa ritmo sustentado e tolerância a rajadas como dimensões separadas.",
+      "section": "2. Perfis, tokens e rajadas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conclusão sobre uma taxa média observada e shaping é mais segura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A média sozinha não descreve a resposta a rajadas, fila, atraso e perdas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A média garante que todos os pacotes tenham atraso exatamente igual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A média demonstra que o shaper não precisa de buffer finito.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A média prova que todo excedente foi descartado no ingresso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A média determina a capacidade física do enlace em qualquer sentido.",
+          "correct": false
+        }
+      ],
+      "explanation": "A taxa média agregada não mostra sozinha a resposta temporal às rajadas, a ocupação da fila, o atraso por pacote nem os descartes; é preciso considerar essas métricas.",
+      "section": "4. Localização, efeitos e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um condicionador contém classificador, medidor, marcador e shaper. Qual sequência funcional é coerente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o enlace, resolver DNS, escolher criptografia e remover toda fila existente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Classificar, medir, marcar e moldar o fluxo conforme a política.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Marcar primeiro todos os pacotes, então classificar apenas os que foram descartados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Escolher uma rota aleatória, ignorar perfil e transmitir sem considerar a interface.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Transformar tokens em endereços e encaminhar cada pacote para um servidor DNS.",
+          "correct": false
+        }
+      ],
+      "explanation": "Classificação seleciona o tráfego; medição avalia conformidade; marcação pode indicar tratamento; shaping regula o instante de saída. A composição e a ordem concreta dependem da configuração.",
+      "section": "3. Shaping, policing e outras funções",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um perfil token bucket representado pelos parâmetros r e b, o que significa a falta de tokens no instante em que chega um pacote?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O pacote deve ser convertido em outro protocolo de transporte.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A fila passa a receber uma rota alternativa calculada pelo shaper.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O tráfego está fora do perfil naquele instante e pode ser moldado ou tratado pela política.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A taxa r aumenta até que todos os pacotes acumulados sejam transmitidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O parâmetro b passa a indicar o atraso de propagação do enlace e determina a velocidade física com que os pacotes atravessam o meio.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na descrição de perfil da RFC 2475, pacotes que chegam quando há tokens insuficientes são considerados fora do perfil. A ação depende da política, podendo incluir espera por shaping.",
+      "section": "2. Perfis, tokens e rajadas",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um shaper é instalado na saída do roteador que alimenta um enlace mais lento. Qual é a finalidade direta dessa escolha?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar a banda do enlace seguinte sem trocar sua interface física.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Descriptografar os fluxos antes que alcancem o próximo roteador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar a origem IP para que os pacotes recebam prioridade maior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Regular o ritmo enviado ao gargalo e reduzir rajadas que o excedam.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Controlar também o tráfego de retorno sem política nessa direção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Shaping de saída pode regular o tráfego antes de um enlace mais lento, reduzindo a rajada que chega ao gargalo. Ele não amplia a capacidade nem controla automaticamente a direção de retorno.",
+      "section": "4. Localização, efeitos e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual medida ajuda a distinguir uma saída moldada de uma saída que apenas apresenta baixa média de tráfego?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A quantidade de nomes de domínio consultados durante o envio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A marca comercial do cabo conectado à interface de saída.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O total de rotas estáticas configuradas no roteador de borda.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O número de endereços MAC vistos antes de iniciar o teste.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O espaçamento temporal dos pacotes de saída após rajadas controladas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma taxa média baixa, sozinha, não demonstra shaping. Observar a resposta temporal da saída a rajadas de entrada permite verificar se o equipamento suaviza o fluxo de acordo com o perfil.",
+      "section": "4. Localização, efeitos e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 2475: An Architecture for Differentiated Services",
+      "publisher": "RFC Editor / IETF",
+      "reference": "Definição de shaping; perfis; token bucket; classificação e condicionadores de tráfego em DiffServ",
+      "url": "https://www.rfc-editor.org/rfc/rfc2475.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 7640: Traffic Management Benchmarking",
+      "publisher": "RFC Editor / IETF",
+      "reference": "Distinção entre policing, scheduling, shaping e AQM; testes e métricas de shaping",
+      "url": "https://www.rfc-editor.org/rfc/rfc7640.html",
+      "accessedAt": "2026-11-06"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 2697: A Single Rate Three Color Marker",
+      "publisher": "RFC Editor / IETF",
+      "reference": "Medidor de token bucket e parâmetros de taxa e rajada no condicionamento de tráfego",
+      "url": "https://www.rfc-editor.org/rfc/rfc2697.html",
+      "accessedAt": "2026-11-06"
+    }
+  ]
+}

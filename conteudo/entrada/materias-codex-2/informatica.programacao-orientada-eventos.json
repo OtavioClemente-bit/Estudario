@@ -1,0 +1,2324 @@
+{
+  "id": "informatica.programacao-orientada-eventos",
+  "subject": "Inform\u00e1tica",
+  "title": "Programa\u00e7\u00e3o orientada a eventos",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Programa\u00e7\u00e3o orientada a eventos",
+    "Programa\u00e7\u00e3o baseada em eventos de interface",
+    "Paradigma orientado a eventos em aplica\u00e7\u00f5es",
+    "Desenvolvimento dirigido por eventos",
+    "Event-driven programming em aplica\u00e7\u00f5es",
+    "Tratamento de eventos em JavaScript",
+    "Eventos e manipuladores de eventos",
+    "Listeners e ciclo de eventos no DOM",
+    "Propaga\u00e7\u00e3o de eventos na interface web",
+    "Captura e borbulhamento de eventos",
+    "Arquitetura de aplica\u00e7\u00f5es orientada a eventos",
+    "Programa\u00e7\u00e3o reativa a a\u00e7\u00f5es do usu\u00e1rio"
+  ],
+  "scope": {
+    "covers": "Paradigma de programa\u00e7\u00e3o orientada a eventos; eventos, emissores, assinantes e manipuladores; registro, disparo e remo\u00e7\u00e3o de ouvintes; eventos s\u00edncronos e ass\u00edncronos; modelo DOM de captura, alvo e borbulhamento; objeto Event, preven\u00e7\u00e3o de a\u00e7\u00e3o padr\u00e3o e interrup\u00e7\u00e3o de propaga\u00e7\u00e3o; delega\u00e7\u00e3o; eventos personalizados; fila de tarefas e microtarefas; desacoplamento, ordena\u00e7\u00e3o, erros, testes e boas pr\u00e1ticas em aplica\u00e7\u00f5es.",
+    "excludes": "Protocolos e produtos espec\u00edficos de mensageria distribu\u00edda, brokers, garantias de entrega entre servi\u00e7os, arquitetura corporativa de integra\u00e7\u00e3o, detalhes de frameworks de interface e sintaxe completa de uma linguagem de programa\u00e7\u00e3o."
+  },
+  "theoryTitle": "Como aplica\u00e7\u00f5es reagem a eventos",
+  "chapters": [
+    {
+      "title": "1. O paradigma orientado a eventos",
+      "markdown": "### O problema que este assunto resolve\n\nUma aplica��o interativa precisa reagir a fatos que acontecem ao longo do tempo: uma pessoa clica, um temporizador vence, uma resposta de rede chega ou um arquivo termina de carregar. No fluxo sequencial tradicional, o programa chama diretamente a pr�xima opera��o. No modelo orientado a eventos, o c�digo registra com anteced�ncia o que deve acontecer quando um evento de determinado tipo for observado. O controle retorna ao ambiente; quando o evento ocorre, o ambiente chama o manipulador registrado.\n\n\u003e **Siglas e termos deste cap�tulo**\n\u003e - **Evento**: ocorr�ncia identificada por um tipo e, muitas vezes, acompanhada de dados sobre o ocorrido.\n\u003e - **Emissor**: objeto ou componente que anuncia a ocorr�ncia.\n\u003e - **Ouvinte (listener)**: fun��o inscrita para receber eventos de certo tipo.\n\u003e - **Manipulador (handler)**: c�digo executado em resposta ao evento.\n\u003e - **Callback**: fun��o fornecida para ser chamada posteriormente por outro c�digo.\n\u003e - **Acoplamento**: depend�ncia direta entre componentes; eventos podem reduzi-la, mas n�o elimin�-la automaticamente.\n\n### Do registro � rea��o\n\nO ciclo b�sico tem tr�s momentos: o componente registra um ouvinte; o evento � emitido pelo ambiente ou pelo pr�prio programa; o sistema de eventos localiza os ouvintes pertinentes e invoca seus manipuladores. Em uma p�gina web, um bot�o pode receber um ouvinte de `click`. Em uma interface gr�fica, uma janela pode receber uma notifica��o de redimensionamento. Em um servidor, a conclus�o de uma opera��o de leitura pode liberar um callback.\n\nO c�digo que registra o ouvinte n�o precisa chamar diretamente o c�digo que reagir�. Isso facilita separar componentes: o formul�rio anuncia que foi enviado, enquanto outro componente decide atualizar a tela. Por�m, o tipo de evento, o formato dos dados e as regras de ordem continuam sendo um contrato que os componentes precisam conhecer.\n\n| Papel | Exemplo em uma tela | Responsabilidade |\n| --- | --- | --- |\n| Emissor | Bot�o ou campo de formul�rio | Produz ou encaminha uma ocorr�ncia |\n| Evento | `click` ou `submit` | Identifica o que ocorreu e pode carregar contexto |\n| Ouvinte | Fun��o registrada | Declara interesse num tipo de ocorr�ncia |\n| Manipulador | Corpo da fun��o chamada | Executa a rea��o apropriada |\n\n### Eventos n�o s�o necessariamente mensagens entre servi�os\n\nA palavra evento � usada em contextos diferentes. Um clique do DOM � uma ocorr�ncia local de interface. Uma mensagem publicada num broker pode representar uma mudan�a de neg�cio transmitida entre processos. Ambos seguem uma ideia de notifica��o, mas diferem em transporte, persist�ncia, falhas e garantias. O tema desta mat�ria inclui o padr�o geral e o uso de eventos em aplica��es, sem presumir que todo evento seja dur�vel ou distribu�do.\n\n### Como cai na prova\n\n- O ouvinte � registrado antes de a ocorr�ncia que pretende tratar; n�o � uma chamada direta do emissor ao manipulador espec�fico.\n- O ambiente pode controlar quando o callback ser� invocado, sobretudo em intera��o e opera��es ass�ncronas.\n- Eventos podem reduzir depend�ncia direta, mas exigem contratos claros sobre nome, dados, ordem e ciclo de vida.\n- Evento local de interface n�o implica persist�ncia, entrega garantida nem comunica��o entre sistemas."
+    },
+    {
+      "title": "2. Registro, despacho e ciclo de vida dos ouvintes",
+      "markdown": "### O problema que este assunto resolve\n\nUma rea��o s� ocorre se houver um ouvinte associado ao emissor e ao tipo de evento. O c�digo precisa saber registrar a fun��o correta, lidar com os dados recebidos e encerrar a inscri��o quando ela deixar de ser necess�ria. O registro repetido sem controle pode duplicar a��es; um ouvinte que permanece ligado ap�s a tela ser descartada pode reter objetos e executar c�digo fora de hora.\n\n\u003e **Siglas e termos deste cap�tulo**\n\u003e - **Despacho (dispatch)**: processo de encaminhar uma ocorr�ncia aos ouvintes eleg�veis.\n\u003e - **EventTarget**: interface do DOM que permite registrar e remover ouvintes e despachar eventos.\n\u003e - **`addEventListener`**: m�todo do DOM usado para inscrever um callback num tipo de evento.\n\u003e - **`removeEventListener`**: m�todo para retirar uma inscri��o previamente feita.\n\u003e - **Evento personalizado**: evento criado pela aplica��o para comunicar uma ocorr�ncia pr�pria.\n\u003e - **Idempot�ncia**: propriedade de uma opera��o cuja repeti��o n�o produz efeitos acumulados indesejados.\n\n### Ouvintes no DOM\n\nNo DOM, `addEventListener(tipo, callback, op��es)` registra a fun��o para o tipo indicado. O mesmo alvo pode ter v�rios ouvintes para o mesmo tipo. A op��o `once: true` permite remover automaticamente a inscri��o depois de sua primeira invoca��o. A op��o `signal` pode associar a inscri��o a um `AbortSignal`, cujo cancelamento remove o ouvinte. Para remo��o expl�cita, `removeEventListener` deve receber o alvo, o tipo, a fun��o registrada e o modo de captura correspondente.\n\nUma propriedade como `element.onclick = fun��o` tamb�m associa uma rea��o, mas h� uma �nica propriedade por evento naquele elemento: uma atribui��o posterior substitui a anterior. `addEventListener` permite m�ltiplas inscri��es e op��es de propaga��o, por isso costuma ser mais flex�vel. Remover exige conservar refer�ncia � fun��o; criar uma nova fun��o an�nima na chamada de remo��o n�o identifica a inscri��o original.\n\n### Evento e contexto recebido\n\nO callback recebe um objeto de evento. No DOM, propriedades comuns incluem `type` (tipo), `target` (alvo original), `currentTarget` (alvo cujo ouvinte est� sendo executado), `bubbles` (se pode borbulhar), `cancelable` (se a a��o padr�o pode ser cancelada) e `defaultPrevented` (se foi cancelada). Eventos espec�ficos trazem dados pr�prios: um evento de teclado informa a tecla; um evento de ponteiro pode trazer coordenadas. A fun��o deve consultar as propriedades adequadas ao tipo, sem supor que todo evento tenha os mesmos dados.\n\n### Eventos personalizados\n\nO c�digo pode criar e despachar eventos pr�prios. No DOM, `new CustomEvent(\"item-adicionado\", { detail: dados, bubbles: true })` cria evento com dados em `detail`; `dispatchEvent` o despacha no alvo. O despacho de um evento DOM criado dessa maneira invoca os ouvintes de forma s�ncrona durante a chamada. Isso n�o deve ser confundido com a chegada ass�ncrona de um evento nativo posterior, como uma resposta de rede.\n\n### Como cai na prova\n\n- V�rios `addEventListener` podem coexistir para o mesmo tipo no mesmo alvo; uma propriedade `onclick` n�o oferece essa multiplicidade.\n- Para remover um callback, use a mesma refer�ncia de fun��o e o mesmo modo de captura usado na inscri��o.\n- `target` aponta para a origem do evento; `currentTarget` identifica o objeto cujo ouvinte est� em execu��o.\n- Despachar um evento sint�tico com `dispatchEvent` n�o o transforma em uma tarefa ass�ncrona."
+    },
+    {
+      "title": "3. Propaga��o, cancelamento e delega��o no DOM",
+      "markdown": "### O problema que este assunto resolve\n\nElementos de uma p�gina formam uma �rvore. Um clique num �cone dentro de um bot�o ocorre num descendente, embora o bot�o ou um cont�iner pai tamb�m possa precisar reagir. O modelo DOM define uma rota de propaga��o e oferece meios para observar a ocorr�ncia em diferentes n�veis, cancelar algumas a��es padr�o e controlar se a ocorr�ncia continua subindo pela �rvore.\n\n\u003e **Siglas e termos deste cap�tulo**\n\u003e - **Captura**: fase em que o evento percorre ancestrais em dire��o ao alvo.\n\u003e - **Alvo (target)**: objeto mais diretamente associado � ocorr�ncia.\n\u003e - **Borbulhamento (bubbling)**: fase em que eventos habilitados percorrem ancestrais do alvo para cima.\n\u003e - **A��o padr�o**: comportamento pr�prio do navegador associado a um evento, como seguir um link.\n\u003e - **Delega��o de eventos**: tratamento de eventos de descendentes por um ouvinte num ancestral.\n\u003e - **`preventDefault`**: m�todo que solicita o cancelamento de uma a��o padr�o cancel�vel.\n\n### As fases de propaga��o\n\nNo modelo DOM, o caminho come�a nos ancestrais mais externos e segue para o alvo na fase de captura; no alvo, s�o executados ouvintes pertinentes ao alvo; depois, se o evento tiver `bubbles` verdadeiro, ele sobe pelos ancestrais na fase de borbulhamento. O ouvinte registrado sem op��o de captura atua normalmente na fase de borbulhamento. A op��o `capture: true` registra para captura. Nem todo tipo de evento borbulha, portanto n�o se deve presumir que um ancestral receber� qualquer evento descendente.\n\n`stopPropagation()` impede que o evento continue para outros objetos ao longo do caminho; n�o cancela por si s� a a��o padr�o e n�o impede necessariamente outros ouvintes no mesmo objeto. `stopImmediatePropagation()` tamb�m impede a execu��o de ouvintes seguintes no mesmo alvo. S�o controles distintos de `preventDefault()`, que trata a a��o padr�o quando o evento � cancel�vel.\n\n### Delega��o em listas din�micas\n\nEm vez de registrar um ouvinte em cada bot�o de uma lista, um ancestral comum pode receber eventos borbulhados e verificar se o alvo ou um de seus ancestrais corresponde ao elemento de interesse. Assim, itens adicionados depois tamb�m podem ser tratados sem novo registro individual. A rotina deve validar que o elemento encontrado est� dentro do cont�iner esperado e que a a��o � v�lida para aquele alvo. Delega��o reduz inscri��es e simplifica listas din�micas, mas n�o funciona para ocorr�ncias que n�o borbulham sem outra estrat�gia.\n\n### Como cai na prova\n\n- Captura desce pela �rvore; borbulhamento sobe, e s� ocorre para eventos com `bubbles` verdadeiro.\n- `preventDefault` cancela a a��o padr�o cancel�vel; `stopPropagation` controla o caminho do evento.\n- Delega��o usa um ancestral e normalmente depende do borbulhamento do evento.\n- `target` e `currentTarget` podem ser diferentes quando um ancestral trata evento originado num descendente."
+    },
+    {
+      "title": "4. Assincronia, filas e boas pr�ticas de projeto",
+      "markdown": "### O problema que este assunto resolve\n\nEventos de usu�rio e opera��es de entrada e sa�da podem ocorrer enquanto a aplica��o continua atendendo outras tarefas. Em JavaScript no navegador, callbacks de eventos s�o executados no contexto do event loop. Entender as filas ajuda a explicar por que uma fun��o registrada agora pode rodar mais tarde, por que uma tarefa demorada congela a interface e por que duas notifica��es pr�ximas podem produzir estados inesperados.\n\n\u003e **Siglas e termos deste cap�tulo**\n\u003e - **Event loop**: mecanismo que coordena a execu��o de tarefas e a atualiza��o do ambiente JavaScript.\n\u003e - **Tarefa (task)**: unidade de trabalho agendada, como eventos de entrada ou temporizadores.\n\u003e - **Microtarefa**: trabalho agendado por mecanismos como `Promise.then`, processado ap�s a tarefa corrente e antes da pr�xima tarefa.\n\u003e - **Concorr�ncia**: progresso intercalado de opera��es; n�o significa necessariamente execu��o simult�nea em m�ltiplos n�cleos.\n\u003e - **Debounce**: t�cnica que espera uma pausa nas ocorr�ncias antes de executar uma a��o.\n\u003e - **Throttle**: t�cnica que limita a frequ�ncia m�xima de execu��o durante ocorr�ncias repetidas.\n\n### O event loop e a interface responsiva\n\nO c�digo s�ncrono em JavaScript roda at� terminar a pilha atual. Uma fun��o que bloqueia por muito tempo impede que a interface processe novos eventos e atualiza��es de renderiza��o. Opera��es ass�ncronas notificam a aplica��o quando h� resultado, em vez de manter a execu��o bloqueada enquanto aguardam. Uma promessa resolvida agenda suas rea��es como microtarefas; tarefas j� enfileiradas, como certos eventos ou temporizadores, s�o tratadas em ciclos posteriores. O detalhe da origem da tarefa importa: n�o existe uma regra geral de que todo evento � sempre ass�ncrono.\n\nEventos podem chegar em r�pida sequ�ncia, como `input` ao digitar ou `resize` ao redimensionar. Debounce � adequado quando interessa agir depois que a sequ�ncia cessar, por exemplo iniciar busca ap�s pausa na digita��o. Throttle � adequado quando se quer processar no m�ximo em uma frequ�ncia definida, por exemplo limitar atualiza��es durante rolagem. Essas t�cnicas controlam custo e frequ�ncia, mas n�o garantem por si s� que uma resposta antiga n�o sobrescreva uma nova; para isso, � preciso tratar cancelamento ou ordena��o dos resultados.\n\n### Contratos, erros e testes\n\nUm evento deve ter nome e dados que expressem uma ocorr�ncia, n�o uma ordem oculta e amb�gua. Evite que muitos componentes reajam ao mesmo evento sem coordena��o, pois a ordem de ouvintes pode virar depend�ncia acidental. Manipuladores devem ser curtos, delegando regras de neg�cio a fun��es test�veis. Quando uma rea��o falha, registre o erro ou encaminhe-o a um tratamento apropriado; n�o suponha que outro ouvinte v� corrigi-lo. Ao remover telas ou componentes, remova inscri��es ou use um mecanismo de cancelamento para encerrar seu ciclo de vida.\n\nEm testes, � poss�vel despachar evento sint�tico e verificar a rea��o. O teste precisa distinguir a chamada s�ncrona de `dispatchEvent` de opera��es que produzem efeitos posteriores, como uma promessa ou temporizador; nesses casos, aguarda-se ou controla-se a opera��o ass�ncrona. Testar apenas que um ouvinte foi chamado n�o prova que a atualiza��o final da interface ou o tratamento de falha estejam corretos.\n\n### Como cai na prova\n\n- Event loop n�o torna automaticamente cada callback lento ou cada evento ass�ncrono; c�digo s�ncrono ainda pode bloquear.\n- Microtarefas de promessas s�o processadas antes da pr�xima tarefa, ap�s o t�rmino da execu��o corrente.\n- Debounce espera a pausa; throttle limita frequ�ncia durante uma sequ�ncia.\n- Eventos reduzem depend�ncia direta, mas contratos, tratamento de erros, cancelamento e testes continuam necess�rios."
+    }
+  ],
+  "summary": "Na programa\u00e7\u00e3o orientada a eventos, componentes registram ouvintes e reagem a ocorr\u00eancias sem depender sempre de chamadas diretas. No DOM, `addEventListener` aceita v\u00e1rias inscri\u00e7\u00f5es; para remover uma, use a mesma refer\u00eancia de callback e o modo de captura correspondente. `target` indica a origem e `currentTarget`, o alvo do listener em execu\u00e7\u00e3o. Captura, alvo e borbulhamento comp\u00f5em o percurso. `preventDefault` trata a a\u00e7\u00e3o padr\u00e3o cancel\u00e1vel; `stopPropagation` interrompe o percurso. Delega\u00e7\u00e3o usa um ancestral para tratar eventos que borbulham. `dispatchEvent` chama listeners sincronamente, mas promessas e temporizadores iniciados neles seguem depois. Tarefas longas podem bloquear a interface; debounce espera uma pausa e throttle limita frequ\u00eancia. Contratos claros, ciclo de vida, tratamento de erros e testes tornam o projeto mais previs\u00edvel.",
+  "flashcards": [
+    {
+      "front": "Quais são os três papéis básicos de uma interação orientada a eventos?",
+      "back": "Emissor, evento e ouvinte/manipulador: alguém anuncia a ocorrência e o callback registrado reage a ela."
+    },
+    {
+      "front": "O que faz um ouvinte de evento?",
+      "back": "Registra interesse num tipo de evento para que o sistema invoque seu callback quando a ocorrência for despachada."
+    },
+    {
+      "front": "Qual a vantagem de `addEventListener` sobre atribuir `onclick`?",
+      "back": "Permite várias inscrições para o mesmo evento no alvo e oferece opções como captura e execução única."
+    },
+    {
+      "front": "O que a op��o `once: true` faz?",
+      "back": "Remove a inscrição depois de sua primeira invocação."
+    },
+    {
+      "front": "O que é preciso preservar para remover um ouvinte?",
+      "back": "A referência da mesma função, além do tipo e do modo de captura correspondente."
+    },
+    {
+      "front": "O que `event.type` informa?",
+      "back": "O nome ou tipo da ocorrência, como `click` ou `submit`."
+    },
+    {
+      "front": "Qual a diferença entre `target` e `currentTarget`?",
+      "back": "`target` é a origem do evento; `currentTarget` é o objeto cujo ouvinte está sendo executado."
+    },
+    {
+      "front": "Quais são as fases de propagação de um evento DOM?",
+      "back": "Captura, alvo e borbulhamento, quando este último se aplica."
+    },
+    {
+      "front": "Em que direção ocorre a captura?",
+      "back": "Dos ancestrais externos em direção ao alvo."
+    },
+    {
+      "front": "Em que direção ocorre o borbulhamento?",
+      "back": "Do alvo para seus ancestrais, se o evento tiver `bubbles` verdadeiro."
+    },
+    {
+      "front": "O que a op��o `capture: true` muda?",
+      "back": "Inscreve o ouvinte para a fase de captura."
+    },
+    {
+      "front": "O que `preventDefault()` tenta impedir?",
+      "back": "A ação padrão associada ao evento, quando ele é cancelável."
+    },
+    {
+      "front": "O que `stopPropagation()` impede?",
+      "back": "A continuação do evento para outros objetos ao longo do caminho de propagação."
+    },
+    {
+      "front": "O que `stopImmediatePropagation()` acrescenta?",
+      "back": "Além do percurso, impede ouvintes seguintes no mesmo alvo."
+    },
+    {
+      "front": "Como funciona a delega��o de eventos?",
+      "back": "Um ancestral recebe eventos propagados e identifica qual descendente originou a interação."
+    },
+    {
+      "front": "Qual limita��o comum a delega��o enfrenta?",
+      "back": "Ela normalmente depende de o evento borbulhar até o ancestral ou de outra técnica apropriada."
+    },
+    {
+      "front": "Para que serve `CustomEvent`?",
+      "back": "Para criar um evento próprio da aplicação, que pode carregar dados em `detail`."
+    },
+    {
+      "front": "O que `dispatchEvent` faz no DOM?",
+      "back": "Despacha o evento no alvo e invoca seus ouvintes sincronamente durante a chamada."
+    },
+    {
+      "front": "O que é event loop?",
+      "back": "O mecanismo que coordena execução de tarefas e trabalho agendado no ambiente JavaScript."
+    },
+    {
+      "front": "O que uma tarefa síncrona longa causa na interface?",
+      "back": "Pode bloquear o processamento de eventos e a atualiza��o visual at� terminar."
+    },
+    {
+      "front": "Quando reações de uma promessa são processadas?",
+      "back": "Como microtarefas após a execução corrente e antes da próxima tarefa."
+    },
+    {
+      "front": "Qual é o objetivo do debounce?",
+      "back": "Esperar uma pausa na sequência de eventos antes de executar a ação."
+    },
+    {
+      "front": "Qual � o objetivo do throttle?",
+      "back": "Limitar a frequência de execução enquanto eventos repetidos continuam chegando."
+    },
+    {
+      "front": "Debounce garante que uma resposta antiga não sobrescreva uma nova?",
+      "back": "Não. Ordenação ou cancelamento de resultados precisa ser tratado separadamente."
+    },
+    {
+      "front": "Por que encerrar ouvintes junto com o componente?",
+      "back": "Para evitar reações fora de hora e referências que mantenham objetos descartados na memória."
+    },
+    {
+      "front": "Evento local de interface implica entrega durável?",
+      "back": "Não. Persistência e garantia de entrega dependem de outros mecanismos."
+    },
+    {
+      "front": "O que deve constar no contrato de um evento?",
+      "back": "Nome e significado da ocorrência, formato dos dados e regras de ordem e ciclo de vida relevantes."
+    },
+    {
+      "front": "Como testar um despacho sintético no DOM?",
+      "back": "Despachar o evento e verificar a reação; aguardar separadamente efeitos assíncronos posteriores."
+    }
+  ],
+  "tips": [
+    "Associe evento a ocorrência, emissor a quem anuncia e ouvinte a callback registrado.",
+    "Guarde a referência da função de callback se for removê-la depois.",
+    "Memorize a rota DOM: captura desce, alvo recebe, borbulhamento sobe quando habilitado.",
+    "Separe cancelamento da ação padrão (`preventDefault`) de interrupção da propagação.",
+    "Use delegação para listas dinâmicas quando os eventos dos descendentes borbulharem.",
+    "Para eventos em rajada, debounce espera uma pausa; throttle limita a frequência."
+  ],
+  "traps": [
+    "Afirmar que `preventDefault()` interrompe a propagação. São efeitos diferentes.",
+    "Tratar `target` e `currentTarget` como sinônimos; eles divergem em eventos delegados.",
+    "Supor que qualquer evento DOM borbulha; a propriedade `bubbles` e o tipo importam.",
+    "Dizer que `dispatchEvent` transforma evento sintético em callback assíncrono; o despacho DOM é síncrono.",
+    "Remover callback com uma função anônima nova; a referência não corresponde à inscrição original.",
+    "Confundir evento local com mensagem de broker que tenha persistência e garantias de entrega."
+  ],
+  "activeRecall": [
+    "Explique o ciclo completo entre registro do ouvinte, ocorrência e despacho.",
+    "Compare `addEventListener` com a propriedade `onclick`.",
+    "Diferencie `target`, `currentTarget` e `event.type`.",
+    "Desenhe a rota de captura, alvo e borbulhamento em uma árvore com três níveis.",
+    "Diferencie `preventDefault`, `stopPropagation` e `stopImmediatePropagation`.",
+    "Explique como um contêiner trata cliques de botões criados dinamicamente.",
+    "Descreva como um evento personalizado pode carregar dados para seus ouvintes.",
+    "Explique por que um handler demorado congela uma interface JavaScript.",
+    "Compare o momento de execução de uma microtarefa e de uma tarefa posterior.",
+    "Dê um caso adequado para debounce e outro para throttle.",
+    "Explique por que debounce não resolve, sozinho, respostas de rede fora de ordem.",
+    "Liste cuidados para evitar inscrição duplicada e ouvinte órfão."
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Ação padrão e propagação",
+      "summary": "Cancelar a ação padrão não é o mesmo que impedir o evento de alcançar outros ouvintes. Use o método que corresponde ao efeito pretendido."
+    },
+    {
+      "key": "e2",
+      "title": "Alvo e ouvinte corrente",
+      "summary": "Em delegação, o descendente pode ser `target`, enquanto o ancestral que executa o callback é `currentTarget`."
+    },
+    {
+      "key": "e3",
+      "title": "Inscrição e remoção",
+      "summary": "O sistema precisa identificar a mesma função registrada; uma função anônima recriada não remove a inscrição antiga."
+    },
+    {
+      "key": "e4",
+      "title": "Evento e assincronia",
+      "summary": "Nem todo evento é uma tarefa assíncrona: o despacho de evento sintético DOM é síncrono, embora operações posteriores possam agendar trabalho."
+    },
+    {
+      "key": "e5",
+      "title": "Debounce e throttle",
+      "summary": "Debounce aguarda o fim da rajada; throttle controla a frequência durante a rajada. Nenhum dos dois define sozinho a ordem de respostas assíncronas."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em um formul�rio web, uma fun��o � inscrita para ser chamada quando o usu�rio o envia. Qual descri��o melhor caracteriza essa organiza��o?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O emissor aguarda o resultado do manipulador antes de permitir qualquer intera��o.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reage quando o evento de envio é despachado pelo ambiente, conforme o tipo de ouvinte registrado.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "O manipulador precisa ser executado durante a criação do formulário, e nunca pode reagir ao envio feito depois que a inscrição foi registrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O evento substitui todos os dados mantidos pelo formul�rio no navegador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A ocorr�ncia s� pode ser produzida por um servi�o externo � aplica��o.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na organiza��o orientada a eventos, o c�digo registra um ouvinte e o ambiente chama sua rea��o quando a ocorr�ncia acontece. O registro n�o executa o callback imediatamente nem exige servi�o externo.",
+      "section": "1. O paradigma orientado a eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No paradigma orientado a eventos, componentes podem reagir a ocorr�ncias sem que o emissor invoque diretamente cada rotina consumidora.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O emissor despacha uma ocorr�ncia e o mecanismo de eventos encaminha-a aos ouvintes registrados, reduzindo a necessidade de chamadas diretas entre componentes.",
+      "section": "1. O paradigma orientado a eventos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer que dois m�dulos reajam ao mesmo clique sem o bot�o conhecer as implementa��es de ambos. Qual escolha atende melhor ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Registrar ouvintes independentes para o tipo de evento no alvo apropriado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Guardar os m�dulos dentro do bot�o para que compartilhem seu estado interno.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter o clique em uma vari�vel global consultada continuamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover um dos m�dulos e executar sua l�gica dentro do navegador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar uma chamada direta do bot�o a cada fun��o consumidora dispon�vel.",
+          "correct": false
+        }
+      ],
+      "explanation": "O emissor pode despachar o evento e diferentes ouvintes podem reagir sem que o bot�o conhe�a cada implementa��o. Ainda � necess�rio definir o contrato do evento.",
+      "section": "1. O paradigma orientado a eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um evento de clique no DOM �, por defini��o, uma mensagem persistida em um broker e entregue novamente ap�s reinicializa��o da aplica��o.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Um clique � uma ocorr�ncia local de interface. Persist�ncia, reentrega e transporte entre processos exigem mecanismos adicionais e n�o decorrem do modelo DOM.",
+      "section": "1. O paradigma orientado a eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirma��o descreve melhor a rela��o entre evento e callback?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Callback é a função chamada ao tratar a ocorrência, associada pelo listener ao tipo de evento de interesse.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O callback � o armazenamento permanente de todos os eventos ocorridos no navegador e reexecuta automaticamente cada evento depois de reiniciar o aplicativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O callback � o nome usado para a a��o padr�o executada pelo navegador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O callback s� pode ser escrito pelo sistema operacional que executa a aplica��o.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O callback substitui a necessidade de associar c�digo a algum tipo de evento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Callback � uma fun��o fornecida para execu��o posterior por outro c�digo. No caso de eventos, o listener associa esse callback � ocorr�ncia de certo tipo.",
+      "section": "1. O paradigma orientado a eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A exist�ncia de um barramento de eventos elimina a necessidade de definir nomes e formatos de dados compreendidos pelos componentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Mesmo sem chamada direta, emissores e ouvintes precisam compartilhar o significado do tipo de evento e o contrato de seus dados.",
+      "section": "1. O paradigma orientado a eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplica��o precisa tratar o t�rmino de uma opera��o de leitura que foi iniciada anteriormente. Qual abordagem � coerente com programa��o orientada a eventos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reagir quando o término da leitura for comunicado, usando o resultado sem manter um laço de espera ocupado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Reiniciar o programa a cada leitura para recuperar o estado anterior.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aguardar em la�o ocupado at� a opera��o devolver um valor final.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformar o resultado em uma regra CSS aplicada ao bot�o de leitura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar a rea��o antes de iniciar a opera��o para evitar notifica��es.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma opera��o ass�ncrona pode comunicar sua conclus�o, e o c�digo inscrito reage quando o resultado fica dispon�vel, sem manter um la�o ocupado aguardando.",
+      "section": "1. O paradigma orientado a eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A separa��o entre quem emite um evento e quem reage a ele pode facilitar a substitui��o de um consumidor sem alterar o emissor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Como o emissor comunica uma ocorr�ncia em vez de invocar uma implementa��o concreta, consumidores podem mudar independentemente, desde que o contrato do evento permane�a compat�vel.",
+      "section": "1. O paradigma orientado a eventos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual situa��o representa uma consequ�ncia poss�vel de v�rios ouvintes sem coordena��o para o mesmo evento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A ordem incidental entre rea��es pode virar depend�ncia dif�cil de perceber.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O sistema passa a garantir que cada rea��o tenha transa��o independente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O emissor deixa de precisar identificar o tipo de ocorr�ncia que anuncia.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Todos os ouvintes recebem automaticamente uma c�pia dur�vel do evento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O event loop transforma quaisquer callbacks em execu��o paralela.",
+          "correct": false
+        }
+      ],
+      "explanation": "O desacoplamento pode esconder depend�ncias de ordem e efeitos colaterais quando muitos ouvintes reagem sem coordena��o. Ele n�o fornece transa��es, persist�ncia ou paralelismo por si s�.",
+      "section": "1. O paradigma orientado a eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Registrar um ouvinte para `click` num bot�o executa imediatamente o callback, mesmo que ningu�m clique nele.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O registro associa um callback � ocorr�ncia futura; o callback ser� chamado quando o evento for despachado e o ouvinte for eleg�vel.",
+      "section": "1. O paradigma orientado a eventos",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma interface emite `pedido-confirmado` depois de salvar. Qual escolha representa melhor um evento como ocorr�ncia, em vez de comando dirigido?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Anunciar a confirmação do pedido e seu identificador como fato ocorrido, para consumidores interessados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ordenar que o m�dulo de relat�rio altere sua pr�pria configura��o interna.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Solicitar que o navegador execute todos os m�dulos registrados sem crit�rio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Guardar uma fun��o de renderiza��o dentro do texto exibido ao usu�rio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substituir o estado persistido pelo nome do bot�o pressionado na tela.",
+          "correct": false
+        }
+      ],
+      "explanation": "O evento descreve uma ocorr�ncia j� realizada e pode carregar o identificador necess�rio para consumidores interessados. Uma instru��o a um componente espec�fico � um comando, n�o essa notifica��o de fato.",
+      "section": "1. O paradigma orientado a eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um elemento pode ter mais de um ouvinte registrado com `addEventListener` para o mesmo tipo de evento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O DOM permite que diferentes callbacks sejam associados ao mesmo alvo e tipo, respeitadas as regras de identidade das inscri��es.",
+      "section": "2. Registro, despacho e ciclo de vida dos ouvintes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um c�digo atribui uma fun��o a `botao.onclick` e, depois, atribui outra fun��o � mesma propriedade. O que ocorre com a primeira atribui��o?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A segunda função substitui a primeira nessa propriedade, que armazena um único manipulador por tipo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "As duas funcoes sao sempre chamadas em ordem inversa de atribuicao, pois a propriedade onclick empilha callbacks numa lista interna permanente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A primeira fun��o � convertida em a��o padr�o do navegador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O navegador rejeita a segunda atribui��o por duplicar o tipo de evento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A primeira fun��o permanece registrada at� a p�gina fechar.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma propriedade como `onclick` armazena um �nico manipulador por vez. A atribui��o posterior substitui o valor anterior; `addEventListener` permite inscri��es m�ltiplas.",
+      "section": "2. Registro, despacho e ciclo de vida dos ouvintes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A op��o `once: true` permite que um ouvinte seja removido automaticamente depois de sua primeira chamada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essa op��o limita a inscri��o a uma �nica invoca��o e evita que o c�digo precise remov�-la manualmente depois do primeiro evento.",
+      "section": "2. Registro, despacho e ciclo de vida dos ouvintes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplica��o precisa remover um listener de clique que foi registrado anteriormente. Qual procedimento � adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Chamar `removeEventListener` com o tipo e a refer�ncia do callback registrado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar outra fun��o an�nima com o mesmo corpo e pass�-la para remo��o.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Invocar `preventDefault` numa ocorr�ncia futura do mesmo tipo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar o texto do bot�o para que o navegador descarte o listener.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Despachar um segundo clique com o alvo original como argumento.",
+          "correct": false
+        }
+      ],
+      "explanation": "A remo��o precisa identificar a inscri��o, o que exige a refer�ncia da mesma fun��o e os par�metros relevantes, inclusive o modo de captura correspondente.",
+      "section": "2. Registro, despacho e ciclo de vida dos ouvintes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma fun��o an�nima recriada com o mesmo texto de c�digo � necessariamente a mesma refer�ncia do callback registrado antes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Duas fun��es criadas separadamente s�o refer�ncias distintas, mesmo que seus corpos tenham texto id�ntico. ?? preciso guardar a refer�ncia original para remov�-la.",
+      "section": "2. Registro, despacho e ciclo de vida dos ouvintes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante um clique num �cone dentro de um bot�o, um listener delegado est� registrado no cont�iner da lista. O que `currentTarget` indica nesse callback?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cont�iner no qual aquele listener delegado foi registrado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Sempre o �cone mais interno que recebeu diretamente o ponteiro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O documento inteiro, mesmo quando o listener est� em outro elemento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O primeiro ancestral que possui uma regra CSS aplicada ao bot�o.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A fun��o callback que ser� executada quando o evento terminar.",
+          "correct": false
+        }
+      ],
+      "explanation": "`currentTarget` � o alvo associado ao listener que est� sendo executado. O �cone ou bot�o de origem pode ser consultado por `target` ou por uma busca apropriada entre seus ancestrais.",
+      "section": "2. Registro, despacho e ciclo de vida dos ouvintes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A propriedade `target` identifica sempre o objeto cujo callback est� em execu��o, inclusive quando um ancestral trata um clique descendente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. `target` identifica a origem do evento; o objeto cujo listener est� executando � indicado por `currentTarget` e pode ser um ancestral.",
+      "section": "2. Registro, despacho e ciclo de vida dos ouvintes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual dado do objeto `Event` informa o nome do tipo de ocorr�ncia recebida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A propriedade `type`, que cont�m o identificador do evento despachado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A propriedade `detail`, que existe com os dados de qualquer evento nativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A propriedade `target`, que armazena o texto do tipo de evento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A propriedade `cancelable`, que nomeia a a��o padr�o associada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A propriedade `currentTarget`, que cont�m o callback registrado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A propriedade `type` fornece o tipo do evento, como `click` ou `submit`. `detail` � �til em eventos personalizados e n�o � universal para eventos nativos.",
+      "section": "2. Registro, despacho e ciclo de vida dos ouvintes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um componente removido da tela n�o precisa se preocupar com seus listeners, pois qualquer inscri��o desaparece automaticamente quando o elemento deixa de estar vis�vel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Remover visualmente um componente n�o encerra necessariamente inscri��es mantidas em outros alvos. O ciclo de vida deve cancelar ou remover listeners para evitar refer�ncias e rea��es indevidas.",
+      "section": "2. Registro, despacho e ciclo de vida dos ouvintes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma assinatura deve ser cancelada quando uma opera��o de longa dura��o deixa de interessar ao componente. Qual recurso DOM pode vincular a inscri��o a um sinal de cancelamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A op��o `signal` de `addEventListener`, associada a um `AbortSignal`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A op��o `bubbles`, que remove listeners ap�s a fase de captura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A propriedade `target`, que cancela inscri��es do elemento de origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O m�todo `preventDefault`, que apaga todos os callbacks do alvo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O m�todo `dispatchEvent`, que cancela o evento anterior antes de iniciar.",
+          "correct": false
+        }
+      ],
+      "explanation": "A op��o `signal` permite associar a inscri��o a um `AbortSignal`; abortar o controlador remove os listeners associados. As demais propriedades n�o administram esse ciclo de vida.",
+      "section": "2. Registro, despacho e ciclo de vida dos ouvintes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Eventos criados com `CustomEvent` podem carregar dados pr�prios na propriedade `detail`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. `CustomEvent` oferece a propriedade `detail` para transportar dados escolhidos pela aplica��o aos ouvintes interessados.",
+      "section": "2. Registro, despacho e ciclo de vida dos ouvintes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe despacha um `CustomEvent` e observa que o listener terminou antes de `dispatchEvent` retornar. Qual explica��o � correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O despacho DOM sintético invoca ouvintes durante a chamada, antes de qualquer etapa assíncrona iniciada por eles.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O event loop executou uma tarefa em outra thread enquanto aguardava o retorno, embora o despacho DOM sempre espere por rede antes de chamar listeners.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Todo evento personalizado � convertido em resposta de rede antes de chegar ao listener.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A propriedade `detail` for�a a fun��o a ser chamada antes do despacho.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A chamada bloqueia at� o navegador redesenhar todas as p�ginas abertas.",
+          "correct": false
+        }
+      ],
+      "explanation": "`dispatchEvent` executa o algoritmo de despacho DOM de forma s�ncrona: callbacks pertinentes s�o invocados durante a chamada. Efeitos ass�ncronos iniciados por um listener s�o um passo distinto.",
+      "section": "2. Registro, despacho e ciclo de vida dos ouvintes",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "`removeEventListener` identifica uma inscri��o pelo tipo e pela refer�ncia do callback; o modo de captura tamb�m precisa corresponder.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A remo��o precisa corresponder � inscri��o original, inclusive quanto ao modo de captura, al�m do tipo e callback associados.",
+      "section": "2. Registro, despacho e ciclo de vida dos ouvintes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um listener est� registrado num ancestral e recebe clique ocorrido num descendente. Qual combina��o de propriedades ajuda a localizar a origem e o listener atual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar `target` para a origem e `currentTarget` para o ancestral ouvinte.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar `type` para a origem e `detail` para o ancestral ouvinte.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `bubbles` para a origem e `cancelable` para o ancestral ouvinte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `currentTarget` para ambos, pois o evento s� tem um alvo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar `defaultPrevented` para a origem e `eventPhase` para o listener.",
+          "correct": false
+        }
+      ],
+      "explanation": "A origem � representada por `target`; `currentTarget` indica o objeto cujo callback est� sendo invocado. Em delega��o, esses valores frequentemente diferem.",
+      "section": "2. Registro, despacho e ciclo de vida dos ouvintes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um listener registrado com `capture: true` � chamado na fase de captura, enquanto o registro padr�o atua normalmente na fase de borbulhamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O modo de captura determina em qual parte do percurso ancestral o callback est� inscrito; sem essa op��o, o registro usual � para borbulhamento.",
+      "section": "3. Propaga��o, cancelamento e delega��o no DOM",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um clique num bot�o aninhado em um cont�iner deve ser observado primeiro por um listener de captura no cont�iner e depois pelo listener no bot�o. Qual explica��o descreve a ordem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Na captura, o caminho desce dos ancestrais até o alvo; depois ocorre a fase no alvo e, se habilitada, a subida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "No borbulhamento, o caminho come�a no documento e desce at� o bot�o.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A a��o padr�o do bot�o reorganiza os listeners pela ordem alfab�tica dos nomes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O listener de captura so pode executar depois que todos os ancestrais forem removidos, pois a captura comeca depois da fase de borbulhamento.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A propriedade `currentTarget` faz o evento saltar diretamente para o cont�iner.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fase de captura percorre a �rvore de ancestrais em dire��o ao alvo. Depois ocorre a fase no alvo; o borbulhamento, quando habilitado, segue para cima.",
+      "section": "3. Propaga��o, cancelamento e delega��o no DOM",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Todo evento DOM disparado num descendente necessariamente borbulha at� o objeto `document`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A fase de borbulhamento depende da caracter�stica `bubbles` do evento, e nem todos os tipos borbulham. A captura tamb�m tem regras pr�prias.",
+      "section": "3. Propaga��o, cancelamento e delega��o no DOM",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Um link deve manter seu listener de registro, mas a navega��o padr�o precisa ser cancelada ap�s uma valida��o que falhou. Qual a��o � apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Chamar `preventDefault()` no evento cancel�vel associado ao link.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Chamar `stopImmediatePropagation()` para remover a URL do documento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Definir `currentTarget` como nulo antes que o navegador navegue.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Alterar `bubbles` para falso depois que o evento terminou.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Chamar `removeEventListener()` sem refer�ncia para impedir a a��o padr�o.",
+          "correct": false
+        }
+      ],
+      "explanation": "`preventDefault()` solicita o cancelamento da a��o padr�o, como seguir um link, se o evento for cancel�vel. Ele n�o remove o listener nem interrompe por si s� a propaga��o.",
+      "section": "3. Propaga��o, cancelamento e delega��o no DOM",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Chamar `stopPropagation()` num evento impede, por si s�, a a��o padr�o correspondente, como a navega��o de um link.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Esse m�todo interrompe o percurso para outros objetos, mas n�o cancela a a��o padr�o. Para isso, o evento precisa ser cancel�vel e o listener deve usar `preventDefault()`.",
+      "section": "3. Propaga��o, cancelamento e delega��o no DOM",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Uma lista cria novos bot�es continuamente. Por que um listener no cont�iner pode reduzir trabalho de registro?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O cont�iner pode tratar eventos borbulhados e reconhecer o descendente de interesse.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O cont�iner converte cada clique em captura persistente no armazenamento local.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Os bot�es deixam de produzir eventos quando s�o criados ap�s a p�gina carregar.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A delega��o for�a todos os eventos da p�gina a usar a fase de captura.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O listener do cont�iner substitui as propriedades de todos os descendentes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Com delega��o, um ancestral trata eventos que borbulham e identifica o descendente relevante. Bot�es criados depois tamb�m podem ser atendidos sem inscri��o individual.",
+      "section": "3. Propaga��o, cancelamento e delega��o no DOM",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Um ouvinte delegado pode depender do borbulhamento do evento para receber no ancestral um clique originado em elemento descendente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A delegação usual instala o listener no ancestral e aproveita a propagação ascendente dos eventos que borbulham. O ancestral pode então identificar o descendente de origem. Eventos que não borbulham não chegam por esse caminho, salvo tratamento específico.",
+      "section": "3. Propaga��o, cancelamento e delega��o no DOM",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Dentro de um bot�o h� um �cone. O listener delegado no cont�iner deve aceitar somente cliques dentro de bot�es marcados como a��o. Qual abordagem � mais robusta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Localizar o bot�o correspondente a partir do alvo e confirmar que pertence ao cont�iner.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Tratar qualquer alvo como bot�o, pois a delega��o altera sua tag automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `preventDefault()` para converter o �cone em elemento de a��o v�lido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Comparar `currentTarget` ao �cone interno e ignorar o cont�iner registrado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Presumir que o alvo ser� sempre o bot�o, mesmo quando o �cone recebe o clique.",
+          "correct": false
+        }
+      ],
+      "explanation": "O alvo pode ser o �cone interno. A rotina deve localizar o bot�o de a��o correspondente e verificar que ele pertence ao cont�iner esperado antes de reagir.",
+      "section": "3. Propaga��o, cancelamento e delega��o no DOM",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "`stopImmediatePropagation()` impede que ouvintes seguintes no mesmo alvo sejam chamados durante aquele despacho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Al�m de interromper a propaga��o para outros objetos, esse m�todo impede callbacks subsequentes no mesmo alvo durante o despacho atual.",
+      "section": "3. Propaga��o, cancelamento e delega��o no DOM",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Uma fun��o no ancestral quer impedir que o evento alcance outros objetos, mas n�o quer cancelar a a��o padr�o nem impedir listeners irm�os no mesmo alvo. Qual m�todo se ajusta melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "`stopPropagation()`, que interrompe a continua��o do percurso do evento.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`preventDefault()`, que remove os demais ouvintes do mesmo alvo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`stopImmediatePropagation()`, que preserva os pr�ximos ouvintes locais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`removeEventListener()`, que pausa a propaga��o sem identificar callback.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`dispatchEvent()`, que altera retroativamente o caminho j� percorrido.",
+          "correct": false
+        }
+      ],
+      "explanation": "`stopPropagation()` impede que o evento continue para outros objetos. Ele n�o cancela a��o padr�o nem, por si, impede outros ouvintes no mesmo objeto.",
+      "section": "3. Propaga��o, cancelamento e delega��o no DOM",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Quando `event.cancelable` � falso, `preventDefault()` n�o cancela uma a��o padr�o que o evento n�o permite cancelar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O cancelamento depende de o evento ser cancel�vel. A chamada n�o transforma um evento n�o cancel�vel em cancel�vel.",
+      "section": "3. Propaga��o, cancelamento e delega��o no DOM",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Qual associa��o entre m�todo e efeito est� correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "`preventDefault` cancela ação padrão cancelável; `stopPropagation` interrompe o percurso entre objetos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`preventDefault` remove listeners; `stopPropagation` troca o alvo do evento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`preventDefault` inicia captura; `stopPropagation` agenda uma microtarefa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`preventDefault` altera `currentTarget`; `stopPropagation` cancela o formul�rio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`preventDefault` cria um evento novo; `stopPropagation` apaga seu tipo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os m�todos tratam aspectos diferentes: a��o padr�o cancel�vel e propaga��o pelos objetos. N�o alteram o alvo nem removem inscri��es.",
+      "section": "3. Propaga��o, cancelamento e delega��o no DOM",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "O c�digo s�ncrono JavaScript executa at� terminar a pilha corrente; uma fun��o demorada pode atrasar a resposta da interface a novos eventos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Enquanto c�digo s�ncrono ocupa a execu��o, o ambiente n�o processa outras tarefas JavaScript nem atualiza a interface normalmente.",
+      "section": "4. Assincronia, filas e boas pr�ticas de projeto",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Em JavaScript no navegador, qual sequ�ncia descreve corretamente o processamento usual de uma rea��o de promessa j� resolvida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A reação de promessa roda como microtarefa após o código síncrono corrente terminar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A reacao interrompe imediatamente qualquer instrucao sincrona em execucao e pode preemptar a pilha atual sem esperar seu termino.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A rea��o � armazenada como listener de captura no elemento `document`.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A rea��o s� roda depois que todos os temporizadores futuros terminarem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A rea��o passa a integrar a a��o padr�o do �ltimo evento do usu�rio.",
+          "correct": false
+        }
+      ],
+      "explanation": "As rea��es de promessa s�o microtarefas. Elas n�o interrompem a pilha s�ncrona; s�o processadas ap�s a execu��o corrente e antes de tarefas posteriores.",
+      "section": "4. Assincronia, filas e boas pr�ticas de projeto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "sourceUrl": null,
+      "agency": null
+    },
+    {
+      "statement": "Debounce � apropriado quando se deseja executar uma busca depois que a pessoa parar de digitar por um intervalo de quietude.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Debounce reinicia a espera a cada ocorr�ncia e executa depois que a sequ�ncia fica sem novos eventos pelo intervalo configurado.",
+      "section": "4. Assincronia, filas e boas pr�ticas de projeto",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "year": null,
+      "agency": null
+    },
+    {
+      "statement": "Uma janela emite muitos eventos `resize` enquanto o usu�rio a redimensiona. Qual t�cnica limita a frequ�ncia de atualiza��o durante a sequ�ncia?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Throttle, que restringe quantas vezes a rea��o executa por intervalo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Debounce, que garante uma execu��o em cada ocorr�ncia recebida.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Captura, que elimina eventos repetidos antes de chegar ao alvo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Delega��o, que altera a frequ�ncia de eventos nativos do navegador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`preventDefault`, que agrupa callbacks pela ordem de chegada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Throttle limita a frequ�ncia de execu��o ao longo de uma sequ�ncia cont�nua. Debounce seria usado para esperar a pausa antes de agir.",
+      "section": "4. Assincronia, filas e boas pr�ticas de projeto",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "year": null,
+      "agency": null
+    },
+    {
+      "statement": "Debounce e throttle asseguram, por si s�s, que respostas de rede cheguem e sejam aplicadas na mesma ordem em que as requisi��es foram iniciadas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Essas t�cnicas limitam a frequ�ncia de chamadas. Resultados ainda podem chegar fora de ordem; a aplica��o precisa cancelar requisi��es antigas ou validar a vers�o da resposta.",
+      "section": "4. Assincronia, filas e boas pr�ticas de projeto",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "year": null,
+      "agency": null
+    },
+    {
+      "statement": "Qual escolha ajuda a manter uma interface responsiva ao processar uma tarefa computacional longa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Dividir ou delegar o trabalho para liberar a execução principal e manter a interface responsiva.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Adicionar mais listeners s�ncronos ao mesmo bot�o para repartir a pilha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Chamar `preventDefault` dentro de cada itera��o do c�lculo pesado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar um la�o ocupado que consulte a fila de eventos manualmente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Renomear o evento para `async` sem alterar como o trabalho � executado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma tarefa s�ncrona longa monopoliza a execu��o e atrasa interface e eventos. Dividir o processamento ou deleg�-lo a mecanismo apropriado permite que a aplica��o continue progredindo.",
+      "section": "4. Assincronia, filas e boas pr�ticas de projeto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "year": null,
+      "agency": null
+    },
+    {
+      "statement": "O simples uso de callbacks torna o c�digo paralelo em m�ltiplos n�cleos de processamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Callback indica uma fun��o chamada posteriormente por outro mecanismo; n�o significa necessariamente execu��o simult�nea ou paralela. No contexto principal do navegador, JavaScript executa uma pilha por vez.",
+      "section": "4. Assincronia, filas e boas pr�ticas de projeto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "year": null,
+      "agency": null
+    },
+    {
+      "statement": "Um teste dispara evento sint�tico e verifica uma atualiza��o que ocorre ap�s uma promessa. Que cuidado � necess�rio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aguardar ou controlar a etapa ass�ncrona antes de verificar o resultado final.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Presumir que `dispatchEvent` tamb�m espera qualquer rede iniciada pelo listener.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Verificar apenas a exist�ncia do bot�o, pois eventos n�o alteram estado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar `stopPropagation` para for�ar a promessa a ser resolvida.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar o listener por uma a��o padr�o antes do despacho do evento.",
+          "correct": false
+        }
+      ],
+      "explanation": "O despacho sint�tico � s�ncrono, mas uma promessa iniciada pelo listener progride depois. O teste deve aguardar ou controlar essa etapa antes de examinar a atualiza��o final.",
+      "section": "4. Assincronia, filas e boas pr�ticas de projeto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um listener lan�a erro, o uso de eventos garante que outro listener do mesmo tipo corrija automaticamente o estado inconsistente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Eventos n�o fornecem recupera��o autom�tica nem coordena��o de transa��es. Erros precisam de tratamento expl�cito e os consumidores devem ter responsabilidades definidas.",
+      "section": "4. Assincronia, filas e boas pr�ticas de projeto",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplica��o deseja reduzir depend�ncia entre m�dulos sem esconder contratos. Qual pr�tica � mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Definir contratos claros sobre eventos e dados, mantendo handlers focados em uma reação.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar nomes gen�ricos e incluir qualquer dado dispon�vel em cada evento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permitir que todos os ouvintes alterem o mesmo estado sem conven��o de ordem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Esconder falhas nos listeners para que o emissor n�o conhe�a consumidores.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Criar um evento distinto para cada linha de codigo executada no handler, pois isso elimina a necessidade de definir contratos com consumidores.",
+          "correct": false
+        }
+      ],
+      "explanation": "Contratos claros preservam o desacoplamento sem tornar a comunica��o opaca. Handlers focados e tratamento de erros expl�cito ajudam a controlar efeitos e facilitar testes.",
+      "section": "4. Assincronia, filas e boas pr�ticas de projeto",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O processamento de microtarefas associadas a promessas ocorre depois do c�digo s�ncrono corrente terminar e antes de o ambiente avan�ar para tarefas posteriores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A fila de microtarefas � esvaziada ap�s a execu��o s�ncrona corrente, antes do processamento da pr�xima tarefa do event loop.",
+      "section": "4. Assincronia, filas e boas pr�ticas de projeto",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tela removida continua recebendo atualiza��es porque um listener global mant�m callback que referencia seu estado. Qual provid�ncia corrige a causa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Encerrar a inscrição ao desmontar o componente ou abortá-la pelo sinal associado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Chamar `preventDefault` ao remover a tela para apagar a referencia retida, pois isso tambem encerra listeners globais registrados em outros alvos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Alterar o tipo do evento para que o listener global ignore a interface.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Despachar o evento mais uma vez para liberar todos os callbacks antigos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desativar o borbulhamento no n� removido sem alterar a inscri��o global.",
+          "correct": false
+        }
+      ],
+      "explanation": "A inscri��o no alvo global permanece ativa e pode reter refer�ncias ao componente. Remov�-la ou associ�-la a um `AbortSignal` no encerramento evita rea��es fora de hora.",
+      "section": "4. Assincronia, filas e boas pr�ticas de projeto",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma arquitetura orientada a eventos define, sem configura��o adicional, persist�ncia, retentativa e entrega exatamente uma vez para todos os eventos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O paradigma descreve rea��o a ocorr�ncias, n�o garantias universais de armazenamento ou entrega. Essas propriedades dependem do ambiente e da infraestrutura adotada.",
+      "section": "4. Assincronia, filas e boas pr�ticas de projeto",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "sourceUrl": null,
+      "year": null
+    },
+    {
+      "statement": "Uma equipe quer evitar que a resposta lenta a uma busca antiga substitua resultados de uma consulta mais recente. Qual decis�o � necess�ria al�m de aplicar debounce?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cancelar a busca anterior ou ignorar respostas que já não correspondem à consulta atual.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Trocar todos os eventos `input` por eventos de captura no documento, pois a fase de captura garante que respostas de rede antigas sejam descartadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Chamar `stopPropagation` na promessa quando ela retornar atrasada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar `once: true` no listener para ordenar as respostas da rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Adicionar um segundo debounce para impor ordem de chegada ao servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Debounce limita a emiss�o de buscas, mas respostas podem chegar fora de ordem. Cancelamento ou valida��o de identificador/consulta impede que uma resposta obsoleta atualize a tela.",
+      "section": "4. Assincronia, filas e boas pr�ticas de projeto",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "year": null,
+      "agency": null
+    },
+    {
+      "statement": "Um teste que verifica somente se o callback foi invocado prova tamb�m que a rea��o tratou corretamente erros e efeitos ass�ncronos posteriores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A invoca��o do callback n�o demonstra que resultados posteriores, erros, cancelamento ou atualiza��o final funcionaram. Esses comportamentos precisam de verifica��es pr�prias.",
+      "section": "4. Assincronia, filas e boas pr�ticas de projeto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "year": null,
+      "agency": null
+    },
+    {
+      "statement": "Uma interface precisa que cada ocorr�ncia de teclado atualize imediatamente um contador, mas a atualiza��o de layout � cara. Qual princ�pio ajuda sem confundir o contrato do evento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Preservar o evento e otimizar o trabalho visual, agrupando atualizações sem perder seu significado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Converter todos os eventos de teclado em mensagens persistentes de broker, pois esse transporte acelera automaticamente qualquer atualizacao visual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar `stopPropagation` para obrigar o navegador a atualizar o layout mais r�pido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Armazenar o callback no atributo `target` e evitar o event loop.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Desregistrar o listener depois de cada evento e nunca instal�-lo novamente.",
+          "correct": false
+        }
+      ],
+      "explanation": "A rea��o precisa preservar o significado das ocorr�ncias, mas pode otimizar o trabalho visual e evitar opera��es custosas repetidas. M�todos de propaga��o n�o aceleram o layout.",
+      "section": "4. Assincronia, filas e boas pr�ticas de projeto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "year": null,
+      "agency": null
+    },
+    {
+      "statement": "Se um evento � despachado sincronicamente, opera��es ass�ncronas iniciadas por seus listeners tamb�m precisam terminar antes de `dispatchEvent` retornar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A chamada invoca sincronamente os listeners, mas uma promessa, temporizador ou rede iniciada neles progride depois, conforme o mecanismo ass�ncrono correspondente.",
+      "section": "4. Assincronia, filas e boas pr�ticas de projeto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "sourceUrl": null,
+      "year": null
+    },
+    {
+      "statement": "Qual conclus�o � segura ao comparar eventos de DOM e mensagens distribu�das de neg�cio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ambos comunicam ocorrências; transporte, persistência e garantias dependem do mecanismo adotado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todo evento de DOM � persistido e encaminhado a servi�os remotos automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mensagens distribu�das seguem sempre a propaga��o de captura e borbulhamento do DOM.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Eventos locais dispensam listeners porque s�o invocados como chamadas diretas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um evento de neg�cio n�o pode carregar dados porque descreve uma ocorr�ncia passada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A no��o comum � comunicar uma ocorr�ncia, mas DOM e mensageria distribu�da t�m mecanismos distintos. Persist�ncia, entrega e transporte n�o s�o propriedades universais do conceito de evento.",
+      "section": "1. O paradigma orientado a eventos",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "sourceUrl": null,
+      "year": null
+    },
+    {
+      "statement": "Um handler registra outra fun��o para o mesmo evento durante sua execu��o. A programa��o orientada a eventos pro�be essa composi��o de listeners.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O modelo permite registrar listeners conforme as regras do alvo. A aplica��o deve controlar duplica��o e ciclo de vida, mas n�o h� proibi��o geral de inscri��o durante execu��o.",
+      "section": "2. Registro, despacho e ciclo de vida dos ouvintes",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "year": null,
+      "agency": null
+    },
+    {
+      "statement": "Uma equipe precisa impedir que uma a��o de formul�rio padr�o ocorra e, independentemente disso, evitar que o evento chegue a ancestrais. Qual afirma��o � correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Exigem tratar a ação padrão cancelável e a propagação separadamente, com os métodos adequados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "`preventDefault` atende ambos os objetivos para qualquer evento e formulario, inclusive quando nao existe acao cancelavel ou propagacao a interromper.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "`stopPropagation` cancela a a��o padr�o e remove listeners ancestrais permanentemente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "`removeEventListener` cancela o envio atual e apaga todos os handlers do formul�rio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "`dispatchEvent` muda automaticamente o evento nativo para n�o cancel�vel.",
+          "correct": false
+        }
+      ],
+      "explanation": "A a��o padr�o e o percurso de propaga��o s�o dimens�es separadas. A aplica��o usa `preventDefault` para a��o cancel�vel e o m�todo de propaga��o apropriado se tamb�m quiser interromper o caminho.",
+      "section": "3. Propaga��o, cancelamento e delega��o no DOM",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "agency": null,
+      "year": null
+    },
+    {
+      "statement": "A delega��o de eventos permite tratar itens adicionados dinamicamente sem instalar um novo listener em cada item, desde que a ocorr�ncia alcance o ancestral ouvinte.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O listener no ancestral pode receber eventos propagados de elementos criados posteriormente e reconhecer os alvos pertinentes.",
+      "section": "3. Propaga��o, cancelamento e delega��o no DOM",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "year": null,
+      "agency": null
+    },
+    {
+      "statement": "Uma aplica��o dispara um evento personalizado com `bubbles: true` e `detail` contendo o identificador de um registro. O que essas op��es indicam?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O evento pode subir pela �rvore e disponibiliza o dado pr�prio em `detail`.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O evento se torna persistente e o dado � gravado automaticamente no banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O callback ser� executado apenas na captura e fora da chamada de despacho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O identificador passa a ser `currentTarget` e substitui o elemento emissor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A a��o padr�o fica cancelada e todos os listeners anteriores s�o removidos.",
+          "correct": false
+        }
+      ],
+      "explanation": "`bubbles: true` permite a propaga��o ascendente; `detail` carrega dados pr�prios. Nenhuma op��o implica persist�ncia ou cancelamento autom�tico.",
+      "section": "2. Registro, despacho e ciclo de vida dos ouvintes",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "year": null,
+      "agency": null
+    },
+    {
+      "statement": "Um listener padr�o registrado sem a op��o de captura est� normalmente associado � fase de captura dos ancestrais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Sem `capture: true`, o listener � registrado normalmente para a fase de borbulhamento; no pr�prio alvo, as regras de fase no alvo tamb�m se aplicam.",
+      "section": "3. Propaga��o, cancelamento e delega��o no DOM",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "year": null,
+      "agency": null
+    },
+    {
+      "statement": "Ao testar uma sequ�ncia com evento, promise e temporizador, qual abordagem oferece evid�ncia mais confi�vel do comportamento?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aguardar ou controlar cada etapa e verificar estado final, ordem e erros relevantes do fluxo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Verificar imediatamente ap�s o despacho e supor que todas as filas j� foram esvaziadas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar listeners durante o teste para evitar qualquer diferen�a de execu��o.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Confirmar somente que o evento tem um nome e ignorar os efeitos do callback.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar uma pausa arbitraria longa e dispensar a verificacao de estados intermediarios, pois a espera garante que promessas futuras e temporizadores sempre terminaram.",
+          "correct": false
+        }
+      ],
+      "explanation": "O despacho pode ser s�ncrono enquanto promise e temporizador completam depois. Controlar as etapas torna o teste determin�stico e permite conferir ordem, estado final e falhas relevantes.",
+      "section": "4. Assincronia, filas e boas pr�ticas de projeto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "year": null,
+      "agency": null
+    },
+    {
+      "statement": "No modelo DOM, a fase de captura percorre a �rvore em dire��o ao alvo e a fase de borbulhamento, quando habilitada, percorre ancestrais no sentido de volta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essa � a dire��o das duas fases de propaga��o: captura descendente e borbulhamento ascendente quando `bubbles` permite.",
+      "section": "3. Propaga��o, cancelamento e delega��o no DOM",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "sourceUrl": null,
+      "year": null,
+      "agency": null
+    },
+    {
+      "statement": "Em uma aplica��o web, qual afirma��o sobre eventos e c�digo bloqueante � correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um handler com trabalho s�ncrono demorado pode atrasar o atendimento de eventos posteriores.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O nome do evento obriga o navegador a executar o handler em outro n�cleo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Todo listener recebe uma thread exclusiva enquanto estiver registrado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A fase de captura preempta automaticamente qualquer c�digo em execu��o.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O m�todo `once` transforma c�digo s�ncrono em processamento n�o bloqueante.",
+          "correct": false
+        }
+      ],
+      "explanation": "O modelo de eventos n�o impede que um callback execute c�digo s�ncrono custoso. Enquanto esse trabalho ocupa a execu��o, outras tarefas e a interface podem esperar.",
+      "section": "4. Assincronia, filas e boas pr�ticas de projeto",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "year": null,
+      "agency": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma a��o padr�o s� pode ser cancelada quando o evento permite cancelamento; nesse caso, o callback pode indicar a decis�o com `preventDefault()`.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O campo `cancelable` informa se a acao padrao pode ser cancelada. Nesse caso, `preventDefault()` solicita o cancelamento. Esse metodo nao interrompe a propagacao do evento e tambem nao remove os ouvintes que foram registrados no alvo ou nos ancestrais.",
+      "section": "3. Propaga��o, cancelamento e delega��o no DOM",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "sourceUrl": null,
+      "year": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "DOM Standard",
+      "publisher": "WHATWG",
+      "reference": "Modelo de eventos DOM, EventTarget, listeners, despacho, propaga\u00e7\u00e3o e eventos sint\u00e9ticos",
+      "url": "https://dom.spec.whatwg.org/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Document Object Model (DOM): Events",
+      "publisher": "MDN Web Docs",
+      "reference": "Registro de handlers, captura, borbulhamento e delega\u00e7\u00e3o de eventos",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/Document_Object_Model/Events",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Event: eventPhase property",
+      "publisher": "MDN Web Docs",
+      "reference": "Fases de propaga\u00e7\u00e3o e comportamento da captura e do borbulhamento",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/Event/eventPhase",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}

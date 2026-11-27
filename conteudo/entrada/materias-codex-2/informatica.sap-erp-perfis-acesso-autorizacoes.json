@@ -1,0 +1,1602 @@
+{
+  "id": "informatica.sap-erp-perfis-acesso-autorizacoes",
+  "subject": "Informática",
+  "title": "SAP ERP: desenho de perfis de acesso e autorizações",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Desenho de perfil de acesso de usuário no SAP-ERP",
+    "Desenho de perfis de acesso no SAP ERP",
+    "Perfis de autorização para usuários SAP ERP",
+    "Perfis de acesso e autorizações SAP",
+    "Autorização de usuários no SAP ERP",
+    "Administração de papéis e usuários SAP",
+    "Role design no SAP ERP",
+    "PFCG e perfis de autorização SAP",
+    "Autorização baseada em funções SAP ABAP",
+    "Segurança de acesso no SAP ERP"
+  ],
+  "scope": {
+    "covers": "Desenho e administração de acesso de usuários em SAP ERP baseado em ABAP: diferença entre autenticação, usuário, papel, autorização, objeto de autorização, perfil gerado e menu; desenho de papéis simples e compostos; manutenção de papéis em PFCG; campos de autorização, valores organizacionais e atividades; geração do perfil e comparação de usuários; atribuição de papéis em SU01; verificações de autorização e análise de falhas; segregação de funções, privilégio mínimo, revisão e ciclo de vida dos acessos.",
+    "excludes": "Configuração de módulos funcionais SAP, administração de senhas e autenticação federada, SAP GRC em profundidade, desenvolvimento ABAP de verificações, listas completas de objetos específicos de cada módulo e diferenças dependentes de release não documentadas aqui."
+  },
+  "theoryTitle": "Como desenhar acessos e autorizações no SAP ERP",
+  "chapters": [
+    {
+      "title": "1. Do usuário à autorização efetiva",
+      "markdown": "### O problema que este assunto resolve\n\nNo SAP ERP, entrar no sistema não significa poder executar qualquer tarefa. A autenticação confirma a identidade; as autorizações limitam as ações depois do logon. O programa executado solicita verificações contra objetos de autorização, e os valores efetivos do usuário precisam satisfazer os campos verificados. Uma pessoa pode abrir uma transação e ainda assim não ter autorização para alterar determinado tipo de documento ou atuar em determinada unidade organizacional.\n\n> **Siglas e termos deste capítulo**\n> - **Usuário mestre**: registro individual mantido no sistema, com dados de acesso e atribuições.\n> - **Papel (role)**: conjunto de tarefas e dados de autorização, normalmente mantido em PFCG.\n> - **Objeto de autorização**: estrutura de campos que o programa verifica.\n> - **Autorização**: valores permitidos para os campos de um objeto.\n> - **Perfil**: agrupamento técnico de autorizações gerado a partir do papel.\n> - **PFCG**: manutenção de papéis e geração de perfis.\n\n### A cadeia de acesso\n\nO objeto de autorização define quais campos serão testados; por exemplo, uma verificação pode combinar atividade e área organizacional. A autorização preenche esses campos com valores permitidos. O papel organiza autorizações e, em regra, também o menu de transações relevantes. Ao gerar o papel, o sistema produz o perfil técnico; o papel é atribuído ao registro mestre do usuário.\n\n| Elemento | Função no acesso |\n| --- | --- |\n| Usuário mestre | Identifica a conta e recebe papéis atribuídos |\n| Papel simples | Representa um conjunto coerente de tarefas |\n| Papel composto | Agrupa papéis simples para facilitar a atribuição |\n| Objeto e autorização | Definem campos verificados e seus valores permitidos |\n| Perfil gerado | Materializa tecnicamente as autorizações do papel |\n| Verificação do programa | Compara os valores solicitados com os do usuário |\n\nO menu do papel ajuda o usuário a localizar transações, relatórios ou aplicações, mas não substitui a autorização. Ocultar uma transação no menu não impede, por si só, que alguém tente iniciá-la por outro caminho. A proteção depende das verificações de autorização executadas pelo sistema.\n\n### Como cai na prova\n\nA banca costuma trocar papel por perfil, ou afirmar que o menu concede o direito. Lembre-se: o papel é a unidade funcional de desenho; o perfil gerado contém autorizações técnicas; o programa precisa realizar a verificação correspondente. A documentação SAP recomenda administrar papéis pelo gerador PFCG, em vez de manter diretamente perfis gerados no usuário."
+    },
+    {
+      "title": "2. Desenho do papel em PFCG",
+      "markdown": "### O problema que este assunto resolve\n\nUm papel bem desenhado traduz uma função de trabalho delimitada em transações e valores de autorização. Para isso, levante tarefas reais, dados necessários, unidades organizacionais e operações permitidas. Não comece concedendo acesso amplo para depois tentar descobrir o que sobrou: isso tende a acumular permissões sem justificativa.\n\n> **Siglas e termos deste capítulo**\n> - **PFCG**: ferramenta de manutenção de papéis e geração de perfis.\n> - **S_TCODE**: objeto usado para autorização de início de transação; não substitui verificações posteriores.\n> - **ACTVT**: campo comum que representa atividade, cujos valores dependem do objeto e do contexto.\n> - **Nível organizacional**: campo cujos valores delimitam uma unidade, como empresa ou centro, conforme o objeto.\n> - **Papel simples**: papel individual com dados de autorização e menu próprios.\n> - **Papel composto**: conjunto de papéis simples, sem substituir o conteúdo de cada papel componente.\n\n### Do levantamento à geração\n\nEm PFCG, o administrador cria ou edita o papel, documenta sua finalidade, organiza o menu e mantém os dados de autorização. A partir do menu, o sistema propõe autorizações funcionais; o administrador revisa os objetos e completa os valores de campos que dependem do negócio, inclusive níveis organizacionais. Em seguida, gera o perfil. O menu deve conter apenas funções necessárias à tarefa diária, mas a decisão de acesso depende dos dados de autorização e das verificações do programa.\n\nUse papéis simples com responsabilidades claras e combine-os quando a pessoa exercer mais de uma função. Um papel composto simplifica a atribuição de vários papéis simples a um usuário, mas a análise de risco deve considerar as autorizações combinadas. Separar funções incompatíveis em papéis diferentes facilita atribuição e revisão, mas não elimina o risco se a mesma pessoa receber ambos.\n\n| Decisão de desenho | Efeito esperado |\n| --- | --- |\n| Restringir valores organizacionais | Limita os dados alcançáveis ao escopo de trabalho |\n| Separar tarefas incompatíveis | Torna conflitos de acesso identificáveis e revisáveis |\n| Usar papel composto para funções acumuladas | Simplifica atribuição, preservando papéis componentes |\n| Manter somente menu necessário | Facilita o uso sem tratar menu como barreira de segurança |\n\n### Como cai na prova\n\nNão confunda inclusão de uma transação no menu com autorização completa para seus dados. Tampouco suponha que o nome do papel restringe acesso: a restrição está nos valores dos campos autorizados e nas verificações do sistema. Valores curinga ampliam o escopo; devem ser justificados e limitados ao que a função requer."
+    },
+    {
+      "title": "3. Atribuição, geração e comparação de usuários",
+      "markdown": "### O problema que este assunto resolve\n\nO papel desenhado precisa chegar ao usuário de forma consistente. A atribuição é feita no registro mestre, normalmente por SU01 ou pela aba de usuários de PFCG. Em seguida, a geração atualiza o perfil associado ao papel; a comparação de usuários sincroniza as atribuições com os registros mestre. Uma atribuição ainda não comparada pode deixar o estado técnico desatualizado.\n\n> **Siglas e termos deste capítulo**\n> - **SU01**: manutenção do registro mestre de usuário.\n> - **PFUD**: comparação de atribuições de usuários e papéis.\n> - **Geração**: criação ou atualização do perfil de autorização a partir dos dados do papel.\n> - **Comparação de usuários**: atualização das atribuições derivadas do papel nos usuários.\n> - **Validade da atribuição**: intervalo no qual o papel está associado ao usuário, quando datas são mantidas.\n\n### Sequência operacional segura\n\nPrimeiro, revise e salve o papel em PFCG; depois gere o perfil para materializar as autorizações. Atribua o papel ao usuário com a validade apropriada e execute ou aguarde a comparação de usuários conforme o processo do sistema. A documentação SAP alerta que perfis gerados não devem ser inseridos diretamente na aba de perfis do usuário: a comparação pode remover atribuições que não estejam representadas na aba de papéis. Mantenha a relação pelo papel.\n\nApós mudança em papel já atribuído, usuários que mantêm sessão aberta podem não refletir imediatamente os direitos novos; a documentação consultada descreve a atualização efetiva no próximo logon. Para mudanças sensíveis, planeje a ativação e a nova autenticação dos usuários de acordo com o procedimento operacional da instalação.\n\n### Como cai na prova\n\nA sequência conceitual é papel atualizado, perfil gerado e atribuição/comparação refletida no usuário. SU01 mantém o registro do usuário; PFCG mantém o papel; PFUD compara atribuições. Não atribua manualmente, como solução normal, o perfil gerado diretamente ao usuário."
+    },
+    {
+      "title": "4. Privilégio mínimo, conflitos e diagnóstico",
+      "markdown": "### O problema que este assunto resolve\n\nPermissões excessivas aumentam a chance de erro, fraude ou alteração indevida. O desenho deve fornecer apenas as tarefas, atividades e valores de dados necessários. Em processos com etapas incompatíveis, como criar um fornecedor e aprovar seu pagamento, combine análise de segregação de funções com controles compensatórios e revisão formal. A separação em papéis é útil, mas a combinação dos papéis atribuídos a uma pessoa é que determina o acesso efetivo.\n\n> **Siglas e termos deste capítulo**\n> - **Privilégio mínimo**: conceder apenas as permissões necessárias para a função.\n> - **Segregação de funções**: distribuir etapas incompatíveis entre pessoas ou controles distintos.\n> - **SU53**: transação comumente usada para exibir a última verificação de autorização que falhou.\n> - **ST01**: rastreamento do sistema que pode registrar verificações, sob procedimento autorizado.\n> - **S_USER_AGR**: objeto relacionado a administração de papéis; valores e escopo dependem da configuração.\n> - **SAP_ALL**: perfil predefinido que concede autorizações amplas no sistema ABAP.\n\n### Revisar e investigar\n\nQuando uma operação falha, identifique o usuário, a transação e o passo em que ocorreu; consulte a falha de autorização, por exemplo com SU53, e correlacione os campos solicitados com o papel e os valores gerados. Um rastreamento autorizado pode ajudar quando a falha não aparece na última verificação ou o fluxo envolve chamadas adicionais. Não resolva automaticamente uma falha concedendo curinga ou SAP_ALL: determine o objeto, atividade e unidade de dados realmente necessários e altere o papel responsável.\n\nRevise periodicamente quem possui cada papel, se a função ainda exige o acesso e se há combinações incompatíveis. Remova ou ajuste papéis quando a função termina e use processos de aprovação e evidência para acessos privilegiados. A administração do próprio acesso deve ser controlada separadamente das funções de negócio.\n\n### Como cai na prova\n\nA autorização de início de transação não prova que todas as operações e dados da transação estão liberados. A mesma tela pode executar verificações adicionais em objetos diferentes. A evidência de uma falha ajuda a localizar o campo ausente, mas não decide qual permissão de negócio deve ser concedida: isso depende da necessidade legítima da função."
+    }
+  ],
+  "summary": "No SAP ERP baseado em ABAP, o desenho parte das tarefas e dados necessários. O papel mantido em PFCG reúne menu e dados de autorização; objetos definem campos verificados e autorizações fornecem valores. PFCG gera um perfil técnico, que é associado ao usuário por atribuição de papel e comparação. Menus não substituem verificações. Restringir valores organizacionais, separar tarefas incompatíveis, revisar combinações e diagnosticar falhas antes de conceder novas permissões são práticas centrais.",
+  "flashcards": [
+    {
+      "front": "Qual é a diferença entre autenticação e autorização?",
+      "back": "Autenticação confirma a identidade no logon; autorização limita as ações e os dados que essa identidade pode acessar."
+    },
+    {
+      "front": "O que representa um papel SAP mantido em PFCG?",
+      "back": "Um conjunto funcional de tarefas, menu e dados de autorização que pode ser atribuído a usuários."
+    },
+    {
+      "front": "O que é um objeto de autorização?",
+      "back": "Uma estrutura de campos que um programa verifica para decidir se uma operação é permitida."
+    },
+    {
+      "front": "O que é uma autorização dentro de um objeto?",
+      "back": "Um conjunto de valores permitidos para os campos daquele objeto."
+    },
+    {
+      "front": "Qual é o papel do perfil gerado?",
+      "back": "Agrupar tecnicamente as autorizações materializadas a partir dos dados do papel."
+    },
+    {
+      "front": "Para que serve PFCG?",
+      "back": "Manter papéis, seus menus e dados de autorização e gerar os perfis associados."
+    },
+    {
+      "front": "Para que serve SU01?",
+      "back": "Manter o registro mestre do usuário, incluindo dados e atribuições de papéis."
+    },
+    {
+      "front": "O menu de um papel concede autorização por si só?",
+      "back": "Não. O menu facilita acesso às funções; verificações e autorizações efetivas controlam a execução e os dados."
+    },
+    {
+      "front": "O que agrupa um papel composto?",
+      "back": "Papéis simples; a combinação de todos os componentes deve ser avaliada para o usuário."
+    },
+    {
+      "front": "O que precisa ser feito após ajustar os dados de autorização de um papel?",
+      "back": "Gerar o perfil para atualizar a representação técnica do papel."
+    },
+    {
+      "front": "O que faz a comparação de usuários?",
+      "back": "Sincroniza nos registros mestre as atribuições derivadas dos papéis, conforme o processamento do sistema."
+    },
+    {
+      "front": "Por que evitar atribuir manualmente o perfil gerado no usuário?",
+      "back": "A relação suportada é a atribuição do papel; a comparação pode remover perfis que não correspondam a papéis atribuídos."
+    },
+    {
+      "front": "Quando mudanças de autorização podem valer para uma sessão existente?",
+      "back": "A documentação consultada indica que mudanças podem só surtir efeito no próximo logon do usuário."
+    },
+    {
+      "front": "O que restringem os valores organizacionais de uma autorização?",
+      "back": "Delimitam unidades ou escopos de dados permitidos nos campos correspondentes."
+    },
+    {
+      "front": "O que expressa o princípio do privilégio mínimo?",
+      "back": "Conceder somente as permissões necessárias para a tarefa atribuída."
+    },
+    {
+      "front": "O que é segregação de funções?",
+      "back": "Separar etapas incompatíveis ou submetê-las a controles distintos para reduzir conflitos de acesso."
+    },
+    {
+      "front": "O que normalmente mostra SU53?",
+      "back": "Informações da última verificação de autorização que falhou para o usuário."
+    },
+    {
+      "front": "Quando um rastreamento de autorização pode ajudar?",
+      "back": "Quando é preciso acompanhar verificações durante um fluxo, sob procedimento autorizado."
+    },
+    {
+      "front": "Por que não adicionar SAP_ALL para resolver uma falha de tarefa?",
+      "back": "É um perfil amplo que concede autorizações extensas e não corresponde ao ajuste mínimo do objeto e dos valores necessários."
+    },
+    {
+      "front": "O que deve ser revisado além de cada papel isolado?",
+      "back": "A combinação de papéis recebida por cada usuário e os conflitos que ela pode produzir."
+    },
+    {
+      "front": "S_TCODE substitui verificações de dados da transação?",
+      "back": "Não. A autorização de início não elimina verificações adicionais feitas pelos programas."
+    },
+    {
+      "front": "Qual sequência relaciona PFCG e acesso do usuário?",
+      "back": "Manter papel, revisar dados, gerar perfil, atribuir o papel ao usuário e comparar as atribuições."
+    },
+    {
+      "front": "Como tratar um valor curinga em autorização?",
+      "back": "Como concessão de escopo amplo, justificando e restringindo-o ao que a função realmente exige."
+    },
+    {
+      "front": "O que fazer quando a função de alguém termina?",
+      "back": "Revisar e remover ou ajustar as atribuições que deixaram de ser necessárias."
+    }
+  ],
+  "tips": [
+    "PFCG cuida do papel; SU01 cuida do registro mestre do usuário; PFUD compara atribuições.",
+    "Pense em objeto como campos a verificar e autorização como valores aceitos para esses campos.",
+    "O menu orienta o uso, mas não é a barreira que protege os dados.",
+    "Ao revisar acesso, some as permissões de todos os papéis simples e compostos do usuário.",
+    "Uma falha de autorização deve levar à identificação do objeto e dos valores ausentes, não à concessão automática de SAP_ALL.",
+    "Após mudanças em papéis, considere geração do perfil, comparação e efeito sobre sessões já abertas."
+  ],
+  "traps": [
+    "Confundir o perfil técnico gerado com o papel funcional atribuído ao usuário.",
+    "Achar que esconder uma transação do menu impede iniciá-la por qualquer outra via.",
+    "Atribuir diretamente o perfil gerado em vez de atribuir o papel correspondente.",
+    "Avaliar cada papel isoladamente e ignorar combinações de papéis que criam conflito.",
+    "Usar valores curinga como atalho sem considerar o aumento do escopo de dados.",
+    "Tratar SU53 como decisão de negócio: a transação aponta uma falha, mas a necessidade deve ser validada."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva a relação entre objeto, autorização, papel, perfil e usuário.",
+      "answer": "O programa verifica campos de objetos; autorizações definem valores admitidos; papéis organizam dados de autorização e menu; PFCG gera perfil técnico; o papel é atribuído ao usuário."
+    },
+    {
+      "question": "Por que o menu do papel não basta para proteger uma transação?",
+      "answer": "Porque o usuário pode tentar acessar a função por outro caminho, e o controle efetivo depende das verificações de autorização do sistema."
+    },
+    {
+      "question": "Como limitar o acesso a dados de uma unidade organizacional?",
+      "answer": "Manter valores restritos nos campos organizacionais pertinentes dos objetos de autorização do papel e validar o escopo com o processo de negócio."
+    },
+    {
+      "question": "Qual sequência deve seguir uma alteração de autorização em PFCG?",
+      "answer": "Editar e salvar o papel, revisar os campos e valores, gerar o perfil e atualizar a atribuição ao usuário por comparação conforme o processo."
+    },
+    {
+      "question": "Por que a atribuição de perfis gerados diretamente ao usuário é inadequada?",
+      "answer": "A administração deve manter a relação pelo papel; a comparação pode remover perfis sem papel correspondente na aba de atribuições."
+    },
+    {
+      "question": "Como investigar uma falha sem ampliar indevidamente o acesso?",
+      "answer": "Registrar usuário, transação e etapa; consultar a falha, identificar objeto e campos; confirmar a necessidade e alterar apenas o papel e os valores pertinentes."
+    },
+    {
+      "question": "Como avaliar segregação de funções em papéis compostos?",
+      "answer": "Avaliar a união dos papéis simples efetivamente atribuídos ao usuário e identificar se ela reúne etapas incompatíveis."
+    },
+    {
+      "question": "O que revisar na recertificação periódica de acessos?",
+      "answer": "Titular, finalidade, necessidade atual, valores organizacionais, papéis combinados, acessos privilegiados e evidência de aprovação."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Papel, perfil e autorização confundidos",
+      "summary": "Papel é a unidade funcional administrada em PFCG; perfil é a materialização técnica gerada; autorizações associam valores a campos de objetos verificados."
+    },
+    {
+      "key": "e2",
+      "title": "Menu tratado como controle de segurança",
+      "summary": "O menu facilita encontrar funções, mas não substitui a autorização de início nem as verificações de dados feitas pelo programa."
+    },
+    {
+      "key": "e3",
+      "title": "Atribuição sem geração ou comparação",
+      "summary": "Alterar papel, gerar o perfil e sincronizar as atribuições são etapas distintas; uma atualização pode não refletir imediatamente em sessão já aberta."
+    },
+    {
+      "key": "e4",
+      "title": "Permissão ampla para resolver falha pontual",
+      "summary": "Conceder SAP_ALL ou valores curinga pode ampliar excessivamente o acesso; identifique a verificação e conceda só valores necessários, após validar a função."
+    },
+    {
+      "key": "e5",
+      "title": "Papéis analisados sem considerar combinação",
+      "summary": "Papéis simples podem parecer adequados isoladamente, mas juntos podem reunir atividades incompatíveis para a mesma pessoa."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "O que controla o início de uma transação e o que ainda pode ser verificado durante sua execução?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "S_TCODE pode controlar o início; verificações adicionais ainda podem limitar operações e dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O menu controla o início e dispensa objetos adicionais durante todo o processamento dos dados, mesmo quando há perfil válido.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SU53 controla o início e grava automaticamente todas as permissões usadas depois.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O perfil composto controla o início e substitui verificações feitas pelos programas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A senha controla o início e libera todos os objetos da transação autenticada.",
+          "correct": false
+        }
+      ],
+      "explanation": "S_TCODE trata da autorização de início de transação. Durante a execução, o programa pode verificar outros objetos e campos para limitar ações e dados; menu e autenticação não substituem essas verificações.",
+      "section": "1. Do usuário à autorização efetiva",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na manutenção manual de autorizações SAP, qual caractere é reconhecido como curinga válido segundo a documentação consultada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O asterisco (*); outros caracteres como mais (+) são tratados literalmente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O sinal de mais (+); o asterisco é sempre interpretado como caractere literal.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O ponto de interrogação (?); sinais restantes ampliam automaticamente o valor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O percentual (%); o asterisco só funciona em nomes de papéis compostos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Qualquer caractere final; o sistema interpreta todos como padrão de busca universal.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação SAP consultada informa que o asterisco é o curinga válido em autorizações manuais e papéis; caracteres como o sinal de mais são tratados como caracteres normais. O uso do curinga deve ser restrito porque amplia o escopo.",
+      "section": "2. Desenho do papel em PFCG",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma organização atribui papéis por datas de validade, o que deve ocorrer quando o acesso temporário termina?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A atribuição deve deixar de valer conforme o período mantido e o processamento do sistema.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O papel passa a ser permanente até que o usuário altere a própria senha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O perfil gerado é copiado para SAP_ALL para evitar interrupção do trabalho.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A data final muda somente o menu, mantendo todas as autorizações efetivas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O usuário permanece autorizado até que seu registro mestre seja excluído.",
+          "correct": false
+        }
+      ],
+      "explanation": "A validade temporal deve refletir a necessidade aprovada e ser processada no sistema; encerrada a atribuição, o acesso correspondente deixa de ser concedido conforme esse ciclo. Não se deve substituir o papel temporário por acesso amplo ou permanente.",
+      "section": "3. Atribuição, geração e comparação de usuários",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um rastreamento de autorização é necessário porque SU53 não esclareceu uma falha reproduzida em várias etapas. Qual recurso pode apoiar a análise?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "ST01 pode rastrear verificações durante o fluxo, se usado sob procedimento autorizado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SU01 registra todas as verificações executadas e altera os campos que falharam.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "PFCG reproduz automaticamente a operação e concede os objetos rejeitados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "PFUD executa o fluxo e converte falhas em valores organizacionais liberados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O menu do papel substitui o rastreamento e identifica cada objeto rejeitado.",
+          "correct": false
+        }
+      ],
+      "explanation": "ST01 pode ser usado para rastrear verificações no fluxo quando a última falha exibida não explica o caso. O rastreamento serve ao diagnóstico e não concede autorizações nem altera papéis automaticamente.",
+      "section": "4. Privilégio mínimo, conflitos e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo de autorização baseado em papéis, qual sequência descreve corretamente a autorização de uma ação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O usuário recebe o papel e suas autorizações por meio do perfil gerado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O menu concede todos os direitos; o objeto apenas registra a transação que foi aberta.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A autenticação cria autorizações temporárias para todos os objetos usados durante a sessão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O perfil define a identidade; o usuário mestre é criado automaticamente após a primeira transação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A transação contém os valores organizacionais; o papel serve apenas para agrupar nomes de usuários.",
+          "correct": false
+        }
+      ],
+      "explanation": "O papel reúne dados de autorização e gera um perfil técnico associado ao registro do usuário. O menu não concede todos os direitos, a autenticação não cria autorizações e o papel não é apenas uma lista de nomes.",
+      "section": "1. Do usuário à autorização efetiva",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa diferencia corretamente objeto e autorização no conceito SAP ABAP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O objeto define campos verificados; a autorização fornece valores permitidos para esses campos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O objeto lista usuários autorizados; a autorização determina a senha usada no logon.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O objeto organiza menus; a autorização escolhe o idioma mostrado na interface SAP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O objeto é sempre uma transação; a autorização é o nome técnico do papel atribuído.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O objeto representa o perfil gerado; a autorização é a comparação de usuários executada em lote.",
+          "correct": false
+        }
+      ],
+      "explanation": "O objeto de autorização estrutura os campos submetidos à verificação; uma autorização configura valores aceitáveis para esses campos. Usuários, senhas, menus e comparação são conceitos distintos.",
+      "section": "1. Do usuário à autorização efetiva",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um usuário vê uma transação no menu do papel, mas recebe falha ao tentar alterar um documento. Qual interpretação é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O menu apresenta a função; o programa ainda verifica as autorizações da operação e dos dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A presença no menu confirma que todos os campos do documento estão liberados ao usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A falha prova que o papel não foi atribuído e que nenhuma função do usuário está ativa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A transação só verifica a senha novamente, pois o menu já substituiu o perfil de autorização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A solução padrão é copiar o menu para SU01 e apagar os objetos que causaram a falha.",
+          "correct": false
+        }
+      ],
+      "explanation": "O menu facilita a navegação, mas não substitui verificações de autorização sobre operação e dados. A falha deve ser investigada nos objetos e valores pertinentes, sem concluir automaticamente que toda atribuição está ausente.",
+      "section": "1. Do usuário à autorização efetiva",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ferramenta SAP é indicada para manter papéis e gerar os perfis de autorização correspondentes?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "PFCG, para manter papéis, revisar autorizações e gerar os perfis correspondentes.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SU53, usada para editar papéis e criar menus de usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ST01, usada para atribuir papéis e gerar perfis automaticamente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "SU01, usada para manter os objetos de autorização de cada papel.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PFUD, usada para desenhar menus e manter valores organizacionais.",
+          "correct": false
+        }
+      ],
+      "explanation": "PFCG é a manutenção de papéis e permite gerar os perfis correspondentes. SU01 mantém usuários; SU53 exibe falhas; ST01 pode rastrear verificações; PFUD compara atribuições.",
+      "section": "2. Desenho do papel em PFCG",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao desenhar um papel para uma equipe que atua em uma unidade específica, qual configuração melhor delimita os dados acessíveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Restringir os campos organizacionais dos objetos aos valores necessários à unidade.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Adicionar a transação ao menu e deixar todos os campos organizacionais sem restrição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Renomear o papel com o código da unidade, sem alterar os valores de autorização.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar um usuário diferente para cada tela, mantendo o mesmo perfil amplo em todos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Retirar o menu do papel, pois a ausência de atalhos bloqueia dados de outras unidades.",
+          "correct": false
+        }
+      ],
+      "explanation": "A limitação de escopo depende dos valores mantidos nos campos organizacionais pertinentes dos objetos. O nome do papel e o menu não impõem a restrição de dados.",
+      "section": "2. Desenho do papel em PFCG",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função requer tarefas de consulta e outra função independente de lançamento. Como representar essas necessidades com papéis simples?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Criar papéis simples distintos, com escopos próprios, e atribuí-los a quem exercer ambas as funções.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Unir as tarefas em SAP_ALL para evitar manutenção separada de autorizações.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar um único perfil manual e atribuí-lo diretamente a todos os usuários do sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter só o menu de consulta e considerar que lançamento será bloqueado pela navegação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Duplicar os usuários de cada pessoa e dividir as senhas para simular papéis simples.",
+          "correct": false
+        }
+      ],
+      "explanation": "Papéis simples com finalidades delimitadas facilitam atribuição, análise e revisão. A combinação deve ser concedida apenas a quem realmente acumula as funções e não deve ser substituída por perfil amplo ou compartilhamento de contas.",
+      "section": "2. Desenho do papel em PFCG",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a função principal de um papel composto no desenho SAP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Agrupar papéis simples com escopos definidos para atribuí-los juntos ao usuário.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Substituir os objetos de autorização e remover a necessidade de perfis gerados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Executar verificações de programa antes que a transação seja iniciada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter usuários em grupos sem manter papéis simples componentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Restringir automaticamente todos os campos organizacionais a uma única unidade.",
+          "correct": false
+        }
+      ],
+      "explanation": "O papel composto reúne papéis simples para facilitar a atribuição. Ele não substitui os dados e autorizações dos componentes nem impõe automaticamente valores organizacionais.",
+      "section": "2. Desenho do papel em PFCG",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao incluir transações no menu de um papel em PFCG, qual cuidado de segurança permanece necessário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Revisar objetos e valores, pois o menu não libera os dados por si só.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Retirar todos os objetos propostos, porque o menu controla as verificações posteriores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Atribuir SAP_ALL ao papel para que cada transação do menu funcione sem restrições.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Copiar o menu para o usuário, pois isso gera automaticamente autorizações de negócio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Evitar gerar o perfil, já que o menu ativo torna desnecessário o perfil técnico.",
+          "correct": false
+        }
+      ],
+      "explanation": "O menu organiza caminhos de acesso, enquanto autorizações e verificações controlam execução e dados. Os objetos propostos devem ser revistos e seus valores ajustados ao escopo real.",
+      "section": "2. Desenho do papel em PFCG",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa exerce duas tarefas separadas e precisa receber ambas. Que opção de desenho pode simplificar a atribuição mantendo papéis componentes identificáveis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Agrupar os papéis simples necessários em um papel composto e revisar a combinação resultante.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Apagar os papéis simples e inserir suas transações diretamente no usuário mestre.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Criar um perfil manual com curinga para cobrir tarefas atuais e futuras da equipe.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Manter somente um papel simples e documentar a outra tarefa no nome do usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Compartilhar com a pessoa a conta de outro usuário que já acumula as funções.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um papel composto pode simplificar a atribuição conjunta sem apagar a separação dos papéis simples. Ainda é necessário revisar a combinação e evitar perfis manuais amplos ou contas compartilhadas.",
+      "section": "2. Desenho do papel em PFCG",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao revisar um papel recém-criado, qual informação deve orientar os valores de autorização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "As tarefas, atividades e dados de que o grupo realmente precisa para trabalhar.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O maior conjunto de valores disponível, para evitar que chamados de suporte sejam abertos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O nome da transação exibido no menu, sem consultar as responsabilidades da equipe.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Os valores usados por um administrador, mesmo quando a equipe atua em outra unidade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A quantidade de usuários que receberá o papel, independentemente das tarefas executadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Os valores devem refletir tarefas e dados necessários. Conceder o maior conjunto ou copiar permissões de administrador cria escopo sem justificativa funcional.",
+      "section": "2. Desenho do papel em PFCG",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual transação é usada para manter o registro mestre de um usuário e suas atribuições de papéis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "SU01, para manter o registro do usuário e suas atribuições de papel.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "PFCG, para editar diretamente todos os dados pessoais do usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SU53, para criar contas e vincular validade de papéis.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ST01, para armazenar senhas e parâmetros do registro mestre.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PFUD, para criar o usuário antes de desenhar qualquer papel.",
+          "correct": false
+        }
+      ],
+      "explanation": "SU01 mantém o registro mestre do usuário. PFCG administra papéis; SU53 apresenta a última falha de autorização; ST01 é rastreamento; PFUD compara atribuições.",
+      "section": "3. Atribuição, geração e comparação de usuários",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador editou os valores de autorização de um papel existente. Qual etapa materializa essa edição no perfil técnico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Revisar e salvar os valores do papel e então gerar seu perfil de autorização.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Executar SU53 no usuário, que grava as mudanças em todos os papéis atribuídos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Retirar o papel do menu, porque a mudança de autorização é automática.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Renomear o usuário em SU01, para que o perfil seja reconstruído no logon.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar ST01 em modo de rastreamento, que gera perfis a partir das falhas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A geração em PFCG cria ou atualiza o perfil técnico a partir dos dados do papel. SU53 e ST01 têm finalidades de análise, e mudanças de nome ou menu não materializam autorizações.",
+      "section": "3. Atribuição, geração e comparação de usuários",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual procedimento representa a prática recomendada para disponibilizar a um usuário as autorizações de um papel gerado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atribuir o papel ao usuário e atualizar a relação pela comparação de usuários.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Inserir manualmente o perfil gerado na aba de perfis e retirar o papel atribuído.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Copiar as autorizações individuais para cada transação diretamente no registro mestre.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Atribuir só a transação no menu e aguardar que o sistema descubra o usuário responsável.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar SU53 repetidamente, até que a própria transação adicione o perfil ao usuário.",
+          "correct": false
+        }
+      ],
+      "explanation": "A relação deve ser mantida pela atribuição do papel e pela comparação correspondente. A SAP recomenda não inserir diretamente perfis gerados, pois a comparação pode removê-los se não houver entrada de papel associada.",
+      "section": "3. Atribuição, geração e comparação de usuários",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um papel alterado foi gerado, mas um usuário com sessão antiga ainda encontra o comportamento anterior. Qual explicação é compatível com a documentação SAP consultada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A mudança pode só surtir efeito para o usuário no próximo logon, conforme a documentação do sistema.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Toda mudança de perfil encerra imediatamente todas as sessões em qualquer instalação SAP.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A alteração depende de renomear a conta antes que o sistema atualize o registro mestre.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A sessão antiga usa sempre o menu como fonte, então o perfil gerado nunca é considerado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O comportamento prova que o objeto foi apagado e precisa ser recriado em SU53.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação SAP consultada indica que mudanças de autorização podem surtir efeito no próximo logon, sem afetar imediatamente usuários já conectados. O processo operacional deve considerar sessões existentes.",
+      "section": "3. Atribuição, geração e comparação de usuários",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual transação está associada à comparação de atribuições de usuários e papéis?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "PFUD, para comparar as atribuições de papéis mantidas nos registros de usuários.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "SU01, usada para rastrear todas as verificações executadas por programas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "SU53, usada para comparar nomes de papéis compostos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "ST01, usada para gerar o perfil funcional de cada papel.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PFCG, usada exclusivamente para criar usuários e redefinir senhas.",
+          "correct": false
+        }
+      ],
+      "explanation": "PFUD é associada à comparação de atribuições de usuários. SU01 mantém usuário, SU53 ajuda a exibir falha, ST01 rastreia verificações e PFCG administra papéis.",
+      "section": "3. Atribuição, geração e comparação de usuários",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que a atribuição manual de um perfil gerado diretamente na aba de perfis do usuário é uma prática inadequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A comparação de usuários pode remover a atribuição se o papel correspondente não constar na aba de papéis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A aba de perfis altera a senha e desativa toda autorização do registro mestre.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O perfil gerado só pode ser usado em papéis compostos, nunca em papel simples.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Atribuições manuais impedem que o usuário autentique em qualquer cliente SAP.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "PFCG exclui automaticamente todo papel simples quando um perfil é exibido em SU01.",
+          "correct": false
+        }
+      ],
+      "explanation": "A documentação SAP alerta que perfis gerados não devem ser atribuídos diretamente: a comparação pode removê-los se não houver atribuição correspondente na aba de papéis. A relação recomendada é pelo papel.",
+      "section": "3. Atribuição, geração e comparação de usuários",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe de suporte quer investigar uma operação bloqueada por autorização. Qual abordagem inicial é mais apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Localizar a etapa, consultar a falha e analisar o objeto e os valores envolvidos.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conceder SAP_ALL ao usuário e retirar o perfil após a equipe confirmar que funcionou.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Apagar todos os papéis do usuário e atribuir novamente um papel composto amplo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover a transação do menu para que a verificação não seja repetida pelo programa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o nome do objeto de autorização para corresponder ao texto da mensagem exibida.",
+          "correct": false
+        }
+      ],
+      "explanation": "O diagnóstico começa por localizar a etapa e a verificação que falhou, usando ferramentas adequadas e correlacionando objeto, campos e papéis. Concessões amplas ou mudanças sem diagnóstico não identificam a necessidade correta.",
+      "section": "4. Privilégio mínimo, conflitos e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que o administrador deve fazer ao encontrar uma falha em SU53 antes de alterar o papel do usuário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Validar se a operação e os valores pedidos são necessários à função do usuário.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Adicionar todos os valores possíveis ao campo para evitar falhas semelhantes no futuro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Converter o papel em composto e incluir papéis administrativos já existentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tratar a última falha como autorização aprovada para qualquer usuário da equipe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Excluir o objeto da autorização para que o programa deixe de verificar a operação.",
+          "correct": false
+        }
+      ],
+      "explanation": "SU53 fornece evidência da última verificação que falhou, mas a decisão de acesso depende da necessidade legítima. O administrador deve validar a tarefa e limitar valores, sem ampliar indiscriminadamente o escopo.",
+      "section": "4. Privilégio mínimo, conflitos e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual efeito está associado ao perfil SAP_ALL em um sistema ABAP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Concede autorizações amplas no sistema e exige controle privilegiado rigoroso.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Restringe o usuário às transações listadas no menu de um único papel simples.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ativa somente consultas e bloqueia alterações em todos os objetos de negócio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Registra apenas tentativas de logon, sem participar das verificações de autorização.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Substitui o registro mestre do usuário e permite acesso sem autenticação.",
+          "correct": false
+        }
+      ],
+      "explanation": "SAP_ALL é um perfil predefinido de amplo alcance no AS ABAP. Por seu poder, não é resposta apropriada a uma falha funcional pontual e deve ser submetido a controles privilegiados.",
+      "section": "4. Privilégio mínimo, conflitos e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização precisa reduzir o risco de a mesma pessoa cadastrar um fornecedor e aprovar o pagamento. Qual medida corresponde à segregação de funções?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Separar etapas incompatíveis e revisar a combinação de papéis de cada pessoa.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Criar um papel composto com ambas as etapas para que o sistema registre o conflito.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Esconder a transação de pagamento do menu, mantendo as autorizações de aprovação ativas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir que todos executem as etapas e usar o nome do papel como registro de auditoria.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atribuir uma conta compartilhada ao setor e revisar apenas a senha no fim do mês.",
+          "correct": false
+        }
+      ],
+      "explanation": "Segregar funções exige separar etapas incompatíveis ou aplicar controle distinto e verificar a união dos acessos de cada pessoa. Menu oculto, nome de papel e contas compartilhadas não substituem essa análise.",
+      "section": "4. Privilégio mínimo, conflitos e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual prática ajuda a manter os acessos alinhados à função atual do usuário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Revisar periodicamente titular, finalidade, necessidade e combinação de papéis.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Manter todos os papéis concedidos desde a contratação para preservar histórico operacional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Revisar apenas o menu visível, sem verificar atribuições ou dados organizacionais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o perfil gerado por SAP_ALL sempre que a área do usuário mudar.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aguardar uma falha de autorização antes de avaliar se um acesso continua necessário.",
+          "correct": false
+        }
+      ],
+      "explanation": "A revisão periódica verifica se os acessos ainda correspondem à função, se os valores continuam adequados e se combinações criam conflitos. Esperar falhas ou manter acessos indefinidamente não atende ao privilégio mínimo.",
+      "section": "4. Privilégio mínimo, conflitos e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma instalação SAP ABAP, uma verificação de autorização pode comparar valores solicitados pelo programa com entradas correspondentes no registro mestre do usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A verificação compara os valores dos campos do objeto de autorização com as autorizações disponíveis ao usuário por meio de seus papéis e perfis.",
+      "section": "1. Do usuário à autorização efetiva",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A atribuição de um papel a um usuário torna desnecessárias as verificações de autorização executadas pelo programa SAP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O papel fornece autorizações, mas o programa ainda executa verificações; a operação só prossegue se os valores do usuário corresponderem ao que foi solicitado.",
+      "section": "1. Do usuário à autorização efetiva",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O registro mestre de usuário é mantido em SU01 e contém informações da conta, incluindo atribuições de acesso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. SU01 é usada para manutenção do registro mestre; os papéis atribuídos determinam as autorizações associadas ao usuário.",
+      "section": "1. Do usuário à autorização efetiva",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O perfil gerado e o papel são nomes diferentes para o mesmo elemento funcional, sem distinção técnica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O papel é a unidade funcional mantida em PFCG; o perfil é a representação técnica gerada a partir dos dados de autorização do papel.",
+      "section": "1. Do usuário à autorização efetiva",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os objetos de autorização são compostos por campos que podem ser comparados com os valores da autorização do usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O objeto define os campos verificados, e a autorização contém valores admitidos para cada campo; a combinação determina o escopo da ação.",
+      "section": "1. Do usuário à autorização efetiva",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se uma transação aparece no menu do usuário, todos os dados por ela acessados estão necessariamente liberados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O menu não substitui as verificações do programa nem define por si só os valores organizacionais liberados para o usuário.",
+      "section": "1. Do usuário à autorização efetiva",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "PFCG é a ferramenta SAP usada para manutenção de papéis e geração dos perfis associados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. PFCG administra papéis e permite gerar o perfil técnico a partir dos dados de autorização mantidos neles, associando a função planejada à representação técnica usada pelo sistema.",
+      "section": "2. Desenho do papel em PFCG",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um papel composto substitui os papéis simples que agrupa e dispensa revisar a combinação resultante no usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O papel composto agrupa papéis simples, mas as autorizações componentes permanecem relevantes e sua combinação deve ser revisada para detectar conflitos.",
+      "section": "2. Desenho do papel em PFCG",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Os valores organizacionais dos campos de autorização podem ser ajustados para limitar o escopo de dados do papel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Quando os objetos possuem campos organizacionais pertinentes, valores restritos delimitam as unidades de dados acessíveis.",
+      "section": "2. Desenho do papel em PFCG",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O nome de um papel com o código da empresa restringe automaticamente o acesso aos dados daquela empresa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O rótulo do papel não controla valores de autorização; a restrição precisa estar nos campos e valores verificados pelos programas.",
+      "section": "2. Desenho do papel em PFCG",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A revisão de um papel deve levar em conta tarefas reais e limitar valores ao que a função necessita.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. O desenho parte da função e aplica privilégio mínimo, considerando tarefas, atividades e dados necessários ao trabalho.",
+      "section": "2. Desenho do papel em PFCG",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A geração do perfil em PFCG transforma os dados de autorização mantidos no papel em uma representação técnica.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A documentação descreve a geração do perfil a partir dos dados do papel; perfis devem ser mantidos por esse fluxo de administração.",
+      "section": "3. Atribuição, geração e comparação de usuários",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A prática recomendada é inserir o perfil gerado diretamente na aba de perfis do usuário, sem atribuir o papel.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A recomendação SAP é atribuir o papel e deixar a relação com o perfil ser mantida pelo processo de comparação; atribuições diretas de perfil podem ser removidas na comparação.",
+      "section": "3. Atribuição, geração e comparação de usuários",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A comparação de usuários relaciona atribuições de papéis aos registros mestre dos usuários.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. A comparação atualiza a relação de atribuições derivadas dos papéis nos usuários, conforme o processamento configurado no sistema.",
+      "section": "3. Atribuição, geração e comparação de usuários",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma mudança de autorização necessariamente altera no mesmo instante os direitos de toda sessão já aberta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. A documentação SAP consultada informa que mudanças podem surtir efeito no próximo logon; sessões já abertas podem não refletir imediatamente a alteração.",
+      "section": "3. Atribuição, geração e comparação de usuários",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "SU53 pode ajudar a exibir a última verificação de autorização que falhou para o usuário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. SU53 é comumente usada para consultar informações da última falha; o resultado deve ser interpretado junto ao fluxo e à necessidade funcional.",
+      "section": "4. Privilégio mínimo, conflitos e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se SU53 apresentar falha, conceder SAP_ALL é a correção indicada para qualquer necessidade de negócio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. SAP_ALL é amplo; é preciso identificar a autorização necessária e corrigir o papel com escopo mínimo, após validar a demanda.",
+      "section": "4. Privilégio mínimo, conflitos e diagnóstico",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A análise de segregação de funções deve considerar a combinação de papéis simples recebida pela mesma pessoa.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": true },
+        { "key": "E", "text": "Errado", "correct": false }
+      ],
+      "explanation": "Certo. Conflitos podem surgir da união de papéis que, isoladamente, parecem apropriados; a análise deve observar as atividades combinadas do usuário.",
+      "section": "4. Privilégio mínimo, conflitos e diagnóstico",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Retirar uma transação do menu é suficiente para impedir qualquer tentativa de iniciá-la por outro caminho.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. O menu não é uma barreira suficiente; a autorização de início e as verificações executadas pelo sistema precisam restringir a operação.",
+      "section": "4. Privilégio mínimo, conflitos e diagnóstico",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O objeto S_USER_TCD é a autorização que um usuário de negócio precisa para iniciar qualquer transação que lhe foi atribuída.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        { "key": "C", "text": "Certo", "correct": false },
+        { "key": "E", "text": "Errado", "correct": true }
+      ],
+      "explanation": "Errado. S_USER_TCD é usado na administração de papéis para controlar quais transações um administrador pode atribuir ao papel; a autorização de início do usuário é verificada separadamente, incluindo S_TCODE.",
+      "section": "4. Privilégio mínimo, conflitos e diagnóstico",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "ABAP Authorization Concept",
+      "publisher": "SAP Help Portal",
+      "reference": "Conceitos de usuário mestre, papel simples e composto, perfil, autorização e verificação",
+      "url": "https://help.sap.com/saphelp_scm700_ehp02/helpdata/en/4f/4decf806b02892e10000000a42189b/content.htm?no_cache=true",
+      "accessedAt": "2026-11-19"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Setting up Authorization Checks",
+      "publisher": "SAP Help Portal",
+      "reference": "Configuração de autorizações em papéis PFCG, dados funcionais e valores de acesso",
+      "url": "https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/21aead0c98bd4755abdacd91c99e3393/0eb8ac9946e0455e9842bd782818c0f3.html",
+      "accessedAt": "2026-11-19"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Generating Authorization Profiles",
+      "publisher": "SAP Help Portal",
+      "reference": "Geração de perfis em PFCG e atualização do acesso atribuído",
+      "url": "https://help.sap.com/docs/SAP_S4HANA_ON-PREMISE/69c3a05bb8d44f02bdd2abe5e822da8e/739317502c729d38e10000000a44176d.html",
+      "accessedAt": "2026-11-19"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Profiles Tab",
+      "publisher": "SAP Help Portal",
+      "reference": "Atribuição de papéis, perfis gerados e recomendação contra atribuição manual direta",
+      "url": "https://help.sap.com/docs/ABAP_PLATFORM_NEW/ad77b44570314f6d8c3a8a807273084c/526711b8439b11d1896f0000e8322d00.html",
+      "accessedAt": "2026-11-19"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Authorization Objects Checked in Role Administration",
+      "publisher": "SAP Help Portal",
+      "reference": "Objetos de autorização usados na administração de usuários e papéis",
+      "url": "https://help.sap.com/docs/SAP_NETWEAVER_AS_ABAP_752/c6e6d078ab99452db94ed7b3b7bbcccf/ce17533e5ff4d064e10000000a114084.html",
+      "accessedAt": "2026-11-19"
+    }
+  ]
+}

@@ -1,0 +1,1717 @@
+{
+    "id":  "informatica.codificacao-software-aplicacoes-api",
+    "subject":  "Informática",
+    "title":  "Codificação de software: sistemas transacionais, analíticos, mobile e API",
+    "version":  2,
+    "status":  "PUBLISHED",
+    "aliases":  [
+                    "Codificação de software transacional e analítico",
+                    "Desenvolvimento de aplicações mobile e API",
+                    "Programação de sistemas transacionais",
+                    "Programação de sistemas analíticos",
+                    "Codificação de aplicações móveis",
+                    "Desenvolvimento de APIs REST",
+                    "Software para processamento transacional",
+                    "Software para processamento analítico",
+                    "Aplicações móveis e serviços web",
+                    "Construção de aplicações e APIs"
+                ],
+    "scope":  {
+                  "covers":  "Princípios práticos de codificação para sistemas transacionais (OLTP), analíticos (OLAP), aplicações móveis, funcionamento offline, integração por API HTTP/REST, contratos, erros, segurança, testes e implantação.",
+                  "excludes":  "Linguagens e frameworks específicos, sintaxe de código, administração de SGBD, ciência de dados e protocolos proprietários."
+              },
+    "theoryTitle":  "Codificar software conforme o tipo de aplicação",
+    "chapters":  [
+                     {
+                         "title":  "1. Código para operações transacionais",
+                         "markdown":  "### O problema que este assunto resolve\n\nUma loja virtual recebe compras ao mesmo tempo em que consulta e atualiza o estoque. O sistema precisa impedir que duas pessoas comprem a última unidade, que um pedido seja gravado sem a baixa correspondente ou que uma repetição de chamada cobre duas vezes. Esse é o tipo de problema tratado pela codificação transacional: fazer com que cada operação respeite as regras do negócio mesmo com concorrência, falhas e tentativas repetidas.\n\n**OLTP** (*online transaction processing*, processamento de transações em operação cotidiana) descreve sistemas que registram eventos individuais, como pedido, pagamento, reserva e alteração cadastral. Uma **transação** é um conjunto de mudanças que forma uma unidade lógica. **Integridade** é a coerência dos dados com as regras e restrições definidas. **Concorrência** ocorre quando operações distintas acessam dados ao mesmo tempo. **Idempotência** significa que repetir uma solicitação com a mesma intenção não duplica seu efeito final.\n\n### Do pedido à gravação consistente\n\nConsidere a Ana, que compra o último livro disponível. O servidor recebe a solicitação, verifica os dados e o preço, confirma que há estoque e registra o pedido junto com a redução da quantidade. Se a gravação do pedido funcionar e a baixa falhar, o estoque continuará oferecendo um livro que já foi vendido. Se a baixa ocorrer e o pedido não for registrado, o livro desaparece sem que a venda exista. O código deve agrupar as gravações relacionadas numa transação de banco de dados: ou todas são confirmadas, ou nenhuma delas é.\n\nEssa proteção tem um limite importante. O banco pode reverter as próprias gravações, mas não consegue desfazer automaticamente um e-mail já enviado, uma mensagem publicada numa fila externa ou uma cobrança concluída em outro serviço. Uma sequência robusta primeiro confirma o estado transacional e depois coordena efeitos externos, registrando o que precisa ser enviado e permitindo nova tentativa segura. A regra exata depende do sistema; não se deve tratar efeitos externos como parte automática da transação local.\n\n### Concorrência e repetição\n\nAgora imagine que Ana e Bruno tentem comprar a última unidade quase no mesmo instante. Ambos podem ler “estoque = 1” antes de qualquer gravação. Se o programa apenas subtrair um, os dois pedidos talvez sejam aceitos. O controle precisa fazer a verificação e a alteração como uma operação protegida, por transação, bloqueio ou mecanismo otimista que detecte conflito e repita ou rejeite uma das operações. A escolha depende da tecnologia e do volume de concorrência, mas a regra é geral: validar e gravar em etapas independentes pode deixar uma janela para inconsistência.\n\nTambém pode haver uma falha de comunicação depois que o servidor gravou a compra. Ana vê uma mensagem de tempo esgotado e toca novamente no botão. O servidor não sabe, só pela nova chamada, se é uma compra nova ou a repetição da anterior. Uma **chave de idempotência** é um identificador enviado com a intenção; o serviço registra o resultado associado e, quando recebe a mesma chave de novo, devolve o resultado existente sem cobrar novamente. A chave precisa ser usada com escopo e prazo coerentes com a operação. Nem toda repetição é duplicata: duas compras intencionais devem ter identificadores diferentes.\n\n### OLTP e escolhas de armazenamento\n\nSistemas OLTP tendem a executar muitas leituras e gravações curtas sobre registros individuais. A **normalização** organiza os dados para reduzir repetição desnecessária, por exemplo, armazenando os dados de um cliente numa estrutura própria e referenciando-o nos pedidos. Isso ajuda a manter atualizações coerentes, mas não significa que toda consulta será simples: relatórios que cruzam muitas tabelas podem ficar custosos.\n\nUma consulta que soma vendas de muitos anos pode consumir processamento e memória usados pelas compras do momento. Por isso, sistemas costumam separar ou limitar análises pesadas e encaminhar históricos para uma estrutura analítica. Isso não significa que relatórios nunca possam consultar a base operacional; significa que a carga, o impacto e a necessidade de atualização imediata devem ser considerados.\n\n| Conceito | Pergunta que responde | Exemplo |\n| --- | --- | --- |\n| Transação | Quais mudanças precisam ser confirmadas juntas? | Criar pedido e reduzir estoque |\n| Idempotência | O que ocorre se a mesma intenção for repetida? | Reenviar uma compra sem duplicar cobrança |\n| Integridade | Os dados continuam obedecendo às regras? | Não vender quantidade abaixo de zero |\n| Concorrência | O que acontece quando ações coincidem? | Dois clientes disputam a última unidade |\n\n### Exemplo passo a passo\n\nAna confirma um pedido de um livro. Primeiro, o servidor valida a identificação do produto e a quantidade. Em seguida, inicia a transação e tenta reservar a unidade apenas se o saldo ainda for positivo. Se outra compra já tiver consumido o estoque, a condição não é satisfeita e o pedido não é confirmado. Se a reserva funcionar, o sistema grava o pedido e confirma ambas as alterações. O serviço então prepara a confirmação externa. Caso a resposta de rede se perca e Ana repita a solicitação com a mesma chave, o servidor localiza o pedido já criado e retorna o resultado sem repetir a cobrança.\n\n**Pegadinha:** uma transação do banco não torna automaticamente idempotente uma chamada e não desfaz efeitos externos. Também não basta “ler o saldo e depois subtrair”: leitura e gravação separadas podem permitir que duas operações aceitem o mesmo estoque.\n\n**Resumo para a prova**\n\n- OLTP atende operações cotidianas, com transações sobre registros individuais.\n- Transações agrupam mudanças que devem ser confirmadas ou revertidas em conjunto.\n- Concorrência exige proteger verificações e atualizações relacionadas.\n- Idempotência protege contra a repetição da mesma intenção; ela não impede operações novas.\n- Relatórios pesados podem competir com gravações operacionais e precisam ser planejados."
+                     },
+                     {
+                         "title":  "2. Código para análise e processamento de dados",
+                         "markdown":  "### O problema que este assunto resolve\n\nUma empresa quer saber quais produtos cresceram em vendas, como os resultados mudaram ao longo do tempo e quais regiões precisam de atenção. Responder a essas perguntas exige combinar muitos registros, calcular totais e preservar histórico. O processamento analítico organiza dados para esse tipo de consulta, em vez de priorizar a gravação imediata de cada evento.\n\n**OLAP** (*online analytical processing*, processamento analítico de dados) é associado a consultas extensas, agregações e investigação de tendências. **Agregação** é um resumo calculado, como total por mês ou média por região. **Data warehouse** é um repositório integrado destinado a análise histórica. Um **pipeline de dados** é uma sequência de etapas que transporta e prepara informações entre sistemas.\n\n### Como os dados chegam à análise\n\nSuponha que Ana, analista de uma rede de lojas, receba vendas de várias filiais. Cada sistema pode usar nomes diferentes para a mesma região, formatos distintos para datas e identificadores inconsistentes para produtos. Antes de comparar resultados, o fluxo precisa identificar as fontes, verificar os registros, padronizar conceitos, tratar duplicatas e carregar os dados no repositório de análise. A soma final só é confiável se as etapas anteriores preservarem o significado dos registros.\n\n**ETL** significa extrair, transformar e carregar: os dados são obtidos da origem, tratados e então gravados no destino. **ELT** significa extrair, carregar e transformar: os dados são carregados primeiro e transformados no ambiente analítico. São padrões de organização do fluxo, não garantias de qualidade por si só. A escolha depende das ferramentas, da escala, das necessidades de auditoria e do local em que o processamento é adequado.\n\nUma carga **incremental** processa dados novos ou modificados, em vez de reler toda a origem a cada execução. Para isso, o sistema precisa de um meio confiável de identificar mudanças. Eventos atrasados, correções posteriores e cargas interrompidas devem ser previstos; do contrário, o relatório pode omitir vendas ou contá-las mais de uma vez. Registros repetidos podem ser detectados por identificadores e regras do domínio, e dados inválidos devem ser sinalizados ou encaminhados para tratamento, em vez de sumirem silenciosamente.\n\n### Modelagem e significado dos indicadores\n\nO armazenamento analítico pode conservar dados detalhados e também tabelas resumidas. Uma estrutura tradicional é o **modelo dimensional**, que organiza fatos mensuráveis, como quantidade vendida, e dimensões descritivas, como produto, data e loja. Um **modelo semântico** define o que significam os campos e as métricas. Se uma área calcula “venda líquida” subtraindo devoluções e outra não, ambas podem produzir números corretos segundo regras diferentes, mas a comparação será enganosa sem uma definição comum.\n\nCubos multidimensionais são uma forma conhecida de organizar análises por várias dimensões, mas não são requisito de todo OLAP atual. Há arquiteturas que usam tabelas relacionais, armazenamento colunar ou processamento paralelo. **Processamento paralelo massivo** divide uma tarefa entre vários nós de computação para trabalhar grandes volumes. O nome da arquitetura não substitui a pergunta sobre o uso: cargas analíticas priorizam exploração e leitura; cargas operacionais priorizam transações curtas e atualizações concorrentes.\n\n| Aspecto | OLTP | OLAP |\n| --- | --- | --- |\n| Objetivo típico | Registrar operações correntes | Analisar padrões e histórico |\n| Unidade comum | Pedido, pagamento ou cadastro | Total, tendência ou comparação |\n| Perfil de acesso | Muitas leituras e gravações curtas | Consultas extensas, geralmente de leitura |\n| Exemplo de pergunta | “O pedido foi confirmado?” | “Como as vendas mudaram por região?” |\n| Risco de misturar cargas | Relatório pode atrasar a operação | Dados podem chegar com alguma defasagem |\n\n### Atualização, latência e soluções híbridas\n\nO relatório analítico nem sempre reflete a operação no mesmo instante. **Latência** é o intervalo entre a ocorrência de uma mudança na origem e sua disponibilidade no destino. Se Ana consultar um relatório pouco depois de uma venda, pode ainda não vê-la porque o pipeline está processando um lote. A defasagem deve ser conhecida e compatível com o uso; não é, por si só, prova de erro.\n\nSistemas **HTAP** (*hybrid transactional and analytical processing*, processamento transacional e analítico híbrido) procuram combinar os dois tipos de carga. Isso pode reduzir movimentação de dados ou permitir análises mais próximas da operação, mas não elimina a necessidade de avaliar concorrência, isolamento, recursos e consistência. A sigla não garante que toda consulta analítica será instantânea nem que não haverá impacto nas transações.\n\n### Exemplo passo a passo\n\nAna precisa comparar a receita mensal de três filiais. Primeiro, o pipeline extrai vendas e devoluções de cada fonte. Depois, converte datas para um padrão comum e associa códigos locais de produto a um catálogo integrado. Em seguida, identifica uma carga que foi reenviada e evita somá-la duas vezes. As vendas válidas são carregadas e relacionadas às dimensões de mês, loja e produto. Por fim, o relatório calcula a métrica conforme a definição acordada. Ana verifica o horário da última atualização e informa que uma filial ainda não enviou os dados do dia.\n\n**Pegadinha:** classifique a carga pelo trabalho executado, não pelo nome da aplicação ou pelo fato de ela consultar tabelas. Uma tela operacional pode fazer análise; um relatório que lê dados de produção continua sendo analítico se executa agregações históricas. OLAP também não implica obrigatoriamente cubo multidimensional.\n\n**Resumo para a prova**\n\n- OLAP atende consultas extensas, agregações e análise histórica; OLTP registra operações cotidianas.\n- Pipelines integram e transformam fontes, tratando duplicatas, atrasos, mudanças e dados inválidos.\n- ETL transforma antes de carregar; ELT carrega antes de transformar.\n- Modelos semânticos dão significado consistente a campos e indicadores.\n- Latência pode fazer o analítico ficar atrás da operação; HTAP combina cargas, sem eliminar seus desafios."
+                     },
+                     {
+                         "title":  "3. Aplicações móveis, dados locais e conectividade",
+                         "markdown":  "### O problema que este assunto resolve\n\nUm celular pode perder a conexão no elevador, no transporte ou numa área sem cobertura. Se a tela depender sempre de uma chamada remota, até uma consulta simples ficará vazia ou travada. Uma aplicação móvel bem organizada precisa exibir informação útil com rapidez, continuar funcionando dentro de limites claros e reconciliar dados quando a rede voltar.\n\n**Offline-first** é uma abordagem que trata a disponibilidade local como parte central do projeto: a aplicação pode ler dados guardados no aparelho e sincronizá-los com o serviço remoto. **UI** (*user interface*, interface do usuário) é a parte visual com que a pessoa interage. **ViewModel** é um componente que prepara e mantém o estado apresentado pela interface em arquiteturas comuns no Android. **Repositório** é a camada que coordena as fontes de dados, como armazenamento local e rede. **Sincronização** é a troca e reconciliação de mudanças entre essas fontes.\n\n### Caminho dos dados entre tela, aparelho e serviço\n\nImagine que Ana consulte uma lista de tarefas durante uma viagem. A tela não precisa conhecer detalhes de conexão nem falar diretamente com o banco ou o servidor. Ela pede os dados ao componente que organiza o estado da tela; esse componente consulta o repositório, e o repositório escolhe a fonte local ou remota. A aplicação observa o armazenamento local e atualiza a tela quando a sincronização traz mudanças. Essa separação torna mais fácil testar cada parte e evita espalhar regras de rede por todas as telas.\n\nA fonte local pode ser a referência para o que a interface mostra no momento, sem significar que ela sempre contenha a informação mais recente do servidor. A aplicação deve comunicar estados relevantes: dados disponíveis, sincronização em andamento, falha de envio ou atualização recente. Também deve evitar apresentar uma escrita como definitivamente aceita pelo serviço quando ela ainda está apenas no aparelho.\n\n### Estratégias de escrita sem conexão\n\nHá diferentes políticas para guardar uma alteração. **Online-only** tenta executar a escrita no serviço e só confirma depois de receber resposta. É apropriada quando a ação depende de validação central imediata, como uma transferência financeira. **Queued writes** (escritas enfileiradas) guarda eventos numa fila para enviar mais tarde; funciona bem para registros de telemetria ou logs que podem esperar. **Lazy writes** (escritas locais com envio posterior) registra primeiro no dispositivo e agenda a sincronização. Ela dá resposta rápida para tarefas como rascunhos, mas precisa de política para conflitos e falhas permanentes.\n\nEssas estratégias não são intercambiáveis sem considerar o significado da ação. Enfileirar uma transferência e informar “concluída” pode induzir a pessoa a erro. Por outro lado, obrigar o envio imediato de um rascunho pode impedir seu uso em rede instável. A interface deve distinguir “salvo neste aparelho” de “confirmado pelo serviço” quando essa diferença for importante.\n\n| Estratégia | Quando a aplicação confirma | Uso compatível | Cuidado principal |\n| --- | --- | --- | --- |\n| Online-only | Após resposta remota | Operação que requer validação imediata | A ação pode ficar indisponível sem rede |\n| Queued writes | Após guardar o evento para envio | Telemetria ou registro que pode esperar | Informar que o envio está pendente |\n| Lazy writes | Após gravar localmente | Rascunho ou entrada que precisa responder logo | Resolver conflitos e rejeições posteriores |\n\n### Sincronização, conflitos e tentativas\n\nUma sincronização **pull** ocorre quando o cliente busca alterações no serviço; **push** ocorre quando o serviço entrega ou sinaliza mudanças ao cliente. Sistemas podem combinar as duas formas. Uma notificação push, por si só, pode apenas avisar que há novidades, cabendo ao aplicativo buscá-las depois.\n\nConflito aparece se Ana altera uma tarefa no celular sem rede enquanto outra pessoa altera a mesma tarefa no servidor. Ao reconectar, o sistema precisa escolher uma regra: preservar a versão mais recente segundo um relógio confiável, comparar números de versão, mesclar campos compatíveis ou pedir revisão humana. “Última gravação vence” é simples, mas pode apagar trabalho válido; não é uma regra universalmente correta. A escolha deve refletir o que significa cada dado.\n\nRetentativas são necessárias porque uma falha temporária pode desaparecer. **Backoff exponencial** é uma espera que aumenta entre tentativas sucessivas, evitando sobrecarregar o serviço e a rede com chamadas repetidas muito próximas. A aplicação também deve reconhecer operações repetidas para que uma tentativa de sincronização não duplique uma ação. Pode haver limite de tentativas e indicação de erro quando a falha persistir.\n\n### Exemplo passo a passo\n\nAna abre a lista de tarefas quando está conectada. O aplicativo salva a resposta localmente e a tela passa a ler pelo repositório. No metrô, Ana marca uma tarefa como concluída. O aplicativo grava a mudança local e a identifica como pendente, mostrando que ela foi salva no aparelho. Quando a conexão volta, a fila envia a alteração. O servidor verifica se o registro mudou desde a última versão conhecida. Sem conflito, confirma a atualização; se outra pessoa alterou a mesma tarefa, aplica a política definida ou solicita revisão. A tela recebe o estado atualizado e remove a indicação de pendência.\n\n**Pegadinha:** offline-first não quer dizer que toda operação deve ser permitida sem rede, nem que o cache seja sempre o dado mais recente. Ler localmente pode manter a interface útil; confirmar uma ação sensível ainda pode depender do serviço. Fila, sincronização e retentativas precisam considerar duplicidade e conflito.\n\n**Resumo para a prova**\n\n- Offline-first prioriza dados locais úteis e coordena sua atualização com a fonte remota.\n- UI, componente de estado e repositório separam apresentação, estado e acesso às fontes.\n- Online-only, fila e escrita local atendem necessidades diferentes.\n- Push e pull descrevem formas de receber mudanças; podem ser combinadas.\n- Conflitos exigem regra compatível com o domínio; backoff reduz retentativas agressivas."
+                     },
+                     {
+                         "title":  "4. APIs e integração entre aplicações",
+                         "markdown":  "### O problema que este assunto resolve\n\nUm aplicativo de compras precisa consultar produtos e criar pedidos num serviço que pode ser atualizado por outra equipe. Se cada programa depender de detalhes internos do outro, uma mudança no banco ou no código pode quebrar todas as integrações. Uma **API** (*application programming interface*, interface de programação de aplicações) define operações e formatos para que sistemas troquem dados por um contrato conhecido.\n\nUma API web costuma usar **HTTP** (*hypertext transfer protocol*, protocolo de comunicação da web). Uma API chamada **RESTful** segue princípios de REST (*representational state transfer*, estilo de arquitetura para sistemas distribuídos), tratando dados como recursos identificados por uma **URI** (*uniform resource identifier*, identificador uniforme de recurso). A representação é a forma transmitida do dado; **JSON** (*JavaScript object notation*, formato textual de dados estruturados) é um formato comum, mas não obrigatório.\n\n### Recursos, métodos e semântica\n\nConsidere Ana usando um aplicativo de pedidos. O serviço pode expor `/pedidos/42` para identificar um pedido específico. O caminho nomeia o recurso; o método HTTP indica a intenção da chamada. Em geral, **GET** consulta, **POST** envia dados para processamento ou criação, **PUT** define ou substitui a representação do recurso identificado, **PATCH** comunica uma alteração parcial e **DELETE** solicita a remoção. O contrato concreto da API define o resultado de cada rota e deve usar essa semântica de modo previsível.\n\nUm método **seguro** é definido para consultar sem pedir alteração de estado no recurso; GET deve ser usado assim. **Idempotente** é um método cuja repetição, com a mesma solicitação, produz o mesmo efeito final pretendido. PUT e DELETE têm semântica idempotente no protocolo, embora respostas e registros de auditoria possam variar. POST não é automaticamente idempotente: repetir a criação de pedido pode criar dois pedidos, a menos que o serviço implemente proteção adicional. Idempotência não significa que a resposta textual será idêntica em toda repetição.\n\n| Método | Intenção típica | Exemplo | Cuidado |\n| --- | --- | --- | --- |\n| GET | Consultar | Obter o pedido 42 | Não usar para provocar gravação |\n| POST | Submeter processamento ou criar | Criar um pedido | Repetição pode duplicar efeito |\n| PUT | Definir/substituir representação | Enviar todos os dados do endereço | Distinguir substituição de alteração parcial |\n| PATCH | Alterar parte | Corrigir apenas o telefone | Especificar quais campos serão modificados |\n| DELETE | Solicitar remoção | Remover um endereço salvo | A repetição deve manter o efeito pretendido |\n\n### Stateless, contrato e respostas\n\nUma API **stateless** (sem estado conversacional mantido entre chamadas) trata cada solicitação como independente: ela leva o contexto necessário para o servidor processá-la, em vez de depender de uma conversa anterior guardada na memória da aplicação. Isso pode facilitar distribuir chamadas entre servidores. Não significa que o sistema não guarde pedidos em banco, não autentique pessoas ou não mantenha dados de negócio.\n\n**Autenticação** verifica quem está fazendo a chamada. **Autorização** verifica o que essa identidade pode fazer. Ana pode estar autenticada e ainda assim não ter autorização para consultar o pedido de outra pessoa. O servidor precisa verificar o acesso ao recurso solicitado, além de validar os dados recebidos. Uma validação feita só na tela pode ser contornada por outro cliente.\n\nO contrato registra caminhos, métodos, parâmetros, formatos de entrada e saída e erros esperados. **OpenAPI** é uma especificação para descrever contratos de APIs HTTP; ferramentas podem gerar documentação ou clientes a partir dela. A descrição não implementa as regras de negócio nem aplica segurança por conta própria. Uma abordagem *contract-first* (contrato primeiro) define a interface antes da implementação para alinhar equipes e consumidores.\n\nOs códigos de estado HTTP comunicam classes de resultado: sucesso, problema associado à solicitação do cliente ou falha ao processar no serviço. A resposta deve ser estável o bastante para o cliente agir. Mensagens podem explicar como corrigir um campo, mas não devem revelar senhas, consultas internas ou detalhes sensíveis de infraestrutura. Para listas extensas, paginação limita o tamanho de cada resposta e permite buscar partes do conjunto.\n\n### Segurança e evolução compatível\n\nCada recurso precisa de autorização adequada; conhecer a URI não concede acesso. Credenciais devem ser protegidas em trânsito e não expostas em mensagens de erro ou registros indevidos. Validação no servidor deve verificar formato, limites e regras relevantes, e o serviço deve limitar chamadas abusivas segundo a necessidade da aplicação.\n\nClientes móveis podem continuar usando versões antigas por bastante tempo. Remover um campo ou alterar silenciosamente seu significado pode quebrar aplicativos já instalados. Para evoluir, mantenha compatibilidade quando possível, comunique a transição, ofereça período planejado de migração ou publique uma versão nova quando a mudança incompatível justificar. A escolha depende do contrato e dos consumidores existentes.\n\n### Exemplo passo a passo\n\nAna escolhe um produto e envia ao serviço uma solicitação para criar um pedido. O cliente usa o caminho de pedidos e o método definido para submissão; o corpo JSON inclui identificadores e quantidades, não o preço decidido pelo navegador. O servidor autentica Ana, verifica se ela pode comprar e valida cada item e seu preço atual. Se a chamada for aceita, devolve um código de sucesso e a representação do pedido. Se Ana perder a resposta, o cliente não presume automaticamente que a operação falhou: pode consultar o estado ou repetir usando o mecanismo de idempotência acordado. Para pedir outro pedido, Ana envia uma nova intenção com identificador próprio.\n\n**Pegadinha:** URI identifica o recurso; método expressa a intenção. Stateless não significa ausência de armazenamento. OpenAPI documenta o contrato, mas não substitui implementação, validação, autenticação ou autorização. POST não é idempotente por padrão, e PATCH é voltado a alterações parciais.\n\n**Resumo para a prova**\n\n- API é o contrato de interação; REST organiza recursos e operações, geralmente sobre HTTP.\n- GET consulta; POST submete; PUT define/substitui; PATCH altera parcialmente; DELETE solicita remoção.\n- Segurança, idempotência e autorização precisam ser avaliadas por operação e recurso.\n- Stateless trata cada chamada sem depender de sessão conversacional retida no servidor.\n- OpenAPI descreve a interface; paginação e compatibilidade ajudam a operar e evoluir o serviço."
+                     }
+                 ],
+    "summary":  "Codificar software exige alinhar decisões ao tipo de carga, às regras do negócio e às condições em que clientes e serviços operam. Sistemas OLTP registram operações individuais, preservando consistência mesmo diante de concorrência, falhas e repetição de chamadas. Já sistemas OLAP organizam dados históricos para consultas extensas, agregações e identificação de tendências, podendo manter defasagem em relação à operação. Aplicações móveis precisam responder com rede instável, manter dados locais úteis e sincronizar alterações com critérios para resolver conflitos. APIs HTTP devem apresentar recursos e contratos compreensíveis, usar métodos e respostas coerentes, validar entradas, proteger dados e permitir evolução compatível entre clientes e serviços.",
+    "flashcards":  [
+                       {
+                           "front":  "Qual é o foco típico de OLTP?",
+                           "back":  "Registrar interações operacionais e processar transações individuais com integridade."
+                       },
+                       {
+                           "front":  "Qual é o foco típico de OLAP?",
+                           "back":  "Consultas pesadas, agregações, tendências e análise histórica."
+                       },
+                       {
+                           "front":  "Por que uma agregação grande pode prejudicar OLTP?",
+                           "back":  "Consome recursos e pode bloquear ou atrasar transações concorrentes."
+                       },
+                       {
+                           "front":  "O que é idempotência?",
+                           "back":  "Repetir a mesma solicitação produz o mesmo efeito final que executá-la uma vez."
+                       },
+                       {
+                           "front":  "Qual estratégia evita cobrança duplicada após timeout?",
+                           "back":  "Idempotência, por exemplo com chave de idempotência associada à intenção."
+                       },
+                       {
+                           "front":  "O que faz um pipeline analítico?",
+                           "back":  "Extrai, limpa, integra e carrega dados para consultas analíticas."
+                       },
+                       {
+                           "front":  "O que o modelo semântico oferece?",
+                           "back":  "Significado consistente de campos, dimensões e cálculos para usuários e relatórios."
+                       },
+                       {
+                           "front":  "O que caracteriza HTAP?",
+                           "back":  "Combina processamento transacional e analítico em uma arquitetura híbrida."
+                       },
+                       {
+                           "front":  "Qual requisito mínimo offline-first?",
+                           "back":  "Permitir leitura essencial sem conexão confiável."
+                       },
+                       {
+                           "front":  "Qual é a fonte canônica de leitura no padrão offline-first Android?",
+                           "back":  "A fonte local coordenada pelo repositório."
+                       },
+                       {
+                           "front":  "Para que serve o repositório móvel?",
+                           "back":  "Combina fontes local e remota e atualiza dados locais a partir da rede."
+                       },
+                       {
+                           "front":  "Quando usar escrita online-only?",
+                           "back":  "Quando a operação depende de confirmação online quase em tempo real."
+                       },
+                       {
+                           "front":  "Quando uma fila de escrita é adequada?",
+                           "back":  "Para eventos não urgentes, como telemetria e logs."
+                       },
+                       {
+                           "front":  "O que é lazy write?",
+                           "back":  "Gravar localmente primeiro e sincronizar com a rede depois."
+                       },
+                       {
+                           "front":  "O que causa conflito de sincronização?",
+                           "back":  "Alterações divergentes em fontes local e remota durante desconexão."
+                       },
+                       {
+                           "front":  "O que significa sincronização pull?",
+                           "back":  "O cliente busca dados atualizados no servidor."
+                       },
+                       {
+                           "front":  "Como nomear recursos REST?",
+                           "back":  "Preferir substantivos, como `/clientes` ou `/pedidos`."
+                       },
+                       {
+                           "front":  "Qual uso comum do GET?",
+                           "back":  "Consultar uma representação de recurso sem alterar estado do servidor."
+                       },
+                       {
+                           "front":  "POST é sempre idempotente?",
+                           "back":  "Não; repeti-lo pode criar efeitos adicionais se não houver proteção."
+                       },
+                       {
+                           "front":  "O que é API stateless?",
+                           "back":  "Cada requisição é independente e não depende de sessão conversacional retida no servidor."
+                       },
+                       {
+                           "front":  "Para que serve OpenAPI?",
+                           "back":  "Descrever contrato de API HTTP e apoiar documentação e geração de clientes."
+                       },
+                       {
+                           "front":  "O que é abordagem contract-first?",
+                           "back":  "Definir o contrato da API antes de implementar o serviço."
+                       }
+                   ],
+    "tips":  [
+                 "Associe registro de pedidos e pagamentos a OLTP.",
+                 "Associe tendências e agregações históricas a OLAP.",
+                 "Proteja efeitos de gravação contra repetição após timeout.",
+                 "Em mobile offline-first, leia primeiro do armazenamento local.",
+                 "Use fila para eventos tolerantes a atraso; exija confirmação online para operação crítica.",
+                 "Desenhe APIs em torno de recursos e documente seu contrato."
+             ],
+    "traps":  [
+                  "Confundir relatório pesado com operação transacional.",
+                  "Achar que normalização torna toda consulta analítica rápida.",
+                  "Supor que toda escrita móvel precisa funcionar offline.",
+                  "Tratar rede e cache como fontes sempre sincronizadas.",
+                  "Afirmar que qualquer POST é idempotente.",
+                  "Confundir stateless com ausência de persistência ou autenticação."
+              ],
+    "activeRecall":  [
+                         "Explique por que uma carga analítica pode reduzir o desempenho de OLTP.",
+                         "Compare escrita online-only, queued e lazy em um aplicativo móvel.",
+                         "Descreva uma solução para repetição de solicitação de pagamento após timeout.",
+                         "Explique a função do repositório em uma arquitetura offline-first.",
+                         "Diferencie sincronização pull e push.",
+                         "Explique como conflitos surgem após edição offline.",
+                         "Descreva a relação entre URI, recurso e método HTTP.",
+                         "Explique como OpenAPI sustenta abordagem contract-first."
+                     ],
+    "errorConcepts":  [
+                          {
+                              "key":  "e1",
+                              "title":  "OLTP e OLAP",
+                              "summary":  "Operações individuais priorizam integridade; análises agregadas tratam histórico e tendências."
+                          },
+                          {
+                              "key":  "e2",
+                              "title":  "Repetição de solicitações",
+                              "summary":  "Após timeout, repetir sem controle pode duplicar cobranças ou gravações."
+                          },
+                          {
+                              "key":  "e3",
+                              "title":  "Fonte local e sincronização",
+                              "summary":  "A fonte local mantém leitura disponível sem rede e a sincronização reconcilia mudanças divergentes."
+                          },
+                          {
+                              "key":  "e4",
+                              "title":  "Semântica dos métodos HTTP",
+                              "summary":  "Métodos HTTP comunicam intenções diferentes; POST repetido pode produzir efeitos adicionais."
+                          },
+                          {
+                              "key":  "e5",
+                              "title":  "Contrato e segurança de API",
+                              "summary":  "A especificação documenta caminhos e formatos, mas regras e controles ainda precisam ser implementados."
+                          }
+                      ],
+    "questions":  [
+                      {
+                          "statement":  "Sistemas OLTP registram operações do cotidiano e são otimizados para transações individuais.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "OLTP registra interações operacionais e processa transações individuais; esse perfil difere de análise agregada histórica.",
+                          "section":  "1. Código para operações transacionais",
+                          "errorConceptKey":  "e1",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "OLAP é otimizado principalmente para muitas gravações curtas de registros operacionais individuais.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  true
+                                          }
+                                      ],
+                          "explanation":  "OLAP costuma atender consultas analíticas pesadas e leitura intensiva; gravações operacionais individuais caracterizam OLTP.",
+                          "section":  "2. Código para análise e processamento de dados",
+                          "errorConceptKey":  "e1",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Uma consulta analítica que agrega milhões de transações pode consumir recursos e atrasar operações concorrentes no OLTP.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Agregações volumosas percorrem muitos dados e disputam recursos com as gravações concorrentes. Separar a carga analítica pode preservar a resposta das operações OLTP.",
+                          "section":  "2. Código para análise e processamento de dados",
+                          "errorConceptKey":  "e1",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Uma API RESTful deve revelar ao cliente a implementação interna do serviço para que o cliente mantenha uma sessão compartilhada.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  true
+                                          }
+                                      ],
+                          "explanation":  "REST busca interface desacoplada; requisições independentes não exigem que o servidor retenha estado conversacional do cliente.",
+                          "section":  "4. APIs e integração entre aplicações",
+                          "errorConceptKey":  "e5",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Uma aplicação offline-first precisa permitir leitura essencial sem depender de conexão de rede.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "A arquitetura offline-first mantém leitura crítica por fonte local, evitando esperar uma chamada remota para exibir dados.",
+                          "section":  "3. Aplicações móveis, dados locais e conectividade",
+                          "errorConceptKey":  "e3",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "O domínio e a interface de uma aplicação Android offline-first devem acessar diretamente o cliente de rede, contornando o repositório.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  true
+                                          }
+                                      ],
+                          "explanation":  "O repositório é responsável por comunicar-se com a rede e atualizar a fonte local; camadas superiores consomem dados por essa abstração.",
+                          "section":  "3. Aplicações móveis, dados locais e conectividade",
+                          "errorConceptKey":  "e3",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Uma fila de escritas pode ser apropriada para telemetria não urgente, enviada quando a conectividade retorna.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Eventos de análise e logs toleram atraso, pois não precisam confirmar uma operação crítica ao usuário. Uma fila guarda esses registros e os transmite quando a conectividade retorna.",
+                          "section":  "3. Aplicações móveis, dados locais e conectividade",
+                          "errorConceptKey":  "e3",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Uma transferência bancária crítica deve ser considerada concluída localmente mesmo sem confirmação do servidor.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  true
+                                          }
+                                      ],
+                          "explanation":  "Operações financeiras em tempo real normalmente exigem confirmação online; registrá-las como concluídas sem confirmação pode apresentar estado falso.",
+                          "section":  "3. Aplicações móveis, dados locais e conectividade",
+                          "errorConceptKey":  "e3",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Em REST, nomes como `/pedidos` representam recursos; o método HTTP informa a operação pretendida.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "No desenho REST, a URI identifica o recurso e o método HTTP expressa a operação solicitada. Essa separação evita transformar cada ação em um caminho de implementação específico.",
+                          "section":  "4. APIs e integração entre aplicações",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Repetir qualquer solicitação POST necessariamente produz o mesmo efeito que executá-la uma vez.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  true
+                                          }
+                                      ],
+                          "explanation":  "POST não é automaticamente idempotente; repetição pode criar duplicatas, exigindo proteção como chave de idempotência quando apropriado.",
+                          "section":  "4. APIs e integração entre aplicações",
+                          "errorConceptKey":  "e2",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Uma estratégia lazy write pode gravar primeiro localmente e sincronizar depois, mas precisa lidar com conflitos.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "A gravação local seguida de envio posterior é útil para dados importantes offline, mas divergências entre fontes precisam de regra de reconciliação.",
+                          "section":  "3. Aplicações móveis, dados locais e conectividade",
+                          "errorConceptKey":  "e3",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "A fonte local de uma aplicação offline-first pode ser a fonte canônica de leitura para camadas superiores.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "A documentação Android recomenda que camadas superiores leiam a fonte local, mantida pelo repositório em coordenação com a rede.",
+                          "section":  "3. Aplicações móveis, dados locais e conectividade",
+                          "errorConceptKey":  "e3",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "OpenAPI pode apoiar uma abordagem em que o contrato é definido antes do código de implementação.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "OpenAPI descreve interfaces HTTP e favorece contract-first, inclusive com geração de documentação ou bibliotecas de cliente.",
+                          "section":  "4. APIs e integração entre aplicações",
+                          "errorConceptKey":  "e5",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Dados analíticos estão necessariamente atualizados no mesmo instante em que a transação operacional foi gravada.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  true
+                                          }
+                                      ],
+                          "explanation":  "Pipelines analíticos podem introduzir latência; aplicações e relatórios devem considerar a defasagem possível entre operação e análise.",
+                          "section":  "2. Código para análise e processamento de dados",
+                          "errorConceptKey":  "e1",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Uma API stateless dispensa autenticação e persistência porque o servidor não mantém sessão entre chamadas.",
+                          "format":  "TRUE_FALSE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "C",
+                                              "text":  "Certo",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Errado",
+                                              "correct":  true
+                                          }
+                                      ],
+                          "explanation":  "Stateless descreve independência das requisições em relação a estado conversacional; autenticação e persistência de recursos continuam possíveis e necessárias.",
+                          "section":  "4. APIs e integração entre aplicações",
+                          "errorConceptKey":  "e5",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Uma loja registra venda e atualiza estoque como parte da operação cotidiana. Que perfil de processamento atende isso?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "OLTP, processamento operacional de transações.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "OLAP, análise de tendências históricas.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "OpenAPI, descrição de contrato HTTP.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "ETL, extração e transformação para análise.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Cache, camada de apresentação móvel.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Venda e atualização de estoque são operações do fluxo cotidiano e precisam manter os dados coerentes. Esse perfil de registros individuais caracteriza OLTP, ao contrário de consultas analíticas históricas.",
+                          "section":  "1. Código para operações transacionais",
+                          "errorConceptKey":  "e1",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "A equipe quer relatórios de tendência anual que não atrasem pedidos. Qual solução arquitetural é mais apropriada?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Enviar consultas diretamente da tela ao banco operacional, reunindo todo o histórico durante cada gravação.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Calcular tudo na gravação de cada pedido.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Remover controles transacionais do sistema.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Executar análises em repositório OLAP alimentado pela operação.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Apagar dados históricos após cada consulta.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Relatórios de tendência exigem agregações e leitura de histórico, características de OLAP. Mantê-los em uma estrutura analítica separada reduz a disputa por recursos com pedidos transacionais.",
+                          "section":  "2. Código para análise e processamento de dados",
+                          "errorConceptKey":  "e1",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Após timeout numa cobrança, o cliente não sabe se o servidor processou. Como evitar executar duas vezes a mesma intenção?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Manter aberta a tela do cliente.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Reenviar sempre com novo identificador, sem verificar se uma tentativa anterior já foi processada.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Transformar a cobrança em agregação analítica.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Desativar validação no servidor.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Usar chave de idempotência reconhecida pelo serviço.",
+                                              "correct":  true
+                                          }
+                                      ],
+                          "explanation":  "Uma chave de idempotência identifica a intenção original. Se a mesma chamada for repetida após timeout, o serviço pode reconhecer a duplicata e retornar o resultado já produzido, evitando nova cobrança.",
+                          "section":  "1. Código para operações transacionais",
+                          "errorConceptKey":  "e2",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Qual escolha ajuda a reduzir redundância e preservar integridade em um banco operacional?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Duplicar todo dado sem sincronização, mantendo cópias independentes em cada operação.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Normalizar dados em estruturas relacionadas.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Remover restrições entre entidades.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Guardar apenas imagens de relatórios.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Converter cada escrita em evento de interface.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "A normalização organiza dados relacionados para reduzir cópias desnecessárias e anomalias de atualização. Isso facilita preservar a integridade quando operações transacionais alteram os registros.",
+                          "section":  "1. Código para operações transacionais",
+                          "errorConceptKey":  "e1",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Que atividade descreve melhor um pipeline ETL para análise?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Repetir uma API sem guardar seu contrato.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Exibir telas, validar toque e controlar brilho durante o uso do aplicativo.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Extrair fontes, transformar dados e carregá-los para análise.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Executar somente gravações de pedidos.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Desabilitar históricos de negócio.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "ETL reúne etapas de extração das fontes, transformação para limpar ou padronizar e carga no destino analítico. Essa preparação permite que consultas usem dados integrados e apropriados à análise.",
+                          "section":  "2. Código para análise e processamento de dados",
+                          "errorConceptKey":  "e1",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Relatórios usam conceitos divergentes para o mesmo dado entre áreas. O que define significados e cálculos coerentes?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "URI com verbo para cada indicador.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Fila de retentativas da aplicação móvel, que não estabelece definições comuns para campos e métricas dos relatórios.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Remoção de todas as colunas de origem.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Modelo semântico com significado e relações definidos.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Bloqueio de consultas agregadas.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Um modelo semântico estabelece o que campos e métricas significam para os usuários, independentemente dos detalhes físicos. Assim, áreas diferentes podem aplicar definições e cálculos coerentes nos relatórios.",
+                          "section":  "2. Código para análise e processamento de dados",
+                          "errorConceptKey":  "e1",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Um serviço reúne gravações de pedidos e análise quase em tempo real. Qual termo descreve essa combinação?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Idempotência, método de carga de dados.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "ETL, protocolo de tela móvel que combina operações transacionais e consultas analíticas na mesma arquitetura.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "REST, banco histórico multidimensional.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Offline-first, sinônimo de análise OLAP.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "HTAP, carga híbrida transacional e analítica.",
+                                              "correct":  true
+                                          }
+                                      ],
+                          "explanation":  "HTAP combina características de processamento transacional e analítico em uma mesma arquitetura. Essa proximidade pode reduzir latência, mas exige avaliar isolamento e impacto das consultas sobre as gravações.",
+                          "section":  "2. Código para análise e processamento de dados",
+                          "errorConceptKey":  "e1",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "O usuário abre um aplicativo em local sem sinal e precisa consultar dados já vistos. Qual desenho atende?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Aguardar a rede antes de mostrar qualquer tela e ignorar o conteúdo já disponível no aparelho.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Ler dados persistidos localmente e sincronizá-los pelo repositório.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Consultar o banco servidor diretamente pela interface.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Apagar o cache quando a conexão cair.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Desativar todas as operações de leitura.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "O desenho offline-first consulta primeiro a fonte local, permitindo exibir dados já armazenados mesmo sem sinal. O repositório pode buscar atualizações remotas e sincronizá-las quando a rede estiver disponível.",
+                          "section":  "3. Aplicações móveis, dados locais e conectividade",
+                          "errorConceptKey":  "e3",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Qual caso é mais adequado à escrita online-only?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Rascunho de tarefa que deve sobreviver offline.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Telemetria sem prazo imediato de entrega, armazenada para envio quando a rede voltar.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Transferência que exige confirmação do serviço em tempo real.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Exibição de configuração local já salva.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Leitura de dados em cache.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Uma transferência financeira depende da confirmação do serviço para que o aplicativo informe sucesso com segurança. Sem essa resposta, a interface deve comunicar pendência ou falha, em vez de afirmar que a operação foi concluída.",
+                          "section":  "3. Aplicações móveis, dados locais e conectividade",
+                          "errorConceptKey":  "e3",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Um app envia eventos de uso apenas quando a rede volta. Que estratégia aplica?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Bloquear a interface até a análise terminar.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Exigir confirmação bancária de cada evento de telemetria, atrasando o registro até receber uma resposta online.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Descartar todo evento offline.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Enfileirar escritas não urgentes para envio posterior.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Usar GET para gravar cada evento.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Eventos de uso e logs normalmente podem aguardar a conexão sem alterar uma decisão crítica do usuário. Uma fila armazena os eventos durante a falta de rede e os envia posteriormente.",
+                          "section":  "3. Aplicações móveis, dados locais e conectividade",
+                          "errorConceptKey":  "e3",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Alterações divergentes foram feitas localmente e no servidor durante desconexão. Qual providência é necessária?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Trocar os dados por um código HTTP.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Supor que o servidor não mudou durante a desconexão e descartar qualquer alteração remota sem comparar versões.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Apagar sempre dados locais sem comparação.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Repetir as duas gravações infinitamente.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Aplicar regra de resolução de conflitos adequada ao domínio.",
+                                              "correct":  true
+                                          }
+                                      ],
+                          "explanation":  "Quando cliente e servidor recebem edições distintas, uma sincronização simples pode sobrescrever informação. É necessário aplicar uma política de resolução apropriada ao domínio, como comparar versões ou solicitar revisão.",
+                          "section":  "3. Aplicações móveis, dados locais e conectividade",
+                          "errorConceptKey":  "e3",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Como reduzir chamadas agressivas quando um serviço volta após falha de rede?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Repetir sem espera, em laço apertado, sem respeitar limites nem observar se o serviço já está se recuperando.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Aplicar backoff com intervalos crescentes entre tentativas.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Criar novo pagamento para cada tentativa.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Desabilitar o armazenamento local.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Responder sucesso antes de chamar a rede.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "O backoff exponencial aumenta progressivamente o intervalo entre tentativas após falhas. Isso evita que muitos clientes repitam chamadas de forma agressiva e sobrecarreguem a rede ou o serviço que está se recuperando.",
+                          "section":  "3. Aplicações móveis, dados locais e conectividade",
+                          "errorConceptKey":  "e3",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Qual URI representa um recurso de forma mais coerente com REST?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "/criarPedido",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "/executarBuscaAgora",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "/pedidos/42",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "/fazerTudo",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "/apagarComando",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Uma URI como `/pedidos/42` identifica um recurso específico usando um substantivo. O método HTTP, como GET ou DELETE, indica a intenção sobre esse recurso, sem embutir o verbo no caminho.",
+                          "section":  "4. APIs e integração entre aplicações",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Qual método é normalmente usado para obter uma representação de `/clientes/8`?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "POST",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "DELETE",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "PATCH",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "GET",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "CONNECT",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "GET é usado para solicitar a representação do recurso indicado por `/clientes/8`. Sua finalidade é consultar; o método não deve ser usado para alterar o estado do recurso no servidor.",
+                          "section":  "4. APIs e integração entre aplicações",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "O cliente envia dados para criar pedido em uma coleção. Qual método é usual?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "FACIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "OPTIONS para persistir o pedido.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "GET para alterar o pedido.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "DELETE para criar registro.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "HEAD para enviar o corpo de criação.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "POST na coleção de pedidos.",
+                                              "correct":  true
+                                          }
+                                      ],
+                          "explanation":  "POST submete os dados ao processamento associado à coleção e é frequentemente usado para criar um novo pedido. A operação concreta deve estar descrita no contrato da API e não se presume idempotente.",
+                          "section":  "4. APIs e integração entre aplicações",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Qual método comunica uma alteração parcial de endereço em um cliente existente?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "GET na coleção.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "PATCH no recurso do cliente.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "DELETE no cliente.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "TRACE no serviço.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "CONNECT na URI.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "PATCH comunica a alteração de parte da representação, como atualizar somente o endereço do cliente. PUT costuma definir ou substituir a representação completa no recurso identificado.",
+                          "section":  "4. APIs e integração entre aplicações",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Uma solicitação define toda a representação de um recurso existente. Qual método é normalmente coerente?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "PATCH para apagar toda coleção.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "GET para gravar campos.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "PUT para definir a representação completa.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "OPTIONS para substituir dados.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "HEAD para persistir conteúdo.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "PUT é coerente quando o cliente envia a representação completa que deve ficar associada ao URI alvo. PATCH é mais apropriado para mudanças parciais e não expressa a substituição integral.",
+                          "section":  "4. APIs e integração entre aplicações",
+                          "errorConceptKey":  "e4",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "O que significa uma API HTTP stateless?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Toda chamada deve vir do mesmo aparelho.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "O serviço não pode persistir recursos.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "O serviço não pode autenticar usuários.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Cada requisição é independente de sessão conversacional retida no servidor.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "A API não pode usar banco de dados.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Stateless significa que cada chamada contém o contexto necessário e não depende de uma sessão conversacional mantida no servidor. Isso não impede autenticar usuários nem persistir recursos em um banco.",
+                          "section":  "4. APIs e integração entre aplicações",
+                          "errorConceptKey":  "e5",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Por que paginar uma coleção grande retornada pela API?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Impedir qualquer acesso a dados antigos.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Limitar tamanho de resposta e consumo de recursos.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Converter REST em OLAP automaticamente.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Evitar toda validação de parâmetros.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Fazer GET alterar os registros consultados.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "A paginação divide uma coleção extensa em partes que o cliente solicita gradualmente. Isso limita o tamanho de cada resposta e o consumo de memória, largura de banda e processamento.",
+                          "section":  "4. APIs e integração entre aplicações",
+                          "errorConceptKey":  "e5",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Qual prática facilita que clientes e serviço evoluam separadamente?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Manter contrato claro e formatos acordados sem expor implementação interna.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Obrigar clientes a conhecer tabelas e classes privadas, acoplando cada integração à estrutura física atual do serviço.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Mudar campos sem documentar.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Compartilhar estado global de cada cliente.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Acessar diretamente o armazenamento físico.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Um contrato claro define formatos e operações que clientes podem usar sem conhecer detalhes internos do serviço. Mudanças compatíveis nesse contrato permitem evoluir cada implementação com menor acoplamento.",
+                          "section":  "4. APIs e integração entre aplicações",
+                          "errorConceptKey":  "e5",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Qual é o papel de OpenAPI em um serviço HTTP?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Descrever operações, parâmetros e formatos do contrato da API.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Executar toda regra de negócio automaticamente e dispensar a aplicação de implementar validações e controles de autorização.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Substituir autorização por recurso.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Normalizar tabelas transacionais.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Sincronizar dados móveis sem lógica de aplicação.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "OpenAPI descreve caminhos, parâmetros, formatos e respostas de uma API HTTP. A especificação pode gerar documentação ou clientes, mas não executa regras de negócio nem aplica autorização por si só.",
+                          "section":  "4. APIs e integração entre aplicações",
+                          "errorConceptKey":  "e5",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Como responder a erro de validação sem expor detalhes internos?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Usar resposta previsível e não incluir segredos ou detalhes sensíveis.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Incluir senha e consulta SQL na mensagem.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Informar sucesso mesmo quando falha.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Enviar a pilha completa a qualquer usuário.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Manter a chamada indefinidamente aberta.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Uma resposta previsível informa ao cliente que a entrada foi rejeitada e como corrigi-la, sem expor segredos. SQL, credenciais e rastros internos podem revelar dados úteis a quem tenta atacar o serviço.",
+                          "section":  "4. APIs e integração entre aplicações",
+                          "errorConceptKey":  "e5",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "O usuário está autenticado, mas solicita a conta de outra pessoa. Qual controle deve ser verificado?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Autorização para acessar aquele recurso específico.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Apenas se o URI é conhecido.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Se o método usado é GET.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Se OpenAPI está instalado no cliente.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Se o banco está em modo OLAP.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Autenticação confirma a identidade de quem fez a chamada, mas não concede acesso irrestrito. A autorização deve verificar se essa identidade pode consultar especificamente a conta solicitada.",
+                          "section":  "4. APIs e integração entre aplicações",
+                          "errorConceptKey":  "e5",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Qual é a razão para validar no servidor os dados enviados pela aplicação?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Qualquer cliente pode chamar a API e contornar validações da interface.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "A interface sempre envia dados corretos e confiáveis, pois controles visuais impedem que clientes alterem a solicitação.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Validação elimina necessidade de autorização.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Validação converte OLTP em OLAP.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "O servidor não recebe entradas externas.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "A validação na interface ajuda a orientar o usuário, mas pode ser contornada ou nem ser usada por clientes alternativos. Por isso, o servidor precisa validar entradas e regras antes de processar os dados.",
+                          "section":  "4. APIs e integração entre aplicações",
+                          "errorConceptKey":  "e5",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Uma versão nova remove campo usado por aplicativos móveis antigos ainda ativos. O que reduz quebra?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Planejar compatibilidade, transição documentada ou versão nova.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Supor que todo aparelho atualiza imediatamente.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Alterar o significado sem aviso.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Expor tabela interna aos clientes.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Desativar autenticação durante a migração.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Aplicativos instalados podem continuar usando uma versão antiga da API por bastante tempo. Uma evolução compatível, ou uma transição documentada com versão nova, evita que a remoção abrupta de um campo interrompa esses clientes.",
+                          "section":  "4. APIs e integração entre aplicações",
+                          "errorConceptKey":  "e5",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Que benefício a transação oferece ao gravar pedido e reduzir estoque conjuntamente?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Evita confirmar apenas parte das gravações que formam uma unidade lógica.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Dispensa validação de entrada da API.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Garante que a rede móvel nunca falhe.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Elimina latência de relatórios históricos.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Faz clientes conhecerem o banco interno.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Pedido e baixa de estoque formam uma unidade lógica: confirmar apenas uma alteração deixaria o sistema inconsistente. A transação agrupa as gravações, embora efeitos externos como envio de e-mail precisem de coordenação adicional.",
+                          "section":  "1. Código para operações transacionais",
+                          "errorConceptKey":  "e2",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Tabelas operacionais com histórico excessivo prejudicam consultas. Qual medida pode ajudar?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "DIFICIL",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Manter janela operacional relevante e transferir histórico para análise.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Executar relatório completo em cada gravação.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Remover integridade dos pedidos.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Permitir que toda tela leia tabelas históricas diretamente.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Desabilitar monitoramento das consultas.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Manter no OLTP os dados necessários à operação e mover históricos volumosos para um repositório analítico pode reduzir a carga das consultas cotidianas. O histórico continua disponível para relatórios sem competir tanto com gravações.",
+                          "section":  "2. Código para análise e processamento de dados",
+                          "errorConceptKey":  "e1",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      },
+                      {
+                          "statement":  "Qual desafio é comum ao integrar várias fontes analíticas?",
+                          "format":  "MULTIPLE_CHOICE",
+                          "difficulty":  "MEDIA",
+                          "options":  [
+                                          {
+                                              "key":  "A",
+                                              "text":  "Tratar diferenças semânticas, duplicatas, atrasos e dados inválidos.",
+                                              "correct":  true
+                                          },
+                                          {
+                                              "key":  "B",
+                                              "text":  "Garantir que toda fonte tenha esquema idêntico.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "C",
+                                              "text":  "Proibir qualquer histórico.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "D",
+                                              "text":  "Dispensar monitoramento de carga.",
+                                              "correct":  false
+                                          },
+                                          {
+                                              "key":  "E",
+                                              "text":  "Transformar cada campo em imagem.",
+                                              "correct":  false
+                                          }
+                                      ],
+                          "explanation":  "Fontes distintas podem usar conceitos diferentes, conter duplicatas ou dados inválidos e chegar com atrasos variados. O pipeline precisa identificar e tratar essas diferenças para produzir resultados analíticos coerentes.",
+                          "section":  "2. Código para análise e processamento de dados",
+                          "errorConceptKey":  "e1",
+                          "sourceType":  "AUTHORIAL",
+                          "board":  null,
+                          "agency":  null,
+                          "year":  null,
+                          "sourceUrl":  null
+                      }
+                  ],
+    "sources":  [
+                    {
+                        "kind":  "OFICIAL",
+                        "title":  "Online transaction processing (OLTP)",
+                        "publisher":  "Microsoft Azure Architecture Center",
+                        "reference":  "Operação, normalização e limites de análise agregada",
+                        "url":  "https://learn.microsoft.com/en-us/azure/architecture/data-guide/relational-data/online-transaction-processing",
+                        "accessedAt":  "2026-10-29"
+                    },
+                    {
+                        "kind":  "OFICIAL",
+                        "title":  "Online analytical processing (OLAP)",
+                        "publisher":  "Microsoft Azure Architecture Center",
+                        "reference":  "Consultas analíticas, histórico e modelo semântico",
+                        "url":  "https://learn.microsoft.com/en-us/azure/architecture/data-guide/relational-data/online-analytical-processing",
+                        "accessedAt":  "2026-10-29"
+                    },
+                    {
+                        "kind":  "OFICIAL",
+                        "title":  "Best practices for RESTful web API design",
+                        "publisher":  "Microsoft Azure Architecture Center",
+                        "reference":  "URI, métodos HTTP, stateless e OpenAPI",
+                        "url":  "https://learn.microsoft.com/en-us/azure/architecture/best-practices/api-design",
+                        "accessedAt":  "2026-10-29"
+                    },
+                    {
+                        "kind":  "OFICIAL",
+                        "title":  "Build an offline-first app",
+                        "publisher":  "Android Developers",
+                        "reference":  "Fonte local, repositório, escrita e sincronização",
+                        "url":  "https://developer.android.com/topic/architecture/data-layer/offline-first",
+                        "accessedAt":  "2026-10-29"
+                    }
+                ]
+}

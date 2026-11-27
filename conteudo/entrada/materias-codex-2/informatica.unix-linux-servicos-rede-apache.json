@@ -1,0 +1,678 @@
+{
+  "id": "informatica.unix-linux-servicos-rede-apache",
+  "subject": "Informática",
+  "title": "Ambiente UNIX e LINUX: serviços de rede e Apache",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Ambiente UNIX e LINUX com serviços de rede",
+    "Administração de redes em UNIX e Linux",
+    "TCP/IP, DHCP e DNS em Linux",
+    "Serviços de rede UNIX e Linux",
+    "Instalação e suporte TCP/IP em Linux",
+    "Servidor DHCP em ambiente Linux",
+    "Servidor DNS e BIND em Linux",
+    "NIS, CIFS e NFS em servidores Linux",
+    "Integração Linux e ambiente Windows",
+    "Compartilhamento SMB com Samba",
+    "Sistema de arquivos CIFS no Linux",
+    "Sistema de arquivos de rede NFS",
+    "Serviços de impressão em rede no Linux",
+    "Configuração do servidor Apache HTTP",
+    "Linguagens de script em administração Linux"
+  ],
+  "scope": {
+    "covers": "Administração de ambiente UNIX e Linux voltada a serviços de rede: fundamentos TCP/IP e diagnóstico; configuração de endereçamento e rotas; DHCP e concessões; DNS, resolução e zonas; NIS como serviço legado de diretório; compartilhamento Windows por SMB/CIFS com Samba e montagem de compartilhamentos; NFS e exportações; filas e impressão em rede com CUPS; instalação, configuração, teste e operação do Apache HTTP Server, hospedeiros virtuais, módulos, logs e segurança básica; integração entre Linux e Windows; uso de shell scripts na administração e suporte.",
+    "excludes": "Projeto avançado de redes, roteamento dinâmico, DNSSEC em profundidade, implantação completa de domínio Active Directory, hardening geral do sistema operacional, programação de aplicações web e sintaxe completa de linguagens de script."
+  },
+  "theoryTitle": "Serviços de rede no UNIX/Linux e servidor Apache",
+  "chapters": [
+    {
+      "title": "1. UNIX/Linux, TCP/IP e diagnóstico de rede",
+      "markdown": "### O problema que este assunto resolve\n\nUm servidor Linux pode hospedar aplicações, compartilhar arquivos e oferecer impressão, mas cada serviço depende de uma rede funcional. Antes de investigar Apache ou DNS, é preciso separar falhas de interface, endereçamento, rota, resolução de nomes e aplicação. O UNIX tradicional e os sistemas Linux compartilham ferramentas e ideias de administração, embora comandos, caminhos e gerenciadores de serviço variem entre distribuições.\n\n> **Siglas e termos deste capítulo**\n> - **TCP/IP**: conjunto de protocolos que permite endereçamento, encaminhamento e comunicação entre redes.\n> - **IPv4/IPv6**: versões do protocolo IP; usam endereços e configurações distintos.\n> - **Máscara/prefixo**: indica quais bits identificam a rede e quais identificam o host.\n> - **Gateway padrão**: roteador para destinos que não pertencem à rede local.\n> - **Socket**: ponto de comunicação identificado, em geral, por endereço IP, protocolo e porta.\n> - **Loopback**: interface local, normalmente `lo`, que permite ao host falar consigo mesmo.\n\n### Configuração em camadas\n\nUma configuração útil precisa combinar endereço e prefixo, rota, resolução de nomes e parâmetros de serviço. Em uma máquina, comandos como `ip address` exibem endereços das interfaces e `ip route` mostra rotas. `ip link` informa o estado da interface. `ping` testa alcance por ICMP, mas uma resposta positiva não prova que uma porta TCP esteja aberta; uma resposta ausente também pode decorrer de filtro ICMP. `ss -lntup` ajuda a identificar sockets TCP/UDP em escuta e os processos associados quando há privilégio suficiente.\n\n| Sintoma | Verificação inicial | O que ela responde |\n| --- | --- | --- |\n| Interface sem enlace | `ip link` | A interface está administrativamente ativa? |\n| Sem endereço esperado | `ip address` | Qual endereço e prefixo foram atribuídos? |\n| Destino fora da sub-rede não alcança | `ip route` | Existe rota e gateway adequados? |\n| IP funciona, nome falha | `getent hosts nome` ou `dig nome` | A resolução está correta? |\n| Serviço não atende | `ss -lntup` e logs | Há processo escutando na porta esperada? |\n\n### Endereço manual e endereço dinâmico\n\nEm redes administradas centralmente, o host pode receber configuração por DHCP. Endereços de servidores e impressoras muitas vezes são fixados por configuração manual ou por reserva no DHCP, para que registros DNS, regras de firewall e clientes usem destinos previsíveis. Não se deve configurar o mesmo endereço estático dentro de uma faixa que o DHCP possa entregar a outro equipamento. A configuração persistente depende da distribuição: pode estar em NetworkManager, systemd-networkd ou ferramentas próprias. Alterar só com `ip` pode produzir uma mudança temporária, perdida no reinício.\n\n### Como cai na prova\n\n- Uma rota padrão encaminha tráfego para redes não diretamente conectadas; ela não resolve nomes.\n- `ping` testa alcance ICMP, não a disponibilidade do Apache nem a aplicação correta na porta HTTP.\n- A sequência de diagnóstico começa na camada mais básica e avança: enlace, endereço, rota, DNS, porta e aplicação.\n- Uma porta em escuta local não prova que firewall, rota externa ou serviço de aplicação estejam corretos."
+    },
+    {
+      "title": "2. DHCP, DNS e NIS: configuração automática e nomes",
+      "markdown": "### O problema que este assunto resolve\n\nUma estação precisa descobrir endereço, rota e servidores; pessoas e aplicações precisam localizar serviços por nomes; e redes UNIX antigas centralizavam alguns cadastros de usuários. DHCP, DNS e NIS tratam de problemas diferentes e não são substitutos entre si.\n\n> **Siglas e termos deste capítulo**\n> - **DHCP**: protocolo de configuração dinâmica de hosts.\n> - **DORA**: sequência didática de descoberta, oferta, solicitação e confirmação DHCP.\n> - **Lease/concessão**: atribuição de parâmetros por intervalo limitado, renovável.\n> - **DNS**: sistema distribuído de nomes; associa nomes a dados como endereços e servidores de correio.\n> - **Zona**: parte da árvore DNS cuja informação é administrada por servidores autoritativos.\n> - **NIS**: Network Information Service, serviço legado de distribuição de mapas de identidade UNIX.\n\n### DHCP: entregar parâmetros ao cliente\n\nNo DHCPv4, o cliente que ainda não sabe seu endereço normalmente inicia com uma mensagem de descoberta em broadcast. Um servidor oferece uma concessão e parâmetros; o cliente solicita uma oferta e o servidor confirma. Essa sequência é resumida por DORA: Discover, Offer, Request, Acknowledge. Entre as opções podem estar máscara, gateway padrão, servidores DNS, sufixo de pesquisa e duração da concessão. O servidor mantém estado das concessões para evitar entregar simultaneamente o mesmo endereço.\n\nUm servidor DHCP deve atender a rede ou segmento correto. Como a descoberta inicial é broadcast, roteadores não a encaminham automaticamente entre sub-redes; um agente relay encaminha as mensagens ao servidor. A faixa dinâmica, exclusões, reservas, gateway e DNS precisam ser coerentes. Em Kea, o serviço DHCPv4 é configurado em arquivo e pode ser iniciado sob gerenciamento de serviço; a opção de teste de configuração permite verificar o arquivo antes de iniciar.\n\n### DNS: resolução recursiva e autoridade\n\nO resolvedor do cliente pergunta ao servidor DNS configurado. Um resolvedor recursivo procura a resposta em cache ou percorre a hierarquia e devolve o resultado; um servidor autoritativo responde pelos dados de uma zona que administra. Um primário mantém a cópia de referência da zona, e secundários recebem cópia por transferência de zona. O BIND pode exercer funções de autoritativo e de resolvedor, mas convém limitar recursão aos clientes pretendidos e controlar quem pode transferir zonas.\n\nRegistros comuns têm funções distintas: `A` associa nome a IPv4; `AAAA`, a IPv6; `CNAME` cria um alias; `MX` identifica servidores de correio; `NS` indica servidores autoritativos da zona; `PTR` é usado em consultas reversas. O `SOA` contém dados de controle da zona, inclusive serial e temporizadores. Após editar um arquivo de zona, aumente o serial conforme a convenção adotada e valide a sintaxe antes de recarregar. `dig`, `host` e `getent` ajudam a distinguir resposta DNS de resolução integrada pelo sistema.\n\n### NIS: centralização legada\n\nNIS distribui mapas, por exemplo informações derivadas de contas e grupos UNIX, para máquinas de um domínio NIS. O servidor publica mapas; o cliente usa `ypbind` para localizar um servidor e ferramentas como `ypwhich` e `ypcat` para inspecionar vínculo e mapas. O domínio NIS é um identificador próprio, não necessariamente um nome DNS. NIS simplificou administração em redes antigas, mas seu modelo não oferece as garantias modernas de confidencialidade e autenticação forte esperadas para dados sensíveis. Em redes atuais, serviços de diretório mais seguros costumam substituí-lo; não exponha mapas NIS a redes não confiáveis.\n\n| Serviço | Dado principal | Exemplo de componente |\n| --- | --- | --- |\n| DHCP | Parâmetros de rede temporários | servidor Kea e agente relay |\n| DNS | Registros de nomes e zonas | BIND, resolvedor e servidor autoritativo |\n| NIS | Mapas de identidade UNIX | `ypserv`, `ypbind`, mapas NIS |\n\n### Como cai na prova\n\n- DHCP entrega configuração de rede; não converte nomes em endereços.\n- DNS resolve nomes; não atribui endereço IP ao cliente.\n- NIS distribui mapas UNIX, não é sinônimo de DNS nem mecanismo moderno de autenticação forte.\n- Transferência de zona é replicação entre servidores DNS autoritativos, não consulta comum de um cliente."
+    },
+    {
+      "title": "3. CIFS/SMB, NFS e integração com Windows",
+      "markdown": "### O problema que este assunto resolve\n\nEstações Windows e UNIX/Linux precisam compartilhar arquivos e impressoras. O caminho mais comum de integração com Windows é SMB, implementado no Linux pelo Samba; o cliente Linux também pode montar um compartilhamento SMB por CIFS. Entre sistemas UNIX/Linux, NFS oferece acesso a diretórios exportados. A escolha do protocolo afeta autenticação, permissões, descoberta e montagem.\n\n> **Siglas e termos deste capítulo**\n> - **SMB**: protocolo de compartilhamento de arquivos, impressoras e outros recursos.\n> - **CIFS**: nome historicamente associado a uma variante do SMB; no Linux, `cifs` é o tipo de sistema de arquivos cliente.\n> - **Samba**: conjunto de serviços que implementa protocolos SMB em sistemas UNIX/Linux.\n> - **NFS**: Network File System, compartilhamento de sistemas de arquivos em rede.\n> - **Exportação**: diretório e regras que um servidor NFS disponibiliza a clientes.\n> - **UID/GID**: identificadores numéricos de usuário e grupo usados em permissões UNIX.\n\n### Compartilhamento SMB com Samba\n\nA configuração principal do Samba costuma ser `smb.conf`. A seção `[global]` define parâmetros gerais; seções como `[publico]` descrevem recursos compartilhados. Um compartilhamento combina caminho local, usuários autorizados, permissões e opções de leitura/escrita. O serviço `smbd` atende operações SMB; em integração de domínio e resolução de identidades pode participar `winbindd`. O nome do grupo de trabalho ou domínio, as contas, as permissões do sistema de arquivos e as regras do firewall precisam concordar. A permissão `read only` do Samba não torna gravável um diretório que o usuário do serviço não pode escrever no sistema de arquivos.\n\nNo lado cliente, um compartilhamento pode ser montado com o tipo `cifs`, indicando servidor e nome do compartilhamento. Credenciais não devem ficar em linha de comando ou em arquivo legível por todos; use arquivo de credenciais protegido e opções coerentes de usuário, domínio e versão negociada. SMB moderno negocia dialeto automaticamente; habilitar protocolos antigos por tentativa pode reduzir a segurança. Em termos de permissões, opções de mapeamento de UID/GID podem controlar a aparência local, mas não substituem autorização no servidor.\n\n### NFS e exportações\n\nO servidor NFS publica diretórios e clientes os montam em pontos locais. A lista de exportações e as regras de cliente ficam em configuração do servidor, frequentemente `/etc/exports`; `exportfs` aplica ou mostra exportações. Uma entrada define caminho e clientes permitidos, podendo restringir leitura/escrita. O cliente monta o caminho remoto, por exemplo `servidor:/dados`, em um diretório local. NFSv4 integra recursos de montagem e usa normalmente a porta TCP 2049; versões anteriores dependem de serviços auxiliares de RPC e podem exigir portas adicionais.\n\nPermissões NFS tradicionais dependem da correspondência de UID/GID entre cliente e servidor. A opção `root_squash`, usualmente habilitada, mapeia o root remoto para uma identidade sem privilégios no servidor; desativá-la amplia o risco de um administrador cliente alterar arquivos como root. A rede autorizada, as permissões do diretório e as opções de exportação devem ser restritas ao necessário. NFS não é um backup: exclusões e corrupção podem se refletir no volume compartilhado.\n\n| Necessidade | Protocolo comum | Atenção administrativa |\n| --- | --- | --- |\n| Compartilhar pasta com Windows | SMB via Samba | Conta, share e permissão POSIX devem permitir o acesso |\n| Montar pasta SMB em Linux | CIFS cliente | Proteger credenciais e alinhar UID/GID e dialeto |\n| Compartilhar diretório entre UNIX/Linux | NFS | Restringir clientes e conferir UID/GID e exportações |\n\n### Como cai na prova\n\n- Uma seção Samba representa recurso compartilhado; `[global]` configura o serviço de forma geral.\n- CIFS no cliente não é o protocolo NFS; ambos expõem arquivos remotos, mas usam protocolos e controles distintos.\n- Permissão de compartilhamento e permissão do sistema de arquivos precisam permitir a operação.\n- A configuração `root_squash` reduz privilégios de root vindos do cliente NFS; não a confunda com concessão de privilégios."
+    },
+    {
+      "title": "4. Impressão em rede e serviços de fila",
+      "markdown": "### O problema que este assunto resolve\n\nUm servidor de impressão recebe trabalhos, mantém filas e encaminha os dados ao equipamento. No ecossistema UNIX/Linux, CUPS é um sistema de impressão que pode administrar impressoras locais e de rede, expor filas a clientes e usar diferentes protocolos de transporte. É preciso diferenciar a fila lógica do endereço/protocolo do dispositivo.\n\n> **Siglas e termos deste capítulo**\n> - **CUPS**: Common UNIX Printing System, serviço e ferramentas de impressão.\n> - **IPP/IPPS**: Internet Printing Protocol; IPPS exige transporte protegido por TLS.\n> - **LPD**: protocolo legado de impressão em rede.\n> - **AppSocket/JetDirect**: envio direto à impressora, frequentemente na porta 9100.\n> - **Backend**: componente que transporta um trabalho da fila até o dispositivo.\n> - **Fila**: nome lógico com política, opções e destino de impressão.\n\n### Criar e compartilhar uma fila\n\nO administrador identifica o endereço ou URI do equipamento e cria uma fila no CUPS. `lpinfo -v` lista backends e dispositivos detectados; `lpadmin` cria ou ajusta uma fila e associa o URI do destino. Para impressoras compatíveis, IPP costuma oferecer recursos de consulta e segurança; IPPS indica comunicação protegida. O LPD pode ser necessário ao conversar com servidores antigos, enquanto AppSocket é simples e rápido, mas não oferece segurança própria.\n\nO servidor precisa estar autorizado a compartilhar filas e a escutar conexões dos clientes pretendidos. Clientes podem selecionar o servidor padrão por configuração ou usar descoberta de serviço, como DNS-SD/Bonjour. Firewalls precisam permitir o protocolo efetivamente usado, e nomes DNS ou endereços devem resolver de forma estável. Uma impressora configurada com endereço DHCP mutável pode desaparecer da fila quando o endereço muda; reserva DHCP ou endereço estável evita esse problema.\n\n### Diagnóstico de impressão\n\nSepare falhas de rede de falhas da fila: teste conectividade com o endereço, confirme se o protocolo e a porta estão acessíveis, verifique se o URI da fila aponta ao destino correto, consulte estado e trabalhos pendentes, examine os logs do CUPS e confirme papel, toner e estado físico do equipamento. Descoberta por broadcast/mDNS pode não atravessar roteadores; nesse caso, configure o URI manualmente ou providencie descoberta entre redes.\n\n### Como cai na prova\n\n- CUPS administra filas, mas o backend e o URI determinam como o trabalho chega à impressora.\n- IPP/IPPS, LPD e AppSocket não são nomes intercambiáveis; oferecem características diferentes.\n- Compartilhar a fila no servidor é necessário para que os clientes a usem remotamente.\n- Uma impressora alcançável por IP ainda pode rejeitar impressão por protocolo, URI, fila ou permissão incorretos."
+    },
+    {
+      "title": "5. Servidor Apache, integração e linguagens de script",
+      "markdown": "### O problema que este assunto resolve\n\nO Apache HTTP Server (`httpd`) recebe requisições HTTP e entrega conteúdo estático ou encaminha trabalho a módulos e aplicações. Em Linux/UNIX, é um processo de serviço configurado por arquivos de texto. A instalação é feita pelo gerenciador de pacotes da distribuição ou pela compilação; nome do pacote, usuário do serviço, caminhos e comando de unidade variam. Após instalar, confira o arquivo efetivo, teste a sintaxe e só então inicie ou recarregue o serviço.\n\n> **Siglas e termos deste capítulo**\n> - **HTTP/HTTPS**: protocolos para requisições web, com HTTPS protegido por TLS.\n> - **httpd**: processo servidor do Apache HTTP Server.\n> - **DocumentRoot**: diretório de arquivos associado ao site.\n> - **VirtualHost**: configuração de um site conforme endereço, porta e nome solicitado.\n> - **Módulo**: componente que acrescenta funcionalidade ao servidor.\n> - **CGI**: interface pela qual o servidor pode executar um programa para produzir resposta.\n\n### Configuração e operação do Apache\n\nO arquivo principal é normalmente chamado `httpd.conf`; diretivas `Include` incorporam outros arquivos. `ServerRoot` ancora caminhos de configuração e módulos; `Listen` define endereços/portas de escuta; `DocumentRoot` aponta o conteúdo estático; `ServerName` identifica o nome principal. Diretivas podem ser globais ou delimitadas em seções como `<Directory>`, `<Files>`, `<Location>` e `<VirtualHost>`. `<Directory>` trata caminhos do sistema de arquivos; `<Location>` trata caminhos de URL. Hospedeiros virtuais permitem atender vários nomes de site no mesmo servidor.\n\nO executável `httpd` aceita `-t` para testar sintaxe, `-M` para listar módulos carregados e `-S` para mostrar a interpretação dos hospedeiros virtuais. `apachectl` é o invólucro recomendado em sistemas UNIX, embora serviços de sistema também possam controlar o processo. Depois da alteração, execute o teste de configuração e faça recarga/reinício conforme a mudança. Erros de inicialização e requisição ficam nos logs configurados, em geral separados entre acesso e erro.\n\nO Apache é modular: `LoadModule` carrega módulos dinâmicos quando disponíveis. Habilite apenas o necessário, limite o acesso ao conteúdo e não permita listagem de diretórios sem motivo. `.htaccess` descentraliza algumas diretivas por diretório, mas exige permissão adequada em `AllowOverride` e pode impor leitura extra a cada requisição; quando há acesso à configuração principal, diretivas centrais são mais fáceis de controlar. Para TLS, configure certificado e chave com módulo apropriado e não exponha arquivos privados dentro do `DocumentRoot`.\n\n### Integração Windows e scripts\n\nLinux conversa com Windows usando SMB/Samba para arquivos e impressão; Apache também pode executar em Windows, embora o gerenciamento de serviços e caminhos seja diferente. Scripts de shell automatizam tarefas como verificar espaço, conferir processos, rotacionar relatórios ou validar configurações. Um script Bash começa com uma linha de interpretador (shebang), precisa de permissão de execução quando iniciado diretamente e deve tratar argumentos, erros e códigos de saída. Códigos de saída zero indicam sucesso por convenção; valores diferentes de zero sinalizam falha.\n\nUse aspas em expansões de variáveis para evitar divisão de palavras e expansão de padrões inesperada; valide entradas antes de usá-las em caminhos ou comandos. Prefira caminhos absolutos e registre diagnósticos úteis. Um script administrativo não deve embutir senhas, executar dados recebidos como código nem ocultar falhas com pipelines sem verificar o estado de retorno. Linguagens de script comuns incluem shell, Python e Perl; a escolha depende da tarefa e do ambiente, e scripts web devem ser isolados e autorizados corretamente.\n\n### Como cai na prova\n\n- `DocumentRoot` relaciona conteúdo estático ao sistema de arquivos; `ServerName` identifica o nome do servidor.\n- `httpd -t` verifica sintaxe; não testa se o site funciona para todo cliente externo.\n- `<Directory>` seleciona caminhos de arquivos; `<Location>` seleciona espaço de URLs.\n- `Include` organiza configuração; não substitui validação antes de recarregar.\n- Scripts devem verificar entradas e falhas, proteger credenciais e manter permissões mínimas."
+    }
+  ],
+  "summary": "A administração de serviços de rede em UNIX/Linux exige diagnóstico por camadas: enlace, endereço, rota, resolução de nomes, porta e aplicação. DHCP entrega endereços e parâmetros por concessões; DNS resolve nomes por zonas e registros; NIS distribui mapas UNIX em ambientes legados. Samba oferece SMB para integração com Windows, CIFS é o cliente Linux para compartilhamentos SMB e NFS compartilha diretórios entre sistemas UNIX/Linux. CUPS organiza filas e usa protocolos como IPP/IPPS, LPD e AppSocket. O Apache é um servidor HTTP modular configurado por diretivas, arquivos incluídos, DocumentRoot e VirtualHost; teste sintaxe antes de recarregar. Shell scripts automatizam operação, desde que tratem entradas, erros e permissões com cuidado.",
+  "flashcards": [
+    { "front": "O que a rota padrão faz?", "back": "Encaminha tráfego destinado a redes sem rota mais específica, normalmente a um gateway." },
+    { "front": "O que `ip address` mostra?", "back": "Endereços e prefixos atribuídos às interfaces de rede." },
+    { "front": "O que DORA resume no DHCPv4?", "back": "Discover, Offer, Request e Acknowledge: descoberta, oferta, solicitação e confirmação." },
+    { "front": "Que parâmetros o DHCP pode fornecer além do endereço?", "back": "Máscara/prefixo, gateway, DNS, sufixo de pesquisa e duração da concessão, entre outros." },
+    { "front": "Para que serve um agente DHCP relay?", "back": "Encaminha mensagens DHCP entre clientes de uma sub-rede e um servidor em outra." },
+    { "front": "Qual diferença entre resolvedor recursivo e autoritativo DNS?", "back": "O recursivo procura resposta para o cliente; o autoritativo responde pelos dados da zona que administra." },
+    { "front": "O que um registro A associa?", "back": "Um nome DNS a um endereço IPv4." },
+    { "front": "O que um registro AAAA associa?", "back": "Um nome DNS a um endereço IPv6." },
+    { "front": "Para que serve o MX?", "back": "Indica servidores responsáveis por receber correio de um domínio." },
+    { "front": "Qual função do serial no SOA?", "back": "Permite acompanhar a versão dos dados da zona para controle de atualizações e transferências." },
+    { "front": "O que NIS distribui?", "back": "Mapas de informação UNIX, como dados de contas e grupos, a clientes de um domínio NIS." },
+    { "front": "Que papéis têm `ypserv` e `ypbind`?", "back": "`ypserv` publica mapas NIS; `ypbind` localiza/vincula o cliente a um servidor NIS." },
+    { "front": "Onde fica a configuração central do Samba?", "back": "Normalmente em `smb.conf`, com seção `[global]` e seções para compartilhamentos." },
+    { "front": "O que é uma seção de compartilhamento SMB?", "back": "Um recurso nomeado que aponta para caminho e define acesso e opções para clientes." },
+    { "front": "O que significa CIFS no cliente Linux?", "back": "Tipo de sistema de arquivos cliente usado para montar compartilhamentos SMB." },
+    { "front": "O que o NFS exporta?", "back": "Diretórios do servidor que clientes autorizados podem montar pela rede." },
+    { "front": "O que faz `root_squash` em NFS?", "back": "Mapeia o root remoto para uma identidade sem privilégios no servidor." },
+    { "front": "Qual é o papel de uma fila CUPS?", "back": "Manter trabalhos e opções e encaminhá-los ao destino por um backend." },
+    { "front": "Que URI indica IPP protegido?", "back": "`ipps://`, que exige transporte protegido por TLS." },
+    { "front": "Para que serve `lpinfo -v`?", "back": "Lista backends e dispositivos de impressão que o CUPS conhece ou detecta." },
+    { "front": "Que diretiva Apache define conteúdo estático?", "back": "`DocumentRoot` associa o site a um diretório de conteúdo." },
+    { "front": "Que diretiva Apache define portas/endereço de escuta?", "back": "`Listen`." },
+    { "front": "Como testar a sintaxe do Apache?", "back": "Use `httpd -t` ou o teste equivalente de `apachectl` antes de recarregar." },
+    { "front": "Que diferença há entre `<Directory>` e `<Location>`?", "back": "`<Directory>` seleciona diretórios do sistema de arquivos; `<Location>` seleciona URLs." },
+    { "front": "O que um VirtualHost permite?", "back": "Atender configurações de sites diferentes segundo nome, endereço e porta da requisição." },
+    { "front": "Para que serve `Include` no Apache?", "back": "Carrega diretivas de outros arquivos de configuração." },
+    { "front": "O que `ss -lntup` ajuda a verificar?", "back": "Sockets TCP/UDP em escuta e, com privilégios, os processos associados." },
+    { "front": "Uma resposta a ping prova que a aplicação HTTP funciona?", "back": "Não; prova somente algum alcance ICMP, não a disponibilidade correta da porta/aplicação HTTP." },
+    { "front": "O que significa código de saída zero em shell?", "back": "Sucesso, por convenção dos comandos UNIX." },
+    { "front": "Por que citar variáveis de shell entre aspas?", "back": "Para evitar divisão de palavras e expansão inesperada de padrões no valor." }
+  ],
+  "tips": [
+    "Se o endereço IP responde, mas o nome não, investigue a resolução DNS antes de alterar a rota.",
+    "DHCP relay é necessário quando clientes e servidor estão em sub-redes diferentes e broadcasts não atravessam o roteador.",
+    "Ao depurar DNS, compare resposta autoritativa com recursiva usando consultas explícitas a servidores distintos.",
+    "No Samba, valide tanto as regras do compartilhamento quanto as permissões UNIX do diretório exportado.",
+    "Em impressão, anote URI e protocolo da fila; porta e backend distinguem IPP, LPD e AppSocket.",
+    "Antes de recarregar Apache, teste sintaxe e confira o log de erro se o serviço não iniciar."
+  ],
+  "traps": [
+    "DHCP e DNS não fazem o mesmo trabalho: um entrega parâmetros de rede; o outro resolve nomes.",
+    "Um host pode responder a ping e ainda ter a porta HTTP bloqueada ou sem processo em escuta.",
+    "CIFS/SMB e NFS compartilham arquivos, mas não são o mesmo protocolo nem usam configuração idêntica.",
+    "`root_squash` reduz privilégios do root remoto; removê-lo não é uma correção neutra de permissões.",
+    "`<Directory>` trata caminho do sistema de arquivos; `<Location>` trata caminho de URL.",
+    "AppSocket costuma ser simples, mas não fornece segurança de transporte; IPPS usa TLS."
+  ],
+  "activeRecall": [
+    { "question": "Descreva uma sequência prática para investigar um host Linux sem acesso a um serviço remoto.", "answer": "Confira enlace e interface com `ip link`, endereço/prefixo com `ip address`, rota com `ip route`, resolução com `getent` ou `dig`, porta em escuta/conectividade e então logs e configuração da aplicação." },
+    { "question": "Explique DORA e a função do relay DHCP.", "answer": "O cliente descobre, recebe oferta, solicita uma configuração e obtém confirmação. Quando servidor fica em outra sub-rede, o relay encaminha as mensagens que o roteador não propagaria como broadcast." },
+    { "question": "Diferencie resolvedor recursivo, servidor autoritativo e transferência de zona.", "answer": "O recursivo procura resposta ao cliente; o autoritativo publica os dados de sua zona; transferência de zona copia esses dados entre servidores autoritativos autorizados." },
+    { "question": "Como uma estação Linux acessa um compartilhamento Windows e que controles precisam coincidir?", "answer": "Monta SMB por CIFS ou usa ferramentas Samba; nome do servidor, share, credenciais, regras Samba, permissões do sistema de arquivos e conectividade precisam permitir o acesso." },
+    { "question": "Quais verificações ajudam a publicar um diretório por NFS com segurança?", "answer": "Restringir clientes e modo de acesso na exportação, manter permissões/UID/GID coerentes, compreender `root_squash`, aplicar as exportações e testar montagem do cliente." },
+    { "question": "Compare os protocolos de uma fila CUPS em rede.", "answer": "IPP é protocolo nativo de impressão CUPS; IPPS o protege com TLS; LPD atende sistemas legados; AppSocket/JetDirect é simples e frequentemente usa a porta 9100, mas não oferece proteção própria." },
+    { "question": "Que passos fazem uma alteração Apache chegar ao serviço com menor risco?", "answer": "Edite a diretiva no escopo correto, confirme módulos e arquivos incluídos, rode `httpd -t`, recarregue/reinicie pelo controlador do sistema e confira logs e resposta do site." },
+    { "question": "Quais cuidados tornam um shell script de suporte mais confiável?", "answer": "Validar argumentos, citar variáveis, conferir códigos de saída, registrar erros úteis, proteger credenciais e limitar permissões e privilégios." }
+  ],
+  "errorConcepts": [
+    { "key": "e1", "title": "Diagnóstico de rede confundido", "summary": "IP, rota, DNS, porta e aplicação são camadas diferentes; ping não valida serviço HTTP e rota padrão não resolve nomes." },
+    { "key": "e2", "title": "DHCP, DNS e NIS misturados", "summary": "DHCP entrega parâmetros por concessão; DNS resolve nomes e administra zonas; NIS distribui mapas UNIX em ambientes legados." },
+    { "key": "e3", "title": "SMB/CIFS e NFS tratados como iguais", "summary": "Samba oferece SMB para integração Windows e CIFS é cliente Linux; NFS exporta diretórios UNIX/Linux com regras e mapeamentos próprios." },
+    { "key": "e4", "title": "Autorização de compartilhamento incompleta", "summary": "No Samba, NFS e CUPS, protocolo e rede não bastam: permissões, credenciais, exportações, fila e política do sistema também precisam permitir o acesso." },
+    { "key": "e5", "title": "Escopo de diretivas Apache invertido", "summary": "DocumentRoot aponta conteúdo; VirtualHost seleciona site; Directory atua sobre caminhos do filesystem; Location atua sobre URLs; httpd -t testa sintaxe." }
+  ],
+  "questions": [
+    {
+      "statement": "Um servidor Linux acessa hosts da própria sub-rede, mas não alcança redes remotas. Qual verificação é mais diretamente relacionada ao encaminhamento para outros destinos?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Inspecionar a tabela de rotas e confirmar a rota padrão para o gateway correto.", "correct": true },
+        { "key": "B", "text": "Alterar o registro MX da zona para apontar ao roteador de saída.", "correct": false },
+        { "key": "C", "text": "Aumentar a duração da concessão DHCP sem conferir o endereço atual.", "correct": false },
+        { "key": "D", "text": "Recriar a fila CUPS e aguardar que ela adicione uma rota ao sistema.", "correct": false },
+        { "key": "E", "text": "Habilitar o compartilhamento NFS, que encaminha pacotes IP entre redes.", "correct": false }
+      ],
+      "explanation": "A rota padrão encaminha pacotes para destinos sem rota mais específica, em geral por um gateway. MX é dado de correio DNS, DHCP não instala automaticamente a rota correta se os parâmetros estiverem errados, CUPS não gerencia rotas e NFS compartilha arquivos.",
+      "section": "1. UNIX/Linux, TCP/IP e diagnóstico de rede", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O comando `ping` recebe respostas do servidor web. Isso demonstra que o Apache está aceitando requisições HTTP na porta configurada.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Ping verifica alcance por ICMP. A porta HTTP pode estar bloqueada, sem processo em escuta ou com configuração de aplicação defeituosa; esses pontos exigem testes específicos de TCP/HTTP e consulta aos logs.",
+      "section": "1. UNIX/Linux, TCP/IP e diagnóstico de rede", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual comando mostra os endereços IP e prefixos atualmente atribuídos às interfaces de um sistema Linux?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`ip address`, que lista endereços associados às interfaces de rede.", "correct": true },
+        { "key": "B", "text": "`ip route`, que lista endereços locais e substitui a tabela de interfaces.", "correct": false },
+        { "key": "C", "text": "`dig`, que consulta registros A e configura o endereço da interface local.", "correct": false },
+        { "key": "D", "text": "`lpinfo -v`, que descobre interfaces IP e define seu prefixo de rede.", "correct": false },
+        { "key": "E", "text": "`httpd -M`, que exibe endereços de rede aceitos pelos módulos web.", "correct": false }
+      ],
+      "explanation": "`ip address` exibe endereços e prefixos das interfaces. `ip route` trata de rotas, `dig` consulta DNS, `lpinfo` lista dispositivos e backends de impressão e `httpd -M` lista módulos Apache.",
+      "section": "1. UNIX/Linux, TCP/IP e diagnóstico de rede", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A configuração feita apenas com um comando temporário `ip address add` pode desaparecer após reiniciar, se não for registrada no gerenciador de rede persistente.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Comandos `ip` alteram o estado atual do kernel, enquanto a persistência costuma ser controlada por NetworkManager, systemd-networkd ou ferramentas da distribuição. Sem gravar a configuração persistente, o reinício pode remover a alteração.",
+      "section": "1. UNIX/Linux, TCP/IP e diagnóstico de rede", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O comando `ss -lntup` é útil para verificar se há sockets TCP ou UDP em escuta local e, com permissões adequadas, identificar processos associados.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. As opções solicitam sockets de escuta, TCP, numéricos, UDP e informação de processo. A saída ajuda a distinguir serviço sem listener de problemas em rota, firewall ou aplicação remota.",
+      "section": "1. UNIX/Linux, TCP/IP e diagnóstico de rede", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma instalação comum, uma impressora responde a ping, mas trabalhos não chegam. Qual diagnóstico separa melhor conectividade IP de serviço de impressão?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Conferir protocolo e URI da fila, porta permitida, estado dos trabalhos e logs do CUPS.", "correct": true },
+        { "key": "B", "text": "Trocar o prefixo do DNS reverso, pois ele define a linguagem do trabalho enviado.", "correct": false },
+        { "key": "C", "text": "Apagar todas as rotas da estação e deixar o CUPS encontrá-las por broadcast.", "correct": false },
+        { "key": "D", "text": "Alterar a zona NIS para atualizar o firmware da impressora pela rede.", "correct": false },
+        { "key": "E", "text": "Reconfigurar o gateway DHCP sem examinar o destino usado pela fila.", "correct": false }
+      ],
+      "explanation": "Ping confirma somente alcance ICMP. A fila depende de URI, backend, protocolo, porta, autorização e estado do CUPS; os logs ajudam a encontrar a etapa que falhou. DNS reverso, NIS e remoção de rotas não resolvem esse diagnóstico.",
+      "section": "1. UNIX/Linux, TCP/IP e diagnóstico de rede", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Que sequência corresponde ao fluxo didático comum de obtenção de concessão DHCPv4 por um cliente que ainda não tem endereço?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Descoberta, oferta, solicitação e confirmação do servidor DHCP.", "correct": true },
+        { "key": "B", "text": "Consulta, resposta, transferência e delegação de um servidor DNS.", "correct": false },
+        { "key": "C", "text": "Autenticação, montagem, exportação e renovação do serviço NFS.", "correct": false },
+        { "key": "D", "text": "Conexão, negociação, impressão e encerramento de uma fila IPP.", "correct": false },
+        { "key": "E", "text": "Descoberta, resolução, proxy e confirmação de um serviço Apache.", "correct": false }
+      ],
+      "explanation": "A sequência é DORA: Discover, Offer, Request e Acknowledge. DNS tem consultas e respostas, NFS monta diretórios, IPP transporta trabalhos de impressão e Apache atende requisições web.",
+      "section": "2. DHCP, DNS e NIS: configuração automática e nomes", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um servidor DHCP e os clientes estão em sub-redes distintas. Como as mensagens iniciais do cliente não atravessam normalmente o roteador, pode ser necessário um agente relay configurado para encaminhá-las.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A descoberta DHCPv4 começa em broadcast local. O relay recebe a solicitação e encaminha-a ao servidor de outra rede, permitindo que o servidor selecione a faixa da sub-rede correta.",
+      "section": "2. DHCP, DNS e NIS: configuração automática e nomes", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual serviço deve fornecer endereço IP, gateway e servidores DNS a uma estação que entra na rede sem configuração manual?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "DHCP, por meio de uma concessão com endereço e opções de configuração.", "correct": true },
+        { "key": "B", "text": "DNS, por meio de registros A que configuram as interfaces dos clientes.", "correct": false },
+        { "key": "C", "text": "NIS, por meio de mapas de usuários que definem a rota padrão.", "correct": false },
+        { "key": "D", "text": "NFS, por meio de uma exportação que atribui endereço e máscara.", "correct": false },
+        { "key": "E", "text": "CUPS, por meio da fila de impressão que configura o adaptador de rede.", "correct": false }
+      ],
+      "explanation": "DHCP entrega endereço e opções como gateway e DNS. DNS resolve nomes; NIS distribui mapas UNIX; NFS compartilha arquivos; CUPS administra impressão.",
+      "section": "2. DHCP, DNS e NIS: configuração automática e nomes", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma reserva DHCP associa um equipamento identificado pelo servidor a um endereço previsto, reduzindo a chance de o endereço de uma impressora mudar entre concessões.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Uma reserva permite que o serviço DHCP entregue um endereço estável ao cliente identificado, embora a estação continue usando DHCP. Isso evita que filas e registros apontem para um endereço que mudou.",
+      "section": "2. DHCP, DNS e NIS: configuração automática e nomes", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma zona DNS, qual conjunto associa corretamente os tipos de registro ao uso principal?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "A aponta IPv4, AAAA aponta IPv6, MX indica correio e NS aponta servidores autoritativos.", "correct": true },
+        { "key": "B", "text": "A aponta IPv6, AAAA aponta correio, MX indica zona reversa e NS cria concessões DHCP para os clientes da rede.", "correct": false },
+        { "key": "C", "text": "A define gateway, AAAA define máscara, MX identifica usuários NIS e NS exporta diretórios.", "correct": false },
+        { "key": "D", "text": "A cria um alias, AAAA transfere zonas, MX define nomes de host e NS enumera impressoras.", "correct": false },
+        { "key": "E", "text": "A e AAAA são registros de correio, enquanto MX e NS atribuem endereço ao cliente.", "correct": false }
+      ],
+      "explanation": "A associa um nome a IPv4; AAAA a IPv6; MX indica servidores de correio; NS identifica servidores autoritativos. Gateway, concessões e exportações pertencem a outros serviços.",
+      "section": "2. DHCP, DNS e NIS: configuração automática e nomes", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um DNS autoritativo responde pelos dados das zonas que administra; um resolvedor recursivo procura respostas para clientes e pode usar cache.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Autoridade significa publicar dados da zona sob responsabilidade do servidor; recursão significa realizar a busca solicitada ao nome do cliente, aproveitando cache quando disponível. Um BIND pode exercer ambos os papéis se configurado para isso.",
+      "section": "2. DHCP, DNS e NIS: configuração automática e nomes", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Depois de alterar um arquivo de zona DNS, um administrador deve validar sua sintaxe e atualizar o serial da zona conforme a convenção adotada antes de esperar que secundários recebam os novos dados. Qual razão explica essa rotina?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "A validação evita carregar erro de sintaxe, e o serial permite reconhecer uma versão mais nova da zona.", "correct": true },
+        { "key": "B", "text": "O serial substitui o endereço do primário e autoriza qualquer cliente a transferir o arquivo.", "correct": false },
+        { "key": "C", "text": "O serial transforma registros DNS em concessões DHCP e elimina a necessidade de resolver nomes.", "correct": false },
+        { "key": "D", "text": "A validação envia consultas recursivas aos clientes e grava automaticamente os endereços em seus hosts.", "correct": false },
+        { "key": "E", "text": "A alteração do serial força a propagação imediata sem depender de recarga ou política de transferência.", "correct": false }
+      ],
+      "explanation": "Validar sintaxe reduz o risco de carregar uma zona inválida. O serial sinaliza a versão dos dados para controle de atualização, mas não concede autorização de transferência nem dispensa recarga e configuração adequada dos servidores.",
+      "section": "2. DHCP, DNS e NIS: configuração automática e nomes", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No modelo tradicional do NIS, `ypbind` ajuda o cliente a localizar um servidor do domínio NIS, enquanto `ypserv` oferece mapas aos clientes autorizados.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. `ypbind` estabelece a associação do cliente com servidor NIS e `ypserv` fornece mapas. O domínio NIS é um identificador do serviço, não necessariamente o domínio DNS; NIS é legado e não deve ser tratado como autenticação moderna forte.",
+      "section": "2. DHCP, DNS e NIS: configuração automática e nomes", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual afirmação descreve corretamente a finalidade do NIS em um ambiente UNIX legado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Distribuir mapas como informações de contas e grupos para clientes de um domínio NIS.", "correct": true },
+        { "key": "B", "text": "Resolver todos os registros DNS e atribuir endereços dinâmicos a estações clientes.", "correct": false },
+        { "key": "C", "text": "Exportar sistemas de arquivos remotos e negociar bloqueios entre clientes NFS.", "correct": false },
+        { "key": "D", "text": "Publicar compartilhamentos SMB para Windows e conceder permissões de diretório POSIX.", "correct": false },
+        { "key": "E", "text": "Manter filas de impressão e transportar trabalhos IPP até dispositivos de rede.", "correct": false }
+      ],
+      "explanation": "NIS distribui mapas UNIX, que podem conter informações de contas e grupos. DNS, DHCP, NFS, Samba e CUPS atendem às funções descritas nas alternativas incorretas.",
+      "section": "2. DHCP, DNS e NIS: configuração automática e nomes", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço NIS tradicional oferece por si só confidencialidade e autenticação forte suficientes para expor mapas de contas a qualquer rede pública.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. O modelo NIS é legado e não oferece as garantias modernas de confidencialidade e autenticação forte necessárias para exposição de dados sensíveis. Mapas devem ficar restritos a redes confiáveis e a migração para diretório mais seguro deve ser considerada.",
+      "section": "2. DHCP, DNS e NIS: configuração automática e nomes", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma política determina que um nome interno seja consultado em servidores DNS da organização, enquanto nomes externos podem ser encaminhados a resolvedores superiores. Qual componente é mais apropriado para essa função?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Um resolvedor recursivo com cache e encaminhadores configurados para as consultas externas.", "correct": true },
+        { "key": "B", "text": "Um servidor DHCP sem escopo, usado como substituto da hierarquia e da zona DNS.", "correct": false },
+        { "key": "C", "text": "Um servidor NFS, que encaminha nomes para os servidores autoritativos da Internet.", "correct": false },
+        { "key": "D", "text": "Um serviço Samba com seção global, que converte consultas DNS em compartilhamentos.", "correct": false },
+        { "key": "E", "text": "Uma fila CUPS que mantém cache de nomes e decide delegações para outros domínios.", "correct": false }
+      ],
+      "explanation": "Um resolvedor recursivo atende clientes, pode usar cache e encaminhar consultas conforme política. DHCP não resolve nomes, NFS e Samba compartilham recursos e CUPS controla impressão.",
+      "section": "2. DHCP, DNS e NIS: configuração automática e nomes", "errorConceptKey": "e2", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O servidor Samba pode limitar o acesso a um compartilhamento, mas a autorização efetiva também depende das permissões UNIX do diretório no servidor.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A política do share e as permissões do sistema de arquivos atuam em conjunto. Uma regra Samba permissiva não faz com que o processo do servidor consiga ler ou gravar um diretório que o sistema operacional nega.",
+      "section": "3. CIFS/SMB, NFS e integração com Windows", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual configuração descreve corretamente um compartilhamento comum no arquivo `smb.conf`?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Uma seção nomeada aponta para um caminho e define opções e acesso ao recurso compartilhado.", "correct": true },
+        { "key": "B", "text": "Uma linha de zona SOA cria um compartilhamento com permissões herdadas do servidor DNS.", "correct": false },
+        { "key": "C", "text": "Um bloco `<VirtualHost>` define o diretório compartilhado e o usuário da fila de impressão.", "correct": false },
+        { "key": "D", "text": "Uma concessão DHCP monta automaticamente o diretório remoto como recurso SMB.", "correct": false },
+        { "key": "E", "text": "Uma exportação NFS em `/etc/exports` é lida pelo Samba como seção `[global]`.", "correct": false }
+      ],
+      "explanation": "No `smb.conf`, `[global]` reúne parâmetros gerais e seções nomeadas representam compartilhamentos, com caminho e regras de acesso. SOA, VirtualHost, concessões DHCP e exportações NFS pertencem a outros serviços.",
+      "section": "3. CIFS/SMB, NFS e integração com Windows", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Para montar em Linux um recurso SMB oferecido por um servidor Windows, o tipo de sistema de arquivos cliente normalmente usado é `cifs`.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O cliente Linux usa o suporte CIFS para montar compartilhamentos SMB. NFS é outro protocolo, usado frequentemente para compartilhamento entre sistemas UNIX/Linux.",
+      "section": "3. CIFS/SMB, NFS e integração com Windows", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador investiga por que usuários autenticados no Samba não conseguem gravar em uma pasta compartilhada. Qual conjunto de controles deve conferir?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Regra de leitura/escrita do share, identidade usada e permissões UNIX do caminho servido.", "correct": true },
+        { "key": "B", "text": "Somente o registro MX do servidor, pois ele determina a gravação de arquivos SMB.", "correct": false },
+        { "key": "C", "text": "Somente o serial da zona DNS, que habilita gravação após a transferência secundária.", "correct": false },
+        { "key": "D", "text": "A fila CUPS e o estado do toner, que controlam a escrita de arquivos compartilhados.", "correct": false },
+        { "key": "E", "text": "A rota padrão do servidor, pois rotas autorizam usuários a alterar arquivos locais.", "correct": false }
+      ],
+      "explanation": "A gravação depende das opções do share, da identidade autenticada e das permissões UNIX do diretório e arquivos. DNS, CUPS e rota padrão não substituem controles de acesso a arquivos.",
+      "section": "3. CIFS/SMB, NFS e integração com Windows", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No compartilhamento por NFS, alinhar UID e GID entre clientes e servidor pode ser relevante porque permissões UNIX tradicionais se baseiam nesses identificadores numéricos.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Em configurações tradicionais, o servidor avalia identificadores numéricos de usuário e grupo. Nomes iguais com UID/GID diferentes podem produzir acesso inesperado; mecanismos de identidade centralizada ou mapeamentos precisam ser planejados.",
+      "section": "3. CIFS/SMB, NFS e integração com Windows", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma exportação NFS com `root_squash` reduz o privilégio de operações iniciadas como root no cliente remoto. Qual descrição corresponde a esse efeito?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O root remoto é mapeado para uma identidade sem privilégios no servidor, limitando seu poder sobre os arquivos.", "correct": true },
+        { "key": "B", "text": "O root do cliente recebe UID zero no servidor e passa a ignorar permissões e propriedade dos arquivos, inclusive em diretórios de outros usuários.", "correct": false },
+        { "key": "C", "text": "Toda operação do NFS é convertida em solicitação CIFS e autenticada por uma conta Windows.", "correct": false },
+        { "key": "D", "text": "O servidor transforma a exportação em somente leitura e elimina a necessidade de permissões de diretório.", "correct": false },
+        { "key": "E", "text": "O serviço impede o cliente de consultar DNS, evitando que nomes sejam usados na montagem.", "correct": false }
+      ],
+      "explanation": "`root_squash` mapeia o root remoto para uma identidade sem privilégios no servidor. Não equivale a desabilitar todas as escritas, conceder UID zero, converter NFS em SMB ou alterar DNS.",
+      "section": "3. CIFS/SMB, NFS e integração com Windows", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização pretende permitir que estações Windows imprimam em uma impressora conectada a um servidor Linux. Qual solução combina melhor com esse objetivo?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Compartilhar a fila CUPS ou integrá-la a serviços SMB/Samba conforme a forma de acesso dos clientes.", "correct": true },
+        { "key": "B", "text": "Publicar a impressora como zona DNS e pedir ao cliente para montar o registro MX.", "correct": false },
+        { "key": "C", "text": "Exportar o dispositivo físico por NFS, que publica a fila como diretório remoto para o Windows enviar e controlar cada trabalho de impressão.", "correct": false },
+        { "key": "D", "text": "Configurar uma concessão DHCP para transportar os documentos até a impressora sem fila.", "correct": false },
+        { "key": "E", "text": "Usar NIS como backend de impressão, porque mapas de usuários incluem dados do equipamento.", "correct": false }
+      ],
+      "explanation": "CUPS fornece filas e pode compartilhar a impressão; clientes também podem alcançar impressoras compartilhadas por SMB quando Samba está instalado. DNS, NFS, DHCP e NIS não transportam nem administram esses trabalhos.",
+      "section": "3. CIFS/SMB, NFS e integração com Windows", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "NFS é uma tecnologia de backup que mantém cópia independente dos dados e impede que uma exclusão no servidor afete os clientes montados.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. NFS permite acessar um sistema de arquivos remoto; clientes veem os dados do servidor e alterações podem afetar o mesmo conteúdo. Backup exige cópia e política próprias, não é fornecido pela montagem NFS.",
+      "section": "3. CIFS/SMB, NFS e integração com Windows", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A descoberta de impressoras por DNS-SD/mDNS pode ficar limitada à rede local, de modo que uma fila em outra sub-rede talvez exija configuração manual do URI ou suporte específico de descoberta entre redes.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Anúncios de descoberta local normalmente não atravessam roteadores sem configuração apropriada. A fila pode ser configurada diretamente com URI de rede quando descoberta automática não alcança a outra sub-rede.",
+      "section": "4. Impressão em rede e serviços de fila", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual associação entre protocolo de impressão em rede e característica está correta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "IPPS usa IPP com transporte protegido por TLS; AppSocket é simples e não oferece segurança própria.", "correct": true },
+        { "key": "B", "text": "LPD fornece sempre TLS obrigatório; IPPS é uma fila local sem comunicação em rede.", "correct": false },
+        { "key": "C", "text": "AppSocket é um protocolo DNS para descoberta e IPP é um sistema de arquivos remoto.", "correct": false },
+        { "key": "D", "text": "IPP atribui endereço DHCP à impressora e LPD configura automaticamente o servidor Apache.", "correct": false },
+        { "key": "E", "text": "IPPS encapsula uma montagem de diretório NFS em TLS e transporta arquivos compartilhados, sem precisar configurar uma fila de impressão.", "correct": false }
+      ],
+      "explanation": "IPPS exige transporte TLS para o protocolo de impressão IPP. AppSocket/JetDirect é um método direto e simples sem segurança própria; LPD é outro protocolo de impressão, frequentemente usado com sistemas legados.",
+      "section": "4. Impressão em rede e serviços de fila", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Em uma fila CUPS, o URI do dispositivo identifica o destino e o backend/protocolo usado para enviar os trabalhos, enquanto o nome da fila é uma identificação lógica local.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O nome da fila identifica o recurso no CUPS; seu URI indica destino e método de comunicação, como IPP, LPD ou socket. Um URI incorreto pode impedir o envio ainda que a fila exista.",
+      "section": "4. Impressão em rede e serviços de fila", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual procedimento é apropriado ao configurar uma impressora de rede no CUPS quando seu endereço IP já foi confirmado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Escolher o protocolo suportado, criar uma fila com URI correto e testar o envio de um trabalho.", "correct": true },
+        { "key": "B", "text": "Criar um registro NS para a fila e aguardar que o DNS transforme o documento em impressão.", "correct": false },
+        { "key": "C", "text": "Montar a impressora como sistema NFS e copiar para ela os arquivos de configuração do CUPS.", "correct": false },
+        { "key": "D", "text": "Alterar o DocumentRoot do Apache para o endereço e tratar a fila como página estática.", "correct": false },
+        { "key": "E", "text": "Adicionar um mapa NIS com o nome da impressora e encerrar o daemon de impressão local.", "correct": false }
+      ],
+      "explanation": "Com o endereço conhecido, deve-se selecionar um protocolo suportado e configurar o URI da fila; depois, teste o fluxo e confira estado e logs. Registros DNS podem ajudar a nomear o dispositivo, mas não criam nem transportam a fila.",
+      "section": "4. Impressão em rede e serviços de fila", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma impressora de rede recebe um endereço dinâmico sem reserva, e a fila CUPS aponta para esse endereço. Uma mudança posterior de endereço pode deixar a fila apontando para o destino antigo.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Se o endereço do dispositivo muda, o URI configurado pode ficar obsoleto. Endereço estável ou reserva DHCP e, quando adequado, nome DNS estável evitam esse problema de destino.",
+      "section": "4. Impressão em rede e serviços de fila", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O administrador quer identificar backends e dispositivos disponíveis no CUPS antes de associar uma fila a uma impressora. Qual ferramenta atende a essa tarefa?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`lpinfo -v`, que lista URIs de dispositivos e esquemas de backend conhecidos.", "correct": true },
+        { "key": "B", "text": "`ypwhich`, que lista impressoras IPP junto com servidores DNS primários.", "correct": false },
+        { "key": "C", "text": "`httpd -S`, que enumera backends de impressão e nomes de filas CUPS.", "correct": false },
+        { "key": "D", "text": "`ip route`, que cria automaticamente filas CUPS para cada endereço de destino.", "correct": false },
+        { "key": "E", "text": "`exportfs`, que mostra dispositivos de impressão e protocolos aceitos pelo CUPS.", "correct": false }
+      ],
+      "explanation": "`lpinfo -v` lista backends disponíveis e URIs de dispositivos conhecidos ou detectados. `ypwhich` é relacionado a NIS, `httpd -S` a hospedeiros virtuais, `ip route` a rotas e `exportfs` a exportações NFS.",
+      "section": "4. Impressão em rede e serviços de fila", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "CUPS pode compartilhar impressoras com clientes, mas a ativação do compartilhamento no servidor e a autorização de rede continuam necessárias para acesso remoto.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Uma fila local não fica automaticamente disponível a qualquer cliente. O servidor precisa habilitar compartilhamento e limitar quais redes ou usuários podem alcançar a fila, além de liberar a comunicação necessária no firewall.",
+      "section": "4. Impressão em rede e serviços de fila", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Que diretiva Apache determina o diretório associado aos arquivos estáticos de um site?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`DocumentRoot`, que associa o site a um caminho do sistema de arquivos.", "correct": true },
+        { "key": "B", "text": "`ServerName`, que cria o diretório no filesystem, copia arquivos estáticos na inicialização e passa a servir o site pelo nome configurado.", "correct": false },
+        { "key": "C", "text": "`Listen`, que aponta cada URL a uma pasta do sistema de arquivos.", "correct": false },
+        { "key": "D", "text": "`LoadModule`, que define o diretório inicial e o conteúdo padrão do site.", "correct": false },
+        { "key": "E", "text": "`Include`, que concede leitura pública a todos os caminhos encontrados.", "correct": false }
+      ],
+      "explanation": "`DocumentRoot` relaciona conteúdo web estático a um caminho do filesystem. `ServerName` trata de identificação do servidor, `Listen` define sockets, `LoadModule` carrega módulos e `Include` carrega outros arquivos de configuração.",
+      "section": "5. Servidor Apache, integração e linguagens de script", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual comando do Apache verifica a sintaxe dos arquivos de configuração sem iniciar o servidor para atender requisições?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "`httpd -t`, que executa um teste de sintaxe da configuração carregada.", "correct": true },
+        { "key": "B", "text": "`httpd -M`, que testa arquivos e reescreve toda diretiva inválida.", "correct": false },
+        { "key": "C", "text": "`httpd -S`, que valida conteúdo HTML e corrige erros de marcação.", "correct": false },
+        { "key": "D", "text": "`apachectl stop`, que analisa os arquivos e inicia o serviço em modo seguro.", "correct": false },
+        { "key": "E", "text": "`lpadmin -t`, que valida a configuração do Apache junto com filas CUPS.", "correct": false }
+      ],
+      "explanation": "A opção `-t` testa a sintaxe da configuração do httpd. `-M` lista módulos, `-S` mostra a interpretação de VirtualHosts, `stop` interrompe o serviço e `lpadmin` administra impressão.",
+      "section": "5. Servidor Apache, integração e linguagens de script", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No Apache, `<Directory>` seleciona diretórios do sistema de arquivos, enquanto `<Location>` seleciona partes do espaço de URLs.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Os dois contêineres atuam em espaços diferentes: `<Directory>` sobre caminhos do filesystem e `<Location>` sobre caminhos de URL, incluindo recursos que não correspondem a arquivo físico.",
+      "section": "5. Servidor Apache, integração e linguagens de script", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma máquina precisa atender `portal.exemplo` e `intranet.exemplo` no mesmo endereço IP, com configurações de conteúdo distintas. Qual recurso Apache atende a esse cenário?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Hospedeiros virtuais configurados para selecionar o site conforme nome, endereço e porta.", "correct": true },
+        { "key": "B", "text": "Mapas NIS separados, que alteram automaticamente o conteúdo HTTP conforme o usuário.", "correct": false },
+        { "key": "C", "text": "Uma exportação NFS por nome, que substitui a camada HTTP do servidor web.", "correct": false },
+        { "key": "D", "text": "Duas rotas padrão concorrentes, que escolhem o diretório conforme o cabeçalho Host.", "correct": false },
+        { "key": "E", "text": "Uma reserva DHCP por nome, que cria um servidor Apache independente para cada site.", "correct": false }
+      ],
+      "explanation": "VirtualHosts permitem servir configurações de sites diferentes no mesmo servidor, selecionadas por nome, endereço e porta da requisição. NIS, NFS, rotas e DHCP não selecionam conteúdo HTTP por cabeçalho Host.",
+      "section": "5. Servidor Apache, integração e linguagens de script", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A diretiva `Include` permite dividir a configuração Apache em arquivos menores que são lidos pelo arquivo principal.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O Apache permite incluir arquivos adicionais por `Include`, inclusive padrões com curingas. A configuração efetiva ainda precisa ser testada, pois uma diretiva incluída pode ter erro ou escopo inadequado.",
+      "section": "5. Servidor Apache, integração e linguagens de script", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Qual conduta é adequada ao publicar uma mudança no Apache depois de editar um arquivo incluído?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "Testar sintaxe, aplicar recarga ou reinício apropriado e conferir logs e resposta do site.", "correct": true },
+        { "key": "B", "text": "Apagar os logs antigos, pois o Apache só reconhece alterações após perder o histórico.", "correct": false },
+        { "key": "C", "text": "Alterar o registro MX e esperar que o serviço web releia a configuração incluída.", "correct": false },
+        { "key": "D", "text": "Executar `lpadmin`, que reinicia o Apache e valida diretivas do VirtualHost.", "correct": false },
+        { "key": "E", "text": "Reiniciar o roteador antes de ler os logs, pois toda falha de sintaxe é de gateway.", "correct": false }
+      ],
+      "explanation": "O fluxo seguro testa a configuração, aplica a alteração ao processo e verifica logs e comportamento. O Apache lê a configuração ao iniciar ou recarregar; DNS MX, CUPS e reinício do roteador não validam diretivas.",
+      "section": "5. Servidor Apache, integração e linguagens de script", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "O arquivo `.htaccess` permite gestão descentralizada de certas diretivas, mas sua efetividade depende de a configuração central permitir substituições por `AllowOverride`.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O Apache reconhece arquivos de acesso por diretório, mas o administrador controla quais categorias de diretiva podem ser usadas neles com `AllowOverride`. Sem autorização adequada, diretivas não produzem o efeito esperado.",
+      "section": "5. Servidor Apache, integração e linguagens de script", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um administrador quer descobrir quais módulos dinâmicos o Apache carregou durante sua configuração atual. Qual opção é mais direta?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "`httpd -M`, que exibe os módulos carregados dinamicamente e compilados disponíveis.", "correct": true },
+        { "key": "B", "text": "`httpd -t`, que lista módulos e os habilita automaticamente após a validação.", "correct": false },
+        { "key": "C", "text": "`httpd -S`, que lista usuários UNIX autorizados a carregar módulos externos.", "correct": false },
+        { "key": "D", "text": "`ip link`, que mostra módulos HTTP instalados a partir do estado do adaptador.", "correct": false },
+        { "key": "E", "text": "`lpinfo -v`, que informa quais módulos Apache suportam cada backend de impressão.", "correct": false }
+      ],
+      "explanation": "`httpd -M` lista módulos carregados. `-t` testa sintaxe e `-S` mostra a interpretação dos VirtualHosts; os outros comandos não inspecionam módulos Apache.",
+      "section": "5. Servidor Apache, integração e linguagens de script", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um script Bash que será executado diretamente deve indicar um interpretador adequado no shebang e ter permissão de execução, além de tratar argumentos e falhas.",
+      "format": "TRUE_FALSE", "difficulty": "FACIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O shebang indica o interpretador ao sistema quando o script é invocado como executável; permissões devem permitir execução. Tratamento de argumentos e códigos de saída é necessário para operação confiável.",
+      "section": "5. Servidor Apache, integração e linguagens de script", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Por que é uma boa prática escrever `\"$arquivo\"` em vez de usar `$arquivo` sem aspas em um comando shell?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "MEDIA",
+      "options": [
+        { "key": "A", "text": "As aspas preservam espaços e evitam divisão de palavras e expansão de padrões no valor.", "correct": true },
+        { "key": "B", "text": "As aspas convertem qualquer conteúdo do arquivo em código Bash validado e seguro, evitando que uma entrada malformada encerre o processo.", "correct": false },
+        { "key": "C", "text": "As aspas elevam o comando ao usuário root e removem as permissões do caminho.", "correct": false },
+        { "key": "D", "text": "As aspas traduzem automaticamente o caminho Linux para um compartilhamento CIFS.", "correct": false },
+        { "key": "E", "text": "As aspas ocultam erros do comando e fazem o shell sempre retornar código zero.", "correct": false }
+      ],
+      "explanation": "Aspas duplas preservam espaços contidos no valor e evitam divisão de palavras e expansão de curingas, embora expansões como variáveis ainda ocorram. Elas não validam conteúdo, concedem privilégios nem ocultam falhas.",
+      "section": "5. Servidor Apache, integração e linguagens de script", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um script usado por uma rotina de suporte deve conferir códigos de saída e registrar erros relevantes, em vez de ignorar silenciosamente a falha de um comando.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. O código de saída informa sucesso ou falha por convenção; verificá-lo permite interromper, tentar recuperação ou reportar diagnóstico. Logs úteis ajudam a localizar a causa sem ocultar o erro.",
+      "section": "5. Servidor Apache, integração e linguagens de script", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa recorrente precisa verificar espaço livre, registrar resultado e emitir alerta se o limite for excedido. Que abordagem é adequada em um sistema UNIX/Linux?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "FACIL",
+      "options": [
+        { "key": "A", "text": "Automatizar a sequência com script de shell, validar comandos e tratar o estado de saída.", "correct": true },
+        { "key": "B", "text": "Gravar o comando em um registro A do DNS para executá-lo a cada consulta de nome.", "correct": false },
+        { "key": "C", "text": "Criar uma exportação NFS, que mede espaço e envia alertas sem programa auxiliar.", "correct": false },
+        { "key": "D", "text": "Usar uma fila CUPS como agendador de tarefas administrativas e verificador de disco.", "correct": false },
+        { "key": "E", "text": "Adicionar um share Samba, que executa comandos de shell quando usuários abrem arquivos.", "correct": false }
+      ],
+      "explanation": "Scripts de shell são apropriados para automatizar comandos, validar resultados e produzir alerta. DNS, NFS, CUPS e Samba não substituem um script e um mecanismo de agendamento.",
+      "section": "5. Servidor Apache, integração e linguagens de script", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Um script administrativo pode embutir uma senha em texto claro e executar diretamente qualquer argumento recebido, desde que o arquivo tenha permissão de execução restrita ao administrador.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. Permissão restrita reduz exposição, mas não elimina risco de credencial embutida, cópia do arquivo ou execução de entrada maliciosa. Segredos devem ser protegidos por mecanismo apropriado e argumentos validados, sem tratá-los como código.",
+      "section": "5. Servidor Apache, integração e linguagens de script", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Ao expor uma pasta Samba para uso de clientes Windows, conceder gravação no parâmetro do compartilhamento garante escrita mesmo que o processo do serviço não tenha permissão UNIX no diretório.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": false }, { "key": "E", "text": "Errado", "correct": true } ],
+      "explanation": "Errado. A autorização Samba não supera as permissões do sistema de arquivos. O processo precisa poder acessar o caminho e o usuário efetivo deve ter permissão compatível; ambas as camadas precisam ser revisadas.",
+      "section": "3. CIFS/SMB, NFS e integração com Windows", "errorConceptKey": "e4", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma atualização da configuração Apache adicionou um `LoadModule` cujo arquivo não existe. Qual reação é mais provável ao validar ou iniciar o serviço?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O teste ou a inicialização reportará falha ao carregar o módulo, exigindo corrigir caminho ou pacote.", "correct": true },
+        { "key": "B", "text": "O Apache criará automaticamente o módulo a partir da diretiva e seguirá sem registro, desde que a seção esteja dentro de um VirtualHost.", "correct": false },
+        { "key": "C", "text": "O DNS criará o arquivo de módulo e atualizará o VirtualHost após nova consulta recursiva.", "correct": false },
+        { "key": "D", "text": "O CUPS copiará o módulo de uma impressora de rede para o diretório do servidor HTTP.", "correct": false },
+        { "key": "E", "text": "O sistema converterá o módulo ausente em arquivo `.htaccess` e liberará acesso irrestrito.", "correct": false }
+      ],
+      "explanation": "Uma referência a módulo ausente impede sua carga e deve ser corrigida; o teste de sintaxe pode revelar o problema antes da recarga. Apache não cria módulos automaticamente, e DNS/CUPS não administram módulos web.",
+      "section": "5. Servidor Apache, integração e linguagens de script", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Na configuração Apache, um contêiner `<Location \"/admin\">` atua sobre URLs que começam com esse caminho, mesmo que o conteúdo seja produzido por um handler e não corresponda a um arquivo físico de mesmo nome.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. `<Location>` atua sobre o espaço web de URLs. Pode controlar um endpoint fornecido por handler sem arquivo correspondente no disco; para selecionar caminhos físicos usa-se `<Directory>`.",
+      "section": "5. Servidor Apache, integração e linguagens de script", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A integração entre Linux e Windows por Samba permite que o servidor Linux ofereça recursos SMB, mas ela não transforma automaticamente qualquer usuário UNIX em uma conta autorizada no compartilhamento.",
+      "format": "TRUE_FALSE", "difficulty": "MEDIA",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. Samba implementa serviços SMB, mas precisa de configuração de identidade, autenticação e autorização. A existência de uma conta UNIX por si só não define credencial ou acesso permitido a cada share.",
+      "section": "3. CIFS/SMB, NFS e integração com Windows", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe limita o `DocumentRoot` a conteúdo público e nega acesso a diretórios com chaves e credenciais fora da árvore publicada. Qual princípio de configuração está sendo aplicado?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Reduzir a exposição do filesystem e publicar somente conteúdo necessário ao site.", "correct": true },
+        { "key": "B", "text": "Usar o DNS como sistema de autorização de leitura de arquivos locais do servidor.", "correct": false },
+        { "key": "C", "text": "Converter todas as chaves em páginas estáticas sob o DocumentRoot para facilitar TLS.", "correct": false },
+        { "key": "D", "text": "Conceder permissão de leitura global para que o Apache escolha sozinho os arquivos privados.", "correct": false },
+        { "key": "E", "text": "Transferir as credenciais para a fila CUPS e removê-las do controle de acesso HTTP.", "correct": false }
+      ],
+      "explanation": "Publicar somente o necessário e manter segredos fora da árvore web reduz a possibilidade de exposição acidental. DNS não autoriza arquivos, e mover chaves ao DocumentRoot ou liberar leitura global aumenta o risco.",
+      "section": "5. Servidor Apache, integração e linguagens de script", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "A opção `httpd -S` é usada para inspecionar como o Apache interpretou seus VirtualHosts e quais configurações correspondem a nomes e endereços.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A opção `-S` mostra a configuração interpretada dos hospedeiros virtuais, útil para diagnosticar seleção de site. `-t` verifica sintaxe e `-M` lista módulos.",
+      "section": "5. Servidor Apache, integração e linguagens de script", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação web usa CGI para produzir respostas. Nesse modelo, qual descrição é mais adequada?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "O servidor invoca um programa conforme a interface configurada e encaminha a saída como resposta dinâmica.", "correct": true },
+        { "key": "B", "text": "O cliente entrega uma concessão DHCP ao servidor, que a converte em conteúdo HTML estático.", "correct": false },
+        { "key": "C", "text": "O DNS executa o script dentro da zona e devolve a saída no campo de endereço A.", "correct": false },
+        { "key": "D", "text": "O NFS transforma arquivos em processos e os executa remotamente sem controle do servidor web.", "correct": false },
+        { "key": "E", "text": "A fila CUPS trata o script como um trabalho de impressão e envia seu resultado ao navegador.", "correct": false }
+      ],
+      "explanation": "CGI é uma interface pela qual o servidor web pode executar um programa e usar sua saída para compor uma resposta dinâmica. DHCP, DNS, NFS e CUPS não executam esse papel no fluxo HTTP.",
+      "section": "5. Servidor Apache, integração e linguagens de script", "errorConceptKey": null, "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Quando diretivas de acesso são colocadas em `.htaccess`, o Apache pode precisar procurar esse arquivo durante o atendimento de requisições, razão pela qual a configuração central é preferível quando o administrador controla o servidor.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A documentação do Apache observa que arquivos de acesso descentralizam a configuração e são lidos em requisições; quando se controla a configuração principal, diretivas centrais costumam ser mais eficientes e fáceis de governar.",
+      "section": "5. Servidor Apache, integração e linguagens de script", "errorConceptKey": "e5", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "No Samba, a negociação de dialeto SMB pode selecionar uma versão moderna sem fixar manualmente protocolo antigo, quando a configuração permite negociação automática.",
+      "format": "TRUE_FALSE", "difficulty": "DIFICIL",
+      "options": [ { "key": "C", "text": "Certo", "correct": true }, { "key": "E", "text": "Errado", "correct": false } ],
+      "explanation": "Certo. A documentação do Samba recomenda normalmente deixar a negociação automática escolher o protocolo. Fixar protocolos obsoletos sem necessidade pode reduzir a segurança e a interoperabilidade.",
+      "section": "3. CIFS/SMB, NFS e integração com Windows", "errorConceptKey": "e3", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    },
+    {
+      "statement": "Uma estação resolve o nome do servidor Apache para um endereço antigo, embora a rota e o servidor estejam corretos. Qual camada deve ser investigada primeiro?",
+      "format": "MULTIPLE_CHOICE", "difficulty": "DIFICIL",
+      "options": [
+        { "key": "A", "text": "Registros DNS, cache e resolução efetiva usada pela estação para aquele nome.", "correct": true },
+        { "key": "B", "text": "Permissões de impressão da fila CUPS, pois elas alteram respostas de endereço DNS.", "correct": false },
+        { "key": "C", "text": "Opção `root_squash` do NFS, que controla o mapeamento de nomes web para IPv4.", "correct": false },
+        { "key": "D", "text": "Registro NIS de grupo, que define o endereço IPv4 de cada site Apache externo.", "correct": false },
+        { "key": "E", "text": "Parâmetro `DocumentRoot`, que publica os registros DNS da máquina automaticamente.", "correct": false }
+      ],
+      "explanation": "Se o nome resolve ao endereço antigo, o problema está na informação DNS ou em cache/resolução do cliente. DocumentRoot trata arquivos web e os demais serviços não determinam a resposta DNS usada pelo host.",
+      "section": "2. DHCP, DNS e NIS: configuração automática e nomes", "errorConceptKey": "e1", "sourceType": "AUTHORIAL", "board": null, "agency": null, "year": null, "sourceUrl": null
+    }
+  ],
+  "sources": [
+    { "kind": "OFICIAL", "title": "Apache HTTP Server — Configuration Files", "publisher": "Apache Software Foundation", "reference": "Arquivos de configuração, Include, módulos, escopos, VirtualHost e .htaccess", "url": "https://httpd.apache.org/docs/2.4/configuring.html", "accessedAt": "2026-11-18" },
+    { "kind": "OFICIAL", "title": "Apache HTTP Server — Getting Started", "publisher": "Apache Software Foundation", "reference": "Instalação, configuração, DocumentRoot, ServerName e hospedeiros virtuais", "url": "https://httpd.apache.org/docs/2.4/getting-started.html", "accessedAt": "2026-11-18" },
+    { "kind": "OFICIAL", "title": "Apache HTTP Server — Configuration Sections", "publisher": "Apache Software Foundation", "reference": "Distinção entre contêineres de filesystem e de espaço de URLs", "url": "https://httpd.apache.org/docs/2.4/sections.html", "accessedAt": "2026-11-18" },
+    { "kind": "OFICIAL", "title": "BIND 9 Administrator Reference Manual", "publisher": "Internet Systems Consortium", "reference": "Resolvedores, servidores autoritativos, zonas primárias/secundárias e DNS", "url": "https://bind9.readthedocs.io/en/v9.18.36/", "accessedAt": "2026-11-18" },
+    { "kind": "OFICIAL", "title": "Kea Administrator Reference Manual — DHCPv4 Server", "publisher": "Internet Systems Consortium", "reference": "Configuração, inicialização e teste de configuração do servidor DHCPv4", "url": "https://kea.readthedocs.io/en/kea-2.5.1/arm/dhcp4-srv.html", "accessedAt": "2026-11-18" },
+    { "kind": "OFICIAL", "title": "Samba — smb.conf manual", "publisher": "Samba Team", "reference": "Arquivo smb.conf, seções globais e de compartilhamento, serviços SMB", "url": "https://www.samba.org/samba/docs/current/man-html/smb.conf.5.html", "accessedAt": "2026-11-18" },
+    { "kind": "OFICIAL", "title": "Linux Kernel Documentation — NFS Client", "publisher": "The Linux Kernel Documentation", "reference": "Comportamento e suporte do cliente Linux NFS", "url": "https://docs.kernel.org/6.5/admin-guide/nfs/nfs-client.html", "accessedAt": "2026-11-18" },
+    { "kind": "OFICIAL", "title": "CUPS — Using Network Printers", "publisher": "OpenPrinting", "reference": "Protocolos AppSocket, IPP/IPPS, LPD e configuração de impressoras de rede", "url": "https://openprinting.github.io/cups/doc/network.html", "accessedAt": "2026-11-18" },
+    { "kind": "OFICIAL", "title": "CUPS — Printer Sharing", "publisher": "OpenPrinting", "reference": "Compartilhamento de filas e clientes CUPS em rede", "url": "https://openprinting.github.io/cups/doc/sharing.html", "accessedAt": "2026-11-18" },
+    { "kind": "OFICIAL", "title": "CUPS — Command-Line Printer Administration", "publisher": "OpenPrinting", "reference": "Backends, URIs e administração de filas com lpadmin e lpinfo", "url": "https://openprinting.github.io/cups/doc/admin.html", "accessedAt": "2026-11-18" }
+  ]
+}

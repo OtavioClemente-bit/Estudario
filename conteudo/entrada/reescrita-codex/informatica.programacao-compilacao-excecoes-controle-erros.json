@@ -1,0 +1,1848 @@
+{
+  "id": "informatica.programacao-compilacao-excecoes-controle-erros",
+  "subject": "Informática",
+  "title": "Programas: interpretação, compilação, exceções e controle de erros",
+  "version": 2,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Tratamento de exceções e controle de erros; Interpretação e compilação de programas",
+    "Interpretação e compilação de programas",
+    "Controle de erros em programação",
+    "Compiladores, interpretadores e execução de código",
+    "Etapas de compilação de um programa",
+    "Erros de sintaxe, execução e lógica",
+    "Exceções: lançamento, captura e propagação",
+    "Blocos try catch finally e except",
+    "Compilação e interpretação em linguagens"
+  ],
+  "scope": {
+    "covers": "Percurso do código-fonte à execução; análise léxica, sintática e semântica; compilação, montagem, ligação e geração de código; interpretação, bytecode, máquina virtual e compilação JIT; distinção entre erros de compilação, execução e lógica; exceções como transferência de controle; lançamento, captura, propagação, finalização e liberação de recursos; try/catch/finally e try/except/else/finally; exceções verificadas e não verificadas em Java; diagnóstico, recuperação e boas práticas.",
+    "excludes": "Projeto de compiladores, otimizações avançadas, especificação integral de linguagem, concorrência em profundidade e depuração de ferramentas específicas."
+  },
+  "theoryTitle": "Do código à execução: compilação, interpretação e erros",
+  "chapters": [
+    {
+      "title": "1. Do código-fonte ao programa em execução",
+      "markdown": "### O problema que este assunto resolve\n\nO computador precisa receber instruções numa forma que consiga executar, mas pessoas escrevem programas em linguagens mais fáceis de ler. Compilação e interpretação fazem a ponte entre essas duas formas. Entender o caminho evita confundir um aviso do compilador com uma falha ocorrida durante a execução.\n\n### Do arquivo à execução\n\nConsidere Lia, que escreveu um programa em C para calcular o total de uma compra. O **código-fonte** é o texto que ela escreveu, por exemplo, em um arquivo .c. No fluxo tradicional do GCC, compilador da coleção GNU, esse texto passa por etapas distintas. Primeiro, o **pré-processador** trata diretivas como `#include` e substitui macros; não executa as funções do programa. Depois, o compilador traduz o resultado para uma forma de baixo nível. O **montador** transforma instruções de montagem em um arquivo-objeto. Por fim, o **ligador** (linker, ferramenta que combina objetos e bibliotecas) resolve referências entre arquivos e produz o executável.\n\nO arquivo-objeto ainda pode depender de funções que estão em bibliotecas. Por isso, a ligação é diferente da compilação de cada arquivo. Se uma função declarada é usada, mas não há definição disponível nos objetos ou bibliotecas, a ligação pode falhar mesmo que cada fonte tenha passado pela análise e compilação.\n\n### Ferramentas e produtos\n\nNo GCC, opções de linha de comando permitem parar em etapas diferentes: `-E` mostra a saída pré-processada, `-S` para depois de gerar código de montagem, e `-c` produz objeto sem fazer a ligação final. São opções da ferramenta, não fases adicionais do programa. O executável só começa a rodar quando alguém o inicia.\n\nEm Java, Lia pode compilar arquivos `.java` com `javac`. O resultado usual é bytecode em arquivos `.class`: instruções de uma representação intermediária feita para a **JVM** (Java Virtual Machine, máquina virtual Java). O comando `java` inicia a JVM, que carrega e executa as classes. Como diferentes sistemas podem oferecer uma JVM compatível, o mesmo bytecode pode ser usado em mais de um sistema, sujeito às dependências e à compatibilidade.\n\nUm **JIT** (Just-In-Time, compilação durante a execução) pode transformar trechos usados com frequência em código de máquina enquanto o programa roda. Isso não quer dizer que toda a aplicação seja recompilada a cada instrução. Em Python, o CPython, implementação comum da linguagem, também traduz fonte para bytecode próprio e executa essa representação. O bytecode do CPython é detalhe da implementação e pode variar; não deve ser tratado como formato universal de Python.\n\n| Caminho | O que é produzido antes de executar | O que ocorre ao iniciar |\n| --- | --- | --- |\n| C com GCC | Objetos e, após ligação, executável nativo | O sistema carrega o executável para rodar |\n| Java | Bytecode em arquivos `.class` | A JVM carrega e executa as classes; pode usar JIT |\n| CPython | Bytecode da implementação | O interpretador do CPython executa a representação |\n| Interpretação em sentido amplo | Pode haver fonte ou representação intermediária | Um ambiente interpreta instruções; detalhes variam |\n\nAssim, “compilado” e “interpretado” são rótulos úteis, mas simplificam implementações reais. Uma linguagem pode ter compilador e ambiente de execução; outra pode interpretar bytecode previamente gerado. Pergunte sempre qual ferramenta recebeu qual entrada e qual produto saiu dela.\n\n### Exemplo passo a passo\n\nLia separou o cálculo em `main.c` e `preco.c`, e uma biblioteca fornece a rotina de arredondamento. Primeiro, o pré-processamento expande inclusões e macros em cada fonte. Em seguida, o compilador analisa e traduz os arquivos. O montador gera `main.o` e `preco.o`. O ligador combina esses objetos com a biblioteca, resolve a referência à rotina e cria o executável. Se a rotina não estiver disponível, o erro pode surgir na ligação. Se o executável for criado, mas Lia nunca o iniciar, ainda não houve execução.\n\n### Pegadinha\n\n**Pegadinha:** a diretiva `#include` não executa o conteúdo incluído e `javac` não é a JVM. O primeiro participa do pré-processamento; o segundo gera bytecode. Também é incorreto afirmar que todo programa chamado “compilado” já foi executado: tradução e execução são momentos diferentes.\n\n### Resumo para a prova\n\n- No fluxo didático do GCC, vêm pré-processamento, compilação, montagem e ligação.\n- O ligador combina objetos e bibliotecas e resolve referências externas.\n- `javac` gera bytecode Java; a JVM executa esse bytecode.\n- CPython também pode executar bytecode de sua implementação.\n- Compilação produz uma representação; execução faz o programa rodar."
+    },
+    {
+      "title": "2. Análise do programa e classes de erro",
+      "markdown": "### O problema que este assunto resolve\n\nNem toda falha aparece no mesmo momento. Algumas impedem que o texto seja aceito; outras só surgem quando determinado caminho é executado; há ainda programas que rodam sem interrupção, mas respondem errado. Separar essas classes ajuda a escolher a correção: mudar a sintaxe não conserta uma regra de negócio equivocada.\n\n### Etapas de análise\n\nUm compilador ou interpretador precisa entender o texto antes de usá-lo. Um **token** é uma unidade reconhecida, como identificador, número, operador ou palavra reservada. Na **análise léxica**, a ferramenta agrupa caracteres em tokens. Na **análise sintática**, confere se os tokens obedecem à gramática da linguagem. Na **análise semântica**, verifica restrições de significado que podem ser analisadas antes da execução, como tipos compatíveis, nomes declarados e chamadas válidas.\n\nAs etapas e o momento em que cada diagnóstico aparece variam conforme a linguagem e a ferramenta. Em linguagem com tipos dinâmicos, por exemplo, certas incompatibilidades só ficam evidentes quando o trecho é executado. Um compilador também pode continuar analisando após detectar um problema e listar mais de uma mensagem.\n\n### Quatro classes para distinguir\n\n| Classe | O que falhou | Exemplo e momento comum |\n| --- | --- | --- |\n| Léxica | Reconhecimento de caracteres como tokens | Símbolo que não pertence à linguagem; durante análise do fonte |\n| Sintática | Organização dos tokens segundo a gramática | Parêntese sem fechamento; durante análise do fonte |\n| Semântica estática | Regra de significado que a ferramenta verifica antes | Nome inexistente ou tipo incompatível em linguagem com verificação estática |\n| De execução | Operação falha enquanto um caminho está rodando | Arquivo pedido não existe ou índice está fora da faixa |\n| Lógica | O algoritmo não corresponde ao resultado exigido | Aplicar desconto menor que o especificado, sem exceção |\n\nA classificação não determina sozinha a consequência. Uma falha de execução pode ser representada por exceção, código de erro, valor especial, encerramento ou, em certas linguagens e situações, comportamento indefinido. Por isso, não se deve afirmar que todo erro de execução “gera uma exceção” em qualquer linguagem.\n\nUm **diagnóstico** é uma mensagem que aponta uma condição observada pela ferramenta ou aplicação. A linha indicada ajuda a investigação, mas a causa pode estar antes: uma chave esquecida pode fazer o compilador acusar a linha seguinte. A mensagem de erro é evidência; leia também o trecho e o contexto.\n\n### Exemplo passo a passo\n\nRui precisa calcular o frete de um pedido. Primeiro, escreve `frete = distancia +`: a expressão está incompleta, então a análise sintática pode rejeitá-la antes de iniciar o programa. Ele corrige a expressão, mas usa uma variável chamada `distacia`, enquanto declarou `distancia`; uma linguagem que verifica nomes pode apontar um problema semântico. Depois de corrigir, o programa inicia, mas tenta abrir um arquivo de tarifas ausente: agora a falha ocorre durante a execução. Por fim, Rui corrige a leitura, mas usa uma fórmula que soma uma taxa quando o requisito mandava multiplicar: o programa termina, porém o resultado está logicamente errado.\n\nCada etapa pede uma investigação diferente. Na sintaxe, Rui revisa a forma da expressão. No nome não reconhecido, confere declaração e grafia. No arquivo ausente, decide se deve pedir outro caminho ou apresentar uma mensagem. Na fórmula, compara o algoritmo com o requisito e testa valores conhecidos, inclusive limites.\n\n### Como investigar sem confundir\n\nUm teste com resultado esperado pode revelar erro lógico, mesmo quando não há mensagem de falha. Testes de limite verificam entradas mínimas, máximas, vazias ou inválidas. Uma **invariante** é uma condição que deve continuar verdadeira durante ou após uma operação, como “o saldo não fica negativo após uma compra autorizada”; verificar invariantes ajuda a localizar defeitos no raciocínio.\n\nUma falha sintática normalmente impede a tradução ou interpretação daquela unidade, mas não indica que o algoritmo conceitual esteja errado. Da mesma forma, capturar uma exceção de arquivo não corrige automaticamente uma fórmula. Diagnosticar é identificar a camada do problema antes de escolher a resposta.\n\n### Pegadinha\n\n**Pegadinha:** um programa pode compilar e executar até o fim e ainda estar errado. Esse é o caso clássico de erro lógico. Também não confunda a mensagem do compilador com uma exceção: a primeira surge na análise ou tradução; a segunda é uma condição sinalizada durante a execução, conforme as regras da linguagem.\n\n### Resumo para a prova\n\n- Léxico reconhece tokens; sintaxe verifica a estrutura; semântica confere regras de significado.\n- Erro de execução aparece quando o caminho problemático roda.\n- Erro lógico pode produzir resposta incorreta sem interromper o programa.\n- O momento e a forma do diagnóstico dependem da linguagem e da ferramenta.\n- Mensagem de erro orienta a busca, mas a causa pode estar em trecho anterior."
+    },
+    {
+      "title": "3. Exceções e transferência de controle",
+      "markdown": "### O problema que este assunto resolve\n\nUma operação pode falhar por um motivo que só se conhece enquanto ela acontece: um arquivo sumiu, uma conversão não funcionou ou um serviço ficou indisponível. A exceção sinaliza essa condição e transfere o controle para um ponto capaz de decidir o que fazer. Ela não corrige a causa por conta própria.\n\n### Lançar, procurar e propagar\n\nUma **exceção** é uma representação de uma condição anormal durante a execução. **Lançar** (em Java, `throw`; em Python, `raise`) inicia a transferência de controle. **Capturar** (Java, `catch`; Python, `except`) escolhe um tratador compatível. Se não houver tratador naquele bloco, a exceção pode **propagar**, isto é, subir para o chamador que executou a função.\n\nEm Java, o bloco `try` delimita operações que podem falhar e os blocos `catch` descrevem respostas para tipos de exceção. O ambiente de execução procura um `catch` compatível no ponto atual e, se não encontrar, segue pela cadeia de chamadas. O programa não volta automaticamente à instrução que lançou a exceção. Um método pode usar `throws` para declarar exceções que deixa para o chamador; isso é diferente de `throw`, que lança uma instância.\n\nQuando vários `catch` podem corresponder, os tipos mais específicos devem vir antes dos tipos gerais que os abrangem. Caso contrário, um bloco para subtipo pode ficar inalcançável. Em Python, o bloco `except` cumpre a captura; não existe palavra-chave `catch` com o papel do Java.\n\n### Exceções checked e unchecked em Java\n\nUma exceção **checked** (verificada pelo compilador) está sujeita à regra de ser capturada ou declarada, salvo exceções previstas nas regras da linguagem. Uma exceção **unchecked** (não sujeita àquela obrigação) inclui subclasses de `RuntimeException` e `Error`. Essa distinção é própria do modelo de Java e não deve ser aplicada automaticamente a Python ou C.\n\nA obrigação de declarar ou capturar ajuda a tornar explícitas certas falhas que o chamador pode tratar. Já capturar indiscriminadamente `Error`, que inclui condições graves do ambiente, raramente oferece recuperação confiável. A decisão deve considerar se o código realmente consegue restaurar um estado válido.\n\n| Construção ou classe | Papel | Exemplo de leitura |\n| --- | --- | --- |\n| Java `throw` | Lança uma exceção | “A operação encontrou esta condição agora” |\n| Java `throws` | Declara que o método pode propagar | “O chamador deve conhecer esta possibilidade” |\n| Java `catch` | Captura tipo compatível | “Aqui existe uma resposta para esta condição” |\n| Python `raise` / `except` | Lança / captura | Nomes e sintaxe próprios do Python |\n| Checked em Java | Deve ser capturada ou declarada | O compilador verifica essa obrigação |\n| Unchecked em Java | Não exige a mesma declaração | Inclui `RuntimeException` e `Error` |\n\n### Ramos de try em Python\n\nPython permite organizar o tratamento com `try`, `except`, `else` e `finally`. O bloco `except` correspondente roda se a parte protegida levantar uma exceção compatível. O `else` roda apenas quando o bloco `try` termina sem exceção; uma falha dentro do próprio `else` não é capturada pelos `except` associados àquele `try`. O `finally` é voltado à finalização e será aprofundado no capítulo seguinte. Esses nomes não são intercambiáveis: `else` não é um tratador.\n\n### Exemplo passo a passo\n\nAna importa uma lista de preços de um arquivo escolhido pelo usuário. Primeiro, tenta abrir o caminho dentro de um bloco protegido. Se o arquivo não existir, a operação lança uma exceção específica de arquivo. Um tratador adequado informa que Ana pode conferir o caminho ou escolher outro; ele não inventa uma lista vazia como se a leitura tivesse dado certo. Se o arquivo abrir, Ana valida o conteúdo e converte cada preço. Uma conversão inválida é uma condição diferente e pode exigir mensagem diferente. Se o código não tratar essa conversão, a exceção sobe ao chamador. Se nenhum ponto da cadeia a capturar, ela permanece sem tratamento naquela thread.\n\nUma **thread** é uma linha de execução dentro do processo. O relatório de uma exceção sem tratamento pode indicar a cadeia de chamadas, comumente chamada **stack trace** (rastro da pilha: sequência de métodos que levou à falha). Esse registro ajuda a diagnosticar, mas não substitui uma resposta ao usuário.\n\n### Escolher uma captura útil\n\nCapture o tipo mais específico que permita uma ação real: solicitar entrada corrigida, traduzir uma falha técnica em erro de domínio ou realizar uma nova tentativa limitada. Uma exceção ampla que captura tudo e não faz nada apaga evidência e pode deixar o programa continuar com dados inconsistentes.\n\nUma exceção própria pode expressar uma condição do domínio da aplicação. Ao transformar uma exceção de baixo nível em outra mais adequada, preserve a causa original. Esse **encadeamento** permite que a camada superior receba uma mensagem útil sem perder o motivo técnico que iniciou a falha.\n\n### Pegadinha\n\n**Pegadinha:** em Java, `throw` lança e `throws` declara; em Python, usam-se `raise` e `except`. Também é falso dizer que toda exceção encerra imediatamente o processo: primeiro pode haver busca por tratador na cadeia de chamadas. Se não houver tratador, a consequência depende do ambiente e da thread.\n\n### Resumo para a prova\n\n- Exceção transfere controle; não repete a instrução nem corrige a causa.\n- Tratador compatível pode estar em um chamador, não apenas no bloco local.\n- Java checked exige captura ou declaração; unchecked inclui subclasses de `RuntimeException` e `Error`.\n- `throw` lança; `throws` declara; Python usa `raise` e `except`.\n- Capture quando houver uma resposta útil e preserve a causa ao encapsular."
+    },
+    {
+      "title": "4. Finalização, recursos e tratamento confiável",
+      "markdown": "### O problema que este assunto resolve\n\nQuando uma exceção interrompe uma operação, arquivos, conexões ou outros recursos ainda precisam ser liberados. Além disso, a aplicação deve explicar a falha sem escondê-la nem expor informações internas. Tratamento confiável cuida da limpeza e escolhe conscientemente entre recuperar, informar ou propagar.\n\n### Finalização e controle pendente\n\nEm Java, `finally` executa quando o fluxo sai de um bloco `try`, inclusive depois de um `catch` ou enquanto uma exceção continua propagando, ressalvadas interrupções extraordinárias do processo. Python oferece cláusula com o mesmo nome e finalidade geral. Finalizar não significa capturar: se nenhum `catch` ou `except` tratar a falha, ela ainda pode seguir para o chamador depois da limpeza.\n\nUma conclusão que já estava pendente pode ser substituída se a própria finalização terminar abruptamente. Por exemplo, um `return` em `finally` pode encobrir a exceção que estava para ser propagada; uma nova exceção durante a limpeza também pode competir com a falha original. Use a cláusula para liberar recursos e evitar decisões que apaguem o diagnóstico.\n\nJava oferece `try-with-resources`, uma construção para recursos que implementam `AutoCloseable` (interface que prevê fechamento). Ao sair do bloco, a construção fecha os recursos declarados, inclusive quando ocorre uma exceção. Python usa `with` com um gerenciador de contexto, objeto que define como entrar e sair de uma região de uso. Essas construções vinculam o tempo de vida do recurso ao bloco e reduzem esquecimentos.\n\n| Construção | Finalidade | O que não significa |\n| --- | --- | --- |\n| `finally` | Executar finalização na saída do bloco | Que a falha foi tratada ou que o estado foi recuperado |\n| Java `try-with-resources` | Fechar recurso `AutoCloseable` ao sair | Que qualquer objeto seja fechado automaticamente |\n| Python `with` | Usar protocolo de contexto para entrada e saída | Que toda exceção seja ignorada |\n| `catch` / `except` | Tratar exceção compatível | Que o recurso será fechado sem lógica de limpeza |\n\n### Exemplo passo a passo\n\nBeatriz precisa ler um arquivo e enviar os dados a um serviço. Primeiro, abre o arquivo dentro de uma construção que controla seu fechamento. Em seguida, a leitura falha porque o conteúdo está truncado. A saída do bloco fecha o arquivo. Se o fechamento funcionar, a falha de leitura continua propagando até o tratador que pode explicar o problema. Beatriz não deve retornar uma lista vazia e declarar sucesso, pois isso esconderia que a importação não foi concluída.\n\nSe o envio ao serviço já tiver produzido efeitos antes da falha, fechar o arquivo não desfaz o envio. Beatriz precisa consultar o estado da operação ou usar um mecanismo de compensação ou transação apropriado antes de tentar novamente. Uma **transação** é uma unidade de trabalho cujas operações podem ser confirmadas ou revertidas segundo as garantias do sistema; uma exceção comum, por si só, não reverte efeitos externos.\n\n### Recuperar, repetir ou propagar\n\nRecuperação significa retornar a um estado válido ou oferecer uma alternativa conhecida. Se a pessoa digitou um caminho incorreto, pedir outro caminho pode resolver. Se um serviço está temporariamente indisponível, uma nova tentativa pode fazer sentido quando for limitada e segura. Repetir sem limite ocupa recursos e pode deixar usuários esperando.\n\nA repetição também depende de a operação ser **idempotente**: repetir a mesma solicitação produz o mesmo efeito final que realizá-la uma vez. Consultar o saldo costuma ser repetível; cobrar um cartão pode gerar cobranças duplicadas se não houver proteção. Se não for possível confirmar segurança ou restaurar estado válido, propagar a falha permite que uma camada capaz decida.\n\n### Diagnóstico com cuidado\n\nUm **log** (registro técnico de eventos) útil pode conter tipo da exceção, operação, momento e contexto necessário para localizar o problema. O stack trace mostra a sequência de chamadas. Registros devem evitar senhas, tokens e dados pessoais desnecessários. Para o usuário, prefira orientação clara e segura; detalhes internos ficam em registros protegidos para quem investiga.\n\nUma nova exceção pode guardar a anterior como causa. Assim, a camada de aplicação apresenta uma mensagem compreensível sem descartar o diagnóstico técnico. Registrar e relançar pode ser útil, mas evite duplicar o mesmo registro em todas as camadas, pois isso cria ruído e dificulta identificar o evento original.\n\n### Pegadinha\n\n**Pegadinha:** `finally` e fechamento automático cuidam da saída do recurso, não comprovam que a operação principal teve sucesso. Capturar uma falha e continuar com estado parcial pode ser pior que interromper. E uma nova tentativa é perigosa quando pode duplicar efeitos.\n\n### Resumo para a prova\n\n- `finally` finaliza; não funciona como `catch` nem `except`.\n- Java `try-with-resources` fecha recursos `AutoCloseable`; Python `with` usa gerenciamento de contexto.\n- Return ou nova exceção em `finally` pode ocultar uma conclusão pendente.\n- Exceções não desfazem automaticamente efeitos parciais nem externos.\n- Retente de modo limitado e seguro; preserve causa e contexto sem registrar segredos."
+    }
+  ],
+  "summary": "Compilação e interpretação levam o fonte a formas executáveis e podem coexistir: GCC mostra pré-processamento, compilação, montagem e ligação; javac gera bytecode para JVM; CPython compila para bytecode executado por seu interpretador. Erros léxicos, sintáticos e semânticos surgem na análise; erros de execução ocorrem durante processamento; erros lógicos podem produzir resposta errada sem exceção. Exceções transferem controle para tratador compatível ou propagam pela pilha. Java usa try/catch/finally, throw e throws, com checked e unchecked; Python usa try/except/else/finally e raise. Finalização libera recursos; tratamentos preservam causas, registram contexto seguro e recuperam quando há resposta definida.",
+  "flashcards": [
+    {
+      "front": "Quais são as etapas didáticas do fluxo GCC?",
+      "back": "Pré-processamento, compilação, montagem e ligação; a ferramenta pode interromper antes do executável."
+    },
+    {
+      "front": "O que solicita -E?",
+      "back": "Executar o pré-processamento e parar antes da compilação propriamente dita."
+    },
+    {
+      "front": "O que produz -c?",
+      "back": "Arquivos-objeto sem executar a ligação final."
+    },
+    {
+      "front": "Qual é o resultado típico de javac?",
+      "back": "Arquivos .class com bytecode da JVM, não código nativo específico da CPU por definição."
+    },
+    {
+      "front": "Como CPython executa código-fonte?",
+      "back": "Compila para bytecode da implementação e o executa pelo runtime CPython."
+    },
+    {
+      "front": "Bytecode Python é estável entre todas as VMs?",
+      "back": "Não; é detalhe de implementação e pode mudar entre versões e máquinas virtuais."
+    },
+    {
+      "front": "O que é interpretação?",
+      "back": "Execução de instruções por ambiente de linguagem, inclusive representação intermediária."
+    },
+    {
+      "front": "O que faz um compilador?",
+      "back": "Traduz fonte para representação executável ou intermediária e pode detectar problemas estáticos."
+    },
+    {
+      "front": "O que faz o ligador?",
+      "back": "Combina objetos e bibliotecas e resolve referências externas."
+    },
+    {
+      "front": "O que caracteriza erro sintático?",
+      "back": "Tokens que violam gramática, como parêntese de fechamento ausente."
+    },
+    {
+      "front": "O que caracteriza erro semântico estático?",
+      "back": "Construção válida sintaticamente cujo significado viola regra, como tipo incompatível verificado."
+    },
+    {
+      "front": "Como erro lógico difere de erro de execução?",
+      "back": "Erro lógico produz resultado contrário ao requisito; erro de execução surge durante processamento."
+    },
+    {
+      "front": "O que ocorre quando uma exceção é lançada?",
+      "back": "O fluxo sai do ponto de falha e procura tratador compatível; sem um local, propaga."
+    },
+    {
+      "front": "Para que serve try?",
+      "back": "Delimita operações que podem lançar exceções e associa tratadores ou finalização."
+    },
+    {
+      "front": "Para que serve catch em Java?",
+      "back": "Trata exceções de tipos compatíveis com o tipo declarado."
+    },
+    {
+      "front": "Qual a diferença entre throw e throws?",
+      "back": "throw lança; throws declara exceções que podem propagar pelo método."
+    },
+    {
+      "front": "O que exige a regra Java de capturar ou declarar?",
+      "back": "Uma checked exception deve ser capturada ou declarada em throws."
+    },
+    {
+      "front": "Quais classes são unchecked em Java?",
+      "back": "RuntimeException e subclasses, além de Error e subclasses."
+    },
+    {
+      "front": "Quando executa o else de try Python?",
+      "back": "Quando o bloco try termina sem lançar exceção."
+    },
+    {
+      "front": "Qual é o uso comum de finally?",
+      "back": "Finalizar ao sair do try, como tentar liberar recurso, com ou sem exceção."
+    },
+    {
+      "front": "O que try-with-resources automatiza?",
+      "back": "Fecha recursos Java AutoCloseable ao sair do bloco."
+    },
+    {
+      "front": "O que Python with oferece?",
+      "back": "Delimita gerenciamento de contexto, inclusive a finalização definida pelo recurso."
+    },
+    {
+      "front": "Por que capturar exceção específica?",
+      "back": "Para escolher resposta adequada e não confundir condições distintas."
+    },
+    {
+      "front": "Por que preservar a causa ao encapsular exceção?",
+      "back": "Para manter evento original e cadeia útil ao diagnóstico."
+    },
+    {
+      "front": "O que um stack trace ajuda a identificar?",
+      "back": "A cadeia de chamadas percorrida até a exceção."
+    }
+  ],
+  "tips": [
+    "Siga cada artefato: fonte, pré-processado, assembly, objeto, executável ou bytecode.",
+    "Pergunte se a falha impede análise, ocorre na execução ou revela resultado incorreto.",
+    "Em Java, throw lança, throws declara e catch trata.",
+    "Em Python, else indica que try terminou sem exceção; finally finaliza.",
+    "Escolha tratador quando houver ação útil para aquela condição.",
+    "Prefira try-with-resources em Java ou with em Python para recursos delimitados."
+  ],
+  "traps": [
+    "Afirmar que linguagem interpretada nunca compila: CPython gera bytecode e JVM executa bytecode.",
+    "Confundir .class com executável nativo: o arquivo contém bytecode da JVM.",
+    "Tratar erro lógico como exceção: programa pode terminar normalmente e calcular errado.",
+    "Inverter throw e throws: um lança e o outro declara.",
+    "Supor que finally captura ou corrige: ele finaliza e a exceção pode propagar.",
+    "Capturar toda exceção e continuar: estado parcial pode causar falso sucesso."
+  ],
+  "activeRecall": [
+    {
+      "question": "Descreva o caminho de um programa C no GCC até o executável.",
+      "answer": "Pré-processamento, compilação, montagem de objetos e ligação com objetos e bibliotecas; executar vem depois."
+    },
+    {
+      "question": "Compare execução Java e CPython.",
+      "answer": "javac gera bytecode .class executado pela JVM, que pode usar JIT. CPython compila fonte para bytecode próprio e o interpretador executa-o."
+    },
+    {
+      "question": "Dê exemplo de erro sintático, de execução e lógico.",
+      "answer": "Parêntese sem fechar; abrir arquivo inexistente; aplicar percentual errado apesar de execução normal."
+    },
+    {
+      "question": "Como uma exceção sai do método que a lançou?",
+      "answer": "Propaga pela cadeia de chamadas até achar tratador compatível; sem um na thread, a falha não tratada encerra a execução."
+    },
+    {
+      "question": "Quando Java usa throws e throw?",
+      "answer": "throws declara possível propagação no cabeçalho; throw lança objeto no corpo."
+    },
+    {
+      "question": "O que distingue checked e unchecked em Java?",
+      "answer": "Checked exige captura ou declaração; RuntimeException, Error e subclasses são unchecked."
+    },
+    {
+      "question": "Compare else e finally em Python.",
+      "answer": "else só roda se try não lançou; finally roda ao sair, inclusive durante propagação."
+    },
+    {
+      "question": "Como manter diagnóstico ao criar exceção de domínio?",
+      "answer": "Preserve a falha original como causa e acrescente contexto operacional não sensível."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Compilar e interpretar como opostos absolutos",
+      "summary": "Implementações combinam tradução prévia, bytecode, VM, interpretação e JIT. Identifique a representação e seu executor."
+    },
+    {
+      "key": "e2",
+      "title": "Confundir falha estática, de execução e lógica",
+      "summary": "Erro de análise impede aceitação; erro de execução surge no processamento; erro lógico pode gerar resultado errado sem exceção."
+    },
+    {
+      "key": "e3",
+      "title": "Lançar, declarar e tratar como sinônimos",
+      "summary": "Java usa throw para lançar, throws para declarar e catch para tratar; Python usa raise e except."
+    },
+    {
+      "key": "e4",
+      "title": "Captura genérica que esconde falha",
+      "summary": "Tratador amplo e vazio suprime informação. Trate especificamente, preserve causas, registre contexto seguro ou propague."
+    },
+    {
+      "key": "e5",
+      "title": "Confundir finalização com recuperação",
+      "summary": "finally, try-with-resources e with ajudam a limpar recursos; não corrigem a causa nem garantem estado válido."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Java pode ser compilado previamente para bytecode e esse bytecode executado por máquina virtual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. javac produz arquivos .class com instruções da JVM, que o runtime executa. A JVM também pode compilar trechos durante a execução.",
+      "section": "1. Do código-fonte ao programa em execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A opção -c do GCC realiza ligação final e entrega diretamente executável pronto para iniciar.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Com -c, GCC compila ou monta cada fonte e gera arquivo-objeto sem fazer a ligação final. Só uma etapa posterior combina objetos e bibliotecas para formar executável ou biblioteca.",
+      "section": "1. Do código-fonte ao programa em execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Executar diretamente um fonte Python impede CPython de produzir bytecode intermediário.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. CPython pode analisar e compilar o fonte em bytecode próprio antes de executá-lo por seu interpretador. O comando de execução direta não prova que a implementação processa os caracteres sem etapa intermediária.",
+      "section": "1. Do código-fonte ao programa em execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No fluxo didático GCC, o ligador combina objetos e bibliotecas depois da compilação e montagem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A sequência é pré-processamento, compilação, montagem e ligação. A ligação resolve referências e forma executável ou biblioteca.",
+      "section": "1. Do código-fonte ao programa em execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um runtime com JIT pode converter trechos frequentemente executados em código de máquina durante a execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. JIT compila trechos selecionados enquanto o programa roda; não implica que todo código será recompilado desse modo.",
+      "section": "1. Do código-fonte ao programa em execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Todo programa interpretado executa diretamente caracteres do fonte, sem análise ou representação intermediária.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Uma implementação pode analisar e converter fonte para representação intermediária, como bytecode, antes de executar.",
+      "section": "1. Do código-fonte ao programa em execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A opção -E do GCC pede saída pré-processada e para antes da compilação propriamente dita.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A opção -E manda o GCC executar o pré-processador e apresentar a saída resultante sem seguir à compilação propriamente dita. Isso permite inspecionar inclusões e macros já expandidas.",
+      "section": "1. Do código-fonte ao programa em execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Bytecode de CPython é formato estável e idêntico entre versões e máquinas virtuais Python.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A documentação do Python classifica bytecode como detalhe da implementação CPython e não garante que suas instruções permaneçam iguais entre versões. Outra máquina virtual Python também não precisa usar o mesmo formato.",
+      "section": "1. Do código-fonte ao programa em execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Parêntese sem fechamento costuma ser detectado na análise antes de o programa produzir seu resultado normal.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A análise sintática compara a sequência de tokens com construções permitidas pela gramática. Um delimitador aberto sem correspondente é erro de formação do fonte e normalmente impede sua aceitação ou execução normal.",
+      "section": "2. Análise do programa e classes de erro",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Algoritmo que calcula desconto incorreto, mas termina sem exceção, apresenta necessariamente erro de execução.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Quando o código executa e termina, mas aplica regra diferente do requisito, a falha é lógica. Testar casos com resultado esperado conhecido ajuda a revelar o defeito; não é necessário que exista exceção.",
+      "section": "2. Análise do programa e classes de erro",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A abertura de arquivo inexistente pode falhar só quando o caminho de execução tenta acessá-lo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O fonte pode ser analisado e o programa iniciado antes que o arquivo seja aberto. A falha aparece quando a execução chega à operação de acesso; conforme linguagem e API, pode ser comunicada como exceção ou outro erro.",
+      "section": "2. Análise do programa e classes de erro",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A análise léxica verifica gramática completa e decide se expressões são sintaticamente válidas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A análise léxica reconhece tokens como identificadores e operadores. A etapa sintática examina como esses tokens se combinam segundo a gramática da linguagem.",
+      "section": "2. Análise do programa e classes de erro",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma linha apontada por diagnóstico prova que a causa raiz está nela e não em contexto anterior.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Delimitador ausente antes pode causar mensagem posterior. Leia diagnóstico e trecho relacionado sem presumir a causa pela localização.",
+      "section": "2. Análise do programa e classes de erro",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Linguagem estaticamente tipada pode rejeitar incompatibilidade de tipos na análise ou compilação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Algumas linguagens verificam tipos durante a análise estática e podem recusar código incompatível antes da execução. O conjunto de verificações e o momento exato dependem da linguagem e da ferramenta usada.",
+      "section": "2. Análise do programa e classes de erro",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Teste sem exceção prova que resultado cumpriu requisito e que não há erro lógico.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Teste precisa comparar resultado esperado, inclusive em limites; ausência de exceção só informa que aquele caminho não falhou daquela forma.",
+      "section": "2. Análise do programa e classes de erro",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ferramenta e artefato estão associados corretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "javac produz arquivos .class com bytecode para a JVM.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "java traduz cada fonte diretamente em código nativo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ligador transforma caracteres-fonte em tokens.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pré-processador executa programa e captura exceções.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Montador resolve sozinho referências de bibliotecas.",
+          "correct": false
+        }
+      ],
+      "explanation": "javac compila fontes Java para arquivos .class com bytecode da JVM; o lançador java inicia a máquina virtual. Um montador não resolve sozinho referências de bibliotecas, e tokenização não é função do ligador.",
+      "section": "1. Do código-fonte ao programa em execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que ocorre ao chamar GCC com -S para arquivo C?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pré-processador gera somente cabeçalhos expandidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A ferramenta para após compilar e gera código assembly.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Montador e ligador entregam executável completo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "JVM recebe bytecode e inicia a execução do arquivo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Depurador registra todas as exceções possíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "A opção -S manda GCC parar depois da etapa de compilação e gerar um arquivo assembly, sem executar montagem e ligação finais. Já -E para no pré-processamento e -c produz objeto sem ligar.",
+      "section": "1. Do código-fonte ao programa em execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma ferramenta identifica caractere inválido antes de formar tokens. Qual atividade está mais relacionada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ligação dos objetos produzidos pelo compilador.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Execução de rotina dentro da máquina virtual.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Análise léxica que reconhece unidades do fonte.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Tratamento de exceção na pilha de chamadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Verificação de requisito de negócio pelo resultado.",
+          "correct": false
+        }
+      ],
+      "explanation": "Análise léxica reconhece caracteres e forma tokens, como identificadores e operadores. As outras atividades pertencem a etapas diferentes.",
+      "section": "2. Análise do programa e classes de erro",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Tokens válidos aparecem combinados de modo que viola a gramática. Qual categoria descreve melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Falha semântica de tipo detectada durante a execução.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Falha de execução por indisponibilidade de arquivo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Erro lógico que altera resultado de fórmula válida.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Falha de ligação de referência a biblioteca externa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Erro sintático na organização das construções do programa.",
+          "correct": true
+        }
+      ],
+      "explanation": "A situação descreve erro sintático: os tokens existem, mas sua combinação não respeita a gramática. A causa não depende da execução, do acesso a arquivo ou do cálculo de um resultado.",
+      "section": "2. Análise do programa e classes de erro",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A regra aplica 10% de desconto, mas requisito exige 15%; a execução termina. Qual o diagnóstico principal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Erro de sintaxe que impede reconhecer operador percentual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Erro de ligação ao localizar biblioteca aritmética.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Exceção checked que precisa constar no método.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Erro lógico apesar da execução normal do programa.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Erro léxico provocado pelo caractere numérico do cálculo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A fórmula executa, mas não cumpre o requisito. A correção está na regra e deve ser conferida com resultados esperados; captura não resolve.",
+      "section": "2. Análise do programa e classes de erro",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual opção GCC mostra saída pré-processada e para antes da compilação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "-o, para escolher nome do resultado principal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "-c, para criar objetos sem fazer ligação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "-S, para gerar assembly sem montar objetos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "-E, para executar somente o pré-processamento.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "-shared, para solicitar biblioteca compartilhada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A opção -E interrompe o fluxo depois do pré-processamento e apresenta o texto resultante. -S avança até gerar assembly, -c produz objeto sem ligação e -o permite escolher o nome da saída principal.",
+      "section": "1. Do código-fonte ao programa em execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como um arquivo .class pode ser executado em sistemas distintos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A JVM converte o fonte Java no ligador antes de carregar a classe.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O .class contém instruções nativas para qualquer processador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Cada sistema recompila a classe para assembly do fonte.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Classes servem só à análise sintática do fonte.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma JVM compatível executa o bytecode contido no arquivo.",
+          "correct": true
+        }
+      ],
+      "explanation": "Arquivos .class contêm bytecode definido para a JVM, e uma implementação compatível executa essa representação. O conteúdo não é código nativo universal nem é traduzido para C pelo ligador.",
+      "section": "1. Do código-fonte ao programa em execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um compilador sinaliza uso de variável não declarada. Que verificação se relaciona mais?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ligação física dos arquivos de dados do programa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Análise semântica dos nomes e do escopo.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Execução de finally após término de uma thread.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Compilação JIT de trecho frequentemente executado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Recuperação de cálculo aceito pela gramática.",
+          "correct": false
+        }
+      ],
+      "explanation": "Verificar se identificador foi declarado e está visível no escopo é análise semântica ou estática. A ligação ocorre noutra etapa; finally e JIT pertencem à execução.",
+      "section": "2. Análise do programa e classes de erro",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após montar módulos C, qual componente resolve referências entre objetos e bibliotecas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Interpretador que executa fonte linha por linha no terminal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Analisador léxico que forma tokens dos caracteres.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tratador que escolhe um catch para exceção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Pré-processador que substitui diretivas e macros.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ligador que reúne objetos e resolve referências externas.",
+          "correct": true
+        }
+      ],
+      "explanation": "O ligador combina arquivos-objeto com definições encontradas em outros objetos ou bibliotecas para resolver referências externas. Pré-processador, analisador léxico e tratador de exceção atuam em etapas distintas.",
+      "section": "1. Do código-fonte ao programa em execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que ocorre com exceção sem tratador compatível no método atual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Runtime retoma instrução seguinte e descarta objeto lançado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Compilador reinicia a função no local da falha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Fluxo procura tratador compatível em chamadores da pilha.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ligador escolhe biblioteca que substitui bloco ausente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Pré-processador converte objeto em aviso sintático.",
+          "correct": false
+        }
+      ],
+      "explanation": "Exceção pode propagar a chamadores até encontrar handler compatível. O fluxo não retoma automaticamente na instrução que lançou.",
+      "section": "3. Exceções e transferência de controle",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Método Java não trata uma exceção checked que pode lançar. O que a regra exige?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Capturá-la ou declarar que pode propagar por throws.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Convertê-la automaticamente em RuntimeException no retorno.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Adicionar finally, aceito como tratamento pelo compilador.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Criar else que executa enquanto exceção está ativa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Trocar objeto por código de saída do sistema.",
+          "correct": false
+        }
+      ],
+      "explanation": "A regra exige tratar checked ou listá-la em throws para permitir propagação. finally finaliza, mas não substitui captura ou declaração.",
+      "section": "3. Exceções e transferência de controle",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que declara throws IOException no cabeçalho de método Java?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Captura todas as falhas de I/O dentro do corpo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Finaliza automaticamente arquivo após cada chamada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Lança IOException ao entrar no método.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Declara que IOException pode escapar para tratamento acima.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Converte qualquer erro lógico em exceção checked.",
+          "correct": false
+        }
+      ],
+      "explanation": "A cláusula throws declara no cabeçalho que chamadas ao método podem propagar IOException ao chamador. Ela não executa o lançamento: throw lança objeto e catch define um tratador.",
+      "section": "3. Exceções e transferência de controle",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando será executado o else associado a try em Python?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sempre depois de cada except que captura exceção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Quando bloco try termina sem lançar exceção.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Só se finally encerrar processo com sucesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Quando compilador encontra erro sintático no try.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Antes de try, para escolher a exceção a capturar.",
+          "correct": false
+        }
+      ],
+      "explanation": "O else de um try Python executa depois do bloco protegido se ele terminou sem exceção. Isso separa o caminho de sucesso dos comandos cuja falha se pretende capturar.",
+      "section": "3. Exceções e transferência de controle",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conduta é adequada se existe resposta local definida para uma exceção?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ignorar objeto e devolver resultado como se houvesse sucesso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Capturar qualquer classe e remover seu stack trace.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar tratador compatível e aplicar recuperação coerente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Converter falha em saída vazia sem informar usuário.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Repetir indefinidamente até o erro desaparecer.",
+          "correct": false
+        }
+      ],
+      "explanation": "Captura serve quando há ação concreta, como solicitar novo caminho. Ignorar, fingir sucesso ou repetir sem limite esconde problema.",
+      "section": "3. Exceções e transferência de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual característica distingue checked exception de RuntimeException em Java?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Checked exige captura ou declaração; RuntimeException não está sujeita à regra.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Ambas precisam constar sempre na cláusula throws.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Checked só pode ser tratada em bloco finally.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Compilador captura automaticamente toda checked exception.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "RuntimeException não pode ser lançada pelo programa.",
+          "correct": false
+        }
+      ],
+      "explanation": "O compilador Java exige que uma checked exception seja capturada ou declarada em throws. RuntimeException e subclasses são unchecked e não precisam da declaração, mas o código ainda pode capturá-las se tiver tratamento adequado.",
+      "section": "3. Exceções e transferência de controle",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como preservar diagnóstico ao converter falha técnica em exceção de domínio?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descartar a causa e guardar somente texto genérico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Manter falha original como causa da nova exceção.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Limpar a pilha e informar sucesso após conversão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir causa pelo retorno anterior à falha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Registrar segredos e dados pessoais para reconstruir tudo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Encadear a causa mantém falha técnica ao comunicar condição de domínio. Registro deve conter contexto útil sem segredos nem dados excessivos.",
+      "section": "3. Exceções e transferência de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma exceção surge no else de try Python. Os except daquele try irão capturá-la?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim; exceções em try, else e finally voltam ao mesmo except.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim; else integra tipos capturados pela cláusula except.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não; except captura somente erros sintáticos do bloco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não; ela propaga, embora finally ainda possa executar.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Não; compilador remove else se houver except.",
+          "correct": false
+        }
+      ],
+      "explanation": "Exceções no else não são capturadas pelos except daquele try. finally ainda executa durante a saída e a exceção pode propagar.",
+      "section": "3. Exceções e transferência de controle",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que um catch amplo e vazio pode ser inadequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Recupera automaticamente qualquer estado inválido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reexecuta os métodos que lançaram a exceção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tipos distintos pedem respostas distintas e a falha pode sumir.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Só é permitido capturar erros de compilação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Compilador transforma tudo que captura em sucesso.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tipo amplo pode capturar condições sem recuperação disponível. Captura vazia oculta falha e pode criar estado incoerente; handlers específicos ajudam.",
+      "section": "3. Exceções e transferência de controle",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Exceção original pode continuar propagando após finally que libera recurso, se a limpeza termina normalmente.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim; finalizar não captura nem retoma a instrução interrompida.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Não; finally executado prova que operação principal teve sucesso.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Não; finally sempre converte exceção em retorno normal.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Sim; a causa só propaga se o recurso fechar duas vezes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Não; finally remove tratador da pilha de chamadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "finally finaliza; não comprova que a falha foi tratada. Nova falha no cleanup pode alterar conclusão pendente e exige cuidado.",
+      "section": "4. Finalização, recursos e tratamento confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual construção Java automatiza fechamento de recurso que implementa AutoCloseable?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "throws, que encerra recurso após propagar exceção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "else, executado quando recurso abriu corretamente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "throw, que fecha objeto da exceção lançada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "catch, que fecha todo recurso visível ao compilador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "try-with-resources, que fecha recurso ao sair do bloco.",
+          "correct": true
+        }
+      ],
+      "explanation": "Try-with-resources vincula recurso ao bloco e fecha AutoCloseable na saída, inclusive com exceção. throws declara e catch trata.",
+      "section": "4. Finalização, recursos e tratamento confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual construção Python delimita uso de recurso que suporta gerenciamento de contexto?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "raise, que transforma recurso em exceção tratada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "with, que coordena entrada e finalização do contexto.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "else, que fecha todo objeto depois de try.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "except, que encerra o bloco quando não há erro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "compile, que chama interpretador para liberar objeto.",
+          "correct": false
+        }
+      ],
+      "explanation": "with usa gerenciamento de contexto para delimitar entrada e saída e permitir limpeza definida pelo objeto. raise lança; except captura.",
+      "section": "4. Finalização, recursos e tratamento confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual política de nova tentativa é mais controlável diante de serviço temporariamente indisponível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Repetir sem limite até obter resposta do serviço remoto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Retentar operação mesmo que duplique efeitos sem controle.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Capturar falha e devolver valor antigo como sucesso.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Limitar tentativas e avaliar se repetir é seguro para operação.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Esconder erro e não registrar que houve nova tentativa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tentativas devem ser limitadas e seguras; operação não idempotente pode duplicar cobrança ou efeito. Falha persistente deve ser informada ou propagada.",
+      "section": "4. Finalização, recursos e tratamento confiável",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que registro técnico oferece contexto sem expor informação sensível desnecessária?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardar senha, token e todos os dados pessoais envolvidos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Registrar só erro, sem operação nem momento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Registrar tipo, causa e contexto operacional não sensível.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Apagar causa e pilha para reduzir tamanho do log.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exibir caminhos internos e infraestrutura ao usuário final.",
+          "correct": false
+        }
+      ],
+      "explanation": "Registros úteis preservam operação, tipo, momento e contexto seguro. Segredos ficam fora; detalhes podem permanecer em log protegido.",
+      "section": "4. Finalização, recursos e tratamento confiável",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que return dentro de finally merece cautela quando há exceção pendente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Pode substituir saída pendente e ocultar a falha original.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Converte toda exceção em checked durante compilação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Impede que fonte seja compilado para bytecode.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Finally só pode conter instruções de montagem.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Compilador duplica chamada e cria erro léxico.",
+          "correct": false
+        }
+      ],
+      "explanation": "Conclusão abrupta do finally, como retorno ou nova exceção, pode substituir conclusão pendente. Use-o para limpeza sem suprimir causa.",
+      "section": "4. Finalização, recursos e tratamento confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Depois de falha em gravação, é seguro continuar sem verificar se efeitos parciais deixaram estado inconsistente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Sim; qualquer exceção reverte automaticamente efeitos anteriores.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sim; finally sempre restaura estado do banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Sim; capturar falha apaga efeitos já confirmados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Não; avalie estado e recuperação antes de continuar.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Não; só compilador decide consistência dos dados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Exceção não reverte por si só efeitos realizados. Verifique transação, compensação ou outro meio de restaurar estado válido antes de retomar.",
+      "section": "4. Finalização, recursos e tratamento confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em Python, há exceção sem except correspondente e também um finally. O que se espera?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Finally executa e a exceção continua propagando.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A exceção some porque finally funciona como except.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Interpretador reinicia o arquivo desde o início.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Else executa antes para apresentar resultado calculado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Finally só executa se except capturar a exceção.",
+          "correct": false
+        }
+      ],
+      "explanation": "A cláusula finally executa na saída do try, inclusive durante a propagação da falha. Sem except correspondente, a exceção segue para o chamador depois da finalização; finally não é capturador por si só.",
+      "section": "4. Finalização, recursos e tratamento confiável",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como separar mensagem pública ao usuário de diagnóstico técnico detalhado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Exibir pilha de chamadas e nomes internos em toda resposta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Capturar falha e deixar tela vazia, sem orientação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Expor segredos de conexão para facilitar correção externa.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Apagar registros e depender da memória da equipe.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dar orientação clara e guardar detalhes em registro protegido.",
+          "correct": true
+        }
+      ],
+      "explanation": "A mensagem pública deve orientar sem revelar caminhos internos, credenciais ou detalhes operacionais. O registro técnico protegido pode guardar stack trace e causa para investigação por pessoas autorizadas.",
+      "section": "4. Finalização, recursos e tratamento confiável",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando há vários catch Java compatíveis, como deve ser organizada sua especificidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O tipo geral deve vir antes para bloquear os demais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Tipos específicos vêm antes dos tipos gerais que os abrangem.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A ordem não importa porque todos os catch executam juntos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O tipo checked deve sempre vir depois de finally.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Cada catch declara a mesma exceção em throws.",
+          "correct": false
+        }
+      ],
+      "explanation": "Java escolhe o primeiro catch compatível. Se um tipo geral vier antes de um subtipo, o bloco posterior para o subtipo pode ficar inalcançável e o programa não compila; ordene tipos específicos primeiro.",
+      "section": "3. Exceções e transferência de controle",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que faz o pré-processador C com uma diretiva #include no fluxo tradicional do GCC?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Executa a função incluída antes de compilar o restante do fonte.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Transforma cada função incluída em exceção checked.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Expande o conteúdo indicado para a unidade pré-processada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Liga automaticamente todos os arquivos-objeto do projeto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Interpreta o executável final e inicia a rotina principal.",
+          "correct": false
+        }
+      ],
+      "explanation": "No pré-processamento, diretivas como #include são processadas e o conteúdo dos cabeçalhos participa da saída pré-processada. Essa etapa não executa funções nem substitui ligação ou execução final.",
+      "section": "1. Do código-fonte ao programa em execução",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma exceção Java não corresponde aos catch locais. Qual descrição é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A instrução que lançou é repetida até algum catch aceitar.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O runtime procura tratador compatível em chamadores na pilha.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O compilador altera objeto para o tipo do catch próximo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A ligação escolhe biblioteca para suprimir a falha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Sem tratador na cadeia, a exceção fica sem tratamento na thread.",
+          "correct": true
+        }
+      ],
+      "explanation": "A exceção pode propagar pela cadeia de chamadas; se nenhum tratador da thread a capturar, permanece não tratada e o runtime aplica o mecanismo de término e relatório da thread. A instrução não é repetida automaticamente.",
+      "section": "3. Exceções e transferência de controle",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "The Java Language Specification — Java SE 26, try statement",
+      "publisher": "Oracle",
+      "reference": "Transferência para catch e execução da cláusula finally",
+      "url": "https://docs.oracle.com/javase/specs/jls/se26/jls26.pdf",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Catch or Specify Requirement",
+      "publisher": "Oracle",
+      "reference": "Exceções checked e unchecked e regra de captura ou declaração",
+      "url": "https://docs.oracle.com/javase/tutorial/essential/exceptions/catchOrDeclare.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The Java Technology Phenomenon",
+      "publisher": "Oracle",
+      "reference": "javac, arquivos class, bytecode e execução pela JVM",
+      "url": "https://docs.oracle.com/javase/tutorial/getStarted/intro/definition.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Overall Options — GCC",
+      "publisher": "GNU Project",
+      "reference": "Pré-processamento, compilação, montagem, ligação e opções -E, -S e -c",
+      "url": "https://gcc.gnu.org/onlinedocs/gcc/Overall-Options.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Errors and Exceptions — Python Tutorial",
+      "publisher": "Python Software Foundation",
+      "reference": "try, except, else, finally, propagação e exceções próprias",
+      "url": "https://docs.python.org/3/tutorial/errors.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "dis — Disassembler for Python bytecode",
+      "publisher": "Python Software Foundation",
+      "reference": "Bytecode CPython como detalhe de implementação",
+      "url": "https://docs.python.org/3/library/dis.html",
+      "accessedAt": "2026-11-07"
+    }
+  ]
+}

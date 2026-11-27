@@ -1,0 +1,1818 @@
+{
+  "id": "informatica.vulnerabilidades-logica-negocio-aprovacao-judicial",
+  "subject": "Informática",
+  "title": "Gestão de Vulnerabilidades de Negócio: lógica e aprovação judicial",
+  "version": 2,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Gestão de Vulnerabilidades de Negócio: Avaliação de riscos relacionados a falhas de lógica de negócio e fluxos de aprovação judicial.",
+    "Vulnerabilidades de lógica de negócio em sistemas judiciais",
+    "Avaliação de risco em fluxos de aprovação judicial",
+    "Falhas de lógica em processos eletrônicos judiciais",
+    "Segurança dos fluxos de aprovação judicial digital",
+    "Teste de regras de negócio em aplicações judiciais",
+    "Risco de abuso de workflows de negócio sensíveis",
+    "Controles de aprovação e segregação de funções",
+    "Integridade de estados em sistemas de processo judicial",
+    "Prevenção de bypass em fluxos de aprovação eletrônica"
+  ],
+  "scope": {
+    "covers": "Conceitos e avaliação de vulnerabilidades de lógica de negócio; modelagem de estados e transições; validação de regras e dados no servidor; autorização, segregação de funções e privilégio mínimo; riscos de bypass, repetição, automação e concorrência; trilha de auditoria, monitoramento, mitigação e testes de fluxos de aprovação judicial, inclusive revisão de minuta, decisão, assinatura, publicação e cumprimento, sem definir competências processuais.",
+    "excludes": "Regras de competência jurisdicional, mérito de decisões, prazos processuais, legislação processual, assinatura digital em seus aspectos normativos, exploração de sistemas reais e técnicas ofensivas fora de ambiente autorizado."
+  },
+  "theoryTitle": "Riscos de lógica de negócio e aprovação judicial",
+  "chapters": [
+    {
+      "title": "1. O que é falha de lógica de negócio",
+      "markdown": "Uma falha de lógica de negócio aparece quando o sistema executa uma ação tecnicamente válida, mas contrária à regra do serviço. O assunto resolve um problema prático: como impedir que alguém use funções legítimas para obter resultado que o processo não permite? Em sistema judicial, isso pode significar pular revisão, publicar conteúdo não assinado ou repetir ato que deveria produzir efeito uma só vez.\n\n### O que é uma regra de negócio\n\nRegra de negócio é a condição que define como uma atividade deve funcionar. Num fluxo de aprovação, pode determinar que uma minuta só seja encaminhada à assinatura depois da revisão, que apenas a pessoa designada possa aprovar e que a aprovação se aplique ao conteúdo efetivamente examinado. Essas condições descrevem o funcionamento esperado, não apenas o formato de uma tela.\n\nUm **workflow** (fluxo de trabalho) é a sequência de tarefas e estados por que passa um objeto. Estado descreve a situação atual, como “rascunho” ou “em revisão”; transição é a mudança de um estado para outro. Uma **invariante** é uma condição que deve continuar verdadeira durante todo o fluxo. Exemplo: “documento publicado sempre tem versão identificada e assinatura registrada”. A regra fica testável quando escrita como condição observável, em vez de permanecer implícita na interface.\n\n**API** (interface de programação de aplicações) é o conjunto de operações pelo qual programas trocam solicitações e respostas. O navegador chama uma API no servidor para consultar ou alterar dados. A tela pode oferecer apenas os botões adequados, mas a API também precisa verificar cada pedido: alguém pode chamar a operação por outro cliente, repetir a chamada ou alterar seus parâmetros.\n\n### Falha de lógica e falha de entrada\n\nUma falha de entrada pode ocorrer quando texto recebido é interpretado indevidamente como comando. Já uma falha de lógica pode aceitar dados perfeitamente formatados e ainda chegar à conclusão errada. Imagine que o servidor receba `aprovar=true`. O valor tem formato válido e a pessoa está autenticada, mas ainda faltam perguntas: a conta tem papel de aprovador? A tarefa está atribuída a ela? A etapa anterior terminou? A minuta não mudou desde a revisão? O servidor precisa avaliar o conjunto.\n\n**Autenticação** confirma qual conta usa o sistema; **autorização** decide se aquela conta pode executar uma operação. Mesmo uma operação geralmente permitida pode ser inválida naquele objeto ou momento. Distinguir “quem é” de “o que pode fazer agora” evita confundir login com permissão completa.\n\n| Verificação | Pergunta prática | Exemplo se ausente |\n| --- | --- | --- |\n| Autenticação | Qual conta fez a solicitação? | Ação atribuída a identidade não verificada |\n| Autorização | A conta tem a função necessária? | Usuário comum chama função administrativa |\n| Regra de fluxo | A transição é permitida no estado atual? | Tarefa pula de rascunho para publicado |\n| Integridade do objeto | A ação se refere à versão correta? | Aprova-se minuta diferente da revisada |\n\n### Exemplo passo a passo: a minuta de Ana\n\nAna prepara uma minuta e o sistema a marca “em revisão”. Bruno, revisor designado, examina a versão 12 e conclui a revisão. Depois, Ana corrige um trecho e salva a versão 13. Se a aprovação estiver ligada apenas ao número do processo, sem referência à versão, o sistema pode publicar a versão 13 como se tivesse sido revisada.\n\nA análise segue quatro passos. Primeiro, identificamos o ativo: conteúdo e estado de aprovação. Segundo, explicitamos a regra: a aprovação de Bruno vale para a versão examinada. Terceiro, comparamos regra e comportamento: a versão mudou, mas a aprovação continuou válida. Quarto, formulamos o controle: associar aprovação à versão; se o conteúdo mudar, exigir nova revisão ou aplicar exceção formalmente definida e auditável. O diagnóstico de segurança não decide se o conteúdo é juridicamente correto; demonstra se o sistema preservou o fluxo configurado.\n\n### Funções legítimas também podem ser abusadas\n\nUma função criada para finalidade legítima ainda pode ser usada em sequência ou escala contrária às regras. Um robô pode ocupar tarefas abertas e impedir o trabalho normal. Uma chamada repetida pode criar duplicidade. O risco não exige que cada solicitação esteja malformada: o abuso pode consistir em uso excessivo, fora de ordem ou sobre objetos alheios à conta. **Ativo** é dado, função ou serviço cujo comprometimento traz consequência relevante; neste exemplo, pode ser a fila de trabalho, a minuta ou o registro de publicação.\n\nA OWASP (organização que publica orientações para segurança de aplicações) trata fluxos sensíveis e seu acesso sem restrição como área de risco. Em matéria judicial, podem ser afetados integridade, sigilo, disponibilidade ou confiança institucional. “Automatizado” descreve o modo de execução, não prova intenção maliciosa: importam o efeito e a violação da regra.\n\n### Como diferenciar os conceitos\n\nUma tela que oculta botão é medida de interface, não barreira suficiente. Autorização diz quem pode executar função; regra de transição diz em que estado e sob quais condições pode executá-la. Teste de formato verifica se o valor é aceitável; teste de negócio verifica se o resultado faz sentido no processo.\n\n**Pegadinha:** a banca pode descrever usuário autenticado e parâmetro válido e sugerir que a operação é segura. Isso não demonstra atribuição da tarefa, cumprimento da etapa anterior ou versão correta. Também é erro afirmar que qualquer falha técnica torna juridicamente inválido um ato: o diagnóstico de segurança não substitui a análise jurídica competente.\n\n**Resumo para a prova**\n\n- Falha de lógica permite resultado contrário à regra do serviço mesmo com entrada válida.\n- Autenticação, autorização, estado do fluxo e integridade do objeto são verificações distintas.\n- Toda operação sensível deve ser validada no servidor, inclusive quando a interface a controla.\n- Descreva ativo, regra esperada, comportamento observado e consequência sem extrapolar para validade jurídica."
+    },
+    {
+      "title": "2. Modelagem do fluxo e controles de aprovação",
+      "markdown": "Uma aprovação confiável exige regras claras sobre o que pode acontecer com cada objeto, em que ordem e por quem. O problema é converter a política de trabalho em controles verificáveis: um botão pode registrar “aprovado” sem provar que houve revisão, que a pessoa estava designada ou que o conteúdo era o examinado.\n\n### Estados e transições\n\nUma **máquina de estados** representa as situações possíveis de um objeto e as mudanças autorizadas. Uma minuta pode passar por rascunho, revisão, devolução, aprovação, assinatura e publicação. Para cada transição, defina origem, destino, pré-condições, ator permitido e efeitos. **Pré-condição** é algo que precisa ser verdadeiro antes da operação, como revisão concluída ou tarefa atribuída à conta.\n\nO servidor deve consultar o estado oficial e rejeitar uma mudança incompatível. Se alguém pedir publicação quando a minuta ainda está em revisão, a solicitação deve falhar mesmo que o navegador envie uma URL ou chamada de **API** (interface de programação de aplicações, que permite a programas trocar solicitações e respostas) válida. A interface orienta o caminho normal; não decide a regra de segurança.\n\n| Elemento | Pergunta | Exemplo |\n| --- | --- | --- |\n| Estado | Em que situação está o objeto? | Minuta em revisão |\n| Transição | Qual mudança foi pedida? | Revisão para aprovação |\n| Ator | Quem age e com qual papel? | Revisor designado |\n| Pré-condição | O que precisa estar cumprido? | Versão vigente examinada |\n| Efeito | O que muda e se registra? | Aprovação ligada à versão |\n\n### Papel, atribuição e divisão de tarefas\n\n**RBAC** é o controle de acesso baseado em papéis: permissões são associadas a funções, como revisor ou administrador. O papel pode ser amplo demais para decidir cada caso. O sistema também pode exigir atribuição à conta ou unidade, vínculo do objeto ao âmbito autorizado e estado compatível. Ser revisor não significa poder revisar qualquer minuta. **Menor privilégio** é conceder somente o acesso necessário à tarefa.\n\n**Segregação de funções** divide atividades incompatíveis entre pessoas ou papéis para reduzir erro e abuso. **Duplo controle** exige mais de um agente numa operação sensível quando a política e o risco justificam. Não se presume que toda decisão exija sempre dois aprovadores. Exceções devem ter escopo limitado, motivo registrado e revisão apropriada.\n\n### Vincular aprovação ao conteúdo\n\nRegistre objeto, versão examinada, agente, papel, momento, resultado e tarefa relacionada. Se o conteúdo mudar depois, o sistema deve perceber a diferença. Pode associar o evento à versão ou a uma impressão digital, resumo calculado que ajuda a identificar alteração. Assim, “aprovado” deixa de ser rótulo solto e aponta para o conteúdo examinado.\n\nCarla revisa uma minuta e a aprova. Diego depois altera uma frase e salva nova versão. Se o estado aprovado permanecer sem nova revisão ou exceção controlada, a próxima pessoa pode presumir que a nova versão foi examinada. A regra segura vincula aprovação à versão anterior e reabre a etapa adequada após alteração. Exceções para correções limitadas devem definir o que pode mudar e preservar histórico.\n\n### Repetição e auditoria\n\n**Idempotência** é a propriedade pela qual repetir uma solicitação identificada não duplica seu efeito. Ajuda quando a conexão cai e o cliente não sabe se o servidor concluiu a chamada. Uma chave permite reconhecer a repetição e devolver o resultado anterior, sem criar outra publicação. Deve distinguir repetição da mesma operação de uma operação nova.\n\n**Trilha de auditoria** é o registro cronológico de ações, mudanças e resultados. Deve conectar ator, objeto, versão, transição, horário e resultado, inclusive recusas relevantes. Proteja o registro contra alteração indevida e limite dados sigilosos ao necessário. Auditoria ajuda a detectar e investigar, mas não bloqueia por si só a operação.\n\n### Exemplo passo a passo: duas confirmações\n\nRafael e Luiza receberam por engano a mesma tarefa. Ambos abrem a versão 8 ainda pendente. Rafael confirma primeiro; instantes depois Luiza envia a confirmação já preparada. Se cada chamada apenas leu “pendente” e depois gravou “aprovada”, podem surgir dois eventos ou uma atribuição incorreta. A equipe define que a tarefa só pode ser consumida uma vez por aprovador elegível. O servidor verifica atribuição e versão ao gravar numa operação **atômica** (executada como unidade indivisível). A primeira chamada altera o estado; a segunda encontra a condição modificada e é recusada. Ambos os resultados ficam registrados.\n\n**Pegadinha:** papel genérico não comprova atribuição ao caso; estado “aprovado” sem versão não comprova qual conteúdo foi examinado; registro posterior não impede operação indevida. Segregação de funções depende da política e do risco.\n\n**Resumo para a prova**\n\n- Modele estado, transição, ator, pré-condição e efeito.\n- Valide papel, atribuição, estado e versão no servidor.\n- Vincule aprovação ao conteúdo examinado e trate alterações por regra explícita.\n- Idempotência evita duplicidade; auditoria reconstrói eventos, mas não substitui autorização."
+    },
+    {
+      "title": "3. Avaliação de risco e cenários de abuso",
+      "markdown": "Avaliar risco ajuda a decidir o que precisa de atenção primeiro e por quê. A análise conecta uma regra do processo a um cenário plausível, à fraqueza que o torna possível e às consequências para pessoas e serviços. Dizer apenas “risco alto” não explica o problema nem orienta a escolha de controles.\n\n### Construir cenário e identificar ativos\n\nDescreva primeiro o fluxo legítimo: qual objeto percorre as etapas, quem atua e qual resultado deve ser protegido. Depois pergunte quem poderia agir, qual condição tentaria contornar, que dado ou estado seria afetado e como confirmar o resultado. **Ativo** é dado, função ou serviço cujo comprometimento pode causar impacto: uma minuta, estado de aprovação, atribuição de tarefa, identidade do signatário, registro de publicação ou disponibilidade da fila.\n\n**Ameaça** é circunstância ou agente capaz de causar dano; **vulnerabilidade** é fraqueza que permite ou favorece esse dano. **Abuso de fluxo** é usar operações legítimas contra as regras do processo. A função pode operar conforme foi programada e ainda permitir abuso por falta de uma restrição.\n\n### Tipos de consequência\n\n**Confidencialidade** significa impedir divulgação a quem não deveria acessar. **Integridade** é preservar exatidão de dados, conteúdo e estados. **Disponibilidade** é permitir o uso regular do serviço. Falha que permite alterar estado de aprovação pode afetar integridade sem revelar documento; automação que ocupa tarefas pode afetar disponibilidade sem alterar conteúdo. Um cenário pode afetar mais de uma dimensão, mas cada consequência deve ser explicada.\n\n**Race condition** (condição de corrida) ocorre quando ações concorrentes se intercalam e produzem resultado incorreto. Duas solicitações podem verificar que uma tarefa está pendente antes de qualquer uma atualizá-la; ambas agem com base numa informação que já ficou desatualizada. O problema exige examinar a coordenação entre leitura e gravação.\n\n| Cenário | Ativo ou regra em risco | Possível consequência |\n| --- | --- | --- |\n| Minuta muda após revisão | Integridade entre conteúdo e aprovação | Versão não examinada segue no fluxo |\n| Reenvio depois do cancelamento | Estado vigente e histórico | Operação cancelada volta a produzir efeito |\n| Chamadas simultâneas | Unicidade da transição | Duplicidade ou estado inconsistente |\n| Robô ocupa a fila | Disponibilidade do serviço | Equipe não consegue atender tarefas |\n| Conta sem atribuição aprova | Autorização contextual | Etapa executada fora do fluxo previsto |\n\n### Priorizar com evidências\n\nConsidere gravidade da consequência, alcance, facilidade de exploração, exposição da função, possibilidade de detecção e possibilidade de desfazer o efeito. **Probabilidade** é estimativa, não certeza matemática. Explique quais evidências a sustentam e quais lacunas permanecem. Cenário raro pode merecer prioridade se o impacto for grave e difícil de detectar; frequência baixa, sozinha, não significa risco desprezível.\n\n**Risco inerente** é a exposição antes de considerar controles; **risco residual** é o que permanece após avaliá-los. Uma barreira que bloqueia chamada sem atribuição pode reduzir o risco, mas é preciso verificar se cobre todos os caminhos e se tem exceções. A presença nominal de um controle não comprova que ele funciona.\n\nDiferencie observação e inferência. Chamada rejeitada demonstra tentativa e atuação de uma barreira, mas não dano consumado. Alteração reproduzida em ambiente de teste demonstra comportamento naquele cenário, mas não prova que todos os casos reais foram afetados. Relate exatamente o que foi reproduzido, o que foi inferido e o que falta saber.\n\n### Exemplo passo a passo: solicitação antiga\n\nMarina cancela uma tarefa de publicação. Um sistema externo, que ficou sem conexão, reenvia depois uma mensagem preparada antes do cancelamento. Primeiro, explicita-se a regra: cancelamento impede que pedido antigo reative a tarefa. Segundo, identifica-se a fraqueza: o servidor aceita a mensagem sem comparar estado e versão atuais. Terceiro, avalia-se a consequência: conteúdo pode voltar à fila e ser publicado, ou consumir recursos e confundir operadores. Quarto, testa-se, em ambiente autorizado, se o servidor recusa a mensagem e registra o motivo sem reativar a tarefa.\n\nA mensagem pode ter sido válida quando criada; o problema é aceitá-la como se ainda representasse a intenção atual. A avaliação considera validade temporal, estado, impacto e controles existentes. **Prova de conceito** é demonstração limitada de que um cenário é possível; deve permanecer no escopo autorizado e evitar efeitos reais. Registre versão do sistema, estado inicial, papel utilizado, sequência e resultado, sem expor dados desnecessários.\n\n**Pegadinha:** ausência de incidente conhecido não prova risco baixo; possibilidade de tentativa não prova dano ocorrido. Probabilidade e impacto são aspectos diferentes. Scanner ou número de chamadas isolado não substitui análise do contexto e da evidência.\n\n**Resumo para a prova**\n\n- Relacione regra, cenário, vulnerabilidade, ativo, consequência e controles.\n- Diferencie confidencialidade, integridade e disponibilidade pelo efeito concreto.\n- Priorize com gravidade, alcance, probabilidade, exposição, detecção e reversibilidade; explique incertezas.\n- Tentativa não prova dano consumado; teste apenas em ambiente e escopo autorizados."
+    },
+    {
+      "title": "4. Prevenção, testes e resposta",
+      "markdown": "Prevenir falhas de lógica significa transformar a regra do processo em verificações aplicadas pelo sistema. A pergunta central é como construir barreiras, testar se funcionam e responder quando uma falha é encontrada. Validar campos não basta: também se verificam estado, titularidade, atribuição, versão, sequência e efeito.\n\n### Validar no servidor\n\nO **backend** é a parte executada no servidor, onde a solicitação é processada e os dados oficiais são consultados ou alterados. O **frontend** é a interface que a pessoa usa, como uma página no navegador. A interface pode orientar o caminho permitido, mas regras essenciais precisam ser aplicadas no servidor, que não deve confiar cegamente nos valores enviados pelo cliente.\n\nValide formato e faixa de cada campo, além da relação entre campos e estado do objeto. Se o cliente enviar papel, proprietário ou situação atual, obtenha esses dados de fonte confiável em vez de aceitar a declaração como verdade. Verifique também dados recebidos de integrações. Rejeite parâmetros inesperados quando possam mudar estado ou propriedade sem autorização.\n\nA autorização é contextual: identidade, função, atribuição ao objeto e transição permitida. Uma lista de estados conhecidos só verifica se o valor é sintaticamente válido; não prova que aquela pessoa pode usá-lo naquele momento.\n\n### Concorrência e repetição\n\nA verificação e a mudança de estado devem funcionar como uma operação coerente. **Atômica** significa que as partes críticas ocorrem como unidade: outra solicitação não pode inserir uma mudança entre a checagem e a gravação. **Controle transacional** agrupa operações para preservar consistência. Conforme a arquitetura, podem ser adequados transações, controle de versão ou bloqueios. A solução precisa ser verificada contra a invariante do processo, não presumida correta só por usar tecnologia conhecida.\n\n**Idempotência** trata de repetição: se a mesma solicitação for reenviada por falha de conexão, o efeito não deve ocorrer duas vezes. Uma chave permite reconhecer a mesma operação e devolver o resultado já registrado. Ela não pode fazer uma operação nova parecer antiga, nem permitir que mensagem ultrapassada restaure objeto cancelado. Compare identificador, estado e versão atuais.\n\n### Testar as regras\n\nTransforme cada regra importante em caso de teste com caminho permitido e recusado. Verifique que tarefa não atribuída não aprova, etapa anterior não pode ser pulada, mudança de conteúdo aciona a revisão prevista, repetição não duplica efeito, chamadas simultâneas preservam estado e conta sem permissão não executa função privilegiada. Inclua ordem incorreta, estados antigos e uso normal.\n\n**Teste de regressão** é repetido após uma correção para confirmar que o defeito não voltou. Uma invariante testável pode afirmar que não existe publicação sem evento de assinatura associado à mesma versão. Scanner automatizado ajuda a encontrar padrões técnicos, mas pode não compreender o significado da operação. Revisão de quem conhece o processo complementa os testes.\n\n### Exemplo passo a passo: chamada repetida\n\nJoão confirma uma publicação, mas a conexão cai antes que a tela receba a resposta. O navegador reenvia a solicitação. Primeiro, o servidor verifica identidade, papel, atribuição, estado e versão. Depois consulta se o identificador da operação já foi processado. Se foi, devolve o resultado anterior sem publicar novamente; se é operação nova e válida, executa a transição e registra o evento.\n\nA equipe testa com dados controlados: envia a mesma chamada duas vezes e confirma um único efeito. Em seguida testa identificador diferente, objeto cancelado e versão alterada para garantir que a proteção não esconda uma nova operação nem aceite conteúdo obsoleto. A avaliação usa ambiente autorizado, sem repetir atos reais.\n\n### Monitorar e responder\n\n**Rate limit** (limitação de frequência) restringe quantas solicitações podem ser feitas num intervalo ou contexto. Reduz abuso automatizado e protege capacidade, mas não decide se uma aprovação é válida. **MFA** (autenticação multifator) combina fatores distintos para confirmar o acesso à conta; protege identidade, mas não verifica a ordem do fluxo. Os controles são complementares.\n\nMonitore volume e sequência por conta, função, caso e operação. Os registros devem correlacionar tentativas inválidas, repetição, mudança após revisão e resultado. **SIEM** é sistema de gerenciamento de informações e eventos de segurança que centraliza e correlaciona registros para apoiar detecção e investigação. Alertas precisam de análise; não bloqueiam automaticamente uma transição.\n\nDiante de indício, preserve registros e versões, limite proporcionalmente a operação vulnerável, avalie efeitos já produzidos, corrija a regra no servidor e repita os testes, inclusive do caminho normal. Contenção interrompe continuidade; investigação estabelece o ocorrido; correção remove a causa; reteste confirma o comportamento. Não apague evidências nem retome o fluxo sem verificar a regra corrigida.\n\n| Medida | Objetivo | Limite |\n| --- | --- | --- |\n| Autorização no servidor | Impedir operação sem contexto permitido | Precisa cobrir todos os caminhos |\n| Rate limit | Reduzir volume e automação | Não valida estado nem papel |\n| Auditoria e alertas | Detectar e reconstruir eventos | Não bloqueiam necessariamente a ação |\n| Teste de regressão | Evitar retorno do defeito | Cobre as regras incluídas nos testes |\n\n**Pegadinha:** esconder botão, exigir MFA ou limitar chamadas não torna válida uma transição proibida. São controles úteis para riscos diferentes. Teste automatizado também não é garantia total: os casos precisam refletir as regras reais do processo.\n\n**Resumo para a prova**\n\n- Valide no servidor estado, papel, atribuição, versão e ordem.\n- Proteja operações críticas contra concorrência e repetição sem duplicar efeitos.\n- Teste caminhos normais e adversariais, inclusive chamadas antigas e simultâneas.\n- Rate limit, MFA, auditoria e testes são complementares e não substituem validação de negócio.\n- Resposta combina preservação de evidências, contenção, correção e reteste."
+    }
+  ],
+  "summary": "Vulnerabilidade de lógica de negócio ocorre quando uma funcionalidade legítima permite resultado incompatível com as regras do processo, mesmo com usuário autenticado e dados sintaticamente válidos. Avalie ativos, cenários, probabilidade, impacto, exposição, detecção e controles existentes. Em fluxo de aprovação judicial, modele estados e transições do recebimento à revisão, aprovação, assinatura e publicação, sem confundir controle técnico com competência jurídica. O servidor verifica identidade, papel, atribuição ao objeto, estado atual e versão do conteúdo; a interface não é barreira suficiente. Segregação de funções e privilégio mínimo reduzem abuso; trilhas protegidas registram ator, ação, objeto, versão, tempo e resultado. Teste pulo, repetição e reordenação de etapas, alterações após revisão, chamadas concorrentes, solicitações antigas e automação. Valide regras no backend, faça operações sensíveis atomicamente, evite efeitos duplicados, limite abuso e monitore anomalias. Scanners não conhecem sozinhos as regras do negócio; testes contextuais e revisão humana são necessários. Resposta inclui conter, preservar evidência, avaliar consequências, corrigir e testar novamente.",
+  "flashcards": [
+    {
+      "front": "O que caracteriza uma falha de lógica de negócio?",
+      "back": "Uma funcionalidade válida permite resultado contrário à regra do processo, por exemplo pular uma etapa obrigatória ou reaproveitar uma aprovação em conteúdo diferente."
+    },
+    {
+      "front": "Por que um scanner pode não encontrar abuso de workflow?",
+      "back": "Ele pode identificar padrões técnicos, mas normalmente não conhece a sequência e os resultados legítimos específicos daquele negócio."
+    },
+    {
+      "front": "Onde devem ser verificadas as transições de um fluxo?",
+      "back": "No servidor, em cada operação, considerando o estado atual e as regras aplicáveis ao objeto."
+    },
+    {
+      "front": "Quais dados contextualizam uma decisão de aprovação?",
+      "back": "Identidade, papel, atribuição ao caso, estado corrente e versão do conteúdo analisado."
+    },
+    {
+      "front": "O que é uma invariante de workflow?",
+      "back": "Condição que deve permanecer verdadeira, como impedir publicação sem a etapa de aprovação configurada."
+    },
+    {
+      "front": "Como relacionar uma aprovação ao documento revisado?",
+      "back": "Registrar e conferir a versão ou hash do conteúdo; mudança posterior deve acionar a revisão prevista na política."
+    },
+    {
+      "front": "O que significa segregação de funções?",
+      "back": "Separar atividades incompatíveis entre papéis ou pessoas para reduzir erro e abuso de privilégio autorizado."
+    },
+    {
+      "front": "Segregação de funções significa que todo ato judicial exige duas pessoas?",
+      "back": "Não. É um controle configurado conforme risco e política; não estabelece por si só requisito jurídico universal."
+    },
+    {
+      "front": "Como o privilégio mínimo se aplica a um sistema judicial?",
+      "back": "Cada conta ou processo recebe somente as permissões necessárias para suas tarefas atribuídas."
+    },
+    {
+      "front": "O que deve ocorrer se a interface esconder o botão, mas a API receber a chamada?",
+      "back": "A API deve repetir autorização e validação de estado no servidor e recusar a operação não permitida."
+    },
+    {
+      "front": "O que é abuso de fluxo sensível?",
+      "back": "Uso excessivo ou indevido de uma sequência legítima que pode prejudicar objetivo, disponibilidade ou integridade do serviço."
+    },
+    {
+      "front": "O que distingue concorrência de repetição?",
+      "back": "Repetição reenvia a mesma ação; concorrência faz operações simultâneas disputarem o mesmo estado ou recurso."
+    },
+    {
+      "front": "Para que serve idempotência em uma aprovação?",
+      "back": "Evita que a repetição identificada da mesma solicitação produza novamente o efeito já registrado."
+    },
+    {
+      "front": "Como se evita que duas aprovações concorrentes consumam a mesma tarefa?",
+      "back": "Executar a verificação e a mudança de estado atomicamente e conferir a consistência do resultado final."
+    },
+    {
+      "front": "Que elementos ajudam a reconstruir uma aprovação?",
+      "back": "Ator, papel, objeto, versão, ação, horário, resultado e vínculo com a tarefa ou etapa anterior."
+    },
+    {
+      "front": "Qual é a função da trilha de auditoria?",
+      "back": "Permitir reconstruir ações e alterações e apoiar detecção e investigação, com proteção contra adulteração."
+    },
+    {
+      "front": "Rate limit resolve sozinho falha de autorização?",
+      "back": "Não. Limita frequência; a autorização e as regras de estado ainda precisam ser verificadas em cada operação."
+    },
+    {
+      "front": "Como tratar uma minuta alterada depois da revisão?",
+      "back": "A regra deve invalidar ou revisar a aprovação anterior conforme a política e vincular a nova aprovação ao conteúdo vigente."
+    },
+    {
+      "front": "O que deve compor a avaliação de risco?",
+      "back": "Cenário, ativo, vulnerabilidade, probabilidade, impacto, exposição, detecção e controles existentes ou residuais."
+    },
+    {
+      "front": "Qual o primeiro passo para testar lógica de negócio?",
+      "back": "Documentar o fluxo válido, seus estados, transições, atores autorizados e resultados esperados."
+    },
+    {
+      "front": "Dados de sistemas integrados são confiáveis por virem de outro sistema?",
+      "back": "Não automaticamente; devem passar por validação contextual como qualquer dado recebido de fora do componente."
+    },
+    {
+      "front": "Quais cenários de ordem devem ser testados?",
+      "back": "Pular etapa, repetir etapa, reordenar operações e tentar retomar uma solicitação cancelada ou antiga."
+    },
+    {
+      "front": "O que distingue risco inerente de risco residual?",
+      "back": "O inerente considera o cenário antes dos controles; o residual considera o que permanece após os controles existentes."
+    },
+    {
+      "front": "Como deve ser uma prova de conceito de abuso?",
+      "back": "Reproduzível e limitada a ambiente e escopo autorizados, registrando evidências sem expor dados sigilosos além do necessário."
+    },
+    {
+      "front": "Quais ações compõem resposta a uma falha de workflow?",
+      "back": "Conter de forma proporcional, preservar evidências, avaliar efeitos, corrigir a regra e retestar regressões."
+    }
+  ],
+  "tips": [
+    "Desenhe os estados e escreva ao lado de cada transição quem pode acioná-la e sob quais pré-condições.",
+    "Confira a regra no backend mesmo quando o frontend já bloqueia o botão.",
+    "Vincule aprovação à versão do conteúdo, não apenas ao identificador do processo.",
+    "Teste em separado pulo de etapa, repetição de chamada e concorrência: são mecanismos diferentes.",
+    "Priorize pelo dano possível e pela exposição do fluxo, documentando por que o risco recebeu aquela classificação.",
+    "Logs servem para reconstruir e detectar; controles preventivos ainda devem barrar transições inválidas."
+  ],
+  "traps": [
+    "Confundir autenticação válida com autorização para aprovar qualquer objeto; papel e atribuição também importam.",
+    "Supor que esconder controles na tela bloqueia chamadas diretas à API.",
+    "Tratar toda falha de lógica como erro de formato de entrada; o dado pode ser válido e o fluxo, inválido.",
+    "Achar que segregação de funções cria automaticamente requisito processual para toda aprovação judicial.",
+    "Usar rate limit como substituto de validação de estado ou de autorização.",
+    "Considerar scanner limpo como prova de que as regras do negócio estão protegidas."
+  ],
+  "activeRecall": [
+    {
+      "question": "Explique uma situação em que dados válidos ainda produzem vulnerabilidade de negócio.",
+      "answer": "A API pode aceitar um comando bem formado de aprovar sem verificar se a tarefa está pendente, se o usuário foi designado e se o conteúdo é a versão revisada."
+    },
+    {
+      "question": "Como você modelaria o núcleo de um fluxo de aprovação?",
+      "answer": "Listaria estados, transições permitidas, pré-condições, atores autorizados, efeitos e registros necessários para cada mudança."
+    },
+    {
+      "question": "Por que ligar a aprovação à versão do documento?",
+      "answer": "Sem essa relação, uma minuta pode mudar após revisão e a aprovação antiga parecer válida para conteúdo que o revisor não examinou."
+    },
+    {
+      "question": "Dê uma diferença entre segregação de funções e privilégio mínimo.",
+      "answer": "Segregação separa tarefas incompatíveis; privilégio mínimo reduz permissões de cada papel ao necessário para sua função."
+    },
+    {
+      "question": "Como duas requisições simultâneas podem romper uma regra de negócio?",
+      "answer": "Ambas podem ler a mesma tarefa pendente e aprová-la antes que qualquer uma grave a mudança, causando efeito duplicado ou estado inconsistente."
+    },
+    {
+      "question": "Como construir cenários de abuso sem inventar regra judicial?",
+      "answer": "Use as regras institucionais configuradas e teste bypass de etapas, atribuições, estados e versões, sem afirmar competência ou prazo processual não fornecido."
+    },
+    {
+      "question": "Quais fatores ajudam a priorizar o risco de uma transição inválida?",
+      "answer": "Impacto no ativo e nos usuários, facilidade e exposição, probabilidade, alcance, capacidade de detecção, reversibilidade e controles existentes."
+    },
+    {
+      "question": "O que fazer após encontrar alteração posterior à revisão?",
+      "answer": "Conter o fluxo conforme o risco, preservar registros e versões, identificar efeitos, corrigir a relação entre versão e aprovação e retestar o processo."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre autenticação, autorização e estado",
+      "summary": "Identificar a conta não prova que ela pode agir sobre aquele caso ou naquele momento. Verifique papel, atribuição, objeto, estado e pré-condições em cada transição."
+    },
+    {
+      "key": "e2",
+      "title": "Confiança excessiva na interface",
+      "summary": "Botões ocultos ou etapas desabilitadas não protegem endpoint chamado diretamente. Regras críticas devem ser aplicadas no servidor."
+    },
+    {
+      "key": "e3",
+      "title": "Aprovação desvinculada do conteúdo",
+      "summary": "Uma aprovação sem referência à versão revisada pode ser indevidamente reaproveitada após edição. Registre e valide a versão do objeto."
+    },
+    {
+      "key": "e4",
+      "title": "Falha de concorrência ou repetição",
+      "summary": "Chamadas simultâneas ou reenvios podem criar efeitos duplicados e estados impossíveis. Use atomicidade, idempotência e testes de corrida."
+    },
+    {
+      "key": "e5",
+      "title": "Risco avaliado sem contexto",
+      "summary": "A classificação depende do ativo, cenário, impacto, exposição, probabilidade e controles. Scanner ou volume isolado não define risco de negócio."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "O sistema judicial autentica corretamente o usuário e aceita campos em formato válido. Ainda assim, uma operação produz efeito proibido pela regra do fluxo. Isso pode caracterizar falha de lógica de negócio?",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A vulnerabilidade pode estar na regra de processo, mesmo quando identidade e sintaxe dos dados foram verificadas. Um exemplo é aceitar aprovação válida em formato, mas feita sobre tarefa ainda não revisada.",
+      "section": "1. O que é falha de lógica de negócio",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um scanner automatizado sem informação sobre estados e regras do processo consegue provar, por resultado limpo, que nenhuma falha de workflow existe.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A detecção depende do contexto do negócio e da sequência legítima. A automação identifica alguns padrões, mas precisa ser combinada com testes e revisão de regras do fluxo.",
+      "section": "1. O que é falha de lógica de negócio",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se a tela não oferece o botão de publicar para uma pessoa, o servidor pode aceitar uma chamada direta à API sem repetir a autorização, pois a interface já filtrou o acesso.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A interface é controlada pelo cliente e não constitui barreira suficiente. O backend deve autorizar cada chamada e conferir as condições da transição antes de alterar o estado.",
+      "section": "2. Modelagem do fluxo e controles de aprovação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um fluxo modelado como estados explícitos, uma transição deve considerar o estado corrente e suas pré-condições, além de verificar quem a solicita.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Autorização e validade temporal da operação são controles complementares: um ator permitido ainda pode não ter autorização para pular uma etapa ou agir sobre estado incompatível.",
+      "section": "2. Modelagem do fluxo e controles de aprovação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aprovação registrada para uma versão de minuta deve ser automaticamente válida para toda versão futura do mesmo processo, desde que o identificador do processo não mude.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O identificador do processo não prova que o conteúdo permaneceu igual. A aprovação deve estar vinculada à versão revisada, e mudança posterior precisa seguir a regra de nova análise definida institucionalmente.",
+      "section": "2. Modelagem do fluxo e controles de aprovação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Segregar preparação e aprovação pode reduzir a possibilidade de erro ou abuso, mas esse controle técnico, isoladamente, não cria uma exigência processual universal de dois aprovadores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A segregação é um controle organizacional e de acesso que deve refletir risco e política aplicável. Ela não permite inferir regra jurídica geral para toda decisão judicial.",
+      "section": "2. Modelagem do fluxo e controles de aprovação",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma trilha de auditoria é mais útil quando registra ator, ação, objeto, versão, horário e resultado, e quando seu acesso e sua integridade são protegidos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Esses elementos permitem reconstruir transições e relacioná-las ao conteúdo examinado. Proteger registros evita que a função auditada apague ou altere evidências sem controle.",
+      "section": "2. Modelagem do fluxo e controles de aprovação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em avaliação de risco, a gravidade da falha depende somente do número de requisições por minuto, independentemente do objeto e das consequências.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Volume pode indicar automação ou indisponibilidade, mas impacto depende do ativo, do resultado produzido, do alcance, da exposição e dos controles existentes.",
+      "section": "3. Avaliação de risco e cenários de abuso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma falha que altera o estado de aprovação pode afetar integridade mesmo quando não há extração de documentos ou dados pessoais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Integridade inclui manter conteúdo e estados corretos. Uma transição inválida pode produzir efeito institucional indevido sem que informação seja lida por terceiro.",
+      "section": "3. Avaliação de risco e cenários de abuso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma prova de conceito que demonstra bypass em sistema real pode ser executada sem autorização quando o pesquisador não altera dados permanentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Testes devem se limitar a ambiente e escopo autorizados. Mesmo sem alteração permanente, chamadas podem afetar disponibilidade, sigilo, registros ou usuários e gerar efeitos externos.",
+      "section": "3. Avaliação de risco e cenários de abuso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Testar solicitação antiga após cancelamento pode revelar se o servidor valida o estado atual ou aceita uma operação com contexto desatualizado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O replay de uma solicitação pode contornar cancelamento ou mudança de estado se o backend não conferir novamente as pré-condições no momento da execução.",
+      "section": "3. Avaliação de risco e cenários de abuso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O risco residual descreve o cenário antes da aplicação de qualquer controle, enquanto o risco inerente considera o que permanece após as medidas existentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os conceitos estão invertidos: inerente é avaliado antes dos controles; residual representa o risco que resta considerando os controles implementados.",
+      "section": "3. Avaliação de risco e cenários de abuso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dados recebidos de uma integração interna podem ser aceitos sem validação contextual porque já passaram por autenticação entre sistemas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Autenticar a origem não garante que o dado esteja correto, atual ou autorizado naquele contexto. Hand-offs entre sistemas também precisam validar valores e relações.",
+      "section": "4. Prevenção, testes e resposta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se duas aprovações concorrentes disputam a mesma tarefa pendente, verificar o estado e atualizá-lo como uma operação atômica ajuda a impedir efeitos duplicados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A verificação separada da gravação pode permitir que duas solicitações leiam o mesmo estado. Atomicidade, controle de versão ou mecanismo equivalente preserva a invariante sob corrida.",
+      "section": "4. Prevenção, testes e resposta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Aplicar rate limit a uma rota de aprovação elimina a necessidade de validar papel, atribuição e estado, desde que o limite seja baixo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Limite de frequência reduz abuso volumétrico, mas uma única chamada não autorizada ainda pode violar o fluxo. Controle de acesso e regras de negócio continuam necessários.",
+      "section": "4. Prevenção, testes e resposta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após encontrar uma falha, a equipe deve preservar registros e versões relevantes, avaliar efeitos já produzidos, corrigir a regra e testar novamente antes de reabrir o fluxo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Essa resposta permite conter o risco sem perder evidências, entender o alcance e verificar se a correção resolveu o cenário e não rompeu regras adjacentes.",
+      "section": "4. Prevenção, testes e resposta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa está pendente para o gabinete X, mas uma chamada autenticada por usuário do gabinete Y consegue aprová-la. Qual controle faltou no cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conferir sessão válida e grupo geral, sem checar o vínculo com aquele caso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o tempo de expiração da sessão autenticada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Exigir que a interface mostre o botão após novo login.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Registrar a chamada somente depois da publicação final.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Validar papel e atribuição do usuário para aquele objeto.",
+          "correct": true
+        }
+      ],
+      "explanation": "A sessão prova a identidade autenticada, mas não demonstra vínculo com a tarefa. A autorização deve verificar o papel e a atribuição do usuário para o objeto específico antes da transição.",
+      "section": "2. Modelagem do fluxo e controles de aprovação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição distingue melhor uma vulnerabilidade de lógica de negócio de uma falha de sintaxe de entrada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A requisição contém um caractere que quebra o parser do servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O navegador não consegue enviar um campo obrigatório vazio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma resposta contém cabeçalho HTTP em formato inesperado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Um arquivo enviado excede o limite de tamanho configurado.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Um valor permitido é usado em etapa incompatível com o fluxo.",
+          "correct": true
+        }
+      ],
+      "explanation": "A falha de negócio pode ocorrer com valor sintaticamente correto quando a operação viola a sequência ou condição funcional. Os demais exemplos descrevem validação técnica, parser, tamanho ou formato de protocolo.",
+      "section": "1. O que é falha de lógica de negócio",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O backend recebe uma chamada para aprovar minuta. Qual conjunto de verificações melhor representa uma autorização contextual?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Conferir usuário, papel, atribuição, estado e versão analisada.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Conferir usuário e validade do certificado TLS do servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Conferir formato do identificador e tamanho do comentário, deixando o vínculo com o processo para depois.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conferir origem da rede e presença de cookie no navegador.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Conferir se a tela exibiu o botão antes do envio.",
+          "correct": false
+        }
+      ],
+      "explanation": "A decisão precisa combinar identidade e papel com o objeto e o estado. A versão analisada protege contra aprovação de conteúdo diferente. TLS, sintaxe, rede e interface não substituem essas verificações de domínio.",
+      "section": "2. Modelagem do fluxo e controles de aprovação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após a revisão, alguém altera o texto da minuta sem criar nova versão e a aprovação anterior permanece válida. Qual medida corrige a lacuna central?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Guardar apenas o nome de quem abriu a tela, sem reter versão nem conteúdo consultado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Bloquear toda edição de qualquer documento após sua criação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aumentar a frequência de cópias integrais do banco.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Vincular aprovação à versão revisada e exigir reanálise quando couber.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Permitir ao usuário restaurar o status por parâmetro enviado.",
+          "correct": false
+        }
+      ],
+      "explanation": "A lacuna é a ausência de vínculo entre decisão de aprovação e conteúdo examinado. Versionar o objeto e invalidar ou reavaliar a aprovação conforme a política evita reaproveitamento sobre texto alterado.",
+      "section": "2. Modelagem do fluxo e controles de aprovação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer reduzir o risco de uma mesma conta preparar e aprovar a própria minuta. Qual desenho de controle atende melhor ao objetivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desativar a trilha de auditoria para evitar conflitos de registro.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar uma senha longa compartilhada entre os dois papéis.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Liberar todos os usuários e revisar ações só por amostragem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Permitir aprovação se o navegador ocultar o campo de autoria.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Aplicar segregação de funções e registrar exceções justificadas.",
+          "correct": true
+        }
+      ],
+      "explanation": "Separar tarefas reduz abuso de privilégio e erro individual, e registrar exceções permite prestação de contas. A configuração deve refletir política e risco; compartilhamento de credenciais ou ocultação visual não cria segregação efetiva.",
+      "section": "2. Modelagem do fluxo e controles de aprovação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao priorizar risco de uma falha de lógica, qual abordagem oferece justificativa mais completa para a decisão?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ordenar por quantidade de linhas de código da função afetada.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar somente a severidade sugerida por scanner genérico, sem analisar o processo.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Classificar qualquer ocorrência em endpoint como risco máximo, sem considerar consequência.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Priorizar pela data em que o recurso foi desenvolvido.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Considerar cenário, impacto, exposição, probabilidade e controles.",
+          "correct": true
+        }
+      ],
+      "explanation": "A avaliação deve ligar a falha a um cenário concreto e às consequências prováveis, considerando alcance e barreiras existentes. Métricas isoladas não explicam o risco de negócio nem o risco residual.",
+      "section": "3. Avaliação de risco e cenários de abuso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um robô reserva repetidamente horários de atendimento e impede o acesso de usuários legítimos. Como classificar melhor o problema?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Excesso de comentários em campo sem validação HTML.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Quebra de confidencialidade por leitura de dados alheios.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Acesso indevido a uma função administrativa interna.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Abuso automatizado de fluxo sensível com impacto de disponibilidade.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Falha de serialização causada por resposta malformada.",
+          "correct": false
+        }
+      ],
+      "explanation": "A funcionalidade legítima de reserva é usada em excesso para bloquear outros usuários. O caso é abuso de fluxo sensível e afeta a disponibilidade do serviço, exigindo controles da função e monitoramento.",
+      "section": "1. O que é falha de lógica de negócio",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um avaliador encontra chamada de API que permite saltar de rascunho diretamente para publicado. Qual é a primeira análise técnica mais útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Confirmar estados permitidos, pré-condições e autorização no servidor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Trocar o logotipo para tornar a tela mais reconhecível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Verificar apenas se a resposta usa JSON válido.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aumentar o tamanho máximo do campo de observação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Alterar o navegador usado pelos usuários internos.",
+          "correct": false
+        }
+      ],
+      "explanation": "O problema aparente é a transição fora de ordem. É preciso confrontar o comportamento com o fluxo definido e verificar no servidor as pré-condições e o papel do ator antes da mudança.",
+      "section": "2. Modelagem do fluxo e controles de aprovação",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um identificador de idempotência é adequado principalmente para enfrentar qual risco em uma operação de aprovação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Acesso de pessoa não designada a documentos de outro caso.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Alteração da política de papéis por administrador interno.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Efeito duplicado quando a mesma solicitação é reenviada.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Conteúdo malicioso inserido em campo de texto livre.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Falha de conexão criptográfica entre cliente e servidor.",
+          "correct": false
+        }
+      ],
+      "explanation": "A idempotência associa reenvios da mesma operação a um efeito já processado, reduzindo duplicidade por retry ou repetição. Ela não substitui autorização, validação de conteúdo ou proteção do transporte.",
+      "section": "4. Prevenção, testes e resposta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como testar se uma regra de negócio que impede aprovação própria realmente permanece aplicada após uma mudança de software?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Revisar o texto de ajuda e confirmar que menciona a restrição.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Fazer teste que tenta a aprovação própria e espera rejeição.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Verificar somente se o código compila sem avisos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Executar scanner de portas no servidor de aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Comparar a cor do botão entre homologação e produção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Um teste de regra deve reproduzir diretamente a violação pretendida e verificar que o servidor a rejeita. Compilação, interface e scanner de rede não demonstram que o invariante do processo está sendo aplicado.",
+      "section": "4. Prevenção, testes e resposta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que melhor explica a diferença entre segregação de funções e princípio do menor privilégio em um sistema de aprovações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Segregação separa tarefas; menor privilégio limita permissões necessárias.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Segregação cifra dados; menor privilégio gera cópias de segurança.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Segregação valida formato; menor privilégio define estados do objeto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Segregação registra eventos; menor privilégio elimina autenticação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Segregação reduz latência; menor privilégio bloqueia falhas de rede.",
+          "correct": false
+        }
+      ],
+      "explanation": "A segregação distribui atividades incompatíveis entre papéis ou pessoas. Menor privilégio reduz o conjunto de permissões de cada identidade ao necessário; ambos limitam abuso, mas atuam de formas distintas.",
+      "section": "2. Modelagem do fluxo e controles de aprovação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma integração recebe um status de aprovação antigo e o serviço o aplica ao processo atual. Qual controle reduz melhor esse risco?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aceitar status interno sem verificar sua data ou relação com a tarefa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Confiar no nome da integração como prova de atualização.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Validar origem, contexto, versão e estado corrente antes de aplicar.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Remover a trilha para evitar conflito entre sistemas integrados.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir que o cliente escolha o status final em cada envio.",
+          "correct": false
+        }
+      ],
+      "explanation": "A autenticação do sistema remetente não garante atualidade nem adequação do dado ao objeto e estado corrente. Validar contexto e versão impede que informação obsoleta reative transição já superada.",
+      "section": "4. Prevenção, testes e resposta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma avaliação, qual cenário representa mais diretamente uma race condition em aprovação judicial?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um usuário troca a senha depois de receber alerta de segurança.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma tela não carrega por falha temporária de conexão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um campo rejeita texto maior que o limite documentado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Dois pedidos simultâneos aprovam a mesma tarefa pendente.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um relatório exportado usa coluna em ordem diferente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Na corrida, solicitações intercaladas observam o mesmo estado antes de qualquer gravação e ambas podem concluir uma operação que deveria ocorrer uma única vez. Controle atômico e teste concorrente verificam a invariante.",
+      "section": "3. Avaliação de risco e cenários de abuso",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que a equipe deve preservar versão do conteúdo e eventos após encontrar uma aprovação possivelmente indevida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Para substituir a investigação por uma cópia de segurança integral.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Para reconstruir o que foi aprovado e avaliar efeitos ocorridos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Para permitir que o usuário apague rastros sem abrir chamado.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Para manter a aprovação válida mesmo após corrigir a falha.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Para evitar que o fluxo seja submetido a novos testes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Eventos e versões permitem correlacionar ação, ator, momento e objeto, delimitando alcance e efeito. Preservar evidência apoia correção e auditoria; não torna uma operação indevida válida nem substitui resposta técnica.",
+      "section": "4. Prevenção, testes e resposta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um endpoint de publicação está acessível a uma conta de serviço usada por vários componentes. Qual risco aumenta com esse desenho?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A conta pode ter permissões além das tarefas de cada componente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O estado corrente deixa de poder ser armazenado em banco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Toda solicitação passa a ser necessariamente não autenticada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A trilha registra automaticamente o conteúdo jurídico correto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A assinatura do documento deixa de produzir qualquer registro.",
+          "correct": false
+        }
+      ],
+      "explanation": "Credencial compartilhada entre componentes amplia o alcance de falha ou comprometimento e dificulta atribuir cada ato. Contas e permissões específicas por função apoiam menor privilégio e responsabilização.",
+      "section": "2. Modelagem do fluxo e controles de aprovação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A equipe quer mitigar automação que consome todas as vagas de atendimento sem proibir o uso legítimo. Qual combinação é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover autenticação e aceitar qualquer quantidade de reservas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Confiar apenas em bloqueio de uma faixa fixa de endereços.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Desabilitar logs para reduzir custo de armazenamento.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Aplicar limite contextual, detecção de abuso e monitoramento.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Exigir aprovação judicial individual para toda reserva comum.",
+          "correct": false
+        }
+      ],
+      "explanation": "Controles no nível da funcionalidade, limites e monitoramento ajudam a reduzir automação abusiva preservando o fluxo normal. Um bloqueio único pode ser contornado e controles desproporcionais podem impedir usuários legítimos.",
+      "section": "4. Prevenção, testes e resposta",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual estratégia de teste cobre melhor a hipótese de que o endpoint aceita uma etapa fora de ordem?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Tentar etapa fora de ordem no endpoint.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Testar apenas o carregamento visual da página inicial.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Verificar a compactação do arquivo de resposta da API.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Medir o tempo médio de login em horário de pico.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Comparar o nome dos campos com a documentação externa.",
+          "correct": false
+        }
+      ],
+      "explanation": "O teste precisa tentar a transição inválida na interface ou diretamente no endpoint e observar se o servidor a rejeita. Um teste visual ou de desempenho não examina a regra de ordenação.",
+      "section": "4. Prevenção, testes e resposta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que evidência distingue melhor a aprovação de uma tarefa da simples abertura da tela correspondente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um registro de acesso sem identificação do objeto consultado.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Um contador geral de sessões iniciadas no mesmo dia.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Evento de aprovação ligado ao ator, objeto, versão e resultado.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Uma captura de tela da página inicial do sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Uma anotação manual sem horário ou vínculo verificável.",
+          "correct": false
+        }
+      ],
+      "explanation": "Evento contextual permite provar qual ação ocorreu, sobre qual conteúdo e com que resultado. Log de mera visualização ou anotação sem correlação não demonstra aprovação efetiva nem sua versão.",
+      "section": "2. Modelagem do fluxo e controles de aprovação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma tarefa cancelada volta a aparecer como pendente após reenvio de uma mensagem antiga. Qual regra de negócio deve ser reforçada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aumentar o limite de caracteres da justificativa de cancelamento.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Validar estado e versão atual antes de aceitar o reenvio.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Ocultar o botão cancelar para todos os usuários internos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter toda mensagem antiga em evento de auditoria final.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Permitir que o remetente selecione qualquer estado no corpo.",
+          "correct": false
+        }
+      ],
+      "explanation": "A mensagem antiga não deve restaurar estado sem conferir a versão e o estado atual. Pré-condições e identificadores de operação impedem que replay ultrapasse cancelamento ou transição posterior.",
+      "section": "3. Avaliação de risco e cenários de abuso",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe considera suficiente validar que o status enviado pelo navegador pertence a uma lista conhecida. Que proteção ainda falta para evitar publicação indevida?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificar apenas se o status está codificado em UTF-8 válido.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Permitir toda opção válida da lista a qualquer usuário.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Armazenar a lista em cache no navegador por mais tempo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Substituir estados textuais por abreviações numéricas opacas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Validar transição, papel, atribuição e pré-condições no servidor.",
+          "correct": true
+        }
+      ],
+      "explanation": "Uma lista permitida valida apenas o domínio sintático do valor. A regra contextual também precisa avaliar se aquele ator pode executar a transição a partir do estado atual e se as etapas requeridas foram cumpridas.",
+      "section": "4. Prevenção, testes e resposta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário representa melhor impacto à disponibilidade decorrente de uma função legítima sem controle adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Um usuário lê documento de processo que não lhe foi atribuído.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Uma conta altera a versão de minuta após revisão registrada.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Um perfil executa ação administrativa fora de sua atribuição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Robô ocupa tarefas disponíveis e impede atendimento regular.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Um evento de auditoria usa identificador sem relação com o caso.",
+          "correct": false
+        }
+      ],
+      "explanation": "A ocupação automatizada de tarefas consome capacidade e impede uso legítimo, afetando disponibilidade. Os demais cenários apontam sobretudo confidencialidade, integridade, autorização ou rastreabilidade.",
+      "section": "3. Avaliação de risco e cenários de abuso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Após corrigir uma falha de transição, qual verificação reduz o risco de reintroduzi-la em uma versão futura?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Remover o histórico de defeitos para limpar o painel de equipe.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Guardar a correção somente em anotação de reunião.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Manter teste automatizado do invariante violado e do fluxo normal.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desativar validação para que a implantação não seja bloqueada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Executar o teste uma vez apenas no navegador do desenvolvedor.",
+          "correct": false
+        }
+      ],
+      "explanation": "Teste de regressão documenta a regra e falha quando mudança posterior permitir novamente a transição proibida. Cobrir também o caminho legítimo reduz o risco de uma correção bloquear o fluxo correto.",
+      "section": "4. Prevenção, testes e resposta",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O sistema mostra uma sequência correta na interface, mas os endpoints aceitam qualquer ordem. Qual conclusão é mais adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O fluxo está protegido porque a maioria usa os botões visíveis.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A regra depende do cliente e deve ser aplicada também no servidor.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A autorização é desnecessária quando a interface tem etapas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O problema se limita à aparência e não afeta o processo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A solução é registrar as chamadas depois que forem aceitas.",
+          "correct": false
+        }
+      ],
+      "explanation": "A sequência visual não é garantia de ordem no backend. Cada endpoint precisa validar o estado e rejeitar transições fora do fluxo, inclusive quando chamado sem passar pela tela normal.",
+      "section": "1. O que é falha de lógica de negócio",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma função privilegiada é concedida a todo usuário autenticado porque raramente é usada. Qual princípio orienta a correção mais direta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Aplicar menor privilégio e autorizar somente papéis necessários.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Aumentar o intervalo de rotação dos logs do servidor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permitir acesso geral e bloquear somente por endereço IP.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Remover autenticação para reduzir tentativas de login.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Atribuir a mesma senha forte a todas as contas internas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Menor privilégio reduz a autorização ao necessário para cada função. Raridade de uso não justifica acesso amplo, e medidas de rede ou log não substituem controle por identidade e papel.",
+      "section": "2. Modelagem do fluxo e controles de aprovação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uma avaliação, há evidência de tentativa de pular revisão, mas nenhuma aprovação foi concluída. Como registrar o achado de forma útil?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Declarar dano consumado e dispensar análise de registros restantes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Excluir a chamada porque a transição foi rejeitada pelo sistema.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Registrar cenário, evidência, barreira acionada e risco residual.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Classificar como risco nulo, pois a tentativa não teve sucesso.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Publicar dados do caso em relatório aberto para ilustrar o teste.",
+          "correct": false
+        }
+      ],
+      "explanation": "Tentativa rejeitada é evidência da exposição e também de controle efetivo, mas ainda deve ser contextualizada. Documentar cenário, resultado, impacto potencial, controle e risco residual permite decisão proporcional sem alegar dano não observado.",
+      "section": "3. Avaliação de risco e cenários de abuso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que combinação é mais importante para investigar se uma mudança na minuta ocorreu depois da aprovação?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cor do tema, navegador usado e tamanho da janela de revisão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Total de usuários conectados e espaço livre em disco.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "IP público do tribunal e versão do sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Versões do documento ligadas a eventos e atores registrados.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Quantidade de campos obrigatórios na tela de autenticação.",
+          "correct": false
+        }
+      ],
+      "explanation": "Comparar versões e correlacioná-las a eventos de aprovação e edição permite identificar o conteúdo examinado e quando houve mudança. Dados periféricos não estabelecem essa cadeia de integridade.",
+      "section": "2. Modelagem do fluxo e controles de aprovação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual ação é adequada para avaliar tentativas de repetição sem gerar múltiplos efeitos em ambiente produtivo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Reenviar a operação em autos reais até observar duplicidade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar ambiente autorizado e verificar idempotência com dados de teste.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Desativar controles de duplicidade antes do expediente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Solicitar a usuários finais que repitam aprovações reais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Remover registros de auditoria para evitar ruído nos resultados.",
+          "correct": false
+        }
+      ],
+      "explanation": "Teste autorizado com dados controlados permite repetir chamadas e confirmar comportamento idempotente sem afetar atos reais. Produção exige escopo e salvaguardas específicas; apagar auditoria prejudica evidência.",
+      "section": "4. Prevenção, testes e resposta",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual alternativa descreve melhor o papel do monitoramento em uma estratégia contra abuso automatizado de função sensível?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substituir autorização por análise posterior de todos os eventos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Impedir qualquer uso legítimo da função durante o expediente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Detectar padrões anormais e apoiar resposta junto a controles preventivos.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Provar automaticamente que cada decisão foi juridicamente correta.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Tornar desnecessário validar dados recebidos por integrações.",
+          "correct": false
+        }
+      ],
+      "explanation": "Monitoramento identifica padrões e fornece contexto para investigação, mas não substitui autorização ou validação preventiva. Também não julga mérito jurídico das decisões registradas.",
+      "section": "4. Prevenção, testes e resposta",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório de risco informa probabilidade baixa, impacto alto e controle de detecção limitado. Qual leitura é mais responsável?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Descartar o cenário, pois probabilidade baixa sempre significa risco baixo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Reavaliar prioridade com critérios explícitos e consequência potencial.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Classificar como resolvido porque há um controle qualquer.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Ignorar impacto e usar só frequência histórica observada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Considerar a falha impossível sem ocorrência anterior conhecida.",
+          "correct": false
+        }
+      ],
+      "explanation": "Impacto alto e detecção limitada podem justificar prioridade mesmo com probabilidade estimada baixa. A equipe deve explicitar critérios, incerteza e controles para decidir o tratamento do risco residual.",
+      "section": "3. Avaliação de risco e cenários de abuso",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "API6:2023 Unrestricted Access to Sensitive Business Flows",
+      "publisher": "OWASP API Security Project",
+      "reference": "Fluxos sensíveis, cenários de abuso automatizado e camadas de mitigação",
+      "url": "https://api-security.owasp.org/editions/2023/en/0xa6-unrestricted-access-to-sensitive-business-flows/",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Business Logic Security Cheat Sheet",
+      "publisher": "OWASP Cheat Sheet Series",
+      "reference": "Regras de negócio, estado, concorrência, ordenação e testes de invariantes",
+      "url": "https://cheatsheetseries.owasp.org/cheatsheets/Business_Logic_Security_Cheat_Sheet.html",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Web Security Testing Guide: Business Logic Testing",
+      "publisher": "OWASP Foundation",
+      "reference": "Testes de validação, fluxo, repetição, tempo e uso de funções",
+      "url": "https://wstg.owasp.org/stable/4-Web_Application_Security_Testing/10-Business_Logic_Testing/",
+      "accessedAt": "2026-11-07"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "SP 800-53 Revision 5 Controls",
+      "publisher": "NIST Computer Security Resource Center",
+      "reference": "Controles de separação de deveres, privilégio mínimo e auditoria; consultar publicação normativa vigente",
+      "url": "https://csrc.nist.gov/Projects/risk-management/sp800-53-controls/downloads",
+      "accessedAt": "2026-11-07"
+    }
+  ]
+}

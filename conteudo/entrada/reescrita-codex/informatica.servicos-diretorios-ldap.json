@@ -1,0 +1,1888 @@
+{
+  "id": "informatica.servicos-diretorios-ldap",
+  "subject": "Informática",
+  "title": "Serviços de diretórios e LDAP",
+  "version": 2,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Conceitos de serviços de diretórios (Lightweight Directory Access Protocol – LDAP)",
+    "Serviços de diretórios LDAP",
+    "Lightweight Directory Access Protocol",
+    "Protocolo LDAP para acesso a diretórios",
+    "Arquitetura cliente servidor LDAP",
+    "Modelo de dados de diretório LDAP",
+    "Árvore de informações DIT",
+    "Entradas e atributos LDAP",
+    "Nomes DN e RDN em diretórios",
+    "Esquema e classes de objetos LDAP"
+  ],
+  "scope": {
+    "covers": "Conceitos de serviços de diretórios; protocolo LDAP, arquitetura cliente-servidor, DIT, entradas, atributos, DN/RDN, objectClass e esquema, operações de busca e alteração, filtros, Bind, autorização e segurança do transporte.",
+    "excludes": "Administração específica de OpenLDAP ou Active Directory, comandos de produtos, federação de identidade e configuração de versões particulares."
+  },
+  "theoryTitle": "Serviços de diretórios: organização e acesso com LDAP",
+  "chapters": [
+    {
+      "title": "1. Diretórios e protocolo LDAP",
+      "markdown": "### O problema que este assunto resolve\n\nImagine uma prefeitura com dois mil servidores. O sistema de ponto precisa saber quem é cada pessoa; o e-mail precisa do endereço dela; a impressora precisa saber de que setor ela é; o sistema de protocolo precisa saber quem é chefe de quem. Se cada sistema mantiver a sua própria lista, a mesma pessoa aparece com quatro cadastros diferentes: num ela já mudou de setor, no outro não; num o sobrenome está certo, no outro está com erro. Quando alguém é exonerado, é preciso lembrar de apagar o nome em todos os lugares.\n\nO **serviço de diretório** resolve esse problema: ele é um \"catálogo central\" que guarda descrições de objetos da organização (pessoas, grupos, computadores, impressoras, serviços) num formato organizado e fácil de consultar por nome e por características. Os vários sistemas passam a consultar o mesmo catálogo, em vez de cada um manter uma cópia própria e divergente.\n\n> **Siglas e termos deste capítulo**\n> - **Serviço de diretório**: sistema que guarda e disponibiliza informações descritivas sobre objetos da organização, otimizado para consultas.\n> - **LDAP**: Lightweight Directory Access Protocol, ou \"protocolo leve de acesso a diretórios\". É a \"língua\" usada para conversar com o diretório.\n> - **Protocolo**: conjunto de regras de comunicação (formato das mensagens, ordem das operações, respostas possíveis).\n> - **Cliente**: aplicação que envia pedidos ao diretório (um sistema de login, um programa de e-mail, uma ferramenta administrativa).\n> - **Servidor de diretório**: programa que mantém as entradas, recebe os pedidos e devolve as respostas.\n> - **X.500**: família de padrões internacionais de diretório, mais antiga e pesada, da qual o LDAP herdou conceitos.\n> - **RFC**: Request for Comments, documento que publica os padrões técnicos da internet.\n\n### LDAP é protocolo, não banco de dados\n\nO erro mais comum é tratar LDAP como se fosse um produto ou um tipo de banco de dados. LDAP é um **protocolo de acesso**: ele define quais operações existem (pesquisar, incluir, alterar, excluir, entre outras), como as mensagens são montadas e como o servidor responde. O diretório em si é o serviço e o conjunto de informações. Vários produtos diferentes implementam o protocolo; o Active Directory da Microsoft e o OpenLDAP são exemplos conhecidos de serviços que podem ser consultados via LDAP.\n\nO nome \"leve\" (lightweight) vem da comparação com o protocolo de acesso original do X.500, que era mais complexo. O LDAP foi pensado para rodar sobre a pilha TCP/IP comum da internet. A versão em uso atualmente é a **LDAPv3**, especificada por um conjunto de RFCs modernas.\n\n### Como funciona o modelo cliente-servidor\n\nA conversa segue o modelo **cliente-servidor**:\n\n1. O cliente abre uma conexão com o servidor de diretório.\n2. O cliente envia uma operação (por exemplo, \"procure a pessoa cujo identificador é ana\").\n3. O servidor verifica as regras aplicáveis (quem está pedindo, o que essa identidade pode ver, se o pedido é válido).\n4. O servidor devolve as entradas encontradas e um **código de resultado**, que informa se a operação deu certo ou por que falhou.\n\nRepare no passo 3: o servidor não entrega tudo a quem pede. O que volta depende das informações existentes **e** das políticas de acesso configuradas.\n\n### Exemplo passo a passo\n\nCarla é analista de TI de um tribunal. Ela precisa que o sistema de chamados mostre o setor e o telefone de quem abre um chamado.\n\n1. Em vez de criar uma tabela própria de usuários, Carla configura o sistema de chamados como cliente LDAP.\n2. Quando João abre um chamado, o sistema pergunta ao diretório: \"quais são o setor e o telefone de joao?\".\n3. O servidor encontra a entrada de João e devolve os atributos pedidos.\n4. No mês seguinte, João muda de setor. O RH atualiza só o diretório, e o sistema de chamados já passa a mostrar o setor novo, sem nenhum cadastro duplicado.\n\n### Para que o diretório serve e para que não serve\n\nDiretórios são otimizados para informações **compartilhadas, lidas com muita frequência e alteradas com relativa pouca frequência**, consultadas por atributos (nome, e-mail, setor). Isso não faz deles substitutos de um banco de dados transacional, que lida com muitas gravações simultâneas e transações complexas, como um sistema de vendas ou de folha de pagamento.\n\n| Característica | Serviço de diretório | Banco de dados transacional |\n| --- | --- | --- |\n| Uso típico | Muitas leituras, poucas alterações | Muitas leituras e gravações |\n| Organização | Árvore hierárquica de entradas | Em geral, tabelas relacionadas |\n| Exemplo | Cadastro de usuários e grupos | Pedidos, pagamentos, estoque |\n| Acesso | Protocolo LDAP | Linguagem de consulta, como SQL |\n\nCentralizar os dados também não significa centralizar todas as decisões: cada aplicação que consulta o diretório ainda pode aplicar suas próprias regras de autorização.\n\n| Elemento | Papel |\n| --- | --- |\n| Diretório | Organiza descrições de objetos consultáveis |\n| LDAP | Define operações e mensagens de acesso |\n| Cliente | Solicita busca ou alteração |\n| Servidor | Processa a operação, aplica regras e responde |\n\n**Pegadinha:** a banca escreve \"o LDAP é um banco de dados relacional usado para armazenar usuários\" ou \"LDAP é um produto da Microsoft\". Errado nos dois casos: LDAP é protocolo de acesso a diretório; o diretório é o serviço; e o Active Directory é um produto que pode ser acessado via LDAP, não o próprio LDAP.\n\n### Como cai na prova\n\n- LDAP é protocolo de acesso; o diretório é o serviço e suas informações.\n- O cliente solicita e o servidor processa; não se presume acesso irrestrito.\n- Diretórios são úteis para consultas compartilhadas, não substitutos universais de bancos transacionais.\n\n**Resumo para a prova**\n- Diretório = catálogo central de objetos (pessoas, grupos, equipamentos), feito para muitas consultas.\n- LDAP = protocolo leve de acesso a diretórios, herdeiro conceitual do X.500; versão atual LDAPv3.\n- Modelo cliente-servidor: o cliente pede, o servidor aplica as políticas e responde com resultado e código.\n- Diretório não substitui banco transacional e não dispensa as regras de autorização de cada aplicação."
+    },
+    {
+      "title": "2. DIT, entradas e nomes",
+      "markdown": "### O problema que este assunto resolve\n\nUm diretório com milhares de objetos precisa de organização. Se tudo ficasse numa lista solta, seria difícil separar pessoas de impressoras, a unidade de Belo Horizonte da de Juiz de Fora, e também seria difícil garantir que cada objeto tenha um nome único. A solução do LDAP é organizar tudo numa **árvore hierárquica**, parecida com um organograma: no topo fica a organização; abaixo, as unidades; abaixo delas, as pessoas e os recursos. Cada objeto ganha um \"endereço completo\" que indica exatamente onde ele está nessa árvore.\n\n> **Siglas e termos deste capítulo**\n> - **DIT**: Directory Information Tree, a árvore de informações do diretório.\n> - **Entrada (entry)**: cada \"nó\" da árvore; representa um objeto e é formada por atributos.\n> - **Atributo**: característica da entrada, composta de um tipo (o nome do campo) e um ou mais valores.\n> - **DN**: Distinguished Name, o nome distinguido completo, que identifica a entrada de forma única em toda a árvore.\n> - **RDN**: Relative Distinguished Name, o nome relativo, que identifica a entrada apenas entre as \"irmãs\" sob o mesmo superior imediato.\n> - **AVA**: Attribute Value Assertion, a afirmação \"atributo = valor\" que compõe um RDN.\n> - **dc / ou / cn / uid**: abreviações comuns de atributos: domain component (componente de domínio), organizational unit (unidade organizacional), common name (nome comum) e user id (identificador do usuário).\n\n### A árvore (DIT) e as entradas\n\nA DIT é a estrutura hierárquica de todas as entradas. Cada entrada tem um **superior** (exceto as do topo) e pode ter **subordinadas**. Essa relação de superior e subordinado permite modelar domínios, unidades, pessoas, grupos ou equipamentos.\n\n```text\ndc=example,dc=com\n└── ou=People\n    └── uid=ana\n```\n\nCada entrada é um conjunto de atributos. Exemplos usuais: `cn` (nome comum, como \"Ana Souza\"), `sn` (sobrenome), `uid` (identificador, como \"ana\") e `mail` (correio eletrônico). Um atributo pode ter **vários valores** quando sua definição permite: Ana pode ter dois endereços de e-mail no atributo `mail`.\n\n### RDN e DN: nome local e nome completo\n\nPense num endereço postal. \"Apartamento 302\" só identifica o imóvel dentro do prédio; o endereço completo inclui prédio, rua, cidade e estado. No LDAP:\n\n- o **RDN** é o \"apartamento 302\": identifica a entrada entre as irmãs do mesmo nível;\n- o **DN** é o endereço completo: o RDN da entrada seguido dos RDNs de todos os superiores até o topo.\n\nEm `uid=ana,ou=People,dc=example,dc=com`:\n\n| Parte | O que é |\n| --- | --- |\n| `uid=ana` | RDN da entrada de Ana |\n| `ou=People` | RDN do superior imediato (a unidade) |\n| `dc=example,dc=com` | Componentes do domínio, no topo |\n| A sequência inteira | DN de Ana |\n\nA representação textual do DN vai **do mais específico para o mais geral**: começa na própria entrada e caminha rumo à raiz, separando os componentes por vírgulas. É o contrário de um caminho de pasta como `/com/example/People/ana`.\n\n### Exemplo passo a passo\n\nRafael administra o diretório de uma empresa e precisa cadastrar a nova estagiária, Ana, na unidade de pessoas.\n\n1. Ele escolhe o superior: a entrada `ou=People,dc=example,dc=com`.\n2. Ele define o RDN da nova entrada: `uid=ana`. Não pode haver outra irmã com o mesmo RDN sob `ou=People`.\n3. O DN resultante é `uid=ana,ou=People,dc=example,dc=com`.\n4. Ele preenche os atributos: `cn: Ana Souza`, `sn: Souza`, `mail: ana@example.com`.\n5. Se existir outra Ana em `ou=Estagiarios`, não há conflito: os RDNs podem ser iguais em ramos diferentes, porque os DNs completos são diferentes.\n\n### Detalhes que a banca cobra\n\n- Um RDN pode ter **mais de um par atributo-valor** (RDN multivalorado), como `cn=Ana+uid=ana`, unidos pelo sinal de mais.\n- Caracteres especiais dentro de valores (vírgula, sinal de mais, entre outros) precisam ser **escapados** conforme a sintaxe de DN, para não serem confundidos com separadores.\n- O DN é nome dentro do diretório. Ele **não é caminho de arquivo** e **não é necessariamente o login** da pessoa: o login pode ser o valor de `uid`, mas o DN é o nome completo da entrada.\n\n| Conceito | Alcance | Analogia |\n| --- | --- | --- |\n| RDN | Único entre irmãs | Número do apartamento |\n| DN | Único em toda a árvore | Endereço postal completo |\n| DIT | Toda a estrutura | O mapa da cidade |\n\n**Pegadinha:** a banca afirma que \"o DN começa pela raiz da árvore e termina na entrada\" ou que \"o RDN identifica a entrada de forma única em todo o diretório\". Ambas erradas: o DN começa na entrada e segue até a raiz, e o RDN só é único entre as entradas do mesmo superior.\n\n### Como cai na prova\n\n- RDN nomeia no nível local; DN inclui os ancestrais.\n- A ordem usual do DN começa na entrada e prossegue rumo à raiz.\n- A DIT é hierarquia de entradas, não sistema de pastas.\n\n**Resumo para a prova**\n- DIT = árvore hierárquica de entradas; cada entrada é um conjunto de atributos (tipo + valores).\n- RDN = nome relativo, único entre irmãs; DN = RDN + RDNs dos superiores, único na árvore.\n- DN escrito do específico ao geral, componentes separados por vírgula.\n- RDN pode ser multivalorado; caracteres especiais são escapados; DN não é login nem caminho de pasta."
+    },
+    {
+      "title": "3. Esquema e pesquisa",
+      "markdown": "### O problema que este assunto resolve\n\nSe qualquer pessoa pudesse criar qualquer campo em qualquer entrada, o diretório viraria bagunça: uma entrada de pessoa sem sobrenome, um telefone gravado no campo de e-mail, uma impressora com \"data de nascimento\". O **esquema** é o conjunto de regras que impede isso: ele diz que tipos de objeto existem, quais atributos cada um precisa ter, quais pode ter e em que formato os valores devem estar. A outra metade do capítulo trata de como **encontrar** entradas nessa árvore organizada: a operação de pesquisa (Search) e seus parâmetros.\n\n> **Siglas e termos deste capítulo**\n> - **Esquema (schema)**: conjunto de definições e restrições sobre classes de objetos, tipos de atributos, sintaxes e regras de comparação.\n> - **objectClass**: atributo presente nas entradas que indica a quais classes elas pertencem.\n> - **Classe estrutural**: classe que define o tipo básico da entrada (por exemplo, uma pessoa).\n> - **Classe auxiliar**: classe que acrescenta atributos extras a uma entrada, sem mudar seu tipo básico.\n> - **Sintaxe**: formato aceito para os valores de um atributo (texto, número, data etc.).\n> - **Regra de correspondência (matching rule)**: como dois valores são comparados (por exemplo, ignorando maiúsculas e minúsculas).\n> - **OID**: Object Identifier, identificador numérico único de cada definição do esquema.\n> - **Filtro**: expressão que seleciona entradas pelos valores dos atributos.\n> - **ACL**: Access Control List, lista de regras de quem pode acessar o quê.\n\n### Classes de objetos: obrigatórios e permitidos\n\nCada classe define dois conjuntos de atributos:\n\n- **obrigatórios** (MUST): a entrada precisa tê-los;\n- **permitidos** (MAY): a entrada pode tê-los, se quiser.\n\nClasses podem **herdar** de outras: uma classe de pessoa da organização herda os atributos de uma classe mais genérica de pessoa e acrescenta os seus. A classe **estrutural** caracteriza a entrada; classes **auxiliares** podem acrescentar características, dentro das regras do esquema.\n\n| Tipo de classe | Papel | Exemplo de uso |\n| --- | --- | --- |\n| Estrutural | Define o que a entrada é | Pessoa, unidade organizacional |\n| Auxiliar | Acrescenta atributos extras | Dados de conta de sistema |\n\nO servidor confere o esquema nas operações de escrita. Se a classe exige `sn` (sobrenome) e alguém tenta incluir a entrada sem ele, a inclusão pode ser **rejeitada**. O servidor também pode recusar um valor que não respeita a **sintaxe** do atributo. Cada definição recebe um **OID**, uma sequência numérica que a identifica de modo único, evitando que dois fabricantes usem o mesmo nome para coisas diferentes.\n\n### A pesquisa (Search) e seus quatro parâmetros principais\n\nPara pesquisar, o cliente informa onde começar, até onde descer, o que procurar e o que quer receber:\n\n| Parâmetro | Função |\n| --- | --- |\n| Base DN | Define o ponto de partida na árvore |\n| Escopo | Define quantos níveis são percorridos |\n| Filtro | Seleciona as entradas que correspondem |\n| Atributos | Indica quais dados devem vir na resposta |\n\nOs três escopos:\n\n| Escopo | Alcance |\n| --- | --- |\n| `baseObject` | Só a própria entrada-base |\n| `singleLevel` | Só as subordinadas imediatas da base (um nível abaixo), sem incluir a base |\n| `wholeSubtree` | A base e toda a subárvore abaixo dela |\n\nFiltros são escritos entre parênteses: `(uid=ana)` procura entradas cujo `uid` seja \"ana\". Podem ser combinados: `(&(objectClass=person)(sn=Souza))` exige as duas condições (E lógico); `(|(sn=Souza)(sn=Lima))` aceita qualquer uma (OU lógico); `(!(sn=Souza))` nega; `(cn=An*)` usa o asterisco como curinga.\n\n### Exemplo passo a passo\n\nBeatriz, do suporte, quer a lista de e-mails de todas as pessoas com sobrenome Souza da empresa.\n\n1. **Base DN**: `ou=People,dc=example,dc=com`, onde ficam as pessoas.\n2. **Escopo**: `wholeSubtree`, porque há subunidades dentro de People.\n3. **Filtro**: `(&(objectClass=person)(sn=Souza))`.\n4. **Atributos**: só `mail`.\n5. O servidor percorre a subárvore, aplica o filtro, verifica as permissões de Beatriz e devolve os e-mails que ela tem direito de ver. Se uma ACL proíbe a leitura do e-mail de diretores, essas entradas voltam sem o atributo ou nem aparecem.\n\n### Pesquisa não fura permissão\n\nA lista de atributos é um **pedido**, não uma ordem. Nenhum parâmetro de pesquisa supera os controles de acesso: dados podem ser omitidos por ACL ou por outras restrições do servidor (como limites de quantidade de resultados).\n\n**Pegadinha:** a banca troca escopo por filtro (\"o filtro define quantos níveis da árvore serão percorridos\") ou diz que `singleLevel` inclui toda a subárvore. Errado: escopo define os níveis; filtro define quais entradas correspondem; `singleLevel` é só um nível abaixo da base.\n\n### Como cai na prova\n\n- objectClass e esquema regulam atributos requeridos e permitidos.\n- Escopo determina níveis; filtro determina quais entradas correspondem.\n- Os resultados de Search permanecem sujeitos às permissões.\n\n**Resumo para a prova**\n- Esquema define classes, atributos, sintaxes e regras de comparação; cada definição tem um OID.\n- Classe estrutural diz o que a entrada é; auxiliar acrescenta atributos; MUST = obrigatório, MAY = permitido.\n- Search = base DN + escopo (baseObject, singleLevel, wholeSubtree) + filtro + atributos pedidos.\n- Filtros com &, |, ! e curinga *; o resultado sempre respeita as ACLs."
+    },
+    {
+      "title": "4. Operações, identidade e segurança",
+      "markdown": "### O problema que este assunto resolve\n\nUm diretório guarda dados sensíveis: nomes, e-mails, grupos de acesso e, muitas vezes, informações usadas para conferir senhas. Por isso, além de saber pesquisar, é preciso saber **quais operações** o LDAP oferece para criar, alterar e apagar entradas, e **como o servidor decide** quem pode fazer cada uma delas. Também é preciso proteger a conversa entre cliente e servidor, para que ninguém na rede leia ou altere os dados no caminho.\n\n> **Siglas e termos deste capítulo**\n> - **Bind**: operação de associação, em que o cliente se apresenta ao servidor e pode se autenticar.\n> - **Unbind**: operação que encerra a associação (a sessão) com o servidor.\n> - **Autenticação**: comprovar quem é o solicitante.\n> - **Autorização**: decidir o que esse solicitante pode fazer.\n> - **ACL**: Access Control List, regras de autorização sobre entradas e atributos.\n> - **TLS**: Transport Layer Security, protocolo que cifra e protege a integridade do canal de comunicação.\n> - **StartTLS**: operação que transforma uma conexão comum, já aberta, em conexão protegida por TLS.\n> - **SASL**: Simple Authentication and Security Layer, estrutura que permite negociar diferentes mecanismos de autenticação.\n> - **Base64**: forma de codificar dados binários em texto; é reversível e não protege nada.\n\n### As operações do LDAP\n\n| Operação | O que faz |\n| --- | --- |\n| `Bind` | Associa o cliente a uma identidade (autentica ou acesso anônimo) |\n| `Search` | Consulta entradas |\n| `Compare` | Testa se uma entrada possui determinado valor num atributo |\n| `Add` | Cria uma nova entrada |\n| `Modify` | Altera atributos de uma entrada existente (inclui, troca ou remove valores) |\n| `Delete` | Remove uma entrada |\n| `Modify DN` | Renomeia a entrada (muda o RDN) ou a move para outro superior |\n| `Unbind` | Encerra a associação |\n\nCada operação é distinta e todas passam pelas regras do servidor: esquema para as escritas, ACLs para todas. Atenção a dois pares que a banca confunde: **Unbind** encerra a sessão, enquanto **Delete** apaga uma entrada; **Modify** altera atributos, enquanto **Modify DN** muda o nome ou a posição da entrada na árvore.\n\n### Autenticação não é autorização\n\nO Bind responde à pergunta \"quem é você?\". A ACL responde \"o que você pode fazer?\". São etapas diferentes:\n\n- um Bind bem-sucedido **não garante** leitura nem escrita;\n- a ACL pode permitir a leitura de um atributo e negar a de outro, ou permitir pesquisar e proibir alterar;\n- o acesso **anônimo** (sem credenciais) existe ou não conforme a política do servidor.\n\n| Pergunta | Mecanismo | Exemplo |\n| --- | --- | --- |\n| Quem está pedindo? | Bind (autenticação) | Ana se identifica com sua credencial |\n| O que pode fazer? | ACL (autorização) | Ana lê telefones, mas não altera grupos |\n| O canal está seguro? | TLS | Ninguém na rede lê a credencial de Ana |\n\n### Exemplo passo a passo\n\nMarcos programa o sistema de login de uma autarquia, que confere senhas no diretório.\n\n1. O sistema abre conexão com o servidor e executa **StartTLS**, protegendo o canal antes de enviar qualquer credencial.\n2. Faz **Bind** com o DN de Marina e a senha que ela digitou. Se o servidor aceitar, a senha confere.\n3. Faz um **Search** para buscar os grupos de Marina. A ACL permite que a conta do sistema leia os grupos, mas não as informações de folha.\n4. Marina tenta, pelo mesmo sistema, mudar o próprio grupo. O **Modify** é recusado, pois a ACL não dá esse direito a ela, embora ela esteja autenticada.\n5. Ao terminar, o sistema envia **Unbind**.\n\n### Protegendo o canal: TLS e StartTLS\n\nSem proteção, as mensagens LDAP podem trafegar em texto legível. O **TLS** cifra o tráfego e protege contra leitura e alteração no caminho. Há duas formas de usá-lo: a conexão já começa protegida desde o início, ou começa comum e é protegida em seguida pela operação **StartTLS**, quando o servidor oferece. TLS protege o **transporte**; ele não concede privilégio a ninguém.\n\nO **SASL** permite negociar mecanismos variados de autenticação; o nível de segurança obtido depende do mecanismo escolhido.\n\n**Pegadinha:** em arquivos e ferramentas LDAP, valores aparecem às vezes codificados em Base64, e a banca afirma que \"a senha está protegida por criptografia Base64\". Errado: Base64 é codificação reversível, qualquer pessoa decodifica. Outra pegadinha: \"após o Bind bem-sucedido, o usuário pode ler e alterar todas as entradas\". Errado: quem decide é a ACL.\n\n### Como cai na prova\n\n- Bind estabelece associação/identidade; ACL controla permissões.\n- TLS protege o transporte, mas não concede privilégios.\n- Unbind encerra a sessão; Delete remove uma entrada.\n\n**Resumo para a prova**\n- Operações: Bind, Search, Compare, Add, Modify, Delete, Modify DN e Unbind.\n- Modify altera atributos; Modify DN renomeia ou move; Delete apaga; Unbind encerra a sessão.\n- Autenticação (Bind) é diferente de autorização (ACL); estar autenticado não dá todos os direitos.\n- TLS (desde o início ou via StartTLS) protege o canal; SASL negocia mecanismos; Base64 não é criptografia."
+    }
+  ],
+  "summary": "Serviços de diretório organizam informações de objetos em entradas com atributos. LDAP é o protocolo cliente-servidor para acessar essas informações. Entradas formam uma DIT; DN identifica uma entrada no contexto completo e RDN é o componente relativo ao superior. O esquema e objectClass definem regras de classes, atributos e valores. Search usa base, escopo, filtro e atributos solicitados, respeitando controles de acesso. Bind estabelece uma associação e pode autenticar; ACL autoriza operações e dados. Add, Modify, Delete, Modify DN e Compare têm funções próprias. TLS protege o transporte e não substitui autorização.",
+  "flashcards": [
+    {
+      "front": "O que é LDAP?",
+      "back": "Protocolo leve de acesso a serviços de diretório."
+    },
+    {
+      "front": "O que é um diretório?",
+      "back": "Serviço que organiza informações de objetos em entradas consultáveis."
+    },
+    {
+      "front": "O que é DIT?",
+      "back": "Árvore hierárquica de entradas do diretório."
+    },
+    {
+      "front": "O que contém uma entrada?",
+      "back": "Atributos com tipos e valores que descrevem um objeto."
+    },
+    {
+      "front": "O que é DN?",
+      "back": "Nome distinguido completo da entrada na árvore."
+    },
+    {
+      "front": "O que é RDN?",
+      "back": "Nome relativo da entrada perante seu superior imediato."
+    },
+    {
+      "front": "Qual é o RDN em uid=ana,ou=People,dc=example,dc=com?",
+      "back": "uid=ana; o restante identifica os ancestrais."
+    },
+    {
+      "front": "Para que serve objectClass?",
+      "back": "Relaciona a entrada às classes e às regras de atributos correspondentes."
+    },
+    {
+      "front": "O que o esquema define?",
+      "back": "Classes, atributos, sintaxes, regras de correspondência e restrições."
+    },
+    {
+      "front": "Quais parâmetros formam uma Search?",
+      "back": "Base DN, escopo, filtro e lista de atributos solicitados."
+    },
+    {
+      "front": "O que faz baseObject?",
+      "back": "Limita a busca à entrada-base."
+    },
+    {
+      "front": "O que faz singleLevel?",
+      "back": "Busca subordinados imediatos da base."
+    },
+    {
+      "front": "O que faz wholeSubtree?",
+      "back": "Busca a base e os níveis de sua subárvore."
+    },
+    {
+      "front": "O que faz Bind?",
+      "back": "Estabelece associação LDAP e pode autenticar o cliente."
+    },
+    {
+      "front": "Como diferem Bind e ACL?",
+      "back": "Bind estabelece identidade; ACL decide o que ela pode acessar."
+    },
+    {
+      "front": "O que faz Modify?",
+      "back": "Altera atributos de uma entrada existente."
+    },
+    {
+      "front": "O que faz Modify DN?",
+      "back": "Renomeia ou move uma entrada conforme as regras do servidor."
+    },
+    {
+      "front": "O que faz Compare?",
+      "back": "Testa se um atributo da entrada possui determinado valor."
+    },
+    {
+      "front": "O que protege TLS?",
+      "back": "O canal de comunicação entre cliente e servidor."
+    },
+    {
+      "front": "Base64 é criptografia?",
+      "back": "Não. É uma codificação reversível sem confidencialidade."
+    }
+  ],
+  "tips": [
+    "Leia o DN da entrada para os ancestrais; o RDN é o componente local.",
+    "Separe base, escopo, filtro e atributos ao interpretar uma pesquisa.",
+    "Associe objectClass às regras de atributos obrigatórios e permitidos.",
+    "Diferencie Bind, que estabelece identidade, de ACL, que autoriza.",
+    "Considere resultados de busca sujeitos a permissões e restrições.",
+    "TLS protege o canal, mas não concede privilégios de diretório."
+  ],
+  "traps": [
+    "Tratar LDAP como produto ou banco relacional em vez de protocolo.",
+    "Confundir RDN com DN completo.",
+    "Supor que toda busca percorra a subárvore inteira.",
+    "Achar que Bind bem-sucedido concede acesso irrestrito.",
+    "Confundir filtro com atributos que se deseja receber.",
+    "Considerar TLS substituto de esquema e autorização."
+  ],
+  "activeRecall": [
+    {
+      "question": "Como se distingue LDAP do serviço de diretório?",
+      "answer": "LDAP define o acesso por operações; o serviço organiza e disponibiliza entradas."
+    },
+    {
+      "question": "Como se forma o DN?",
+      "answer": "Concatena-se o RDN ao DN do superior, seguindo os ancestrais até a raiz."
+    },
+    {
+      "question": "Como o esquema afeta uma inclusão?",
+      "answer": "Valida classes, atributos, sintaxes e requisitos, podendo rejeitar incompatibilidades."
+    },
+    {
+      "question": "Compare singleLevel e wholeSubtree.",
+      "answer": "singleLevel alcança subordinados imediatos; wholeSubtree abrange níveis da subárvore."
+    },
+    {
+      "question": "Por que Search pode omitir atributo solicitado?",
+      "answer": "ACLs e outras restrições do servidor podem impedir seu retorno."
+    },
+    {
+      "question": "O que Bind e ACL fazem?",
+      "answer": "Bind estabelece a associação; ACL decide permissões."
+    },
+    {
+      "question": "Como diferem Delete e Modify DN?",
+      "answer": "Delete remove a entrada; Modify DN renomeia ou move."
+    },
+    {
+      "question": "O que TLS acrescenta?",
+      "answer": "Protege criptograficamente o transporte sem substituir autorização."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "DN versus RDN",
+      "summary": "RDN nomeia a entrada perante o pai; DN incorpora os componentes ancestrais."
+    },
+    {
+      "key": "e2",
+      "title": "Protocolo versus serviço",
+      "summary": "LDAP define mensagens e operações; diretório é o serviço de informação estruturada."
+    },
+    {
+      "key": "e3",
+      "title": "Escopo versus filtro",
+      "summary": "Escopo define níveis da árvore; filtro seleciona entradas por atributos."
+    },
+    {
+      "key": "e4",
+      "title": "Autenticação versus autorização",
+      "summary": "Bind estabelece identidade; ACL decide se operações e atributos são permitidos."
+    },
+    {
+      "key": "e5",
+      "title": "TLS versus permissão",
+      "summary": "TLS protege transporte; não concede privilégios nem substitui ACL."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "LDAP é um protocolo de acesso a diretórios, e não o nome de um produto único.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. LDAP padroniza as operações e mensagens usadas para acessar informações de diretório. Produtos distintos podem implementar esse protocolo, portanto o nome designa a forma de acesso, não uma solução comercial única.",
+      "section": "1. Diretórios e protocolo LDAP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um diretório pode disponibilizar atributos de pessoas e grupos para consulta por várias aplicações.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Diretórios organizam descrições consultáveis de objetos e podem servir de fonte compartilhada para clientes autorizados.",
+      "section": "1. Diretórios e protocolo LDAP",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo cliente-servidor, o servidor LDAP apenas encaminha mensagens e não processa operações sobre informações do diretório.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O servidor processa as operações sobre a informação que mantém ou disponibiliza e aplica suas regras ao responder.",
+      "section": "1. Diretórios e protocolo LDAP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação que usa LDAP ainda pode aplicar regras próprias para autorizar ações de negócio.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O diretório pode fornecer identidade e atributos, mas não define por si só as permissões funcionais de todos os sistemas consumidores.",
+      "section": "1. Diretórios e protocolo LDAP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um serviço de diretório é necessariamente a melhor escolha para toda aplicação que exige transações relacionais complexas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Diretórios favorecem consultas compartilhadas por atributos, mas a escolha depende das garantias e do padrão de operações exigido pela carga.",
+      "section": "1. Diretórios e protocolo LDAP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pesquisa LDAP pode estar sujeita a controles de acesso definidos pelo servidor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A consulta é processada conforme as regras do servidor. A identidade associada e as permissões configuradas podem limitar quais entradas aparecem e quais atributos são devolvidos, mesmo quando a busca os solicita.",
+      "section": "1. Diretórios e protocolo LDAP",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Compartilhar conceitos com X.500 obriga todo cliente LDAP a usar a interface tradicional de acesso X.500.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. LDAP é um protocolo próprio de acesso leve; compartilhar conceitos de diretório não obriga o uso daquela interface por todos os clientes.",
+      "section": "1. Diretórios e protocolo LDAP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quais elementos compõem uma solicitação típica de pesquisa LDAP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Caminho local, extensão, tabela SQL e plano de junção.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Base DN, escopo, filtro e atributos desejados na resposta.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Grupo de usuários, senha, endereço de correio e política de tela.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Identificador de processo, sinal, núcleo e prioridade do sistema.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Arquivo físico, setor de disco, extensão e permissão de montagem.",
+          "correct": false
+        }
+      ],
+      "explanation": "A pesquisa define ponto de partida, extensão na árvore, critério de correspondência e dados pretendidos. Os outros conjuntos não descrevem os parâmetros LDAP de Search.",
+      "section": "1. Diretórios e protocolo LDAP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual relação entre LDAP e diretório está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "LDAP é o formato físico universal dos arquivos de toda base e fixa o armazenamento interno de qualquer servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "LDAP é protocolo que permite operações sobre entradas do diretório.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "LDAP é uma interface gráfica para desenhar organogramas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "LDAP é uma linguagem SQL para tabelas e junções relacionais.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "LDAP é uma política que concede privilégios em toda aplicação.",
+          "correct": false
+        }
+      ],
+      "explanation": "LDAP define como clientes acessam diretórios por operações. Não determina um formato físico universal nem substitui interface gráfica, banco relacional ou políticas de aplicação.",
+      "section": "1. Diretórios e protocolo LDAP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual cenário mostra o papel de um servidor LDAP em uma organização?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Entregar toda a base a qualquer cliente sem verificar controles de acesso, identidade ou política definida pelo servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Receber uma pesquisa e responder com entradas permitidas conforme suas regras.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Manter cópias incompatíveis em cada aplicação consumidora.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Transformar toda operação recebida em uma transação SQL obrigatória.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Definir sozinho as permissões de negócio de qualquer aplicação cliente.",
+          "correct": false
+        }
+      ],
+      "explanation": "O servidor processa pedidos e responde com informação permitida. Cópias independentes aumentam divergências, e LDAP não impõe SQL nem decide toda política dos consumidores.",
+      "section": "1. Diretórios e protocolo LDAP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que uma organização ganha ao manter certos atributos compartilhados num diretório consultado por várias aplicações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A eliminação automática das regras de autorização de cada consumidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A garantia de que todos os usuários passam a ter privilégios administrativos.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma fonte comum que pode reduzir inconsistências entre cópias locais.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A conversão de todos os dados da empresa em relações SQL normalizadas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A dispensa de controlar quem pode ler ou alterar atributos pessoais.",
+          "correct": false
+        }
+      ],
+      "explanation": "A centralização pode reduzir divergências e facilitar consulta compartilhada, mas não concede privilégios nem elimina controles de acesso e regras dos sistemas consumidores.",
+      "section": "1. Diretórios e protocolo LDAP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conclusão sobre a identidade obtida por meio de diretório é adequada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A autenticação LDAP concede automaticamente todo acesso de negócio, em qualquer aplicação e função.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A aplicação ainda decide os privilégios funcionais que concede à identidade.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A busca pelo usuário substitui qualquer política de autorização local.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O filtro LDAP é a única regra válida para autorizar ações da aplicação.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A existência de diretório impede que aplicações consultem atributos.",
+          "correct": false
+        }
+      ],
+      "explanation": "LDAP pode participar da autenticação e fornecer atributos. A aplicação consumidora continua responsável por aplicar regras de autorização às suas funções.",
+      "section": "1. Diretórios e protocolo LDAP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual estrutura organiza hierarquicamente as entradas LDAP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Directory Index Table, com setores físicos e arquivos do sistema operacional em cada nó da hierarquia.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Directory Information Tree, com relações entre entradas superiores e subordinadas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Dynamic Identity Token, com credenciais temporárias de usuários.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Distributed Interface Tunnel, com conexões sem nomes de entrada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Data Integrity Transaction, com alterações relacionais confirmadas em bloco.",
+          "correct": false
+        }
+      ],
+      "explanation": "DIT significa Directory Information Tree: árvore cujos vértices são entradas e cujos vínculos definem relações de superior e subordinado.",
+      "section": "2. DIT, entradas e nomes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em uid=ana,ou=People,dc=example,dc=com, qual trecho é o RDN da entrada de Ana?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "uid=ana, o componente relativo ao superior imediato.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "dc=example,dc=com, os componentes mais próximos da raiz.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "ou=People,dc=example, os componentes do ramo ancestral.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "uid=ana,ou=People, incluindo a entrada e seu pai.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A cadeia inteira, necessariamente relativa em qualquer nível.",
+          "correct": false
+        }
+      ],
+      "explanation": "O RDN identifica Ana em relação ao superior imediato e, neste exemplo, é uid=ana. Os componentes ou=People e dc=example,dc=com completam o DN ao representar os ancestrais da entrada na árvore.",
+      "section": "2. DIT, entradas e nomes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como se interpreta a ordem de uid=ana,ou=People,dc=example,dc=com?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Começa na raiz e termina no atributo mais específico.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Começa na entrada mais específica e segue pelos componentes ancestrais.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "É um caminho de pastas resolvido pelo sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É um filtro de igualdade que seleciona usuários chamados Ana.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Contém valores sem relação com posição ou identidade na árvore.",
+          "correct": false
+        }
+      ],
+      "explanation": "A representação do DN lista o componente da entrada e depois seus superiores. Não é caminho de arquivo nem expressão de filtro.",
+      "section": "2. DIT, entradas e nomes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O que representa uma entrada LDAP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Atributo isolado sem valor ou relação com objeto.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Conexão de rede que permanece aberta para todos os clientes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Filtro de pesquisa sem nome distinguido nem atributos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Conjunto de atributos com tipos e valores que descreve um objeto.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Classe de esquema que enumera apenas servidores disponíveis.",
+          "correct": false
+        }
+      ],
+      "explanation": "Uma entrada representa um objeto e contém atributos. Tipos como cn, uid e mail podem descrevê-lo, de acordo com o esquema.",
+      "section": "2. DIT, entradas e nomes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um RDN pode conter mais de uma afirmação de atributo e valor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um RDN não precisa conter um único par atributo-valor: a sintaxe admite uma ou mais afirmações que, em conjunto, distinguem a entrada de seu superior. Isso não altera a diferença entre RDN local e DN completo.",
+      "section": "2. DIT, entradas e nomes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A representação usual do DN começa pela entrada e prossegue pelos componentes ancestrais.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Na forma textual convencional, o componente que nomeia a própria entrada vem primeiro; em seguida aparecem os componentes de seus superiores até a raiz. Assim, uid=ana precede ou=People e os componentes dc.",
+      "section": "2. DIT, entradas e nomes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Entradas irmãs na DIT são entradas que possuem o mesmo DN completo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Irmãs compartilham o mesmo superior imediato. Seus RDNs distinguem as entradas entre os filhos daquele superior.",
+      "section": "2. DIT, entradas e nomes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um atributo pode ter vários valores se a definição e as regras do esquema permitirem.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A multiplicidade é determinada pela definição do tipo e pelas regras do esquema; nem todo atributo precisa ser de valor único.",
+      "section": "2. DIT, entradas e nomes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O DN é sempre idêntico ao nome de login usado em qualquer aplicação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O DN nomeia a entrada dentro da hierarquia do diretório, enquanto o identificador de login é uma escolha da aplicação e pode corresponder a outro atributo, como uid. Não há identidade obrigatória entre esses valores.",
+      "section": "2. DIT, entradas e nomes",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Caracteres especiais num valor de DN podem exigir escape na representação textual.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A sintaxe de DN define escapes para que caracteres como vírgulas não sejam confundidos com separadores entre componentes.",
+      "section": "2. DIT, entradas e nomes",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual elemento associa uma entrada às classes que determinam atributos requeridos e permitidos?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O DN do servidor, que contém as credenciais dos clientes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O escopo, que enumera os atributos obrigatórios de cada nível.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "objectClass, interpretado segundo o esquema do servidor.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Unbind, que valida valores antes de qualquer inclusão.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O número da mensagem, que converte atributos em classes.",
+          "correct": false
+        }
+      ],
+      "explanation": "objectClass registra as classes da entrada. As definições do esquema associadas indicam atributos obrigatórios e permitidos.",
+      "section": "3. Esquema e pesquisa",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por que uma entrada sem determinado atributo pode ser recusada pelo servidor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Entradas não podem conter texto antes da primeira pesquisa.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Todo atributo deve ser copiado de arquivo do sistema operacional.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Uma classe aplicável pode exigir o atributo pelo esquema.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O filtro Search controla a presença em toda operação Add.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Unbind precisa ocorrer antes de se criar qualquer nome.",
+          "correct": false
+        }
+      ],
+      "explanation": "Classes e regras de esquema podem exigir atributos. A inclusão que não satisfaz esses requisitos pode ser rejeitada como violação de objeto.",
+      "section": "3. Esquema e pesquisa",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual é a diferença entre filtro e atributos solicitados numa operação Search?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Filtro cria entradas; atributos removem regras do esquema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Filtro protege o canal; atributos autenticam o cliente pelo DN.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Filtro escolhe a base; atributos determinam os níveis da árvore.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Filtro seleciona entradas; atributos indicam dados desejados na resposta.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Filtro encerra a sessão; atributos alteram o nome distinguido.",
+          "correct": false
+        }
+      ],
+      "explanation": "O filtro identifica entradas correspondentes; a lista de atributos solicita dados dessas entradas. A resposta ainda é limitada pelas permissões aplicáveis.",
+      "section": "3. Esquema e pesquisa",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual escopo alcança apenas subordinados imediatos da base?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "matchedValues, que busca valores em servidores remotos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "wholeSubtree, limitado à própria entrada-base.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "baseObject, que percorre todos os ramos descendentes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "singleLevel, limitado aos filhos imediatos da base de pesquisa.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "entryOnly, nome da operação de alteração de DN.",
+          "correct": false
+        }
+      ],
+      "explanation": "singleLevel limita a pesquisa aos subordinados imediatos da base. baseObject consulta somente a própria entrada-base, enquanto wholeSubtree inclui a base e os níveis descendentes. Portanto, apenas o primeiro corresponde ao alcance pedido.",
+      "section": "3. Esquema e pesquisa",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que filtro procura entradas cujo atributo uid seja igual a ana?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "(uid=ana), uma asserção de igualdade LDAP.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "uid:ana, uma diretiva de encerramento de conexão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "[uid,ana], um DN sem ancestrais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "(scope=uid)(base=ana), uma expressão de escopo.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "uid/ana, um caminho de arquivo de usuários.",
+          "correct": false
+        }
+      ],
+      "explanation": "A forma entre parênteses expressa uma asserção de igualdade: o atributo uid deve ter o valor ana. Um filtro LDAP usa essa sintaxe própria; caminhos, listas separadas por vírgula ou instruções de conexão não expressam o critério solicitado.",
+      "section": "3. Esquema e pesquisa",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual comportamento do servidor é compatível com os controles de acesso numa pesquisa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Omitir atributo solicitado se o cliente não puder lê-lo.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Retornar sempre a entrada inteira quando houver correspondência.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Permitir que a lista solicitada contorne qualquer ACL.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tornar atributos operacionais públicos por filtro de igualdade.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Dispensar permissões nas entradas abaixo da base indicada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Search continua sujeito às regras de acesso do servidor. A lista de atributos especifica o que o cliente deseja receber, mas não concede permissão; se a identidade não puder ler determinado atributo, o servidor pode omiti-lo ou restringir o resultado.",
+      "section": "3. Esquema e pesquisa",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Que consequência tem uma classe que exige o atributo sn?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Uma entrada sem sn pode ser recusada pelo esquema.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "sn passa a ser a única base DN permitida para buscas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "sn torna-se automaticamente atributo operacional oculto.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A exigência desativa ACL e elimina outros requisitos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "sn deve ser enviado como escopo em todo Bind.",
+          "correct": false
+        }
+      ],
+      "explanation": "Atributos requeridos decorrem das classes aplicáveis e podem causar rejeição quando ausentes. Não modificam os parâmetros de Search nem Bind.",
+      "section": "3. Esquema e pesquisa",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como pesquisar a subárvore de uma unidade e selecionar entradas que atendam a um critério?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar a unidade como base, wholeSubtree e filtro apropriado.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Usar cada pessoa como base, baseObject e filtro vazio.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Usar DN como filtro, singleLevel e atributos como credenciais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar atributos como base, Bind como escopo e filtro como TLS.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar filtro como DN, atributos como escopo e arquivo como raiz.",
+          "correct": false
+        }
+      ],
+      "explanation": "A base posiciona a consulta; wholeSubtree percorre a subárvore; filtro escolhe entradas. A seleção de atributos controla os dados solicitados na resposta.",
+      "section": "3. Esquema e pesquisa",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "As classes de objeto podem indicar atributos obrigatórios e opcionais para entradas pertencentes a elas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O esquema de classes define conjuntos de atributos que devem ou podem estar presentes, consideradas as superclasses aplicáveis.",
+      "section": "3. Esquema e pesquisa",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "wholeSubtree restringe a busca aos filhos imediatos e exclui níveis mais profundos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. wholeSubtree alcança a base e os níveis subordinados da subárvore. singleLevel se limita aos subordinados imediatos.",
+      "section": "3. Esquema e pesquisa",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A lista de atributos solicitados determina sozinha quais entradas correspondem à busca.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. São parâmetros com papéis diferentes: o filtro determina quais entradas correspondem aos critérios, enquanto a lista de atributos define quais dados dessas entradas são solicitados na resposta. As permissões ainda podem limitar o retorno.",
+      "section": "3. Esquema e pesquisa",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Classes estrutural e auxiliar podem contribuir para as regras de atributos de uma entrada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A classe estrutural caracteriza a entrada e classes auxiliares podem acrescentar características se permitidas pelas regras de esquema.",
+      "section": "3. Esquema e pesquisa",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um filtro de pesquisa dispensa a verificação de permissão de leitura dos atributos encontrados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O filtro serve para selecionar entradas que correspondam aos valores indicados e não altera as permissões do solicitante. O servidor continua aplicando seus controles de leitura aos dados e atributos que podem ser retornados.",
+      "section": "3. Esquema e pesquisa",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O servidor pode rejeitar valor cuja sintaxe não corresponda à definição do atributo no esquema.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O esquema associa tipos a sintaxes e regras de valor. Ao validar uma entrada, o servidor pode recusar um valor incompatível com a definição aplicável, mantendo a estrutura e os dados do diretório coerentes.",
+      "section": "3. Esquema e pesquisa",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual operação LDAP cria uma entrada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Modify DN, que remove e recria sem validar esquema.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Compare, que cria a entrada ao testar um valor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Unbind, que grava atributos e fecha a conexão.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Search, que converte resultados em novas entradas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Add, que solicita inclusão de entrada identificada por DN.",
+          "correct": true
+        }
+      ],
+      "explanation": "Add é a operação de inclusão de uma nova entrada identificada por seu DN. O pedido não garante sucesso: a entrada precisa respeitar o esquema e o cliente deve ter autorização para criá-la no local indicado.",
+      "section": "4. Operações, identidade e segurança",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual operação testa um atributo por determinado valor sem retornar a entrada inteira?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Compare, que testa uma afirmação sobre atributo e valor.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Delete, que compara atributos antes de removê-los.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Unbind, que valida senha e encerra uma conta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Modify DN, que pesquisa o valor na subárvore.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Add, que compara atributos com todas as classes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Compare testa a afirmação de que um atributo de uma entrada possui certo valor e devolve o resultado dessa comparação. Search tem outro propósito: localizar entradas e retornar os atributos que o cliente pode ler.",
+      "section": "4. Operações, identidade e segurança",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição de Bind e ACL está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Bind estabelece associação; ACL decide permissões para operações e dados.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Bind concede todo acesso; ACL registra apenas o endereço de rede.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Bind altera atributos; ACL ordena alfabeticamente os DNs.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Bind lista entradas; ACL substitui filtros de pesquisa.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Bind encerra a sessão; ACL exclui entradas incompletas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Bind estabelece a associação e pode autenticar. ACL controla operações e dados acessíveis; autenticação não implica privilégio irrestrito.",
+      "section": "4. Operações, identidade e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual medida protege dados enquanto percorrem uma conexão LDAP?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Solicitar menos atributos em vez de proteger o canal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Codificar senha em Base64 e enviá-la sem proteção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Escolher DN mais longo para impedir interceptação.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Usar filtro restritivo para criptografar a rede.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar TLS no transporte e validar corretamente o servidor.",
+          "correct": true
+        }
+      ],
+      "explanation": "TLS oferece proteção criptográfica para os dados em trânsito e a validação do servidor ajuda a evitar conexão com um destino impostor. Base64 apenas representa dados de forma reversível, e filtros de pesquisa não protegem o canal.",
+      "section": "4. Operações, identidade e segurança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual operação remove uma entrada do diretório?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Bind, que apaga a identidade do cliente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Unbind, que remove a identidade da sessão.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Compare, que apaga após validar um atributo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Search, que exclui resultados correspondentes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Delete, sujeito à autorização e às regras do diretório.",
+          "correct": true
+        }
+      ],
+      "explanation": "Delete solicita a remoção da entrada nomeada, desde que as regras e permissões permitam. Unbind apenas encerra a associação do cliente, e Search consulta o diretório; nenhuma dessas duas operações remove entradas.",
+      "section": "4. Operações, identidade e segurança",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual conjunto associa corretamente operações LDAP a suas finalidades?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Search consulta, Add cria, Modify altera e Delete remove entradas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Search autentica, Add renomeia, Modify encerra sessão e Delete compara.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Search exclui, Add pesquisa, Modify cria sessão e Delete muda filtros.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Search configura TLS, Add compara, Modify apaga DN e Delete autentica.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Search fecha canal, Add valida ACL, Modify inicia Bind e Delete pesquisa.",
+          "correct": false
+        }
+      ],
+      "explanation": "Search consulta entradas, Add pede a inclusão, Modify altera atributos existentes e Delete solicita remoção. Cada operação tem semântica própria e permanece sujeita às regras do esquema e à autorização concedida pelo servidor.",
+      "section": "4. Operações, identidade e segurança",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Modify DN pode alterar o nome distinguido de uma entrada conforme as regras da árvore.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Modify DN altera o nome distinguido e pode, conforme a operação solicitada, renomear a entrada ou movê-la para outro superior. A mudança depende das restrições da árvore e das permissões aplicadas pelo servidor.",
+      "section": "4. Operações, identidade e segurança",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Unbind apaga do diretório a entrada cuja identidade foi usada pelo cliente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Unbind encerra a associação entre cliente e servidor e não modifica o conteúdo armazenado. Para remover uma entrada existe a operação Delete, que também fica sujeita às permissões e regras do diretório.",
+      "section": "4. Operações, identidade e segurança",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um Bind autenticado ainda pode receber negativa de leitura por uma ACL.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A autenticação identifica o cliente, mas não determina por si só tudo o que ele pode fazer. As ACLs podem negar a leitura de uma entrada ou atributo mesmo após um Bind autenticado com sucesso.",
+      "section": "4. Operações, identidade e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Base64 em LDIF cifra o valor e dispensa TLS na conexão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Base64 é codificação reversível sem chave e não fornece confidencialidade. TLS protege a comunicação em trânsito.",
+      "section": "4. Operações, identidade e segurança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "TLS protege o transporte, mas não substitui a autorização de cada operação LDAP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Criptografia do canal reduz exposição e alteração; ACL continua decidindo quais dados e operações uma identidade pode acessar.",
+      "section": "4. Operações, identidade e segurança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "SASL oferece uma estrutura para negociar mecanismos de autenticação e segurança LDAP.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. SASL fornece uma estrutura de negociação para mecanismos de autenticação e segurança. Os recursos efetivos dependem do mecanismo escolhido e dos parâmetros usados, portanto não se deve presumir que toda associação SASL ofereça efeitos idênticos.",
+      "section": "4. Operações, identidade e segurança",
+      "errorConceptKey": null,
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "TLS garante escrita a qualquer cliente, mesmo quando a ACL nega essa permissão.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. TLS protege a confidencialidade e a integridade do canal, não os privilégios sobre as entradas. O servidor avalia a autorização separadamente e pode negar uma escrita quando as ACLs não permitem a alteração.",
+      "section": "4. Operações, identidade e segurança",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma organização precisa pesquisar usuários por identificador e setor, restringir atributos pessoais e proteger tráfego. Qual composição atende ao cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Search com filtro, ACLs de leitura e canal protegido por TLS.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Bind anônimo, filtro vazio, leitura aberta e Base64.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Modify DN para pesquisar, objectClass como criptografia e Delete para ocultar atributos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "WholeSubtree como autorização, filtro como TLS e Unbind como auditoria.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Compare para retornar tudo, sem ACL e com RDN como proteção.",
+          "correct": false
+        }
+      ],
+      "explanation": "Filtro seleciona entradas, ACL controla leitura e TLS protege o canal. Escopo, nomes e codificação não substituem essas funções.",
+      "section": "4. Operações, identidade e segurança",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual descrição é adequada para diretório LDAP distribuído entre servidores?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Servidores podem fornecer partes ou cópias, e pesquisas podem incluir referências a outras áreas.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Todo cliente precisa guardar cópia autoritativa completa antes de Bind.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Mais servidores eliminam a necessidade de DN e esquema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Uma referência de busca sempre ordena apagar e recriar a entrada local.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Distribuição transforma operações em consultas a um arquivo global.",
+          "correct": false
+        }
+      ],
+      "explanation": "Servidores podem disponibilizar fragmentos ou cópias de informação; resultados Search podem apontar áreas não exploradas. Isso não elimina nomes, esquema ou controles de acesso.",
+      "section": "1. Diretórios e protocolo LDAP",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 4511: Lightweight Directory Access Protocol (LDAP): The Protocol",
+      "publisher": "RFC Editor / IETF",
+      "reference": "Especificação LDAPv3, Bind, Search, Add, Modify, Delete, Modify DN, Compare, Unbind e StartTLS.",
+      "url": "https://www.rfc-editor.org/rfc/rfc4511.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 4512: Lightweight Directory Access Protocol (LDAP): Directory Information Models",
+      "publisher": "RFC Editor / IETF",
+      "reference": "DIT, entradas, DN/RDN, classes, atributos, esquema e modelo de servidores.",
+      "url": "https://www.rfc-editor.org/rfc/rfc4512.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 4515: Lightweight Directory Access Protocol (LDAP): String Representation of Search Filters",
+      "publisher": "RFC Editor / IETF",
+      "reference": "Sintaxe textual dos filtros de pesquisa LDAP.",
+      "url": "https://www.rfc-editor.org/rfc/rfc4515.html",
+      "accessedAt": "2026-11-04"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "RFC 4513: Lightweight Directory Access Protocol (LDAP): Authentication Methods and Security Mechanisms",
+      "publisher": "RFC Editor / IETF",
+      "reference": "Métodos de autenticação, TLS e mecanismos SASL.",
+      "url": "https://www.rfc-editor.org/rfc/rfc4513.html",
+      "accessedAt": "2026-11-04"
+    }
+  ]
+}

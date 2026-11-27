@@ -1,0 +1,1816 @@
+{
+  "id": "informatica.biometria-sistemas-identificacao",
+  "subject": "Informática",
+  "title": "Biometria e sistemas de identificação",
+  "version": 3,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Biometria e sistemas de identificação"
+  ],
+  "scope": {
+    "covers": "Biometria de verificação e identificação, modalidades e fluxo de captura, amostras e templates, formatos de intercâmbio ANSI/NIST-ITL, XML e JSON, interoperabilidade, avaliações NIST FRTE 1:1 e 1:N, FMR, FNMR, FPIR, FNIR, limiares, interpretação de experimentos, qualidade, segurança e proteção de dados biométricos.",
+    "excludes": "Algoritmos proprietários de reconhecimento, implementação detalhada de modelos de aprendizado profundo, perícia papiloscópica conclusiva e requisitos contratuais não previstos nas especificações consultadas."
+  },
+  "theoryTitle": "Biometria e sistemas de identificação: intercâmbio de dados, avaliação de acurácia e taxas de erro",
+  "chapters": [
+    {
+      "title": "1. Fundamentos de biometria, captura e identificação",
+      "markdown": "### Vocabulário antes de começar\n\n| Sigla ou termo | Significado | Em palavras simples |\n| --- | --- | --- |\n| **Biometria** | Uso de características físicas ou comportamentais mensuráveis para reconhecer pessoas | Reconhecer alguém \"pelo corpo\" ou \"pelo jeito\", e não por senha |\n| **Amostra biométrica** | O que o sensor capturou | A foto do rosto, a imagem do dedo |\n| **Template** | Representação extraída da amostra para comparação | Um \"resumo numérico\" do rosto, que não é foto |\n| **Escore (pontuação)** | Número que indica o quanto duas amostras se parecem (ou se distanciam) | A \"nota de semelhança\" |\n| **Limiar (threshold)** | Valor de corte para aceitar ou rejeitar | A nota mínima para \"passar\" |\n| **Verificação 1:1** | Comparar com **uma** identidade alegada | \"Você é mesmo o João?\" |\n| **Identificação 1:N** | Procurar entre **N** cadastros | \"Quem é você, entre todos os cadastrados?\" |\n| **Galeria** | Conjunto de referências cadastradas | O \"álbum de fotos\" do sistema |\n| **Enrollment (cadastro)** | Associar a referência biométrica à identidade | Tirar a foto oficial no balcão |\n| **Mated / non-mated** | Busca com / sem correspondente na galeria | Procurar alguém que está / não está no álbum |\n| **FMR / FNMR** | False Match Rate / False Non-Match Rate (erros do 1:1) | Aceitar o impostor / rejeitar o dono |\n| **FPIR / FNIR** | False Positive / False Negative Identification Rate (erros do 1:N) | Achar alguém que não está lá / não achar quem está |\n\n### O que é biometria\n\n**Biometria** é o uso de **características físicas ou comportamentais mensuráveis** para **reconhecer ou verificar** a identidade das pessoas.\n\n| Tipo | Exemplos |\n| --- | --- |\n| **Físicas** | Impressão digital, face, íris |\n| **Comportamentais** | Dinâmica de digitação (ritmo ao teclar), padrões de interação |\n\n**Amostra × template:**\n- a **amostra** é o que o **sensor captura** (por exemplo, uma fotografia);\n- o **template** é uma **representação extraída** para comparação (uma lista de números que descreve traços).\n\n> **Pegadinha:** o template **não precisa ser uma foto** nem ser legível por humanos.\n\n**Escore e sentido da métrica:** o algoritmo calcula uma pontuação de **semelhança** ou de **distância**. A regra de aceitação depende do sentido:\n- **similaridade**: quanto **maior**, mais parecido;\n- **distância**: quanto **menor**, mais parecido (o oposto).\n\n### Verificação 1:1 × identificação 1:N\n\n**Verificação 1:1.** A pessoa **declara uma identidade**, e o sistema compara a amostra atual com **a referência vinculada àquela declaração**.\n*Exemplo:* o aplicativo do banco confere se o rosto apresentado é o do titular da conta.\n\n**Identificação 1:N.** A amostra é **pesquisada numa galeria** com muitas identidades.\n*Exemplo:* descobrir a qual cadastro pertence uma impressão digital desconhecida achada num local.\n\n**Analogia:** 1:1 é o porteiro conferindo se o rosto bate com o documento que você mostrou; 1:N é o porteiro olhando seu rosto e procurando no álbum de todos os moradores para descobrir quem você é.\n\n| Aspecto | Verificação 1:1 | Identificação 1:N |\n| --- | --- | --- |\n| Entrada | Identidade **alegada** + amostra | Só a amostra; a identidade é **a descobrir** |\n| Referências | **Uma**, a declarada | **Galeria** de N identidades |\n| Decisão | **Aceitar ou rejeitar** a alegação | **Encontrar candidato** ou não identificar |\n| Erros medidos | **FMR e FNMR** | **FPIR e FNIR** |\n| Unidade estatística | **Comparações** | **Buscas** |\n\nUma busca 1:N pode retornar uma **lista de candidatos** ordenada por pontuação, um **candidato único** ou **nenhum**, conforme a política.\n\n### As etapas do processo\n\n1. **Cadastro (enrollment):** associa a referência biométrica à identidade.\n2. **Aquisição:** a captura (no cadastro ou na consulta).\n3. **Extração:** gera as características (o template).\n4. **Comparação:** estima a compatibilidade (o escore).\n5. **Decisão:** aplica critérios como **limiar** e classificação de candidatos.\n\n> **Pegadinha:** **falha de captura ou de extração** (imagem ruim demais para processar) é **diferente** de um **erro de comparação**. Uma taxa de falha na aquisição **não se confunde** com FNIR ou FNMR.\n\n### Galerias: com e sem correspondente, aberto e fechado\n\n- **Busca com correspondente (mated):** a amostra é de **alguém que está na galeria**.\n- **Busca sem correspondente (non-mated):** a pessoa **não está** na galeria.\n\nOs erros:\n- **Falso negativo de identificação:** o correspondente verdadeiro **não é retornado** (pessoa cadastrada não encontrada).\n- **Falso positivo (para o FPIR):** uma busca **sem correspondente** devolve uma identificação **indevida** (pessoa não cadastrada \"reconhecida\" como outra).\n\n| Cenário | Suposição |\n| --- | --- |\n| **Conjunto aberto** | **Pode** haver buscas de pessoas **não cadastradas** (o mundo real) |\n| **Conjunto fechado** | Supõe-se que a pessoa procurada **está** na galeria |\n\n> **Pegadinha:** não se transporta uma taxa medida em **conjunto fechado** para um cenário **aberto** sem justificar o desenho do teste.\n\n### Um exemplo que mistura tudo\n\nUma pessoa **cadastrada** fornece uma foto **escurecida** num terminal.\n- Em **1:1**, a tentativa pode ser **rejeitada** porque o escore ficou abaixo do limiar. Se a amostra é válida e é mesmo do titular, isso é um **falso não reconhecimento** (conta para a **FNMR**).\n- Em **1:N**, o candidato correto pode **não aparecer**: conta para a **FNIR**.\n- Se uma pessoa **não cadastrada** é ligada por engano a um registro: conta para a **FPIR**.\n\nA banca costuma **trocar** pessoa cadastrada por não cadastrada para inverter o erro.\n\n### Desempenho no mundo real\n\nInfluenciam os resultados: **sensor, iluminação, movimento, pose, resolução, ruído**, atualização e **idade do cadastro**, **número de candidatos** e a qualidade do **detector de ataques de apresentação** (máscaras, fotos).\n\n- **Acurácia de laboratório não garante acurácia em campo**: a população e a cadeia de captura precisam ser representativas.\n- **Revisão humana** dos candidatos é uma etapa **posterior**, não substitui a medição do algoritmo.\n- Dois produtos com o mesmo método podem ter taxas diferentes se **limiares, galerias e imagens** diferirem.\n\n**Como reconhecer o conceito na questão:**\n1. Há **identidade declarada** (1:1) ou **pesquisa na galeria** (1:N)?\n2. A pessoa **está cadastrada**?\n3. O erro foi **aceitar outra pessoa** ou **deixar de reconhecer** a verdadeira?\n\n### Resumo para a prova\n\n- Biometria usa características **físicas** (digital, face, íris) ou **comportamentais** (digitação).\n- **Amostra** é a captura; **template** é a representação para comparar (não precisa ser foto).\n- **1:1** confere uma identidade alegada (**FMR/FNMR**, por comparação); **1:N** busca na galeria (**FPIR/FNIR**, por busca).\n- Etapas: **cadastro, aquisição, extração, comparação, decisão**; falha de captura ≠ erro de comparação.\n- **Mated** = está na galeria; **non-mated** = não está. **Aberto** admite não cadastrados; **fechado** não.\n- Cadastrado não encontrado → **FNIR**; não cadastrado \"encontrado\" → **FPIR**.\n- Laboratório ≠ campo; revisão humana não substitui a medição."
+    },
+    {
+      "title": "2. Intercâmbio de dados: ANSI/NIST-ITL, XML e JSON",
+      "markdown": "### Vocabulário antes de começar\n\n| Sigla ou termo | Significado | Em palavras simples |\n| --- | --- | --- |\n| **Intercâmbio** | Troca de dados entre sistemas | Dois órgãos mandando fichas um para o outro |\n| **Interoperabilidade** | Capacidade de sistemas diferentes trocarem dados de forma útil | Falar a mesma língua e entender o que o outro disse |\n| **ANSI** | American National Standards Institute | Órgão de normas técnicas dos EUA |\n| **NIST** | National Institute of Standards and Technology | Instituto de padrões e tecnologia dos EUA |\n| **ANSI/NIST-ITL** | Padrão de intercâmbio de dados biométricos | O \"formulário padrão\" para mandar digitais, faces e afins |\n| **NIST SP** | Special Publication (publicação especial do NIST) | A \"edição oficial\" em que o padrão é publicado |\n| **Perfil (de implementação)** | Restrições adicionais combinadas entre as partes | O \"acordo da casa\": quais campos do formulário são obrigatórios aqui |\n| **Serialização** | Transformar dados em texto ou bytes para transmitir | Empacotar a ficha num envelope |\n| **XML** | eXtensible Markup Language | Formato com marcas `<nome>...</nome>` |\n| **XSD** | XML Schema Definition | As regras que dizem quais marcas e tipos o XML pode ter |\n| **W3C** | World Wide Web Consortium | Consórcio que padroniza tecnologias da web |\n| **NIEM** | National Information Exchange Model | Modelo de intercâmbio de informações usado em abordagens XML |\n| **JSON** | JavaScript Object Notation | Formato de texto com `{ \"chave\": valor }` |\n| **RFC 8259** | Documento que especifica o JSON | A \"certidão\" oficial do formato JSON |\n| **Sintaxe × semântica** | Forma correta × significado correto | Frase gramaticalmente certa × frase que faz sentido |\n\n### Por que padronizar\n\nSistemas de fabricantes diferentes precisam **trocar informações biométricas** sem depender de um só fornecedor. O padrão **ANSI/NIST-ITL** define **estruturas de registros e metadados** para o intercâmbio de **impressões digitais, imagens faciais e outras informações biométricas**.\n\n> **Pegadinha:** o ANSI/NIST-ITL **não é algoritmo de reconhecimento** e **não garante acurácia**. Ele define **como os dados viajam**, não **quão bem** o sistema reconhece.\n\n**Analogia:** é o formato padrão do envelope e do formulário dos Correios. Garante que a carta chegue legível, mas não garante que o conteúdo esteja certo.\n\nInteroperabilidade envolve **sintaxe, significado dos campos, versões, codificação, validação, conteúdo obrigatório e tratamento de imagem**. Um arquivo pode estar **sintaticamente bem formado** e ainda **descumprir restrições semânticas** do padrão ou do perfil.\n\n### As edições do padrão\n\n| Edição | Publicação | Observação |\n| --- | --- | --- |\n| Versão de **2011**, atualizada em **2015** | Documentada na **NIST SP 500-290e3** | Edição anterior |\n| **ANSI/NIST-ITL 1-2025** | **NIST SP 500-290e4**, em **25 de março de 2026** | Revisa a atualização de 2015 da versão de 2011 |\n\n- **Atualização normativa não significa migração imediata** de todas as instalações: é preciso saber **qual versão e qual perfil** foram contratados.\n- Na página oficial da revisão 2025, os trabalhos de preparar os **encodings XML e JSON** foram tratados **separadamente** do documento básico aprovado.\n\n> **Pegadinha:** não se pode presumir que **qualquer JSON genérico** represente automaticamente uma transação **ANSI/NIST-ITL 1-2025** conforme o perfil.\n\n### Registros e perfis\n\nUma **transação** costuma reunir **dados de identificação**, **conteúdo biométrico** e **metadados**. É preciso manter as relações corretas entre **a pessoa, a captura, o tipo de registro, a qualidade e o conteúdo**.\n\n- O **padrão de base** descreve a **representação**.\n- O **perfil operacional** **restringe as escolhas** para que dois sistemas concordem sobre quais registros usar (e pode exigir campos adicionais).\n\n> **Pegadinha:** um receptor que valida **só a presença das chaves JSON**, sem conferir **tipos, versão, conteúdo e regras do perfil**, pode **aceitar pacotes impróprios**.\n\n### XML e JSON: formatos de sintaxe\n\n**XML** (definido pelo **W3C**): linguagem de marcação **hierárquica**, com **elementos**, **atributos** e esquemas formais como o **XSD**. O **NIEM** é usado em abordagens XML de intercâmbio, inclusive para dados biométricos.\n\n```xml\n<pessoa>\n  <nome>Maria Souza</nome>           <!-- elemento com o nome -->\n  <face formato=\"JPEG\">...</face>    <!-- atributo \"formato\" e conteúdo codificado -->\n</pessoa>\n```\n\n**JSON** (especificado na **RFC 8259**): representa **objetos, listas, cadeias de caracteres (strings), números, booleanos e nulo**.\n\n```json\n{\n  \"nome\": \"Maria Souza\",\n  \"face\": \"iVBORw0KGgo...\"\n}\n```\n- `\"nome\"`: uma string.\n- `\"face\"`: a imagem codificada em texto. **É JSON válido**, mas nada aqui diz qual é o **tipo de registro**, os **vínculos** ou os **metadados** exigidos pelo ANSI/NIST-ITL.\n\n> **Pegadinha:** **JSON é formato genérico de serialização**, não norma biométrica autossuficiente. Usar a extensão **.json** não define como empacotar um template; imagens e blocos binários exigem a codificação ou referência **definida pelo perfil**.\n\n| Tema | ANSI/NIST-ITL | XML | JSON |\n| --- | --- | --- | --- |\n| Natureza | **Padrão biométrico** de intercâmbio | **Linguagem de marcação** | **Serialização** de dados |\n| Define campos biométricos? | **Sim**, conforme edição/perfil | Só com um esquema biométrico | Só com esquema/perfil externo |\n| Prova de conformidade | Validação contra versão, perfil e regras | Bem formado e válido contra XSD, se exigido | Texto válido e coerente com o esquema, se exigido |\n\nE o inverso também vale: uma transação biométrica em **codificação tradicional** pode obedecer ao padrão **sem ser XML**.\n\n**As camadas, de baixo para cima:** gramática (XML/JSON) → esquema específico → norma biométrica (ANSI/NIST-ITL) → perfil operacional → segurança (criptografia).\n\n### Conformidade, interoperabilidade e segurança\n\n| Conceito | Pergunta |\n| --- | --- |\n| **Conformidade** | O pacote obedece aos **requisitos especificados**? |\n| **Interoperabilidade** | Emissor e receptor **trocam dados de forma útil**, inclusive com registros opcionais e atualizações? |\n| **Integridade** | O dado foi **alterado no trânsito**? |\n| **Confidencialidade** | Alguém **indevido viu** o dado? |\n| **Autenticidade** | A **origem** é quem diz ser? |\n\n> **Pegadinha:** as propriedades de segurança **precisam de controles próprios**; **não nascem** da escolha de XML ou JSON. E uma **assinatura digital** protege a mensagem, mas **não transforma** uma informação biométrica falsa em correta.\n\n### Transição entre versões\n\n- Perfis mais antigos podem **continuar em operação** durante a transição.\n- A existência de versão nova **não autoriza** dizer que o legado é equivalente nem que todo receptor suporta todos os esquemas.\n- A revisão 2025 cita **codificações tradicionais e NIEM**, além de **cronogramas de descontinuação**; o cronograma **não dispensa** verificar os requisitos do sistema real.\n\n**Como reconhecer:** diante de um enunciado sobre dados trocados entre fornecedores, pergunte se a questão trata da **norma biométrica**, da **gramática XML/JSON**, do **esquema específico**, do **perfil operacional** ou da **criptografia**.\n\n### Resumo para a prova\n\n- **ANSI/NIST-ITL** padroniza registros e metadados para **intercâmbio** biométrico; **não** é algoritmo nem garante acurácia.\n- **ANSI/NIST-ITL 1-2025** = **NIST SP 500-290e4** (25/03/2026); a anterior está na **SP 500-290e3**. Nova versão ≠ migração imediata.\n- **Perfil operacional** restringe escolhas e pode exigir campos; validar só as chaves JSON é insuficiente.\n- **XML** (W3C, XSD, NIEM) e **JSON** (**RFC 8259**) são **formatos de sintaxe**, não normas biométricas.\n- JSON válido **não prova** conformidade ANSI/NIST; transação conforme não precisa ser XML.\n- Conformidade ≠ interoperabilidade; segurança exige **controles próprios**; assinatura não torna verdadeiro um dado falso."
+    },
+    {
+      "title": "3. Taxas de erro e efeito dos limiares de decisão",
+      "markdown": "### Vocabulário antes de começar\n\n| Sigla ou termo | Significado | Em palavras simples |\n| --- | --- | --- |\n| **Escore** | Pontuação de semelhança dada pelo comparador | A \"nota\" da comparação |\n| **Limiar (t)** | Nota mínima para aceitar | A \"nota de corte\" do concurso |\n| **Par genuíno** | Duas amostras da **mesma** pessoa | Duas fotos do João |\n| **Par impostor** | Amostras de pessoas **diferentes** | Uma foto do João e outra do Pedro |\n| **FMR** | False Match Rate (taxa de falsa correspondência) | Quantos impostores passaram |\n| **FNMR** | False Non-Match Rate (taxa de falsa não correspondência) | Quantos donos verdadeiros foram barrados |\n| **FPIR** | False Positive Identification Rate (taxa de identificação falsa positiva) | Quantas buscas de quem **não está** no álbum \"acharam\" alguém |\n| **FNIR** | False Negative Identification Rate (taxa de identificação falsa negativa) | Quantas buscas de quem **está** no álbum não o acharam |\n| **Denominador** | O número de baixo da fração | O \"total\" de onde se tira a porcentagem |\n| **FRTE** | Face Recognition Technology Evaluation | O programa do NIST que testa algoritmos de reconhecimento facial |\n\n### Escores e o compromisso do limiar\n\nO comparador transforma as características em uma **pontuação**. Num cenário de similaridade, a regra pode ser: **aceitar se escore ≥ limiar t**.\n\n| Se o limiar... | Efeito provável |\n| --- | --- |\n| **Baixa** (mais fácil passar) | **Menos** genuínos rejeitados (FNMR cai), **mais** impostores aceitos (FMR sobe) |\n| **Sobe** (mais difícil passar) | **Menos** falsos positivos (FMR cai), **mais** falsos negativos (FNMR sobe) |\n\n**Analogia:** é a nota de corte de um concurso. Se o corte baixa, entram mais candidatos bons, mas também alguns despreparados. Se sobe, fica só a elite, mas alguns bons ficam de fora.\n\nÉ um **compromisso estatístico** que depende das **distribuições de escores**; não é garantia rígida para cada amostra individual.\n\n### As métricas da verificação 1:1\n\n- **FMR**: proporção de **comparações de pessoas diferentes** (pares impostores) cujo resultado **ultrapassa** o critério de correspondência.\n- **FNMR**: proporção de **comparações genuínas** que **não alcançam** o critério.\n\nO **NIST FRTE 1:1** divulga **FNMR num FMR fixado**: assim compara algoritmos com a mesma exigência sobre falsas correspondências.\n\n**Exemplo de cálculo, passo a passo:**\n1. Em **20.000 pares impostores**, **20** receberam pontuação aceita.\n   **FMR = 20 / 20.000 = 0,001 = 0,1%**.\n2. Em **4.000 pares genuínos**, **120** foram rejeitados.\n   **FNMR = 120 / 4.000 = 0,03 = 3%**.\n\n> **Pegadinha:** os **denominadores** são universos diferentes e **não podem ser trocados**: FMR divide pelos **impostores**; FNMR divide pelos **genuínos**.\n\n### As métricas da identificação 1:N\n\n- **FPIR**: no cenário aberto descrito pelo NIST FRTE, a fração das **buscas sem identidade correspondente na galeria** que **retornam uma identificação indevida** acima do limiar.\n- **FNIR**: a fração das **buscas com correspondente** nas quais a **identidade verdadeira não é devolvida** como exige o protocolo.\n\nPara comparar corretamente, registre se o ensaio considera **candidato na primeira posição**, **lista de candidatos** e **limiar positivo**: condições diferentes mudam o que conta como erro.\n\n| Métrica | Unidade de teste | Erro | Denominador |\n| --- | --- | --- | --- |\n| **FMR** | Comparação 1:1 de **impostores** | Aceitar par diferente | Total de comparações **impostoras** |\n| **FNMR** | Comparação 1:1 **genuína** | Rejeitar o mesmo indivíduo | Total de comparações **genuínas** |\n| **FPIR** | Busca 1:N **sem** correspondente | Retornar identidade indevida | Total de buscas **sem** correspondente |\n| **FNIR** | Busca 1:N **com** correspondente | Não retornar a identidade correta | Total de buscas **com** correspondente |\n\n**Exemplo de cálculo 1:N:**\n1. **8.000 buscas sem correspondente**, **16** identificações indevidas.\n   **FPIR = 16 / 8.000 = 0,002 = 0,2%**.\n2. **5.000 buscas com correspondente**, **250** não devolveram a identidade correta.\n   **FNIR = 250 / 5.000 = 0,05 = 5%**.\n\n> **Pegadinha:** **não** se calcula uma \"taxa global\" somando 16 + 250 e dividindo pelo total de pessoas sem dizer a composição do teste e o que esse indicador significa. Acurácia combinada exige definir objetivo e população.\n\n### Por que FMR não é FPIR\n\nUma **busca** de identificação envolve **muitas comparações** e procedimentos de classificação. Mesmo que cada par tenha probabilidade pequena de falsa correspondência, numa **galeria maior** há **mais oportunidades de erro** por busca.\n\n**Analogia:** a chance de você ser confundido com **uma** pessoa específica é pequena; a chance de ser confundido com **alguém** num estádio lotado é bem maior.\n\nAlém disso, algoritmos 1:N têm procedimentos próprios de **busca, indexação e seleção**. Por isso o NIST separa os relatórios **FRTE 1:1 Verification** e **FRTE 1:N Identification**, e **uma taxa não substitui a outra**.\n\n### Limiar positivo e modo investigativo\n\nO FRTE 1:N mostra resultados:\n- com **limiar positivo** (decisão automática: acima do limiar = identificado);\n- e em ensaios **investigativos** com **limiar zero e lista fixa de 50 candidatos**.\n\nNo modo investigativo, o resultado é uma **lista para análise**, que exige interpretação **diferente** de uma decisão automática de identidade.\n\nA avaliação operacional deve informar: **tamanho da galeria**, **política de retorno**, **qualidade de imagem** e **taxa de erro de cada grupo**.\n\n### Como reconhecer a métrica certa\n\n| O enunciado fala em... | Métrica |\n| --- | --- |\n| Buscas de pessoas **ausentes** da galeria que \"acharam\" alguém | **FPIR** |\n| Comparação entre dois registros de **pessoas diferentes** aceita | **FMR** |\n| **Titular** rejeitado na conferência 1:1 | **FNMR** |\n| Cidadão **cadastrado** que **não aparece** na lista | **FNIR** |\n\n> **Pegadinha:** **\"positivo\" não significa \"pessoa cadastrada\"**. Significa um **resultado indevido favorável à correspondência** (o sistema disse \"achei\" quando não devia).\n\n### Resumo para a prova\n\n- **Baixar o limiar** reduz FNMR e aumenta FMR; **subir** faz o contrário. É compromisso estatístico.\n- **FMR** = impostores aceitos ÷ comparações impostoras; **FNMR** = genuínos rejeitados ÷ comparações genuínas.\n- **FPIR** = identificações indevidas ÷ buscas **sem** correspondente; **FNIR** = não encontrados ÷ buscas **com** correspondente.\n- Exemplos: 20/20.000 = **0,1%**; 120/4.000 = **3%**; 16/8.000 = **0,2%**; 250/5.000 = **5%**. Denominadores não se trocam.\n- NIST FRTE 1:1 publica **FNMR num FMR fixado**; 1:1 e 1:N têm relatórios separados: **FMR ≠ FPIR**.\n- Modo investigativo: **limiar zero e lista de 50 candidatos**.\n- \"Positivo\" = resultado indevido a favor da correspondência."
+    },
+    {
+      "title": "4. Avaliações NIST, experimentos e leitura crítica de resultados",
+      "markdown": "### Vocabulário antes de começar\n\n| Sigla ou termo | Significado | Em palavras simples |\n| --- | --- | --- |\n| **NIST** | National Institute of Standards and Technology | O \"laboratório neutro\" que testa algoritmos |\n| **FRTE** | Face Recognition Technology Evaluation | O programa de avaliação de reconhecimento facial |\n| **Trilha (track)** | Cada linha de avaliação (1:1 ou 1:N) | Cada \"prova\" diferente da competição |\n| **Efeito demográfico** | Diferença de desempenho entre grupos da população | O algoritmo errar mais com um grupo do que com outro |\n| **Viés** | Distorção sistemática | Uma balança que sempre pesa a mais para certos objetos |\n| **Vazamento (leakage)** | Usar no teste material que o algoritmo já \"viu\" no treino | Fazer a prova com as mesmas questões do simulado |\n| **Intervalo de confiança** | Faixa provável do valor real | \"Entre 0,1% e 0,4%, com 95% de confiança\" |\n| **Lista de candidatos** | Os N primeiros resultados de uma busca | Os 50 \"suspeitos mais parecidos\" |\n| **Causalidade** | Relação de causa e efeito comprovada | Saber que A **causou** B, e não só que aconteceram juntos |\n\n### O que os testes do NIST medem\n\nO programa **FRTE** avalia **algoritmos de reconhecimento facial**:\n\n| Trilha | O que relata |\n| --- | --- |\n| **FRTE 1:1 Verification** | **FNMR para um FMR de referência**, com bases de condições de captura determinadas |\n| **FRTE 1:N Identification** | Buscas em galerias: **FPIR e FNIR**, além de **custos de execução** e resultados por tipo de imagem |\n\n> **Pegadinha:** desempenho anunciado **numa trilha não comprova** desempenho igual **na outra**: objetivos, dados e unidades de erro diferem.\n\n> **Pegadinha:** as avaliações do NIST **não são certificação universal** do produto implantado em qualquer ambiente. Elas comparam **algoritmos** em **condições estipuladas**.\n\n**Analogia:** é como o teste de consumo de combustível feito em laboratório. Serve para comparar carros nas mesmas condições, mas o seu consumo na estrada pode ser outro.\n\n### Método para ler uma tabela de resultados\n\n1. Identifique a **data da avaliação** e a **versão do algoritmo**.\n2. Verifique se é **1:1 ou 1:N** e qual a **variável de desempenho**.\n3. Leia o **limiar fixado**. Exemplo: \"FNIR **em FPIR = 0,003**\" **não** é a FPIR; é a FNIR medida **enquanto se impõe** aquela FPIR ao sistema.\n4. Confira a **origem das imagens** de cadastro e de consulta.\n5. Observe o **tamanho da galeria**: a escala muda o custo da busca e pode afetar os resultados.\n6. Procure dados de **subgrupos** e fontes de **viés**: a média pode esconder diferenças relevantes.\n\n### Efeitos demográficos\n\nO NIST observa **efeitos demográficos** no reconhecimento facial:\n- diferenças de **iluminação, exposição e pose** podem **elevar falsos negativos**;\n- as **distribuições de pontuação de impostores** podem variar entre grupos, afetando **falsos positivos**.\n\nUma avaliação séria **separa** a variação causada pela **qualidade da captura** das diferenças na **distribuição dos escores**.\n\n*Exemplo:* duas câmeras com exposições diferentes fotografam a mesma população. Um aparente aumento da FNMR pode refletir a **mudança na coleta**, e não uma piora do comparador. Antes de atribuir causa, **controla-se o protocolo**.\n\n### Como montar um experimento\n\n**Ensaio 1:1:** precisa de **pares genuínos** e **pares impostores** suficientes, representativos e sem duplicações indevidas.\n\n**Ensaio 1:N:** precisa definir:\n- a **galeria**;\n- o conjunto de **consultas com correspondente**;\n- o conjunto de **consultas sem correspondente**.\n\n> **Pegadinha:** usar a **mesma pessoa no treinamento e no teste**, de forma que gere **vazamento**, **infla artificialmente** o desempenho (salvo quando o desenho controlado prevê material distinto de cadastro e consulta).\n\nO relatório deve registrar: **quantidade de casos, limiar, condições dos sensores e rejeições de aquisição**.\n\n### Precisão estatística: o tamanho da amostra importa\n\n| Teste | Erros | FPIR observada | Confiabilidade |\n| --- | --- | --- | --- |\n| 1.000 buscas | 2 | 0,002 | **Incerteza maior** |\n| 100.000 buscas | 200 | 0,002 | **Incerteza menor** |\n\nO valor pontual é **igual**, mas o segundo teste é muito mais confiável.\n\n**Analogia:** um jogador que acertou 2 de 2 pênaltis tem 100% de aproveitamento, mas você confia mais em quem acertou 180 de 200.\n\nResultados precisam de **tamanho de amostra**, **intervalos de confiança** quando apropriados e comparação **nas mesmas condições**. **Taxas de erro muito pequenas exigem um número muito grande de observações** para serem sustentadas.\n\n### Listas de candidatos\n\nNa pesquisa 1:N **investigativa**, a lista de candidatos pode ser analisada por uma **pessoa treinada**.\n\n- A identidade correta **estar entre os 50 candidatos** **não equivale** a uma decisão automática em primeiro lugar, nem a um resultado positivo irrestrito.\n- O que é acerto depende do **protocolo**:\n\n| Protocolo mede sucesso... | Candidato verdadeiro em **2º lugar** é... |\n| --- | --- |\n| No **primeiro lugar** | **Erro** |\n| Entre os **50 primeiros** | **Acerto** |\n\nO **contrato de avaliação** deve especificar a posição ou o critério de aprovação.\n\n### Sensibilidade aos critérios\n\n- Comparar algoritmos que operam com **limiares muito diferentes** pode levar a **conclusão enganosa**.\n- **Exigir mais** na rejeição de impostores costuma **aumentar** os verdadeiros não reconhecidos.\n- A interpretação depende do **risco**:\n  - uma aplicação que nega **entrada temporária** pode suportar **revisão manual**;\n  - uma **identificação acusatória** exige garantias robustas e **não deve ser prova conclusiva** a partir de uma pontuação isolada.\n\n> **Pegadinha:** \"maior acurácia facial em 1:1 **garante** FPIR menor em toda galeria 1:N\". **Errado.** O NIST divulga protocolos e tabelas **por tarefa**; a leitura correta associa **taxa, limiar, população e tamanho da amostra**. O objetivo é **comparar algoritmos**, não prometer erro zero.\n\n### Resumo para a prova\n\n- **FRTE 1:1** relata **FNMR num FMR de referência**; **FRTE 1:N** relata **FPIR, FNIR** e custos. Uma trilha não comprova a outra.\n- NIST **não certifica** o produto implantado; compara algoritmos em condições estipuladas.\n- Ler tabela: data/versão, 1:1 ou 1:N, **limiar fixado** (\"FNIR em FPIR = 0,003\" não é a FPIR), imagens, galeria, subgrupos.\n- **Efeitos demográficos**: captura afeta falsos negativos; distribuição de impostores afeta falsos positivos; controle o protocolo antes de atribuir causa.\n- Evite **vazamento** entre treino e teste; registre casos, limiar, sensores e rejeições.\n- Mesmo valor pontual com amostra maior = **menos incerteza**; taxas pequenas exigem muitas observações.\n- Lista de 50 candidatos ≠ decisão em 1º lugar; identificação acusatória não se baseia em escore isolado."
+    },
+    {
+      "title": "5. Implantação, segurança, governança e proteção de dados",
+      "markdown": "### Vocabulário antes de começar\n\n| Sigla ou termo | Significado | Em palavras simples |\n| --- | --- | --- |\n| **Ataque de apresentação** | Mostrar ao sensor um artefato falso (foto, máscara, dedo de silicone) | Tentar enganar a câmera com uma foto impressa |\n| **Detecção de vivacidade (liveness)** | Verificar se há uma pessoa viva diante do sensor | Pedir para piscar ou virar o rosto |\n| **Segundo fator** | Outra forma de autenticação além da biometria | Rosto + código no celular |\n| **Criptografia autenticada** | Cifra que protege sigilo e integridade ao mesmo tempo | Cofre lacrado: ninguém lê nem mexe sem ser percebido |\n| **Certificado digital** | Documento eletrônico que comprova identidade de um sistema | A \"carteira de identidade\" do servidor |\n| **LGPD** | Lei Geral de Proteção de Dados (Lei nº 13.709/2018) | A lei brasileira que protege os dados pessoais |\n| **Dado pessoal sensível** | Categoria especial de dado pessoal, com proteção reforçada | Dados que, mal usados, causam discriminação ou dano maior |\n| **Titular** | A pessoa a quem os dados se referem | O \"dono\" do rosto ou da digital |\n| **Retenção** | Por quanto tempo o dado é guardado | O prazo de validade do arquivo |\n| **Plano de aceitação** | Critérios para aceitar o sistema contratado | A \"vistoria de entrega\" do imóvel |\n| **Evidência probabilística** | Indício com grau de probabilidade, não certeza | \"Provavelmente é ele\", e não \"com certeza é ele\" |\n\n### A cadeia operacional completa\n\nNum sistema real, **avaliar o algoritmo é só uma parte** da segurança. A arquitetura inclui:\n\n**captura → cadastro → geração do template → armazenamento → transporte → busca → decisão → auditoria**\n\nCada etapa traz riscos:\n\n| Etapa | Risco típico |\n| --- | --- |\n| Captura | Sensor mal calibrado; **ataque de apresentação** |\n| Cadastro | **Troca de identidades** nos registros |\n| Armazenamento | **Acesso indevido à galeria**; exposição em exportações |\n| Transporte | Interceptação, alteração, **reutilização de imagem** |\n| Decisão | Tratar escore como certeza |\n\nControles relevantes: **proteção contra apresentação fraudulenta**, **segurança do canal**, **controle de privilégios**, **trilha de auditoria**, **rotação de chaves** e procedimentos para **revogar ou substituir referências** quando tecnicamente viável.\n\n**Por que a substituição é delicada:** senha vazada se troca; rosto e digital não. Por isso a proteção das referências biométricas precisa ser ainda mais cuidadosa.\n\n### Exemplo: algoritmo ótimo, sistema vulnerável\n\nUma **foto facial legítima é copiada e reapresentada** ao terminal.\n- Mesmo com um comparador de **excelente FNMR** nos testes, o sistema pode ser **enganado** se não houver **avaliação de vivacidade** e mecanismos contra apresentação fraudulenta. O comparador está \"certo\": a foto é mesmo da pessoa. O problema é que ela não está lá.\n- Exigir um **segundo fator** de autenticação pode **reduzir as consequências** de uma falsa aceitação, mas **não muda matematicamente a FMR** do comparador medida num ensaio fixo.\n\n> **Pegadinha:** não confunda a **métrica do algoritmo** (FMR, FNMR) com a **taxa final de fraude** do sistema. O controle compensatório deve ser avaliado **como parte do sistema**.\n\n### Intercâmbio e segurança\n\n- Mensagens em **XML ou JSON** devem ser **validadas contra os esquemas e perfis** esperados **antes** do processamento.\n- **Integridade e confidencialidade** podem exigir **criptografia autenticada** no transporte ou no armazenamento, **política de chaves** e **gestão de certificados**.\n- **Controle de acesso** deve limitar quem **consulta grandes galerias** ou **exporta templates**.\n- **Logs** devem ser protegidos contra adulteração.\n\n> **Pegadinha:** \"XML é mais seguro que JSON\" ou \"um arquivo no padrão NIST é imune a manipulação\". **Errado.** O formato **organiza campos**; a **segurança depende da implementação e da operação**.\n\n### Dados biométricos e a LGPD\n\nNo Brasil, a **Lei nº 13.709/2018 (LGPD), art. 5º, II**, classifica como **dado pessoal sensível** o **dado biométrico, quando vinculado a uma pessoa natural**.\n\nNa gestão do sistema, observam-se os princípios do **art. 6º**, entre eles:\n\n| Princípio | Em palavras simples |\n| --- | --- |\n| **Finalidade** | Usar para um propósito legítimo e informado |\n| **Adequação** | O uso combina com a finalidade |\n| **Necessidade** | Coletar só o mínimo necessário |\n| **Segurança** | Proteger contra acessos e incidentes |\n| **Prevenção** | Agir antes de o dano acontecer |\n| **Transparência** | Informar claramente o titular |\n\n> **Pegadinha:** ser **sensível** **não significa proibição absoluta**. Significa que o tratamento precisa se apoiar nas **hipóteses e condições jurídicas** aplicáveis, inclusive as do **art. 11** quando incidirem.\n\nPara reduzir riscos: **coletar só o necessário**, definir **retenção justificada**, **restringir acesso** e **avaliar impactos** de incidentes.\n\n> **Pegadinha:** \"o template não mostra o rosto, então é dado anônimo\". **Errado.** Templates **continuam merecendo proteção**; não viram anônimos só por não exibirem imagem humana.\n\n### Qualidade, diversidade e monitoramento\n\nDepois da implantação, monitore:\n- **falhas de captura**;\n- **FNIR** nas consultas genuínas;\n- **FPIR** nas tentativas sem correspondente;\n- **tempo de resposta**;\n- resultados por **condições de câmera**;\n- **diferenças por população**.\n\n- Um **único limiar** pode produzir **taxas diferentes** por grupos e ambientes.\n- **Ajustar o limiar pessoa a pessoa** traz problemas de **governança, previsibilidade e tratamento desigual**.\n- Melhorias vêm de **captura padronizada**, **atualização das referências** e **revisão humana documentada**.\n- Comparar fornecedores só é defensável em **condições equivalentes** e com **registro da configuração**.\n\n| Controle | Problema que reduz | O que **não** comprova |\n| --- | --- | --- |\n| Validação do esquema | Pacotes mal estruturados | Identidade verdadeira |\n| Canal autenticado e cifrado | Interceptação e alteração no transporte | Ausência de erro de reconhecimento |\n| Proteção contra apresentação fraudulenta | Artefatos no sensor | FPIR zero em toda galeria |\n| Auditoria e revisão | Falta de rastreabilidade | Que a primeira sugestão esteja certa |\n\n### Auditoria e aceitação\n\nUm **plano de aceitação** especifica:\n- a tarefa (**1:1 ou 1:N**);\n- o **perfil de intercâmbio**;\n- o **número de consultas** do teste;\n- o **desempenho mínimo por cenário**;\n- **restrições de uso** e regras para **incidentes**.\n\nEm implantação de **alto impacto**, a saída do algoritmo é **evidência probabilística**, **não confirmação absoluta** de identidade.\n\nÉ preciso pesar o **custo de cada erro**:\n- **falso negativo**: o titular tem o acesso **negado** (transtorno, retrabalho);\n- **falso positivo**: um **terceiro é identificado indevidamente** (pode ser acusado injustamente).\n\nMétricas e contratos devem considerar **os dois danos**, sem esconder um erro atrás de uma **média agregada**.\n\n### Como o tema costuma ser cobrado\n\nA prova traz um cenário curto e troca **1:1 por 1:N**, **FMR por FPIR**, ou inverte o **denominador da FNIR**. Também trata **JSON e XML como padrões biométricos completos**, ignorando o ANSI/NIST-ITL, os esquemas e os perfis. E aparecem frases como \"teste do NIST certifica qualquer operação\" ou \"template dispensa os cuidados de dado sensível\".\n\nResolução segura: verifique **a tarefa**, **quem está de fato na galeria**, **o limiar**, **a edição da especificação** e **a etapa da cadeia de segurança**.\n\n### Resumo para a prova\n\n- Segurança abrange toda a cadeia: captura, cadastro, template, armazenamento, transporte, busca, decisão, auditoria.\n- Foto reapresentada engana sem **vivacidade**; **segundo fator** reduz consequências mas **não muda a FMR** do algoritmo.\n- Validar esquemas antes de processar; segurança vem de **criptografia, chaves, acesso e logs**, não do formato.\n- **LGPD, art. 5º, II**: biométrico vinculado a pessoa natural é **dado pessoal sensível**; princípios do **art. 6º**; hipóteses do **art. 11**; sensível ≠ proibido.\n- **Template não é anônimo**.\n- Monitore falhas de captura, FNIR, FPIR, tempo e diferenças por grupo; limiar individual traz problemas de governança.\n- Saída do algoritmo é **evidência probabilística**; pese o custo do falso positivo e do falso negativo."
+    }
+  ],
+  "summary": "## Conceitos essenciais\n- **Biometria:** reconhecimento automatizado de características físicas ou comportamentais; amostra capturada não é necessariamente igual ao template de características.\n- **Verificação 1:1:** identidade alegada é confrontada com uma referência; **FMR** considera pares impostores aceitos e **FNMR**, pares genuínos rejeitados.\n- **Identificação 1:N:** pesquisa de uma amostra contra uma galeria; **FPIR** considera buscas sem correspondente que produzem identificação indevida; **FNIR**, buscas com correspondente que não retornam a identidade correta conforme o protocolo.\n- **Limiar:** para escores de similaridade, aumentar o limiar geralmente reduz falsas aceitações e eleva falsas rejeições; a condição de ensaio deve ser mantida constante na comparação.\n- **Exemplo:** 12 retornos indevidos em 6.000 buscas sem correspondente dão FPIR de 0,2%; 30 falhas em 1.500 buscas com correspondente dão FNIR de 2%.\n- **ANSI/NIST-ITL:** padrão de estrutura e semântica para intercâmbio biométrico. A edição 1-2025 foi publicada em 2026 na NIST SP 500-290e4, substituindo a atualização de 2015; XML e JSON constituem tecnologias de codificação que precisam de regras e perfis.\n- **NIST FRTE:** avaliações separadas de verificação 1:1 e identificação 1:N; resultados dependem dos dados, das configurações, da galeria e do critério de acerto.\n- **LGPD:** art. 5º, II, enquadra dado biométrico vinculado a pessoa natural como sensível; tratamento exige base e medidas adequadas.\n\n| Entrada e resultado | Métrica relacionada |\n|---|---|\n| Duas pessoas diferentes aceitas em 1:1 | FMR |\n| Mesma pessoa rejeitada em 1:1 | FNMR |\n| Pessoa ausente da galeria associada indevidamente em 1:N | FPIR |\n| Pessoa presente não identificada em 1:N | FNIR |\n\n**Regra prática:** identifique primeiro a operação e o denominador, depois a decisão incorreta. Não transporte números de testes diferentes sem conferir protocolo, população, limiar e tamanho da galeria.",
+  "flashcards": [
+    {
+      "front": "O que o FRTE permite comparar?",
+      "back": "Compara algoritmos em trilhas e condições estipuladas. O resultado não certifica o produto implantado em qualquer ambiente, pois captura, dados e operação podem diferir."
+    },
+    {
+      "front": "Como ler “FNIR em FPIR fixada”?",
+      "back": "A FPIR é a condição imposta ao sistema; a métrica relatada é a FNIR observada nessa condição. A taxa fixada não é a variável que a expressão está reportando."
+    },
+    {
+      "front": "Por que evitar vazamento entre treino e teste?",
+      "back": "Se o teste reutiliza pessoas ou material já visto no treinamento, o desempenho pode ficar artificialmente alto. O ensaio deve separar os dados conforme o protocolo."
+    },
+    {
+      "front": "O que uma amostra maior muda na taxa observada?",
+      "back": "Com a mesma taxa pontual, mais observações tendem a reduzir a incerteza da estimativa. Taxas muito pequenas exigem muitas observações para serem sustentadas."
+    },
+    {
+      "front": "Como interpretar diferenças entre grupos?",
+      "back": "Verifique subgrupos e condições de captura: iluminação, exposição e pose podem elevar falsos negativos, enquanto diferenças nas pontuações de impostores podem afetar falsos positivos. Controle o protocolo antes de atribuir a causa ao algoritmo."
+    },
+    {
+      "front": "O que é biometria?",
+      "back": "Reconhecimento ou verificação automatizada a partir de características físicas ou comportamentais mensuráveis."
+    },
+    {
+      "front": "O que diferencia amostra e template?",
+      "back": "Amostra é a captura, como uma foto; template é uma representação de características extraída para comparação."
+    },
+    {
+      "front": "Quando ocorre verificação 1:1?",
+      "back": "Quando uma identidade declarada é confrontada com a referência associada a ela."
+    },
+    {
+      "front": "Quando ocorre identificação 1:N?",
+      "back": "Quando a amostra é procurada entre várias identidades de uma galeria."
+    },
+    {
+      "front": "O que é busca mated?",
+      "back": "Busca cuja pessoa consultada possui identidade correspondente cadastrada na galeria."
+    },
+    {
+      "front": "O que é busca non-mated?",
+      "back": "Busca cuja pessoa consultada não tem identidade correspondente na galeria."
+    },
+    {
+      "front": "Que erro a FMR mede?",
+      "back": "Proporção de comparações impostoras 1:1 incorretamente aceitas como correspondentes."
+    },
+    {
+      "front": "Que erro a FNMR mede?",
+      "back": "Proporção de comparações genuínas 1:1 rejeitadas pelo limiar adotado."
+    },
+    {
+      "front": "Como interpretar FPIR?",
+      "back": "Fração de buscas 1:N sem correspondente que retornam identificação indevida no protocolo considerado."
+    },
+    {
+      "front": "Como interpretar FNIR?",
+      "back": "Fração de buscas 1:N com correspondente que não retornam a identidade correta conforme o critério do ensaio."
+    },
+    {
+      "front": "Qual o denominador de FPIR?",
+      "back": "O total de buscas 1:N sem correspondente na galeria."
+    },
+    {
+      "front": "Qual o denominador de FNIR?",
+      "back": "O total de buscas 1:N com correspondente na galeria."
+    },
+    {
+      "front": "Como atua limiar de similaridade maior?",
+      "back": "Em geral reduz aceitações falsas e pode aumentar rejeições genuínas."
+    },
+    {
+      "front": "FMR é equivalente a FPIR?",
+      "back": "Não. A primeira considera comparações 1:1; a segunda considera buscas 1:N sem correspondente."
+    },
+    {
+      "front": "Qual a função do ANSI/NIST-ITL?",
+      "back": "Padronizar registros e informações biométricas para intercâmbio entre sistemas."
+    },
+    {
+      "front": "Qual a edição nova do ANSI/NIST-ITL?",
+      "back": "ANSI/NIST-ITL 1-2025, publicada em 2026 como NIST SP 500-290e4."
+    },
+    {
+      "front": "JSON válido prova conformidade biométrica?",
+      "back": "Não. A sintaxe RFC 8259 não garante conformidade com campos e regras de um perfil ANSI/NIST-ITL."
+    },
+    {
+      "front": "O que é XML?",
+      "back": "Linguagem hierárquica de marcação padronizada pelo W3C, utilizável em encodings definidos por esquemas."
+    },
+    {
+      "front": "O que avalia FRTE 1:1?",
+      "back": "Algoritmos de verificação facial, inclusive FNMR em pontos de operação com FMR fixada."
+    },
+    {
+      "front": "O que avalia FRTE 1:N?",
+      "back": "Algoritmos de identificação facial em galerias, com FPIR, FNIR e parâmetros de busca."
+    },
+    {
+      "front": "Que dados biométricos são sensíveis na LGPD?",
+      "back": "Dados biométricos vinculados a pessoa natural, segundo o art. 5º, II, da Lei nº 13.709/2018."
+    },
+    {
+      "front": "Limiar zero e top-50 significam acerto automático?",
+      "back": "Não. Uma lista investigativa de 50 candidatos exige critério próprio para avaliar posição e revisão."
+    }
+  ],
+  "tips": [
+    "Leia 'identidade declarada' como pista de 1:1; leia 'pesquisa em galeria' como pista de 1:N.",
+    "Em FPIR e FNIR, escreva primeiro o universo: ausentes da galeria para FPIR; presentes para FNIR.",
+    "Em cálculos de taxa, mantenha numerador e denominador da mesma população e transforme para porcentagem somente ao final.",
+    "Compare resultados NIST somente depois de conferir a trilha de teste, a base de imagens, o limiar e o tamanho da galeria.",
+    "Separe padrão biométrico ANSI/NIST-ITL de formatos genéricos XML e JSON; arquivo bem formado não basta.",
+    "Verifique se a questão discute sucesso no primeiro candidato ou presença em lista top-k; são critérios diferentes.",
+    "Template biométrico continua necessitando controles de acesso e governança, mesmo sem exibir imagem reconhecível."
+  ],
+  "traps": [
+    "A prova diz 'FPIR é a proporção de pessoas cadastradas rejeitadas'. Está errado: essa situação corresponde a erro de identificação de buscas com correspondente, relacionado à FNIR.",
+    "A prova escreve 'JSON é a versão mais recente do algoritmo NIST'. Está errado: JSON é serialização genérica; ANSI/NIST-ITL define o intercâmbio biométrico.",
+    "A prova chama 'FMR' de erro por busca em galeria. Está errado: FMR se refere a comparações 1:1 de impostores, enquanto FPIR se refere a buscas 1:N sem correspondente.",
+    "A prova transforma 'algoritmo avaliado pelo NIST' em 'produto certificado para toda instalação'. Está errado: o teste mede desempenho sob protocolos especificados.",
+    "A prova afirma que elevar o limiar de similaridade reduz simultaneamente FMR e FNMR. Está errado: tende a reduzir FMR e elevar FNMR.",
+    "A prova toma candidato verdadeiro em segundo lugar como vitória em protocolo top-1. Está errado: o critério de primeira posição não foi cumprido.",
+    "A prova declara que um template não é dado sensível porque não contém rosto legível. Está errado: a vinculação a uma pessoa natural é determinante no art. 5º, II, da LGPD."
+  ],
+  "activeRecall": [
+    {
+      "question": "Uma tabela relata FNIR em FPIR = 0,003. Qual taxa é imposta e qual é medida?",
+      "answer": "A FPIR é o ponto de operação imposto; a FNIR é medida nesse ponto. Portanto, a expressão não está chamando 0,003 de FNIR."
+    },
+    {
+      "question": "Distinga identificação e verificação biométrica com um exemplo para cada.",
+      "answer": "Verificação 1:1 confronta rosto e identidade alegada em uma conta; identificação 1:N procura impressão digital desconhecida entre muitas pessoas cadastradas."
+    },
+    {
+      "question": "Calcule FPIR: 24 falsos retornos em 12.000 buscas sem correspondente.",
+      "answer": "24/12.000 = 0,002, ou 0,2%. O denominador contém apenas as buscas de pessoas ausentes da galeria."
+    },
+    {
+      "question": "Calcule FNIR: 60 buscas com correspondente sem resultado correto em 2.000 consultas.",
+      "answer": "60/2.000 = 0,03, ou 3%. A falha foi não identificar quem estava cadastrado."
+    },
+    {
+      "question": "Por que FMR e FPIR não são intercambiáveis?",
+      "answer": "FMR mede pares impostores em comparações 1:1; FPIR mede o resultado errado de buscas 1:N sem correspondente, afetadas pela galeria e política de busca."
+    },
+    {
+      "question": "O que muda quando se eleva o limiar de similaridade?",
+      "answer": "Em geral, menos impostores ultrapassam o limiar, mas mais pares genuínos podem ficar abaixo dele."
+    },
+    {
+      "question": "Qual a diferença entre um JSON válido e um pacote biométrico conforme ANSI/NIST-ITL?",
+      "answer": "O primeiro obedece à gramática RFC 8259; o segundo deve cumprir versão, semântica de registros e eventuais regras de um perfil biométrico."
+    },
+    {
+      "question": "Qual a referência publicada da revisão ANSI/NIST-ITL 1-2025?",
+      "answer": "NIST SP 500-290e4, publicada em 25 de março de 2026."
+    },
+    {
+      "question": "Quais são os cuidados ao interpretar resultados do NIST FRTE?",
+      "answer": "Conferir trilha 1:1 ou 1:N, data e algoritmo, bases de imagens, limiar, escala da galeria e critério de retorno."
+    },
+    {
+      "question": "Como a LGPD enquadra dado biométrico vinculado a uma pessoa natural?",
+      "answer": "Como dado pessoal sensível, de acordo com a Lei nº 13.709/2018, art. 5º, II."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confusão entre 1:1 e 1:N",
+      "summary": "Verificação compara alegação de identidade com uma referência; identificação busca em galeria, e os denominadores estatísticos são diferentes."
+    },
+    {
+      "key": "e2",
+      "title": "Inversão entre FPIR e FNIR",
+      "summary": "FPIR usa buscas sem correspondente que retornam identificação indevida; FNIR usa buscas com correspondente sem retorno correto."
+    },
+    {
+      "key": "e3",
+      "title": "Troca de FMR/FNMR por FPIR/FNIR",
+      "summary": "FMR e FNMR pertencem a comparações 1:1; FPIR e FNIR são indicadores de buscas 1:N. Não são conversões automáticas."
+    },
+    {
+      "key": "e4",
+      "title": "Confusão entre formato e padrão",
+      "summary": "XML e JSON são serializações; o padrão ANSI/NIST-ITL estabelece registros biométricos. Validade sintática não demonstra conformidade biométrica."
+    },
+    {
+      "key": "e5",
+      "title": "Interpretação incorreta de teste e limiar",
+      "summary": "Comparar algoritmos requer mesmo protocolo, limiar e dados; resultados NIST não certificam todo cenário e top-1 difere de top-k."
+    },
+    {
+      "key": "e6",
+      "title": "Dados biométricos sem proteção",
+      "summary": "O template vinculado a pessoa natural é dado biométrico pessoal sensível segundo o art. 5º, II, da LGPD e exige governança e controles proporcionais."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Uma pessoa informa seu identificador antes de encostar o dedo no leitor. O sistema compara a captura com a referência daquele cadastro. Qual operação foi realizada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Identificação 1:N, porque o sensor recebe uma impressão digital atual.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Verificação 1:1, porque há uma identidade declarada e uma referência.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Busca aberta 1:N, porque há possibilidade de não reconhecer o titular.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Identificação em galeria, porque o cadastro já possui características.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Consulta top-k, porque o sistema pode apresentar vários candidatos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. A identidade foi declarada e comparada à referência específica, caracterizando verificação 1:1. A e D confundem a existência de cadastro com busca em várias identidades; C introduz conjunto aberto sem pesquisa 1:N; E supõe lista de candidatos não indicada.",
+      "section": "1. Fundamentos de biometria, captura e identificação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma imagem facial sem identificador informado é comparada com 80 mil cadastros para localizar pessoas semelhantes. Qual classificação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Verificação 1:1, porque cada comparação interna envolve dois templates.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Autenticação declarativa, porque a imagem substitui o identificador.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Validação de cadastro, porque a galeria contém referências anteriores.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Identificação 1:N, pois a consulta pesquisa múltiplas identidades.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Verificação assistida, pois o resultado depende da qualidade da foto.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. A tarefa é identificar uma amostra contra 80 mil referências, independentemente da implementação interna. A erra ao classificar toda a pesquisa pelas comparações elementares; B inventa identidade alegada; C confunde finalidade de cadastro com busca; E não define a operação biométrica.",
+      "section": "1. Fundamentos de biometria, captura e identificação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Durante o cadastramento facial, o software extrai um vetor de características de uma fotografia. Como deve ser denominado o vetor usado nas comparações?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Template biométrico, derivado da amostra e utilizado pelo comparador.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Identidade alegada, fornecida pela pessoa ao iniciar a verificação.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Imagem bruta, preservada com os mesmos pixels capturados pelo sensor.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Limiar de decisão, configurado para aceitar escores suficientes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Galeria de identificação, composta de várias identidades indexadas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O vetor extraído é uma representação biométrica, ou template. B é a alegação de identidade, não características; C descreve a fotografia original; D designa o valor de corte do comparador; E é o conjunto de referências consultadas em identificação.",
+      "section": "1. Fundamentos de biometria, captura e identificação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em 1.000 buscas faciais de pessoas comprovadamente presentes na galeria, 40 não retornaram a identidade verdadeira no critério do teste. Qual métrica foi observada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "FMR de 4%, por aceitar comparações entre pessoas diferentes.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "FPIR de 4%, por identificar incorretamente pessoas não cadastradas.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "FNMR de 4%, por rejeitar pares em verificação de identidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "FPIR de 0,4%, por considerar toda a população pesquisada.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "FNIR de 4%, por falhar em buscas com identidade correspondente.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. O sistema realizou buscas 1:N com correspondente e perdeu 40 em 1.000, logo FNIR = 4%. A e C são taxas de comparações 1:1, não de buscas; B usa FPIR, cujo universo é o das buscas sem correspondente; D erra tanto a métrica quanto a porcentagem.",
+      "section": "3. Taxas de erro e efeito dos limiares de decisão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema 1:N pesquisa 2.000 pessoas ausentes da galeria e identifica indevidamente oito delas. Que indicador descreve o resultado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "FNIR de 0,4%, por rejeitar cadastros que estavam presentes na galeria.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "FMR de 0,4%, por comparar incorretamente pares de identidades.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "FPIR de 0,4%, por retornar resultados indevidos sem correspondente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "FNMR de 4%, por não reconhecer comparações genuínas de usuários.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "FPIR de 4%, por dividir os oito erros por duzentas tentativas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. FPIR = 8/2.000 = 0,004, ou 0,4%, pois as consultas eram sem correspondente. A troca o grupo de referência por buscas cadastradas; B e D usam métricas de pares 1:1; E altera indevidamente o denominador e infla a porcentagem.",
+      "section": "3. Taxas de erro e efeito dos limiares de decisão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um ensaio de verificação facial, 10 de 10.000 pares de indivíduos distintos foram aceitos como correspondentes. Qual é a taxa apropriada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "FNIR de 0,1%, relacionada a buscas de pessoas já cadastradas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "FPIR de 0,1%, relacionada a buscas sem identidade na galeria.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "FNMR de 0,1%, relacionada à rejeição de comparações genuínas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "FMR de 0,1%, relacionada à aceitação de comparações impostoras.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "FMR de 1%, relacionada a cem comparações impostoras aceitas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. FMR mede comparações impostoras aceitas e corresponde a 10/10.000 = 0,1%. A e B seriam taxas por busca 1:N, inexistentes aqui; C se refere a pares genuínos rejeitados; E multiplica por dez a taxa e também troca a contagem de erros.",
+      "section": "3. Taxas de erro e efeito dos limiares de decisão",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Duas soluções precisam trocar registros de impressões digitais com campos e tipos padronizados para interoperar. Qual referência atende diretamente à necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "RFC 8259, porque especifica o conteúdo de todos os registros digitais.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ANSI/NIST-ITL, porque define formatos e registros biométricos.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "XML 1.0, porque descreve o algoritmo que compara impressões digitais.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "FNIR, porque estabelece a estrutura de campos para intercâmbio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "FPIR, porque determina os formatos aceitos para arquivos de imagem.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. O ANSI/NIST-ITL disciplina a representação e o intercâmbio de informações biométricas. A define a sintaxe JSON, não a semântica dos registros; C define uma linguagem de marcação, não o comparador; D e E são métricas de erro, não padrões de arquivos.",
+      "section": "2. Intercâmbio de dados: ANSI/NIST-ITL, XML e JSON",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma API retorna um objeto JSON sintaticamente válido com uma fotografia codificada. O que é possível afirmar sem examinar o perfil biométrico?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A sintaxe JSON está válida, mas isso não prova conformidade ANSI/NIST.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "O registro está conforme ANSI/NIST, porque um parser aceitou a estrutura.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O template é autêntico, porque JSON usa chaves para identificar campos.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A imagem foi comparada com sucesso, porque a API retornou dados válidos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O perfil XML foi respeitado, porque JSON também serializa dados hierárquicos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O parser confirma a gramática do JSON, mas não requisitos de registros biométricos. B presume perfil sem validação; C confunde serialização com autenticidade; D confunde resposta técnica com reconhecimento; E equipara dois formatos distintos e não demonstra validade de esquema.",
+      "section": "2. Intercâmbio de dados: ANSI/NIST-ITL, XML e JSON",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto utiliza elementos hierárquicos e arquivos de esquema XSD para conferir mensagens biométricas estruturadas. Qual tecnologia de representação está em uso?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "JSON, cuja conformidade é necessariamente avaliada por esquemas XSD.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "ANSI/NIST-ITL tradicional, cuja estrutura se limita a etiquetas XSD.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "FPIR, cujo propósito é validar estruturas documentais recebidas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Template proprietário, cuja semântica depende da notação de elementos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "XML, que usa elementos e pode ser validado por esquemas XSD.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. XML emprega elementos e pode ser validado por XSD. A atribui indevidamente ao JSON a validação XSD; B confunde formato tradicional ANSI/NIST com codificação XML; C menciona taxa de falso positivo 1:N; D substitui linguagem de intercâmbio por um modelo de características.",
+      "section": "2. Intercâmbio de dados: ANSI/NIST-ITL, XML e JSON",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num teste de identificação, 15 das 5.000 buscas de pessoas ausentes da galeria retornaram identidade indevida. Qual resultado deve ser registrado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "FNIR de 0,3%, tomando as buscas ausentes como falsos negativos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "FMR de 0,3%, tomando buscas ausentes como pares impostores.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "FPIR de 0,3%, utilizando as buscas sem correspondente no divisor.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "FPIR de 3%, tomando apenas quinhentas buscas como população.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "FNMR de 3%, tomando os quinze resultados como rejeições genuínas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. A razão 15/5.000 = 0,003 = 0,3% é FPIR no ensaio 1:N sem correspondente. A e E são falsas rejeições de outros universos; B é erro de pares 1:1; D usa denominador inventado, alterando o resultado percentual.",
+      "section": "3. Taxas de erro e efeito dos limiares de decisão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em 4.000 buscas de pessoas presentes na galeria, 100 não produziram o candidato correto segundo o critério adotado. Qual medida se aplica?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "FNIR de 2,5%, pois houve 100 falhas em 4.000 buscas com correspondente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "FPIR de 2,5%, pois as buscas com correspondente geraram rejeição.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "FMR de 2,5%, pois 100 pares de impostores obtiveram pontuação alta.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "FNMR de 0,25%, pois o total de buscas define pares genuínos.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "FNIR de 25%, pois cem erros devem ser divididos por quatrocentos.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O evento é busca 1:N com correspondente não reconhecido; 100/4.000 = 0,025 ou 2,5%. B usa população errada para FPIR; C descreve pares impostores inexistentes; D troca unidade e aritmética; E reduz artificialmente o número de buscas do ensaio.",
+      "section": "3. Taxas de erro e efeito dos limiares de decisão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um verificador 1:1 aceita 12 de 6.000 pares de indivíduos distintos. Qual taxa e denominador foram utilizados corretamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "FNMR = 0,2%, usando 6.000 pares genuínos como total de teste.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "FMR = 0,2%, usando 6.000 comparações impostoras como total.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "FPIR = 0,2%, usando 6.000 buscas de pessoas sem cadastro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "FNIR = 2%, usando 600 pesquisas com correspondente em galeria.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "FMR = 2%, usando 600 comparações entre pessoas distintas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. São pares impostores em verificação 1:1, logo FMR = 12/6.000 = 0,2%. A pressupõe pares genuínos rejeitados; C e D convertem comparações em buscas 1:N; E altera o total observado e amplia indevidamente a taxa.",
+      "section": "3. Taxas de erro e efeito dos limiares de decisão",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O sistema utiliza pontuação de similaridade, e o administrador eleva o limiar de aceitação. Qual efeito estatístico é esperado, mantidos os dados?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A FMR tende a crescer e a FNMR tende a cair com maior exigência.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A FMR e a FNMR tendem a cair igualmente por maior seletividade.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A FPIR fica constante e a FNIR deixa de depender do protocolo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A FMR tende a cair e a FNMR pode subir sob limiar maior.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "A FNMR tende a cair enquanto a taxa de impostores aceitos sobe.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Limiar de similaridade mais elevado dificulta aceitação: reduz falsos matches e pode aumentar não matches genuínos. A e E invertem o sentido; B supõe melhora simultânea sem troca; C ignora os efeitos sobre retornos em buscas 1:N.",
+      "section": "3. Taxas de erro e efeito dos limiares de decisão",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma especificação de intercâmbio cita a revisão ANSI/NIST-ITL 1-2025. Qual publicação oficial documenta essa edição recente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "NIST SP 500-290e2, edição que registra a atualização de 2013.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "NIST SP 500-290e3, edição que registra a atualização de 2015.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "NIST SP 800-63A-4, edição dedicada à prova de identidade digital.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "RFC 8259, norma geral de serialização de objetos em formato JSON.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "NIST SP 500-290e4, edição da revisão de 2025 publicada em 2026.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. A edição ANSI/NIST-ITL 1-2025 consta da NIST SP 500-290e4 publicada em março de 2026. A e B são edições mais antigas; C trata de identidade digital, não da edição de intercâmbio; D especifica JSON genérico e não a revisão do padrão biométrico.",
+      "section": "2. Intercâmbio de dados: ANSI/NIST-ITL, XML e JSON",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma galeria com 20 mil pessoas recebe tanto consultas de cadastrados quanto de visitantes ausentes. Qual desenho permite estimar FPIR e FNIR separadamente?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Usar apenas pares impostores e computar uma FMR para toda a galeria.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Usar apenas buscas de cadastrados e chamar todas as falhas de FPIR.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Separar buscas sem correspondente das com correspondente e contar erros.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Misturar todas as consultas e dividir cada erro pelo número de pessoas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Usar pares genuínos 1:1 e considerar sua FNMR uma FNIR de galeria.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. FPIR requer população de consultas sem correspondente; FNIR requer consultas com correspondente. A mede comparações 1:1; B elimina a população para FPIR; D perde os denominadores de cada taxa; E pressupõe equivalência indevida de métricas de tarefas distintas.",
+      "section": "4. Avaliações NIST, experimentos e leitura crítica de resultados",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe quer comparar algoritmos de verificação facial usando resultados públicos de teste. Que indicador aparece tipicamente na trilha NIST FRTE 1:1?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "FNMR sob FMR fixada, com conjuntos e limiares especificados no teste.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "FNIR sob FPIR fixada, sempre calculadas em grandes galerias 1:N.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Taxa de reidentificação jurídica, sem dependência dos sensores usados.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Proporção de documentos XML válidos no intercâmbio ANSI/NIST-ITL.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Número de candidatos top-50, sem qualquer medida de falso match.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. O NIST FRTE 1:1 publica FNMR em pontos fixados de FMR para comparações de faces. B descreve métricas da identificação 1:N; C inventa medida alheia ao teste; D refere-se à conformidade documental; E alude a lista investigativa da trilha 1:N.",
+      "section": "4. Avaliações NIST, experimentos e leitura crítica de resultados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um relatório traz dois resultados: rejeição de pares genuínos e não retorno da identidade verdadeira em buscas por galeria. Qual associação corresponde às taxas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "FMR para pares genuínos e FPIR para buscas com correspondente.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "FNMR para pares genuínos e FNIR para buscas com correspondente.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "FPIR para pares genuínos e FNMR para buscas com correspondente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "FNIR para pares genuínos e FMR para buscas com correspondente.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "FNMR para pares genuínos e FPIR para buscas com correspondente.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. FNMR mede rejeição de comparações genuínas 1:1; FNIR mede perda de identidade correta nas buscas 1:N com correspondente. A troca os sentidos; C e D deslocam métricas entre tarefas; E reserva FPIR à população errada, pois FPIR utiliza buscas sem correspondente.",
+      "section": "3. Taxas de erro e efeito dos limiares de decisão",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma avaliação 1:N obteve seis identificações indevidas em 3.000 buscas sem correspondente e 150 falhas de retorno correto em 5.000 buscas com correspondente. Qual par de taxas está certo?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "FPIR = 3% e FNIR = 0,2%, trocando os totais das populações.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "FMR = 0,2% e FNMR = 3%, porque cada busca compara imagens.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "FPIR = 0,12% e FNIR = 5%, repartindo os erros por galeria.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "FPIR = 0,2% e FNIR = 5%, tomando o total de erros nas buscas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "FPIR = 0,2% e FNIR = 3%, usando cada universo correspondente.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. FPIR = 6/3.000 = 0,2%; FNIR = 150/5.000 = 3%. A inverte taxas; B substitui métricas por comparação 1:1; C usa base de cálculo indevida; D acerta a FPIR, mas infla a FNIR ao alterar o denominador do teste.",
+      "section": "3. Taxas de erro e efeito dos limiares de decisão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um sistema investigativo coloca o verdadeiro correspondente em segundo entre 50 candidatos. O relatório exige que o primeiro candidato seja o correto. Qual julgamento é adequado?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "É acerto top-1, pois a identidade apareceu dentro dos 50 retornados.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É acerto em aceitação automática, pois os dois primeiros são semelhantes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "É erro de FPIR, pois houve um retorno com posição superior à real.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "É falha no critério top-1, embora possa ser sucesso em top-50.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "É falha de FMR, pois o primeiro candidato não era a pessoa buscada.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Top-1 requer primeira posição correta; top-50 considera inclusão na lista, conforme protocolo. A confunde critérios; B equipara lista a decisão; C chama FPIR um caso que possui correspondente; E usa taxa de comparações impostoras 1:1, não de busca.",
+      "section": "4. Avaliações NIST, experimentos e leitura crítica de resultados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois grupos apresentam FNIR diferente em um mesmo teste 1:N. O segundo utiliza imagens frequentemente subexpostas. Qual conclusão é metodologicamente sustentada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A diferença comprova que apenas o comparador causou a desigualdade.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A variação demonstra FPIR superior mesmo sem buscas sem cadastro.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Qualidade e exposição devem ser investigadas antes de atribuir a causa.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "O limiar deve variar livremente por pessoa para eliminar todo efeito.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A comparação depende somente do número de registros existentes na galeria.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. A qualidade da imagem é fator documentado de falsos negativos em avaliações faciais; investigar exposição e protocolo é essencial. A afirma causalidade não demonstrada; B muda para buscas sem correspondente; D promete eliminação de efeitos por adaptação irrestrita; E ignora captura e limiar.",
+      "section": "4. Avaliações NIST, experimentos e leitura crítica de resultados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um projeto exige usar a revisão ANSI/NIST-ITL 1-2025 e assume que qualquer JSON genérico já atende integralmente à codificação da nova edição. Qual ressalva é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A edição 2025 existe, mas codificações e perfis devem ser conferidos separadamente.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "A revisão não foi publicada, pois depende da conclusão da codificação XML.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "JSON substituiu todos os registros biométricos e dispensou perfil próprio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O padrão só permite uso em autenticação 1:1 e não em intercâmbio.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A edição 2015 permaneceu como a única publicação do NIST em 2026.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. A edição 1-2025 foi publicada na SP 500-290e4 e o NIST relata trabalho específico com encodings XML/JSON. B confunde aprovação do padrão com produtos de codificação; C presume semântica inexistente; D limita erroneamente o uso; E ignora a revisão publicada em março de 2026.",
+      "section": "2. Intercâmbio de dados: ANSI/NIST-ITL, XML e JSON",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um pacote biométrico passa por parser JSON e chega íntegro ao receptor, mas está sem campo exigido pelo perfil contratado. Qual avaliação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O pacote é conforme, pois integridade e sintaxe substituem o perfil.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O pacote pode ser JSON válido e íntegro, mas não conforme ao perfil.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A ausência do campo altera apenas a FNIR, sem afetar a conformidade.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "A mensagem é necessariamente XML inválido, mesmo sem empregar XML.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A assinatura de transporte supre os campos semânticos obrigatórios.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Sintaxe e integridade não comprovam atendimento a requisitos obrigatórios do perfil biométrico. A confunde camadas; C desloca falha estrutural para métrica de reconhecimento; D introduz formato não utilizado; E atribui à proteção de transporte a função de completar semântica ausente.",
+      "section": "2. Intercâmbio de dados: ANSI/NIST-ITL, XML e JSON",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma aplicação 1:N pretende reduzir as falhas de identificação de cadastrados diminuindo o limiar de similaridade. Qual consequência deve ser acompanhada?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Redução necessária da FPIR, pois mais candidatos diminuem falsas aceitações.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Elevação necessária da FNIR, pois a regra passa a ser mais restritiva.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "FMR invariável em toda situação, pois o limiar só afeta galerias grandes.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Possível queda da FNIR acompanhada de aumento de identificações indevidas.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Conversão direta de FNIR em FNMR, porque passam a valer critérios iguais.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. Abaixar limiar de similaridade tende a recuperar correspondentes verdadeiros, mas pode deixar passar consultas sem correspondente, elevando FPIR. A e B invertem o compromisso; C nega efeito do limiar nas aceitações; E equipara indevidamente medidas 1:N e 1:1.",
+      "section": "3. Taxas de erro e efeito dos limiares de decisão",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um fornecedor apresenta FMR de 0,001 em pares 1:1 e afirma que uma pesquisa 1:N entre um milhão de identidades terá FPIR igual a 0,001. Qual objeção procede?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A FMR só pode ser utilizada para biometria de íris, não de face.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A FPIR decorre apenas do total de pessoas cadastradas, sem limiar.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A FPIR por busca exige ensaio 1:N específico e não decorre da FMR.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "A igualdade seria correta apenas quando a busca envolve top-50.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A FNIR é a única taxa que pode ser medida em galeria grande.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. FMR é probabilidade empírica por comparação impostora 1:1; FPIR é erro por busca 1:N e depende de algoritmo, galeria e limiar. A restringe modalidade sem base; B ignora configuração; D inventa equivalência condicionada à lista; E exclui indevidamente FPIR de avaliação em galerias.",
+      "section": "3. Taxas de erro e efeito dos limiares de decisão",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Dois estudos registram FPIR de 0,2%. O primeiro usa uma ocorrência errada em 500 buscas e o segundo 200 em 100.000 buscas. Qual análise é mais rigorosa?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "A primeira estimativa é mais precisa, porque incluiu menos erros absolutos.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "As margens de incerteza são iguais, já que a FPIR pontual coincide.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A segunda taxa é menor, porque o número absoluto de erros é maior.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As duas medidas comprovam igual desempenho em quaisquer populações.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A segunda costuma ter menor incerteza amostral, sob condições comparáveis.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Com mesma proporção, amostra maior geralmente permite estimativa mais precisa se o desenho for comparável. A inverte a relação; B ignora o tamanho da amostra; C erra a divisão; D extrapola os resultados para populações e cenários que não foram testados.",
+      "section": "4. Avaliações NIST, experimentos e leitura crítica de resultados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma pessoa declara determinada identidade e apresenta a face para comparação com a única referência correspondente à declaração; trata-se de verificação biométrica 1:1.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A verificação 1:1 parte de uma identidade alegada e da referência específica vinculada a ela. Não existe pesquisa de múltiplas identidades na galeria, que caracterizaria identificação 1:N.",
+      "section": "1. Fundamentos de biometria, captura e identificação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um template biométrico equivale necessariamente à imagem original produzida pelo sensor, preservando os mesmos pixels e formato de captura.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O template normalmente é uma representação de características extraídas da amostra biométrica e não precisa preservar os pixels da imagem. Confundir representação e captura leva a conclusões erradas sobre armazenamento e comparação.",
+      "section": "1. Fundamentos de biometria, captura e identificação",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A FMR descreve a proporção de comparações de indivíduos diferentes aceitas como correspondências na verificação biométrica 1:1.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O denominador da FMR são as comparações impostoras, isto é, pares de pessoas distintas. Não se trata de buscas sem correspondente em galeria, situação avaliada por FPIR no contexto 1:N.",
+      "section": "3. Taxas de erro e efeito dos limiares de decisão",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Toda mensagem JSON válida segundo a RFC 8259 já satisfaz os requisitos de registros biométricos da edição ANSI/NIST-ITL utilizada pelo receptor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A RFC 8259 rege a sintaxe do JSON; os requisitos biométricos dependem da edição ANSI/NIST-ITL, do esquema e do perfil de intercâmbio. Um objeto pode ser bem formado sem conter metadados obrigatórios.",
+      "section": "2. Intercâmbio de dados: ANSI/NIST-ITL, XML e JSON",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O padrão ANSI/NIST-ITL disciplina a estrutura de informações biométricas intercambiadas, sem definir por si só a taxa de reconhecimento de um algoritmo concreto.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A especificação favorece interoperabilidade sintática e semântica de registros, mas a acurácia é determinada por captura, algoritmo, dados e limiar. Aderir a formato de intercâmbio não garante FPIR ou FNIR desejadas.",
+      "section": "2. Intercâmbio de dados: ANSI/NIST-ITL, XML e JSON",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um sistema 1:N não encontra a identidade de uma pessoa cadastrada, esse evento deve entrar no numerador de FPIR, que mede consultas com correspondente.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A falha de reconhecimento de pessoa presente na galeria integra FNIR nas condições do ensaio. FPIR utiliza buscas sem correspondente que retornam identidade indevida, isto é, outra população e outro erro.",
+      "section": "3. Taxas de erro e efeito dos limiares de decisão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma avaliação que contou 14 comparações 1:1 de impostores aceitas entre 7.000 pares pode chamar esse resultado de FPIR de 0,2%, porque cada par contém duas imagens.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A conta de 14/7.000 = 0,2% está correta, mas a medida é FMR, pois as unidades observadas são pares impostores 1:1. FPIR requer buscas de identificação 1:N sem identidade correspondente.",
+      "section": "3. Taxas de erro e efeito dos limiares de decisão",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um experimento 1:N com 10.000 consultas de pessoas não cadastradas e 25 identificações indevidas, a FPIR observada é 0,25%.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O denominador deve conter buscas sem correspondente, e 25/10.000 = 0,0025, ou 0,25%. Trata-se de FPIR por pesquisa em galeria, não de FMR por pares ou FNIR por perdas de cadastrados.",
+      "section": "3. Taxas de erro e efeito dos limiares de decisão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O cálculo de FNIR utiliza, como denominador, o total de buscas de pessoas ausentes da galeria, independentemente de haver candidatos retornados.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A FNIR mede não identificação em buscas que possuem um correspondente verdadeiro na galeria. Buscas de pessoas ausentes compõem a base da FPIR, quando retornam identificações indevidas conforme o protocolo.",
+      "section": "3. Taxas de erro e efeito dos limiares de decisão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A edição ANSI/NIST-ITL 1-2025 encontra-se documentada na NIST SP 500-290e4, publicada em março de 2026, sendo distinta da atualização de 2015.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A NIST SP 500-290e4 apresenta a revisão ANSI/NIST-ITL 1-2025, publicada em 25 de março de 2026. A atualização de 2015 consta da edição e3; tratá-las como uma única publicação ignora a evolução do padrão.",
+      "section": "2. Intercâmbio de dados: ANSI/NIST-ITL, XML e JSON",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O resultado de um algoritmo no FRTE 1:1 comprova que o sistema completo, instalado em qualquer ambiente, apresentará necessariamente idêntica taxa de erros.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Avaliações FRTE descrevem algoritmos em cenários determinados, com imagens, limiares e protocolos próprios. Mudanças de sensor, iluminação, população e integração podem alterar o resultado operacional; avaliação não é garantia universal.",
+      "section": "4. Avaliações NIST, experimentos e leitura crítica de resultados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em sistemas de pontuação por similaridade, elevar o limiar de aceitação tende a diminuir falsas correspondências e pode aumentar falsas rejeições genuínas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Um limiar maior restringe os escores aceitos e geralmente reduz FMR, mas também pode elevar FNMR. A interpretação depende de haver escore de similaridade; métricas baseadas em distância invertem o sentido usual do corte.",
+      "section": "3. Taxas de erro e efeito dos limiares de decisão",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se um teste define acerto somente quando a identidade verdadeira ocupa a primeira posição, a presença dela na segunda posição satisfaz o critério porque ela consta da lista top-50.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Critério top-1 exige primeiro lugar; estar entre os 50 primeiros não satisfaz essa exigência. O mesmo retorno poderia ser contabilizado como sucesso sob uma métrica top-50, mas as duas definições não são intercambiáveis.",
+      "section": "4. Avaliações NIST, experimentos e leitura crítica de resultados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A Lei nº 13.709/2018, art. 5º, II, classifica dado biométrico vinculado a pessoa natural como dado pessoal sensível, o que demanda cuidados específicos de tratamento.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A LGPD inclui explicitamente dados biométricos vinculados à pessoa natural na categoria de dados sensíveis. Representar características em um template não elimina a necessidade de base jurídica, segurança e governança apropriadas.",
+      "section": "5. Implantação, segurança, governança e proteção de dados",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um template facial deixa de estar sujeito à proteção de dados sensíveis quando é armazenado como vetor numérico, mesmo permanecendo ligado à identidade cadastrada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A forma de representação não afasta a vinculação do dado biométrico à pessoa natural. Pela LGPD, art. 5º, II, esse vínculo é central para a classificação; um vetor identificável não se torna anônimo apenas por ser ilegível ao olho humano.",
+      "section": "5. Implantação, segurança, governança e proteção de dados",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Se dois ensaios 1:N apontam FPIR idêntica, aquele com número muito maior de buscas pode oferecer estimativa proporcional mais precisa, desde que os desenhos sejam comparáveis.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Em condições comparáveis e com observações adequadas, uma amostra maior costuma reduzir a incerteza de estimativa de proporção. Não basta observar o valor percentual: é preciso conhecer o denominador e o desenho estatístico.",
+      "section": "4. Avaliações NIST, experimentos e leitura crítica de resultados",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O arquivo intercambiado com criptografia autenticada e sintaxe XML correta comprova, por essas duas propriedades, que todas as amostras biométricas representam a pessoa declarada.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A criptografia autenticada protege a mensagem e o XML válido demonstra requisitos sintáticos ou de esquema. Nenhum dos dois prova a veracidade da identidade cadastrada ou o acerto de um comparador biométrico.",
+      "section": "5. Implantação, segurança, governança e proteção de dados",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma avaliação 1:N que mistura buscas com e sem correspondente em um único denominador perde a interpretação direta de FPIR e FNIR, pois essas taxas condicionam eventos a populações distintas.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. FPIR considera consultas de indivíduos ausentes; FNIR considera consultas de indivíduos presentes. Somar ambos os universos em um total único sem distinguir a origem cria indicador diferente e prejudica a comparação com protocolos NIST.",
+      "section": "3. Taxas de erro e efeito dos limiares de decisão",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma taxa FMR medida em comparações 1:1 deve ser transportada sem alteração para FPIR em buscas de um milhão de identidades, desde que o mesmo algoritmo gere os escores.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A ocorrência de falso retorno em uma busca depende da política de identificação, do limiar e da galeria, não apenas da FMR por par impostor. É necessário executar ensaio 1:N para estimar FPIR nas condições da aplicação.",
+      "section": "3. Taxas de erro e efeito dos limiares de decisão",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A publicação da edição ANSI/NIST-ITL 1-2025 e a elaboração de suas codificações XML/JSON são aspectos distintos, de modo que validar apenas a gramática JSON não demonstra conformidade ao perfil biométrico adotado.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O NIST publicou a revisão na SP 500-290e4 e documentou separadamente os trabalhos relativos a encodings. Uma transação conforme precisa obedecer à edição e ao perfil com seus campos e restrições, além da mera validade do JSON.",
+      "section": "2. Intercâmbio de dados: ANSI/NIST-ITL, XML e JSON",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "ANSI/NIST-ITL 1-2025 — revisão e situação das codificações",
+      "publisher": "National Institute of Standards and Technology",
+      "reference": "ANSI/NIST-ITL 1-2025; página do projeto e trabalhos de XML/JSON",
+      "url": "https://www.nist.gov/programs-projects/ansinist-itl-standard/2025",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Data Format for the Interchange of Fingerprint, Facial and Other Biometric Information",
+      "publisher": "National Institute of Standards and Technology",
+      "reference": "NIST SP 500-290e4, ANSI/NIST-ITL 1-2025, publicação de 25/03/2026",
+      "url": "https://www.nist.gov/publications/information-technology-data-format-interchange-fingerprint-facial-and-other-biometric",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Data Format for the Interchange of Fingerprint, Facial and Other Biometric Information — atualização de 2015",
+      "publisher": "National Institute of Standards and Technology",
+      "reference": "NIST SP 500-290e3, ANSI/NIST-ITL 1-2011 Update: 2015",
+      "url": "https://www.nist.gov/publications/data-format-interchange-fingerprint-facial-other-biometric-information-ansinist-itl-1-1",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Face Recognition Technology Evaluation — 1:N Identification",
+      "publisher": "National Institute of Standards and Technology",
+      "reference": "FRTE 1:N — FPIR, FNIR, operações com limiar e investigação",
+      "url": "https://pages.nist.gov/frvt/html/frvt1N.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Face Recognition Technology Evaluation — 1:1 Verification",
+      "publisher": "National Institute of Standards and Technology",
+      "reference": "FRTE 1:1 — FMR, FNMR e variações por grupos",
+      "url": "https://pages.nist.gov/frvt/html/frvt11.html",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Lei Geral de Proteção de Dados Pessoais",
+      "publisher": "Presidência da República",
+      "reference": "Lei nº 13.709/2018, art. 5º, II, e art. 6º",
+      "url": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "The JavaScript Object Notation (JSON) Data Interchange Format",
+      "publisher": "Internet Engineering Task Force — RFC Editor",
+      "reference": "RFC 8259, dezembro de 2017",
+      "url": "https://www.rfc-editor.org/info/rfc8259",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Extensible Markup Language (XML) 1.0 (Fifth Edition)",
+      "publisher": "World Wide Web Consortium",
+      "reference": "XML 1.0, quinta edição",
+      "url": "https://www.w3.org/TR/xml/",
+      "accessedAt": "2026-10-09"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Digital Identity Guidelines — Identity Proofing and Enrollment",
+      "publisher": "National Institute of Standards and Technology",
+      "reference": "NIST SP 800-63A-4, testes biométricos e grupos demográficos",
+      "url": "https://pages.nist.gov/800-63-4/sp800-63a.html",
+      "accessedAt": "2026-10-09"
+    }
+  ]
+}

@@ -1,0 +1,1853 @@
+{
+  "id": "informatica.spring-cloud-eureka-zuul-service-discovery",
+  "subject": "Informática",
+  "title": "Spring Cloud: Eureka, Zuul e Service Discovery",
+  "version": 1,
+  "status": "PUBLISHED",
+  "aliases": [
+    "Spring Cloud: Eureka, Zuul e Service Discovery",
+    "Spring Eureka, Zuul e Service Discovery.",
+    "Spring Eureka, Zuul e Service Discovery",
+    "Spring Eureka, Zuul",
+    "Spring Eureka",
+    "Service Discovery, Eureka e Zuul (API Gateway).",
+    "Eureka, Zuul e Spring Cloud Gateway",
+    "Service discovery com Spring Cloud Netflix Eureka",
+    "Spring Cloud Config, Eureka e Zuul"
+  ],
+  "scope": {
+    "covers": "Service discovery e registro de serviços; Eureka Server e Eureka Client; heartbeat, lease, eviction e autopreservação; descoberta no cliente x no servidor; balanceamento no cliente com Ribbon e Spring Cloud LoadBalancer; Zuul (filtros pre, route, post e error) e sua substituição pelo Spring Cloud Gateway; Spring Cloud Config; relação desses conceitos com a PDPJ-Br.",
+    "excludes": "Fundamentos gerais de microsserviços, mensageria, Spring Boot básico, MapStruct, Swagger/OpenAPI e Maven, salvo contrastes."
+  },
+  "theoryTitle": "Spring Cloud: descoberta de serviços, gateway e configuração centralizada",
+  "chapters": [
+    {
+      "title": "1. Service discovery: o problema e o registro de serviços",
+      "markdown": "> **Termos explicados**\n> - **Microsserviço**: aplicação pequena e independente que cuida de uma parte do negócio e conversa com as outras pela rede.\n> - **Instância**: cada cópia em execução de um mesmo serviço. O serviço `documentos` pode ter três instâncias rodando ao mesmo tempo.\n> - **Service discovery** (descoberta de serviços): mecanismo que transforma um **nome lógico** (`documentos`) em **endereços reais** (host e porta) das instâncias disponíveis naquele momento.\n> - **Service registry** (registro de serviços): o \"catálogo\" onde as instâncias se inscrevem e de onde os outros leem a lista.\n> - **Spring Cloud**: conjunto de projetos Spring com soluções prontas para sistemas distribuídos.\n\n### O problema que o assunto resolve\n\nNo monólito, uma parte do código chama a outra por método. Em **microsserviços**, a chamada vira requisição HTTP para **algum endereço**, e ele **não é fixo**: instâncias sobem e descem com a carga, são recriadas com outro IP, recebem portas dinâmicas e existem em várias cópias.\n\nEscrever `http://10.0.3.17:8081` na configuração seria frágil: bastaria a instância ser recriada para tudo quebrar. A saída é chamar pelo **nome lógico** e deixar que alguém resolva, na hora, quais instâncias atendem por ele. Isso é o **service discovery**.\n\n### As três peças do padrão\n\n| Peça | Papel | Analogia |\n| --- | --- | --- |\n| **Registro (registry)** | Guarda a lista viva de instâncias, com host, porta e metadados | A recepção com o quadro de quem está em qual sala |\n| **Registro da instância (registration)** | A instância se inscreve e avisa periodicamente que continua viva | O funcionário que assina a entrada |\n| **Descoberta (discovery)** | O chamador consulta pelo nome e obtém os endereços | O visitante que pergunta onde está o setor |\n\nO registro **não carrega o tráfego**: só responde \"onde estão as instâncias\". A requisição vai **direto** à instância escolhida (ou passa por um gateway).\n\n### Autorregistro x registro por terceiro\n\n- **Autorregistro (self-registration)**: a própria instância se registra e renova o registro. É o modelo do **Eureka Client**.\n- **Registro por terceiro (third-party registration)**: um componente externo registra as instâncias por elas, como faz a plataforma de contêineres (por exemplo, o Kubernetes).\n\n### Exemplo concreto passo a passo\n\nImagine um tribunal com o serviço `consulta-processual` que precisa buscar dados no serviço `partes`.\n\n1. Três instâncias de `partes` sobem, cada uma num endereço diferente.\n2. Cada uma se registra no catálogo com o nome `partes`, seu host e sua porta.\n3. `consulta-processual` pergunta ao catálogo: \"quais instâncias de `partes` estão disponíveis?\".\n4. Recebe três endereços, escolhe um (balanceamento) e chama esse endereço diretamente.\n5. Uma instância cai; como deixa de confirmar presença, sai da lista depois de algum tempo.\n6. À noite, uma instância é desligada de forma ordenada e **cancela** o próprio registro.\n\nNinguém editou arquivo de configuração para nada disso funcionar.\n\n### Opções de registry no ecossistema Spring\n\nO Spring Cloud define uma abstração comum, a interface **`DiscoveryClient`**, que permite ao código perguntar \"quais instâncias existem do serviço X?\" sem depender do produto usado por baixo. Implementações conhecidas: **Netflix Eureka** (Spring Cloud Netflix), **HashiCorp Consul** (Spring Cloud Consul), **Apache Zookeeper** (Spring Cloud Zookeeper) e o próprio **Kubernetes** (Spring Cloud Kubernetes).\n\n> **Pegadinha:** service discovery **não é** sinônimo de Eureka. Eureka é **uma** implementação do padrão. E o registro **não é** gateway nem balanceador: só informa onde estão as instâncias.\n\n### Resumo para a prova\n\n- Em microsserviços, endereços mudam o tempo todo; **service discovery** resolve **nome lógico → instâncias reais**.\n- Três peças: **registry** (catálogo), **registro** da instância e **descoberta** pelo chamador.\n- O registry **não transporta** as requisições de negócio; só informa endereços.\n- **Autorregistro** (a instância se inscreve, como no Eureka Client) x **registro por terceiro** (a plataforma inscreve).\n- No Spring Cloud, a abstração é o **`DiscoveryClient`**; Eureka, Consul, Zookeeper e Kubernetes são implementações."
+    },
+    {
+      "title": "2. Eureka Server e Eureka Client na prática",
+      "markdown": "> **Termos explicados**\n> - **Eureka**: registro e descoberta criado pela Netflix, integrado ao Spring pelo **Spring Cloud Netflix**.\n> - **Eureka Server / Client**: a aplicação que **mantém o registro** / a biblioteca de cada serviço que **registra, renova e baixa** a lista.\n> - **Starter**: dependência do Spring Boot que traz um recurso já configurado.\n\n### O problema que o Eureka resolve\n\nPrecisamos de um catálogo vivo de instâncias. O Eureka é esse catálogo pronto: uma aplicação Spring Boot que, com uma anotação, aceita registros e responde consultas, e uma biblioteca cliente que faz o trabalho de cada microsserviço sem código de rede.\n\n### Montando o Eureka Server\n\n1. Cria-se um projeto Spring Boot com a dependência **`spring-cloud-starter-netflix-eureka-server`**.\n2. Na classe principal, acrescenta-se **`@EnableEurekaServer`**.\n3. Configura-se a porta. Na documentação, o exemplo usual é a **8761**.\n\n```yaml\nserver:\n  port: 8761\neureka:\n  client:\n    registerWithEureka: false   # o servidor isolado não se registra nele mesmo\n    fetchRegistry: false        # nem baixa o registro de outro servidor\n```\n\nPor que essas duas linhas? Todo Eureka Server **também contém um cliente Eureka** dentro de si, usado para conversar com outros servidores (pares). Num servidor único, em **modo standalone**, desligamos esse comportamento para ele não ficar tentando se registrar em alguém que não existe.\n\n### Montando um Eureka Client\n\n1. O microsserviço recebe a dependência **`spring-cloud-starter-netflix-eureka-client`**.\n2. Com o starter no classpath, a aplicação **já se registra** automaticamente. Em versões antigas era comum anotar com `@EnableDiscoveryClient` ou `@EnableEurekaClient`; hoje a anotação **não é necessária**.\n3. Define-se o nome lógico e o endereço do servidor:\n\n```yaml\nspring:\n  application:\n    name: partes                 # nome com que o serviço aparece no registro\neureka:\n  client:\n    serviceUrl:\n      defaultZone: http://localhost:8761/eureka/\n```\n\n- **`spring.application.name`** é o nome lógico pelo qual os outros vão chamar o serviço.\n- **`eureka.client.serviceUrl.defaultZone`** aponta para o(s) servidor(es). A chave `defaultZone`, em **camel case**, é a zona padrão do mapa de zonas.\n\n### Alta disponibilidade: servidores pares\n\nSe o único servidor cair, os clientes seguem por algum tempo com a **cópia local (cache)** do registro, mas novos registros param. Para evitar o ponto único de falha, sobem-se **vários servidores** que se registram **uns nos outros** (peer awareness) e **replicam** os registros; o `defaultZone` lista os endereços separados por vírgula.\n\nA replicação é **assíncrona**: servidores podem divergir por um instante. O Eureka prefere responder com dado um pouco desatualizado a não responder; no teorema CAP, privilegia **disponibilidade**.\n\n### Exemplo concreto passo a passo\n\nCarla, analista do tribunal, precisa colocar no ar o serviço `pericias`:\n\n1. Ela confere que o Eureka Server está no ar em `http://registro:8761`.\n2. Acrescenta o starter do Eureka Client ao `pom.xml` do `pericias`.\n3. Define `spring.application.name: pericias` e o `defaultZone` apontando para o servidor.\n4. Sobe duas instâncias. No painel do Eureka aparece `PERICIAS` com duas instâncias **UP**.\n5. O serviço `audiencias`, que já é cliente, passa a chamar `http://pericias/...` sem saber nenhum IP.\n\n### Comparativo: servidor x cliente\n\n| Aspecto | Eureka Server | Eureka Client |\n| --- | --- | --- |\n| Dependência | `spring-cloud-starter-netflix-eureka-server` | `spring-cloud-starter-netflix-eureka-client` |\n| Anotação | `@EnableEurekaServer` (obrigatória) | Nenhuma obrigatória nas versões atuais |\n| Função | Manter o registro, replicar com pares, exibir painel | Registrar, renovar, cancelar e baixar o registro |\n| Configuração típica | `registerWithEureka`/`fetchRegistry` falsos no modo isolado | `spring.application.name` e `defaultZone` |\n\n> **Pegadinha:** a anotação do **servidor** é `@EnableEurekaServer`. Exigir `@EnableEurekaClient` para o cliente se registrar está desatualizado: basta o starter.\n\n### Resumo para a prova\n\n- **Servidor**: starter `...eureka-server` + **`@EnableEurekaServer`**; porta de exemplo **8761**; painel web.\n- Modo **standalone**: `registerWithEureka: false` e `fetchRegistry: false`.\n- **Cliente**: starter `...eureka-client`; registra-se sozinho; `spring.application.name` dá o nome; `defaultZone` aponta o servidor.\n- Alta disponibilidade com **servidores pares** que replicam de forma **assíncrona**; Eureka privilegia **disponibilidade**.\n- Clientes mantêm **cache local** do registro e chamam as instâncias **diretamente**."
+    },
+    {
+      "title": "3. Heartbeat, expiração e modo de autopreservação",
+      "markdown": "> **Termos explicados**\n> - **Heartbeat**: sinal periódico da instância ao servidor (\"continuo viva\"); no Eureka, **renovação (renew)**.\n> - **Lease** (\"aluguel\"): o registro vale por um prazo e expira se não for renovado.\n> - **Eviction** (despejo): remoção das instâncias cujo lease expirou.\n> - **Autopreservação (self-preservation)**: modo em que o servidor **para de despejar** instâncias.\n\n### O problema que o assunto resolve\n\nUma instância que travou não avisa que saiu; só para de responder. A solução é o **lease com renovação**: quem para de pagar o \"aluguel\" é despejado. Mas, se a **rede** falhar, quase ninguém renova ao mesmo tempo, embora todos estejam vivos; despejar todo mundo seria desastroso. Para isso existe a **autopreservação**.\n\n### O ciclo de vida de um registro\n\n1. **Register**: ao subir, a instância envia seus metadados ao servidor.\n2. **Renew (heartbeat)**: periodicamente, renova o lease. Na documentação do Spring Cloud Netflix, o intervalo padrão é de **30 segundos**.\n3. **Fetch registry**: o cliente também baixa periodicamente o registro (ou só as mudanças, em modo incremental) e guarda em cache local.\n4. **Cancel**: ao ser desligada de forma ordenada, a instância **cancela** o registro, e sai do catálogo na hora.\n5. **Eviction**: se a instância some sem cancelar, o servidor espera o lease expirar e a remove. A configuração padrão do cliente informa ao servidor um prazo de expiração de **90 segundos** sem renovação.\n\nAs propriedades da instância são `eureka.instance.lease-renewal-interval-in-seconds` (renovação) e `lease-expiration-duration-in-seconds` (expiração).\n\n> **Consequência prática:** como servidor e clientes trabalham com **caches**, uma instância nova **não aparece instantaneamente** para quem a chama. A documentação avisa que pode levar alguns ciclos de heartbeat até que instância, servidor e cliente tenham os mesmos metadados. Diminuir os intervalos acelera, mas aumenta o tráfego e não é recomendado em produção sem motivo.\n\n### Heartbeat não é health check\n\nPor padrão, o heartbeat diz apenas que **o processo está de pé**. Uma aplicação pode estar viva e, ainda assim, sem conseguir acessar o banco. Para que o status publicado no Eureka reflita a saúde real, o cliente pode propagar o resultado do **Actuator** ligando `eureka.client.healthcheck.enabled: true`. Os status possíveis de uma instância incluem **UP**, **DOWN**, **STARTING** e **OUT_OF_SERVICE**.\n\n### A autopreservação em detalhe\n\nO servidor calcula quantas renovações por minuto **espera** receber, com base no número de instâncias registradas. Se as renovações efetivamente recebidas caem **abaixo de um limiar** desse esperado (o padrão da propriedade `renewal-percent-threshold` é **85%**), ele conclui que o problema provavelmente é de **rede**, e não de morte em massa das instâncias. Então:\n\n- **para de expirar** leases (não despeja ninguém);\n- continua aceitando novos registros e respondendo consultas;\n- exibe no painel um aviso, em vermelho, de que está em modo de emergência e que as instâncias podem não estar realmente ativas.\n\nQuando as renovações voltam ao normal, o servidor sai do modo e retoma o despejo.\n\nO custo: o registro **pode conter instâncias mortas**, e o cliente precisa de **retry e circuit breaker**. Em desenvolvimento, com poucas instâncias, o modo dispara muito e há quem o desligue (`eureka.server.enable-self-preservation: false`); em produção, costuma ser mantido.\n\n### Exemplo concreto passo a passo\n\nNum sábado, o switch que liga o datacenter à rede do servidor Eureka passa a perder pacotes.\n\n1. Há 20 instâncias registradas; chegam bem menos da metade das renovações esperadas.\n2. A queda passa do limiar: o servidor entra em **autopreservação** e mostra o aviso no painel.\n3. Ninguém é despejado. Uma instância que de fato travou continua listada; quem a chama recebe erro e tenta outra (retry).\n4. A rede volta, o servidor sai do modo e, logo depois, despeja a instância travada.\n\n### Comparativo dos mecanismos\n\n| Mecanismo | Quem age | O que acontece | Para que serve |\n| --- | --- | --- | --- |\n| **Renew/heartbeat** | Instância (cliente) | Renova o lease periodicamente | Provar que o processo continua ativo |\n| **Cancel** | Instância, ao desligar | Sai do registro imediatamente | Saída ordenada |\n| **Eviction** | Servidor | Remove quem não renovou no prazo | Limpar instâncias que sumiram |\n| **Autopreservação** | Servidor | Suspende a eviction | Não apagar o registro inteiro por falha de rede |\n| **Health check propagado** | Instância + Actuator | Publica UP/DOWN conforme a saúde | Status mais fiel que o simples heartbeat |\n\n> **Pegadinha:** autopreservação **não** remove instâncias mais depressa; é o contrário: ela **impede** a remoção. Questão que diz \"no modo de autopreservação o servidor despeja imediatamente as instâncias sem heartbeat\" está errada.\n\n> **Pegadinha:** o heartbeat vai **do cliente ao servidor**; o servidor não fica \"pingando\" as instâncias.\n\n### Resumo para a prova\n\n- Registro = **lease** que precisa de **renovação** (heartbeat), padrão de **30 s**; expiração informada padrão de **90 s**.\n- Ciclo: **register → renew → fetch → cancel**; quem some sem cancelar sofre **eviction**.\n- Caches nos dois lados: instância nova leva alguns ciclos para ser vista.\n- Heartbeat prova processo vivo; **healthcheck.enabled** propaga a saúde do Actuator.\n- **Autopreservação**: renovações abaixo do limiar (padrão 85%) → servidor **suspende o despejo**; o registro pode ter instâncias mortas, por isso o cliente precisa de retry e circuit breaker."
+    },
+    {
+      "title": "4. Descoberta no cliente x no servidor e balanceamento",
+      "markdown": "> **Termos explicados**\n> - **Balanceamento de carga (load balancing)**: distribuir as requisições entre várias instâncias de um serviço.\n> - **Client-side / server-side discovery**: descoberta feita pelo próprio chamador / por um intermediário.\n> - **Ribbon** e **Spring Cloud LoadBalancer**: balanceadores no cliente, o antigo (Netflix) e o atual (Spring).\n> - **Round robin**: escolher as instâncias em rodízio (1, 2, 3, 1, 2, 3...).\n\n### O problema que o assunto resolve\n\nO registro devolve **uma lista** de instâncias. Alguém precisa decidir **qual delas** recebe cada requisição. Essa decisão pode ficar com quem chama ou com um intermediário, e essa escolha define os dois modelos clássicos de descoberta.\n\n### Descoberta no cliente\n\nO serviço A consulta o registro (ou seu cache), aplica o balanceamento, escolhe uma instância de B e a chama **diretamente**. É o modelo **Eureka + balanceador no cliente**: sem salto extra nem intermediário-gargalo, mas **cada cliente** precisa de biblioteca de descoberta, o que acopla a lógica ao framework.\n\n### Descoberta no servidor\n\nA manda a requisição a um endereço fixo de um **roteador/balanceador**, que consulta o registro, escolhe a instância de B e encaminha. Exemplos: balanceador de nuvem, **Service** do Kubernetes, **API gateway**. O cliente fica simples e independente de linguagem, mas o intermediário é **mais um componente** a manter com alta disponibilidade e um salto de rede a mais.\n\n| Aspecto | Descoberta no cliente | Descoberta no servidor |\n| --- | --- | --- |\n| Quem consulta o registro | O próprio chamador | O roteador/balanceador |\n| Quem escolhe a instância | O chamador | O intermediário |\n| Salto extra de rede | Não | Sim |\n| Lógica no cliente | Biblioteca de descoberta e balanceamento | Nenhuma: só um endereço fixo |\n| Exemplo típico | Eureka + Spring Cloud LoadBalancer (antes, Ribbon) | Balanceador de nuvem, Service do Kubernetes, gateway |\n\n### Ribbon: o balanceador histórico\n\nNo Spring Cloud Netflix antigo, o **Ribbon** fazia o balanceamento no cliente: obtinha a lista do Eureka, aplicava uma regra (rodízio por padrão, entre outras) e escolhia a instância. Ele trabalhava junto com o **Feign** (cliente HTTP declarativo) e com o **Zuul**.\n\nA Netflix colocou o Ribbon em **modo de manutenção**, e o Spring Cloud o **retirou** do Spring Cloud Netflix a partir da linha de versões **2020.0**, junto com Zuul 1 e Hystrix. O substituto oficial é o **Spring Cloud LoadBalancer**.\n\n### Spring Cloud LoadBalancer na prática\n\nO uso mais comum é marcar o cliente HTTP com **`@LoadBalanced`**. A partir daí, o **host da URL é tratado como nome lógico** e resolvido pelo balanceador:\n\n```java\n@Bean\n@LoadBalanced                       // o RestTemplate passa a resolver nomes lógicos\nRestTemplate restTemplate() {\n    return new RestTemplate();\n}\n```\n\nO mesmo vale para **`WebClient.Builder`** (cliente reativo) e para o **OpenFeign**, que usa o balanceador por baixo quando o `@FeignClient` informa o nome do serviço.\n\n- Algoritmo padrão: **round robin** (`RoundRobinLoadBalancer`).\n- Alternativa pronta: **aleatório** (`RandomLoadBalancer`); é possível escrever uma estratégia própria.\n- A lista de instâncias vem do **`DiscoveryClient`** disponível (Eureka, Consul, Kubernetes...), com cache.\n\n### Exemplo concreto passo a passo\n\nRafael mantém o serviço `intimacoes`, que precisa chamar `partes`.\n\n1. `partes` tem três instâncias no Eureka; Rafael declara um `RestTemplate` com `@LoadBalanced`.\n2. No código, escreve `http://partes/api/partes/10`, sem IP.\n3. As chamadas vão à instância 1, depois à 2, à 3 e de novo à 1 (round robin).\n4. A instância 2 é desligada e cancela o registro; atualizado o cache, o rodízio fica entre 1 e 3.\n\n> **Pegadinha:** sem **`@LoadBalanced`**, um `RestTemplate` comum tentaria resolver `partes` por DNS e falharia. A anotação é o que liga o nome lógico ao balanceador.\n\n> **Pegadinha:** Ribbon e Spring Cloud LoadBalancer fazem balanceamento **no cliente**. Chamar o Ribbon de balanceador \"do lado do servidor\" é errado.\n\n### Resumo para a prova\n\n- **Client-side**: chamador consulta o registro e escolhe a instância; sem salto extra; lógica em cada cliente.\n- **Server-side**: roteador/balanceador consulta e escolhe; cliente simples; componente extra.\n- **Ribbon** = balanceador no cliente da Netflix, em manutenção, **removido** do Spring Cloud a partir da 2020.0.\n- **Spring Cloud LoadBalancer** = substituto; padrão **round robin**, opção aleatória.\n- **`@LoadBalanced`** em `RestTemplate`/`WebClient.Builder` faz o host da URL virar **nome lógico**."
+    },
+    {
+      "title": "5. Zuul e a substituição pelo Spring Cloud Gateway",
+      "markdown": "> **Termos explicados**\n> - **API gateway**: porta de entrada única dos clientes externos, que encaminha cada requisição ao microsserviço certo.\n> - **Zuul**: gateway de borda da Netflix, usado nas versões antigas do Spring Cloud Netflix.\n> - **Filtro**: código que roda no caminho da requisição para inspecioná-la ou modificá-la.\n> - **Spring Cloud Gateway**: o gateway atual do Spring.\n> - **Predicado**: condição que decide se a requisição combina com uma rota.\n\n### O problema que o assunto resolve\n\nExpor cada microsserviço à internet obrigaria o cliente a conhecer dezenas de endereços e cada serviço a repetir autenticação, limite de taxa e log. O **API gateway** dá um único endereço público, regras transversais num só lugar e roteamento para os serviços internos (achados, por exemplo, pelo Eureka).\n\n### Zuul 1: rotas\n\nCom o Zuul no Spring Cloud Netflix, a aplicação gateway era anotada com **`@EnableZuulProxy`**. Integrado ao Eureka, ele criava rotas automaticamente: um serviço registrado como `partes` ficava acessível em `/partes/**`. Também se declaravam rotas em `zuul.routes`, com `path` (ex.: `/processos/**`) e `serviceId` (nome lógico no Eureka). Por padrão, o prefixo da rota é **retirado** antes de encaminhar (`stripPrefix`).\n\n### Zuul 1: os quatro tipos de filtro\n\nTodo filtro do Zuul estende **`ZuulFilter`** e informa quatro coisas: **`filterType()`** (o tipo), **`filterOrder()`** (a ordem entre filtros do mesmo tipo), **`shouldFilter()`** (se deve rodar nesta requisição) e **`run()`** (o que faz). Os dados da requisição em curso ficam no **`RequestContext`**.\n\n| Tipo | Quando roda | Uso típico |\n| --- | --- | --- |\n| **pre** | **Antes** de encaminhar ao serviço | Autenticação, validação de token, escolha de rota, log de entrada |\n| **route** | **No encaminhamento**: faz a chamada ao serviço de destino | Encaminhar via HTTP, usando o balanceador no cliente |\n| **post** | **Depois** que a resposta do serviço volta | Acrescentar cabeçalhos, métricas, transformar a resposta |\n| **error** | Quando ocorre **erro** em qualquer fase | Montar resposta de erro padronizada |\n\nFluxo normal: **pre → route → post**. Se algo falha, entra o **error**, e depois ainda pode haver post.\n\n### Exemplo concreto passo a passo (Zuul)\n\nLúcia precisa garantir que toda chamada externa ao sistema de processos tenha token.\n\n1. Ela escreve um `ZuulFilter` com `filterType()` retornando `\"pre\"`.\n2. Em `run()`, lê o cabeçalho `Authorization` do `RequestContext`.\n3. Se o token não existe, manda o Zuul **não encaminhar** e devolve 401.\n4. Se existe, o filtro de **route** encaminha a `consulta-processual`, escolhendo a instância pelo balanceador.\n5. Um filtro **post** acrescenta um cabeçalho de rastreio à resposta.\n\n### Por que o Zuul saiu de cena\n\n- O **Zuul 1** é **bloqueante** (uma thread presa por requisição), o que limita a escala.\n- A Netflix lançou o **Zuul 2** (não bloqueante), mas ele **não foi integrado** ao Spring Cloud.\n- O Spring Cloud colocou o Zuul em manutenção e o **retirou** do Spring Cloud Netflix a partir da linha **2020.0**, junto com Ribbon e Hystrix. O substituto indicado é o **Spring Cloud Gateway**. Questão com `@EnableZuulProxy` cobra configuração **legada**.\n\n### Spring Cloud Gateway: rota, predicado e filtro\n\n- **Rota (route)**: identificador, **URI de destino**, predicados e filtros.\n- **Predicado**: condição para a requisição cair na rota (`Path`, `Method`, `Header`, `Host`, `After`).\n- **Filtro**: modifica requisição ou resposta (`AddRequestHeader`, `StripPrefix`, `RewritePath`, `RequestRateLimiter`, `CircuitBreaker`); há **filtros globais**, para todas as rotas.\n\n```yaml\nspring:\n  cloud:\n    gateway:\n      routes:\n        - id: processos\n          uri: lb://consulta-processual   # \"lb://\" = resolver pelo balanceador/registro\n          predicates:\n            - Path=/api/processos/**\n          filters:\n            - StripPrefix=1\n```\n\nO esquema **`lb://`** diz ao gateway para usar o **Spring Cloud LoadBalancer** e o registro (Eureka, por exemplo) para achar as instâncias do nome lógico.\n\n### Comparativo\n\n| Aspecto | Zuul 1 (Spring Cloud Netflix) | Spring Cloud Gateway |\n| --- | --- | --- |\n| Situação | Legado, removido a partir do Spring Cloud 2020.0 | Gateway atual do ecossistema |\n| Modelo de E/S | Servlet, bloqueante | Originalmente WebFlux/Reactor Netty, não bloqueante; há variante sobre Spring MVC |\n| Ativação | `@EnableZuulProxy` | Starter do gateway + rotas em configuração ou Java |\n| Composição | Filtros `pre`, `route`, `post`, `error` | Rotas com **predicados** e **filtros** (de rota e globais) |\n| Balanceamento | Ribbon | Spring Cloud LoadBalancer (`lb://`) |\n\n> **Pegadinha:** **Zuul não é registro de serviços.** O Eureka registra; o Zuul (ou o Gateway) recebe o tráfego externo e encaminha. Os dois trabalham juntos.\n\n> **Pegadinha:** no Zuul, autenticação vai em filtro **pre**, não em **post**: depois que a resposta voltou, o serviço já foi chamado.\n\n> **Pegadinha:** o Spring Cloud Gateway é projeto próprio do Spring, não \"o Zuul 2 empacotado\".\n\n### Resumo para a prova\n\n- **Gateway** = entrada única: roteamento + regras transversais (autenticação, limite de taxa, CORS, log).\n- **Zuul 1**: `@EnableZuulProxy`; rotas por `serviceId` do Eureka; filtros **pre → route → post**, e **error** nas falhas; métodos `filterType`, `filterOrder`, `shouldFilter`, `run`.\n- Zuul 1 é bloqueante; Zuul 2 não entrou no Spring Cloud; Zuul saiu a partir da **2020.0**.\n- **Spring Cloud Gateway**: **rota = id + URI + predicados + filtros**; `lb://nome` usa registro e balanceador."
+    },
+    {
+      "title": "6. Spring Cloud Config e o uso na PDPJ-Br",
+      "markdown": "> **Termos explicados**\n> - **Spring Cloud Config**: **Config Server** (servidor central de configuração) e suporte de cliente para as aplicações buscarem nele suas propriedades.\n> - **Perfil (profile)**: ambiente que seleciona propriedades (`dev`, `producao`). **Label**: no Git, o branch, a tag ou o commit.\n> - **PDPJ-Br**: Plataforma Digital do Poder Judiciário Brasileiro, instituída pela Resolução CNJ 335/2020.\n\n### O problema que o assunto resolve\n\nCom dezenas de microsserviços e vários ambientes, manter a configuração dentro de cada pacote obriga a gerar pacotes novos a cada mudança. O **Spring Cloud Config** centraliza essas propriedades num repositório versionado e as serve por HTTP.\n\n### Config Server\n\n1. Projeto Spring Boot com a dependência **`spring-cloud-config-server`** e a anotação **`@EnableConfigServer`**.\n2. Um **backend** de armazenamento. O padrão é um **repositório Git**; também há suporte a sistema de arquivos (perfil `native`), Vault, JDBC e outros.\n3. Porta usual nos exemplos da documentação: **8888**.\n\nO endereço do repositório vai em `spring.cloud.config.server.git.uri`. O servidor expõe endereços no formato **`/{application}/{profile}/{label}`**. Exemplo: `/partes/producao/main` devolve as propriedades do serviço `partes`, no perfil `producao`, lidas do branch `main`. No repositório, o arquivo `partes-producao.yml` vale só para esse serviço e perfil; `application.yml` vale para todos.\n\nVantagem do Git como backend: **histórico, auditoria e volta atrás** de qualquer mudança de configuração.\n\n### Config Client\n\nNas versões atuais do Spring Boot, a aplicação importa a configuração remota pela propriedade **`spring.config.import`**:\n\n```yaml\nspring:\n  application:\n    name: partes\n  config:\n    import: \"optional:configserver:http://config:8888\"\n  profiles:\n    active: producao\n```\n\n**`optional:`** deixa a aplicação subir sem o servidor. Versões antigas usavam `bootstrap.yml`.\n\n### Atualizar sem reiniciar\n\n- Beans anotados com **`@RefreshScope`** podem ser recriados com os novos valores.\n- Uma chamada ao endpoint **`/actuator/refresh`** da instância recarrega as propriedades.\n- O **Spring Cloud Bus** propaga o aviso a todas as instâncias por um broker (RabbitMQ, Kafka).\n- Valores sensíveis podem ficar **cifrados** no repositório (`{cipher}`); o servidor decifra ao entregar.\n\n### Como as peças se encaixam\n\n| Componente | Pergunta que responde | Exemplo |\n| --- | --- | --- |\n| **Eureka** | Onde estão as instâncias do serviço X? | `partes` → três endereços |\n| **Spring Cloud LoadBalancer** | Qual instância chamo agora? | Rodízio entre as três |\n| **Spring Cloud Gateway** (antes, Zuul) | Por onde o cliente externo entra e para onde vai a requisição? | `/api/processos/**` → `lb://consulta-processual` |\n| **Spring Cloud Config** | Com quais propriedades cada serviço sobe em cada ambiente? | `partes-producao.yml` no Git |\n| **Circuit breaker** (Resilience4j; antes, Hystrix) | O que fazer se o serviço chamado falha? | Resposta alternativa |\n\nOrdem comum de inicialização: **Config Server**, **Eureka Server**, serviços de negócio e, por fim, **gateway**.\n\n### Como isso aparece na PDPJ-Br\n\nA **PDPJ-Br** parte da ideia de que os tribunais não devem manter, cada um, um sistema fechado: a plataforma organiza **serviços** e **módulos** desenvolvidos por tribunais diferentes e consumidos por todos por APIs. A documentação técnica descreve uma arquitetura de **microsserviços** em contêineres, com **mensageria** para eventos.\n\nPor isso editais como o do **TRT-3** cobram, junto com a PDPJ-Br, **\"Spring Eureka, Zuul e Service Discovery\"**: são os conceitos que explicam como, em microsserviços Java/Spring:\n\n- os serviços **se encontram** sem endereço fixo (**service discovery**, com Eureka);\n- o tráfego externo **entra por um ponto único** (gateway: Zuul, histórico; Spring Cloud Gateway, atual);\n- as configurações ficam **centralizadas** (Spring Cloud Config).\n\nA prova cobra o **conceito** e o **papel de cada peça**, não detalhes internos de um tribunal.\n\n### Exemplo concreto passo a passo\n\nPaulo, do TRT, vai publicar um módulo de cálculo de custas.\n\n1. Cria `custas-producao.yml` no repositório de configuração.\n2. O serviço `custas` sobe, importa as propriedades do **Config Server** e se registra no **Eureka**.\n3. O **gateway** já tem a rota `/api/custas/**` → `lb://custas`; as chamadas externas passam a chegar.\n4. Outro serviço, `guias`, chama `http://custas/...` com um cliente `@LoadBalanced`.\n5. Paulo altera um parâmetro no Git, e o refresh atualiza os beans `@RefreshScope` sem reiniciar.\n\n> **Pegadinha:** o Config Server **não** descobre serviços nem roteia tráfego; ele **entrega propriedades**.\n\n> **Pegadinha:** `@RefreshScope` não percebe sozinho a mudança no Git: é preciso disparar o refresh.\n\n### Resumo para a prova\n\n- **Config Server**: `@EnableConfigServer`; backend padrão **Git**; porta usual **8888**; endereços **`/{application}/{profile}/{label}`**.\n- **Cliente**: `spring.config.import=configserver:...` (antes, `bootstrap.yml`).\n- Atualização a quente: **`@RefreshScope`** + **`/actuator/refresh`**; para todas as instâncias, **Spring Cloud Bus**.\n- Papéis: Eureka = **onde**; LoadBalancer = **qual**; Gateway/Zuul = **entrada e rota**; Config = **com quais propriedades**.\n- PDPJ-Br (Res. CNJ 335/2020): plataforma de **serviços/microsserviços** comuns ao Judiciário; o edital cobra o **conceito** de discovery, gateway e configuração centralizada."
+    }
+  ],
+  "summary": "## Service discovery\nEm microsserviços, os endereços das instâncias mudam. O service discovery resolve um nome lógico (`partes`) nas instâncias reais. Peças: registry (catálogo), registro da instância e descoberta. O registry não transporta as requisições; no Spring Cloud, a abstração é o `DiscoveryClient` (Eureka, Consul, Zookeeper, Kubernetes).\n\n## Eureka\nServidor: starter `spring-cloud-starter-netflix-eureka-server` + `@EnableEurekaServer`, porta de exemplo 8761; em modo isolado, `registerWithEureka` e `fetchRegistry` falsos. Cliente: starter `...eureka-client`, registra-se sozinho; `spring.application.name` dá o nome; `eureka.client.serviceUrl.defaultZone` aponta o servidor. Servidores pares replicam de forma assíncrona; Eureka privilegia disponibilidade.\n\n## Heartbeat e autopreservação\nRegistro = lease renovado por heartbeat (padrão 30 s; expiração informada de 90 s). Ciclo register → renew → fetch → cancel; quem some é despejado (eviction). Se as renovações caem abaixo do limiar (padrão 85%), o servidor entra em autopreservação e para de despejar: o registro pode conter instâncias mortas, e o cliente precisa de retry e circuit breaker.\n\n## Balanceamento\nClient-side: o chamador consulta o registro e escolhe (Eureka + Spring Cloud LoadBalancer; antes, Ribbon). Server-side: um roteador ou balanceador escolhe. Ribbon, Zuul 1 e Hystrix saíram do Spring Cloud a partir da 2020.0. `@LoadBalanced` faz o host da URL virar nome lógico; padrão round robin.\n\n## Zuul e Gateway\nZuul 1 (`@EnableZuulProxy`, bloqueante): filtros pre (antes), route (encaminha), post (depois) e error. Substituto: Spring Cloud Gateway, com rotas = id + URI + predicados + filtros; `lb://nome` usa o registro e o balanceador.\n\n## Config e PDPJ-Br\nConfig Server (`@EnableConfigServer`, backend Git, porta usual 8888, `/{application}/{profile}/{label}`); cliente por `spring.config.import`; `@RefreshScope` + `/actuator/refresh`; Spring Cloud Bus para todas as instâncias. A PDPJ-Br (Res. CNJ 335/2020) organiza serviços comuns ao Judiciário em microsserviços, por isso o edital cobra discovery, gateway e configuração centralizada.",
+  "flashcards": [
+    {
+      "front": "O que é service discovery?",
+      "back": "Mecanismo que resolve um nome lógico de serviço nas instâncias reais (host e porta) disponíveis naquele momento, sem endereço fixo na configuração."
+    },
+    {
+      "front": "O que é service registry?",
+      "back": "O catálogo onde as instâncias se registram e de onde os outros serviços leem a lista de endereços. Não transporta as requisições de negócio."
+    },
+    {
+      "front": "Autorregistro x registro por terceiro",
+      "back": "No autorregistro a própria instância se inscreve e renova (Eureka Client). No registro por terceiro, um componente da plataforma inscreve as instâncias por elas (ex.: Kubernetes)."
+    },
+    {
+      "front": "Qual abstração do Spring Cloud consulta o registro sem depender do produto?",
+      "back": "A interface DiscoveryClient, com implementações para Eureka, Consul, Zookeeper e Kubernetes."
+    },
+    {
+      "front": "Qual anotação transforma uma aplicação Spring Boot em servidor Eureka?",
+      "back": "@EnableEurekaServer, com a dependência spring-cloud-starter-netflix-eureka-server."
+    },
+    {
+      "front": "Porta usada nos exemplos do Eureka Server",
+      "back": "8761."
+    },
+    {
+      "front": "Para que servem registerWithEureka: false e fetchRegistry: false?",
+      "back": "No servidor em modo standalone, impedem que o cliente embutido nele tente se registrar ou baixar o registro de outro servidor inexistente."
+    },
+    {
+      "front": "O Eureka Client precisa de @EnableEurekaClient para se registrar?",
+      "back": "Nas versões atuais, não: basta o starter spring-cloud-starter-netflix-eureka-client no classpath."
+    },
+    {
+      "front": "Qual propriedade define o nome com que o serviço aparece no Eureka?",
+      "back": "spring.application.name."
+    },
+    {
+      "front": "Qual propriedade aponta o cliente para o Eureka Server?",
+      "back": "eureka.client.serviceUrl.defaultZone, escrita em camel case, podendo listar vários servidores separados por vírgula."
+    },
+    {
+      "front": "Como o Eureka obtém alta disponibilidade?",
+      "back": "Com servidores pares que se registram uns nos outros e replicam os registros de forma assíncrona; os clientes também guardam cache local."
+    },
+    {
+      "front": "Eureka privilegia consistência ou disponibilidade?",
+      "back": "Disponibilidade: prefere responder com dados possivelmente um pouco desatualizados a deixar de responder."
+    },
+    {
+      "front": "Intervalo padrão de heartbeat (renovação) do Eureka Client",
+      "back": "30 segundos (lease-renewal-interval-in-seconds)."
+    },
+    {
+      "front": "Prazo padrão de expiração informado pela instância",
+      "back": "90 segundos sem renovação (lease-expiration-duration-in-seconds)."
+    },
+    {
+      "front": "O que é eviction no Eureka?",
+      "back": "A remoção, pelo servidor, das instâncias cujo lease expirou por falta de renovação."
+    },
+    {
+      "front": "O que acontece quando a instância é desligada de forma ordenada?",
+      "back": "Ela envia cancel e sai do registro imediatamente, sem esperar a expiração do lease."
+    },
+    {
+      "front": "Quando o Eureka Server entra em autopreservação?",
+      "back": "Quando as renovações recebidas caem abaixo de um limiar das esperadas (padrão de 85%), sinal provável de problema de rede."
+    },
+    {
+      "front": "O que o servidor faz em autopreservação?",
+      "back": "Para de despejar instâncias, continua respondendo e exibe aviso no painel; o registro pode conter instâncias mortas."
+    },
+    {
+      "front": "Heartbeat é o mesmo que health check?",
+      "back": "Não. O heartbeat prova que o processo está ativo; para publicar a saúde real (Actuator), usa-se eureka.client.healthcheck.enabled=true."
+    },
+    {
+      "front": "Descoberta no cliente (client-side)",
+      "back": "O chamador consulta o registro e escolhe a instância por um balanceador embutido. Ex.: Eureka + Spring Cloud LoadBalancer."
+    },
+    {
+      "front": "Descoberta no servidor (server-side)",
+      "back": "O chamador manda a requisição a um roteador/balanceador, que consulta o registro e escolhe a instância. Ex.: balanceador de nuvem, Service do Kubernetes."
+    },
+    {
+      "front": "O que é o Ribbon?",
+      "back": "Balanceador de carga no cliente da Netflix, usado no Spring Cloud Netflix antigo; em manutenção e removido a partir do Spring Cloud 2020.0."
+    },
+    {
+      "front": "Substituto do Ribbon no Spring Cloud",
+      "back": "Spring Cloud LoadBalancer, com round robin como algoritmo padrão e opção aleatória."
+    },
+    {
+      "front": "Para que serve @LoadBalanced?",
+      "back": "Marcado num RestTemplate ou WebClient.Builder, faz o host da URL ser tratado como nome lógico e resolvido pelo balanceador."
+    },
+    {
+      "front": "Anotação que ativava o proxy Zuul",
+      "back": "@EnableZuulProxy (havia também @EnableZuulServer, sem os filtros de proxy prontos)."
+    },
+    {
+      "front": "Os quatro tipos de filtro do Zuul 1",
+      "back": "pre (antes de encaminhar), route (faz o encaminhamento), post (depois da resposta) e error (quando ocorre erro)."
+    },
+    {
+      "front": "Métodos de um ZuulFilter",
+      "back": "filterType(), filterOrder(), shouldFilter() e run(); os dados da requisição ficam no RequestContext."
+    },
+    {
+      "front": "Por que o Zuul 1 foi substituído?",
+      "back": "É bloqueante e entrou em manutenção; o Zuul 2 não foi integrado ao Spring Cloud, e o Zuul saiu a partir da linha 2020.0 em favor do Spring Cloud Gateway."
+    },
+    {
+      "front": "Elementos de uma rota no Spring Cloud Gateway",
+      "back": "Identificador, URI de destino, predicados (condições como Path) e filtros (como StripPrefix)."
+    },
+    {
+      "front": "O que significa uri: lb://partes no Gateway?",
+      "back": "Que o destino é o nome lógico partes, resolvido pelo registro e pelo Spring Cloud LoadBalancer."
+    },
+    {
+      "front": "Anotação e backend padrão do Config Server",
+      "back": "@EnableConfigServer; o backend padrão é um repositório Git."
+    },
+    {
+      "front": "Formato dos endereços do Config Server",
+      "back": "/{application}/{profile}/{label}; o label costuma ser o branch, a tag ou o commit do Git."
+    },
+    {
+      "front": "Como o cliente importa a configuração remota nas versões atuais?",
+      "back": "Com spring.config.import=configserver:<endereço>, opcionalmente com o prefixo optional:; antes usava-se bootstrap.yml."
+    },
+    {
+      "front": "Como atualizar propriedades sem reiniciar?",
+      "back": "Beans com @RefreshScope e chamada a /actuator/refresh; para várias instâncias, Spring Cloud Bus."
+    },
+    {
+      "front": "Por que o edital do TRT-3 liga Eureka e Zuul à PDPJ-Br?",
+      "back": "Porque a PDPJ-Br organiza serviços comuns do Judiciário em microsserviços, e esses conceitos explicam descoberta, entrada única e configuração centralizada."
+    }
+  ],
+  "tips": [
+    "Associe cada componente a uma pergunta: Eureka = onde estão as instâncias; LoadBalancer = qual delas chamar; Gateway/Zuul = por onde entra e para onde vai; Config = com quais propriedades sobe.",
+    "Anotações do lado servidor: @EnableEurekaServer, @EnableConfigServer e @EnableZuulProxy. No cliente Eureka atual, basta o starter.",
+    "Decore o fluxo de filtros do Zuul como uma viagem: pre (antes de sair), route (a viagem), post (depois de chegar), error (o imprevisto).",
+    "Heartbeat sai do cliente para o servidor; quem não renova é despejado, salvo em autopreservação.",
+    "Em questão com Ribbon, Zuul 1 ou Hystrix, lembre que são peças legadas, retiradas do Spring Cloud a partir da 2020.0.",
+    "Spring Cloud Gateway: rota = id + URI + predicados + filtros; lb:// indica balanceamento pelo registro.",
+    "Client-side discovery: o chamador escolhe. Server-side: um intermediário escolhe."
+  ],
+  "traps": [
+    "Dizer que o Eureka encaminha as requisições entre os serviços: ele só informa os endereços; a chamada vai direto à instância ou passa por um gateway.",
+    "Afirmar que, em autopreservação, o servidor despeja as instâncias mais rápido: ele suspende o despejo.",
+    "Chamar o Zuul de servidor de registro ou o Eureka de gateway.",
+    "Colocar autenticação em filtro post do Zuul: ela roda em filtro pre, antes do encaminhamento.",
+    "Classificar o Ribbon como balanceador do lado do servidor: ele balanceia no cliente.",
+    "Tratar o Spring Cloud Gateway como versão empacotada do Zuul 2: é projeto próprio do Spring.",
+    "Achar que @RefreshScope detecta sozinho a mudança no Git: é preciso disparar o refresh.",
+    "Exigir @EnableEurekaClient para o registro nas versões atuais: o starter já basta."
+  ],
+  "activeRecall": [
+    {
+      "question": "Por que não basta escrever o IP das instâncias na configuração dos microsserviços?",
+      "answer": "Porque instâncias sobem, caem e são recriadas com outros endereços; o nome lógico resolvido pelo registro acompanha essas mudanças sem editar configuração."
+    },
+    {
+      "question": "Quais são as três peças do padrão service discovery?",
+      "answer": "O registry (catálogo), o registro da instância (inscrição e renovação) e a descoberta (consulta do chamador pelo nome lógico)."
+    },
+    {
+      "question": "O que muda entre um Eureka Server e um Eureka Client?",
+      "answer": "O servidor mantém o registro, replica com pares e exibe o painel (@EnableEurekaServer); o cliente registra, renova, cancela e baixa o registro, ativado pelo starter."
+    },
+    {
+      "question": "Descreva o ciclo de vida de um registro no Eureka.",
+      "answer": "Register ao subir, renew periódico (heartbeat), fetch do registro pelo cliente, cancel no desligamento ordenado; quem some sem cancelar sofre eviction após expirar o lease."
+    },
+    {
+      "question": "Qual o raciocínio por trás da autopreservação?",
+      "answer": "Se quase ninguém renova ao mesmo tempo, o mais provável é falha de rede, não morte em massa; por isso o servidor suspende o despejo para não esvaziar o registro."
+    },
+    {
+      "question": "Qual o preço da autopreservação para os clientes?",
+      "answer": "O registro pode devolver instâncias mortas; os clientes precisam de retry, timeout e circuit breaker."
+    },
+    {
+      "question": "Compare descoberta no cliente e no servidor.",
+      "answer": "No cliente, o chamador consulta e escolhe, sem salto extra, mas com biblioteca em cada serviço. No servidor, um intermediário consulta e escolhe; o cliente é simples, mas há componente e salto a mais."
+    },
+    {
+      "question": "O que faz @LoadBalanced num RestTemplate?",
+      "answer": "Faz o host da URL ser interpretado como nome lógico e resolvido pelo Spring Cloud LoadBalancer a partir do DiscoveryClient."
+    },
+    {
+      "question": "Explique os quatro tipos de filtro do Zuul.",
+      "answer": "pre roda antes de encaminhar (autenticação, validação); route faz o encaminhamento; post roda após a resposta (cabeçalhos, métricas); error trata falhas em qualquer fase."
+    },
+    {
+      "question": "Por que o Spring Cloud Gateway substituiu o Zuul?",
+      "answer": "O Zuul 1 é bloqueante e entrou em manutenção, o Zuul 2 não foi integrado, e o Spring Cloud retirou o Zuul a partir da 2020.0; o Gateway é o projeto atual, com rotas, predicados e filtros."
+    },
+    {
+      "question": "Como uma aplicação lê propriedades do Config Server e as atualiza sem reiniciar?",
+      "answer": "Importa com spring.config.import=configserver:...; para atualizar, usa beans @RefreshScope e dispara /actuator/refresh ou o Spring Cloud Bus."
+    },
+    {
+      "question": "Por que esses temas aparecem no edital junto com a PDPJ-Br?",
+      "answer": "Porque a PDPJ-Br organiza serviços comuns do Judiciário numa arquitetura de microsserviços, que depende de descoberta, gateway e configuração centralizada."
+    }
+  ],
+  "errorConcepts": [
+    {
+      "key": "e1",
+      "title": "Confundir registro, gateway e balanceador",
+      "summary": "O registry informa onde estão as instâncias; o balanceador escolhe uma; o gateway recebe o tráfego externo e encaminha. Nenhum deles faz o papel do outro."
+    },
+    {
+      "key": "e2",
+      "title": "Trocar configurações de servidor e cliente Eureka",
+      "summary": "O servidor usa @EnableEurekaServer e, isolado, desliga registerWithEureka e fetchRegistry; o cliente se registra pelo starter, com spring.application.name e defaultZone."
+    },
+    {
+      "key": "e3",
+      "title": "Inverter o efeito da autopreservação",
+      "summary": "Na autopreservação o servidor suspende o despejo de instâncias por suspeitar de falha de rede; ele não remove instâncias mais depressa."
+    },
+    {
+      "key": "e4",
+      "title": "Confundir descoberta no cliente e no servidor",
+      "summary": "No modelo client-side o chamador consulta o registro e escolhe a instância; no server-side um intermediário faz isso. Ribbon e Spring Cloud LoadBalancer são do lado do cliente."
+    },
+    {
+      "key": "e5",
+      "title": "Errar filtros do Zuul ou sua situação atual",
+      "summary": "Zuul 1 tem filtros pre, route, post e error, é bloqueante e saiu do Spring Cloud a partir da 2020.0; o substituto é o Spring Cloud Gateway, com rotas, predicados e filtros."
+    },
+    {
+      "key": "e6",
+      "title": "Atribuir ao Config Server funções que não são dele",
+      "summary": "O Spring Cloud Config entrega propriedades centralizadas por aplicação, perfil e label; não registra serviços nem roteia requisições."
+    }
+  ],
+  "questions": [
+    {
+      "statement": "Em arquitetura de microsserviços, o service discovery permite que um serviço localize outro por um nome lógico, sem que o endereço físico das instâncias precise estar fixado na configuração do chamador.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Instâncias sobem, caem e mudam de IP e porta; o registro mantém a lista viva e resolve o nome lógico (por exemplo, partes) nos endereços disponíveis no momento, dispensando IP fixo na configuração.",
+      "section": "1. Service discovery: o problema e o registro de serviços",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No padrão de service discovery, o servidor de registro funciona como intermediário obrigatório por onde passam todas as requisições de negócio trocadas entre os microsserviços.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O registry apenas informa onde estão as instâncias. A requisição de negócio vai do chamador diretamente à instância escolhida, ou passa por um gateway, mas não atravessa o servidor de registro.",
+      "section": "1. Service discovery: o problema e o registro de serviços",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No modelo de autorregistro, é a própria instância do serviço que se inscreve no registro ao iniciar e que renova periodicamente essa inscrição, como faz o Eureka Client.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. No self-registration a instância cuida da própria inscrição e da renovação. No registro por terceiro, um componente da plataforma, como o Kubernetes, inscreve as instâncias no lugar delas.",
+      "section": "1. Service discovery: o problema e o registro de serviços",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Spring Cloud, a interface DiscoveryClient é exclusiva do Netflix Eureka, de modo que aplicações que usam Consul ou Kubernetes para descoberta precisam de outra abstração sem relação com ela.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. DiscoveryClient é a abstração comum do Spring Cloud Commons; Eureka, Consul, Zookeeper e Kubernetes oferecem implementações dela, e o código consulta instâncias sem depender do produto escolhido.",
+      "section": "1. Service discovery: o problema e o registro de serviços",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um tribunal escala automaticamente o serviço de consulta processual, e as instâncias recebem IPs diferentes a cada recriação. Qual necessidade o service discovery atende nesse cenário?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Cifrar o tráfego entre os serviços com certificados próprios.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Resolver o nome lógico do serviço nas instâncias ativas no momento.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Gravar em banco as versões das propriedades de cada ambiente.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Converter entidades em DTOs durante a compilação do projeto.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Gerar a documentação interativa das APIs publicadas no gateway.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. O problema é o endereço que muda; a descoberta traduz o nome lógico em instâncias vivas. A trata de segurança de transporte, C de configuração centralizada, D de mapeamento (MapStruct) e E de documentação de API.",
+      "section": "1. Service discovery: o problema e o registro de serviços",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sobre o registro de serviços em microsserviços, assinale a opção correta.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Ele substitui o balanceador, pois sempre devolve uma só instância por consulta.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Ele só funciona quando todos os serviços usam a mesma porta fixa.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Ele mantém a lista de instâncias com host, porta e metadados de cada uma.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Ele é dispensável quando existem várias instâncias de cada serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Ele recebe e responde às requisições HTTP de negócio dos clientes.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O registry guarda a lista viva com endereços e metadados. Ele devolve uma lista, e a escolha fica com o balanceador (A); não exige porta fixa (B); é justamente útil com várias instâncias (D) e não transporta as chamadas de negócio (E).",
+      "section": "1. Service discovery: o problema e o registro de serviços",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para que uma aplicação Spring Boot atue como servidor de registro Eureka, além da dependência do Eureka Server, ela deve ser anotada com @EnableEurekaServer.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação do Spring Cloud Netflix mostra o starter spring-cloud-starter-netflix-eureka-server e a anotação @EnableEurekaServer na classe principal, o que ativa o registro e o painel web.",
+      "section": "2. Eureka Server e Eureka Client na prática",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Nas versões atuais do Spring Cloud, um microsserviço só se registra no Eureka se a classe principal for anotada com @EnableEurekaClient, não bastando a presença do starter do cliente no classpath.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Com spring-cloud-starter-netflix-eureka-client no classpath, a aplicação já se registra automaticamente. Anotações como @EnableEurekaClient e @EnableDiscoveryClient eram comuns em versões antigas e hoje não são exigidas.",
+      "section": "2. Eureka Server e Eureka Client na prática",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Em um Eureka Server executado de forma isolada, as propriedades registerWithEureka e fetchRegistry costumam ser definidas como false porque o servidor contém um cliente Eureka embutido que, de outro modo, tentaria contatar pares inexistentes.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Todo Eureka Server também é cliente, para replicar com pares. No modo standalone não há pares, então se desliga o autorregistro e a busca do registro para evitar tentativas e erros inúteis.",
+      "section": "2. Eureka Server e Eureka Client na prática",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A replicação entre Eureka Servers pares é síncrona e garante que todos os servidores tenham sempre exatamente a mesma visão do registro, priorizando consistência forte sobre disponibilidade.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A replicação entre pares é assíncrona, e por algum tempo os servidores podem divergir. O Eureka prefere continuar respondendo com dados possivelmente defasados, privilegiando disponibilidade, e não consistência forte.",
+      "section": "2. Eureka Server e Eureka Client na prática",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No arquivo de configuração de um Eureka Client, a propriedade spring.application.name determina o nome lógico com que o serviço aparece no registro e pelo qual os demais serviços passam a chamá-lo.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O nome da aplicação vira o identificador do serviço no Eureka; é ele que outros clientes usam em URLs como http://partes/... quando o cliente HTTP tem balanceamento habilitado.",
+      "section": "2. Eureka Server e Eureka Client na prática",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe vai registrar o serviço pericias num Eureka Server que roda em http://registro:8761. Qual configuração do cliente informa onde está o servidor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "server.port: 8761, no arquivo do próprio serviço pericias.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "spring.cloud.config.uri apontando para http://registro:8761.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "zuul.routes.pericias.url com o endereço do servidor de registro.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "eureka.client.serviceUrl.defaultZone com http://registro:8761/eureka/.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "eureka.server.enable-self-preservation definida como true.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. O cliente encontra o servidor pela propriedade defaultZone do mapa serviceUrl. A mudaria a porta do próprio serviço; B aponta o Config Server; C é rota de gateway legado; E é ajuste do lado do servidor, não endereço.",
+      "section": "2. Eureka Server e Eureka Client na prática",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para evitar que o Eureka Server seja ponto único de falha, a solução recomendada pela própria arquitetura do Eureka é:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desligar o cache local dos clientes para consultarem sempre o servidor.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Subir servidores pares que se registram entre si e replicam os registros.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Trocar o heartbeat por consultas do servidor a cada instância registrada.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Colocar o Eureka atrás do Zuul para que este guarde a lista de serviços.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Gravar os IPs de todas as instâncias no Spring Cloud Config como reserva.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Peer awareness: vários servidores, cada um registrado nos outros, replicam os registros e são listados no defaultZone. A piora a resiliência; C inverte o heartbeat; D confunde gateway com registro; E volta aos endereços fixos.",
+      "section": "2. Eureka Server e Eureka Client na prática",
+      "errorConceptKey": "e2",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Analise as afirmativas sobre Eureka. I. O Eureka Server exibe um painel web com as instâncias registradas. II. Os clientes guardam cópia local do registro. III. O servidor encaminha as chamadas ao serviço de destino. Está correto o que se afirma em:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "I, apenas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "I e II, apenas.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "II e III, apenas.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "I e III, apenas.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "I, II e III.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. I está certa: o servidor oferece dashboard. II está certa: o cliente mantém cache do registro e o renova periodicamente. III está errada: o Eureka só informa endereços; a chamada vai direto à instância ou via gateway.",
+      "section": "2. Eureka Server e Eureka Client na prática",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Eureka, o heartbeat é enviado periodicamente pela instância cliente ao servidor para renovar seu lease, e não pelo servidor às instâncias.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A renovação (renew) parte do cliente; o servidor apenas contabiliza as renovações recebidas e, se o lease expira sem renovação, remove a instância, salvo durante a autopreservação.",
+      "section": "3. Heartbeat, expiração e modo de autopreservação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Quando o Eureka Server entra no modo de autopreservação, ele passa a remover imediatamente do registro todas as instâncias que deixaram de enviar heartbeat, para que os clientes não recebam endereços mortos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. É o oposto: na autopreservação o servidor suspende o despejo (eviction), por supor falha de rede. Como consequência, o registro pode manter instâncias mortas, e os clientes precisam de retry e circuit breaker.",
+      "section": "3. Heartbeat, expiração e modo de autopreservação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma instância desligada de forma ordenada envia ao servidor uma solicitação de cancelamento e sai do registro sem precisar aguardar a expiração do seu lease.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O cancel faz parte do ciclo register, renew, fetch e cancel. Só as instâncias que somem sem avisar, como numa queda da máquina, dependem da expiração do lease e da eviction feita pelo servidor.",
+      "section": "3. Heartbeat, expiração e modo de autopreservação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Por padrão, o heartbeat do Eureka Client reflete o resultado do health check do Spring Boot Actuator, de modo que uma aplicação sem acesso ao banco é publicada automaticamente como DOWN.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Por padrão o heartbeat só indica que o processo está ativo. Para que o status no Eureka acompanhe a saúde do Actuator, é preciso habilitar eureka.client.healthcheck.enabled, o que propaga UP ou DOWN.",
+      "section": "3. Heartbeat, expiração e modo de autopreservação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Como servidor e clientes Eureka trabalham com caches, uma instância recém-registrada pode levar alguns ciclos de heartbeat até ficar visível para os serviços que a consultam.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A documentação do Spring Cloud Netflix observa que a instância só é descoberta quando instância, servidor e cliente compartilham os mesmos metadados em cache, o que pode exigir alguns heartbeats.",
+      "section": "3. Heartbeat, expiração e modo de autopreservação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O painel do Eureka mostra aviso de modo de emergência após uma instabilidade de rede, e várias instâncias continuam listadas sem renovar. Qual a interpretação correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "O servidor perdeu o registro e precisa ser reiniciado para recuperá-lo.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Os clientes passaram a consultar o Config Server no lugar do Eureka.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "O gateway assumiu a função de registrar as instâncias que caíram.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As instâncias foram removidas e serão recriadas pelo próprio servidor.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O servidor entrou em autopreservação e suspendeu o despejo das instâncias.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Renovações abaixo do limiar fazem o servidor suspeitar de falha de rede e parar a eviction, mantendo as instâncias. A, B e C inventam efeitos inexistentes; D contradiz o cenário, pois as instâncias seguem listadas e o Eureka não cria instâncias.",
+      "section": "3. Heartbeat, expiração e modo de autopreservação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No ciclo de vida de um registro no Eureka, o que acontece com a instância cuja máquina desaparece sem enviar cancelamento, estando o servidor em funcionamento normal?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Fica no registro para sempre até que um operador a apague à mão.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "É removida pelo servidor após o lease expirar sem renovação.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "É transferida para outro serviço com o mesmo nome lógico.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Passa ao status STARTING até a máquina voltar a responder.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "É substituída automaticamente por uma nova instância do Eureka.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Sem renovação, o lease expira e o servidor faz a eviction. A ignora a expiração automática; C não existe; D usa um status de inicialização sem relação com a falha; E atribui ao Eureka a criação de instâncias, que é papel da plataforma.",
+      "section": "3. Heartbeat, expiração e modo de autopreservação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Uma equipe de desenvolvimento, com poucas instâncias subindo e descendo o tempo todo, vê o Eureka entrar em autopreservação com frequência. Qual afirmação é correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "O modo só é acionado se o servidor estiver configurado com pares.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "A autopreservação faz o servidor despejar instâncias com mais rigor.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Em desenvolvimento é comum desligá-la; em produção costuma ser mantida.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Desligar o modo obriga os clientes a usar o Spring Cloud Config.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "O modo depende do Zuul e some ao trocar pelo Spring Cloud Gateway.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Com poucas instâncias, a proporção de renovações oscila e dispara o limiar; por isso muitos desligam enable-self-preservation em desenvolvimento e mantêm em produção. A, D e E criam dependências inexistentes, e B inverte o efeito do modo.",
+      "section": "3. Heartbeat, expiração e modo de autopreservação",
+      "errorConceptKey": "e3",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na descoberta do lado do cliente, o próprio serviço chamador consulta o registro e escolhe, por um balanceador embutido, a instância que receberá a requisição.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. É o modelo client-side, típico do Eureka combinado com Spring Cloud LoadBalancer (antes, Ribbon). Ele evita salto extra de rede, mas exige biblioteca de descoberta em cada cliente.",
+      "section": "4. Descoberta no cliente x no servidor e balanceamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Ribbon, da Netflix, é um balanceador de carga do lado do servidor, instalado à frente das instâncias, que recebe as requisições dos clientes e as distribui entre os serviços.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O Ribbon é biblioteca de balanceamento no cliente: roda dentro do serviço chamador, obtém a lista do Eureka e escolhe a instância. Ele foi substituído pelo Spring Cloud LoadBalancer, também do lado do cliente.",
+      "section": "4. Descoberta no cliente x no servidor e balanceamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Ao anotar um bean RestTemplate com @LoadBalanced, o host informado na URL passa a ser tratado como nome lógico de serviço e é resolvido pelo balanceador do Spring Cloud.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. Com @LoadBalanced, uma URL como http://partes/api é interceptada; o Spring Cloud LoadBalancer obtém as instâncias de partes pelo DiscoveryClient e escolhe uma. Sem a anotação, o host seria resolvido por DNS.",
+      "section": "4. Descoberta no cliente x no servidor e balanceamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O algoritmo padrão do Spring Cloud LoadBalancer é o aleatório, sendo o round robin uma alternativa que precisa ser configurada explicitamente pelo desenvolvedor.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. A implementação padrão é o RoundRobinLoadBalancer, que alterna as instâncias em rodízio. O RandomLoadBalancer é a alternativa pronta, e também é possível criar uma estratégia própria.",
+      "section": "4. Descoberta no cliente x no servidor e balanceamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Na descoberta do lado do servidor, o cliente envia a requisição a um roteador ou balanceador, que consulta o registro e escolhe a instância; assim o cliente fica independente de bibliotecas de descoberta.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. No server-side discovery a lógica sai do cliente e vai para o intermediário, como um balanceador de nuvem ou o Service do Kubernetes. O preço é um componente e um salto de rede a mais.",
+      "section": "4. Descoberta no cliente x no servidor e balanceamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Qual componente substituiu o Ribbon como balanceador de carga no cliente no ecossistema Spring Cloud?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Spring Cloud Config.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Netflix Hystrix.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Spring Cloud LoadBalancer.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Eureka Server.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Netflix Zuul 2.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O Spring Cloud LoadBalancer é o substituto oficial do Ribbon. Config centraliza propriedades (A), Hystrix era circuit breaker também removido (B), Eureka é registro (D) e o Zuul 2 é gateway que nem foi integrado ao Spring Cloud (E).",
+      "section": "4. Descoberta no cliente x no servidor e balanceamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O serviço intimacoes chama http://partes/api/partes/10 por um RestTemplate com @LoadBalanced, e partes tem três instâncias no Eureka. Com a configuração padrão, o que ocorre em chamadas sucessivas?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Todas vão à primeira instância registrada, que fica como principal.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O Eureka Server recebe cada chamada e a repassa a uma instância.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A URL falha, pois partes não é nome resolvido pelo DNS da rede.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As chamadas se alternam entre as três instâncias, em rodízio.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Cada chamada é enviada às três instâncias ao mesmo tempo.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. O balanceador padrão é round robin e alterna as instâncias. A ignora o balanceamento; B atribui ao Eureka um encaminhamento que ele não faz; C só valeria sem @LoadBalanced; E descreve difusão, que não é balanceamento.",
+      "section": "4. Descoberta no cliente x no servidor e balanceamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Comparando descoberta no cliente e descoberta no servidor, assinale a opção correta.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "No cliente, há um salto de rede a mais por causa do roteador central.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "No servidor, cada cliente precisa embutir biblioteca de balanceamento.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "No cliente, a escolha da instância é feita pelo próprio servidor Eureka.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "No servidor, o intermediário precisa ele mesmo de alta disponibilidade.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Os dois modelos dispensam um registro com a lista de instâncias vivas.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. No server-side o roteador vira componente crítico e precisa ser redundante. A e B trocam as características dos modelos; C erra, pois no client-side quem escolhe é o chamador; E erra, pois ambos dependem de um registro atualizado.",
+      "section": "4. Descoberta no cliente x no servidor e balanceamento",
+      "errorConceptKey": "e4",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Zuul 1, filtros do tipo pre são executados antes de a requisição ser encaminhada ao serviço de destino e são adequados, por exemplo, para validar o token de autenticação.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O fluxo normal é pre, route e post. A autenticação precisa ocorrer antes do encaminhamento, por isso fica no pre; se o token faltar, o filtro impede o roteamento e devolve erro ao cliente.",
+      "section": "5. Zuul e a substituição pelo Spring Cloud Gateway",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Zuul, da Netflix, é o servidor de registro no qual os microsserviços se inscrevem e enviam heartbeats, cabendo ao Eureka rotear as requisições externas aos serviços internos.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. Os papéis estão trocados: o Eureka é o registro que recebe inscrições e heartbeats; o Zuul é o gateway de borda que recebe o tráfego externo e o encaminha, consultando o Eureka para achar as instâncias.",
+      "section": "5. Zuul e a substituição pelo Spring Cloud Gateway",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Spring Cloud Gateway é o Zuul 2 da Netflix empacotado pelo Spring, mantendo o mesmo modelo de filtros pre, route, post e error do Zuul 1.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. O Spring Cloud Gateway é projeto próprio do Spring, com rotas compostas de URI, predicados e filtros. O Zuul 2 nunca foi integrado ao Spring Cloud, e o modelo pre, route, post e error é do Zuul 1.",
+      "section": "5. Zuul e a substituição pelo Spring Cloud Gateway",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "A partir da linha de versões 2020.0 do Spring Cloud, Zuul 1, Ribbon e Hystrix deixaram de fazer parte do Spring Cloud Netflix, que passou a se concentrar no Eureka.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O anúncio do Spring Cloud 2020.0 informou a remoção desses módulos em manutenção. Os substitutos são o Spring Cloud Gateway, o Spring Cloud LoadBalancer e o Spring Cloud Circuit Breaker com Resilience4j.",
+      "section": "5. Zuul e a substituição pelo Spring Cloud Gateway",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Spring Cloud Gateway, a URI lb://consulta-processual indica que o destino deve ser resolvido pelo registro de serviços e pelo balanceador, a partir do nome lógico do serviço.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O esquema lb faz o gateway usar o Spring Cloud LoadBalancer, que obtém as instâncias do DiscoveryClient (por exemplo, Eureka) e escolhe uma delas para cada requisição roteada.",
+      "section": "5. Zuul e a substituição pelo Spring Cloud Gateway",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um ZuulFilter deve acrescentar à resposta um cabeçalho de rastreio depois que o serviço de destino já respondeu. Qual tipo de filtro atende a essa necessidade?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "pre",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "route",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "post",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "error",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "static",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O filtro post roda depois que a resposta volta, sendo o lugar para cabeçalhos e métricas. pre roda antes do encaminhamento, route faz a chamada ao serviço, error trata falhas, e static não é um dos quatro tipos padrão do Zuul 1.",
+      "section": "5. Zuul e a substituição pelo Spring Cloud Gateway",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No Spring Cloud Gateway, uma rota é composta essencialmente por:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Identificador, URI de destino, predicados e filtros.",
+          "correct": true
+        },
+        {
+          "key": "B",
+          "text": "Lease, heartbeat, zona padrão e status da instância.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Aplicação, perfil, label e repositório Git de origem.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Tipo pre, tipo route, tipo post e tipo error do filtro.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Entidade, DTO, anotação @Mapper e método de mapeamento.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito A. A rota tem id, URI, predicados (condições como Path) e filtros (como StripPrefix). B descreve o registro no Eureka, C os endereços do Config Server, D os filtros do Zuul 1 e E o MapStruct.",
+      "section": "5. Zuul e a substituição pelo Spring Cloud Gateway",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Sobre o Zuul 1 no Spring Cloud Netflix e sua substituição, assinale a opção correta.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Era não bloqueante e foi retirado por não suportar integração com o Eureka.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Sua ativação dispensava anotações, bastando declarar rotas com predicados.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Tinha filtros pre, route, post e error e baseava-se em Servlet bloqueante.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Funcionava como registro de serviços para o Spring Cloud Gateway atual.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Foi substituído pelo Zuul 2, que hoje é o gateway padrão do Spring Cloud.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. O Zuul 1 era bloqueante, sobre Servlet, com quatro tipos de filtro. A erra o modelo de E/S e a integração, que existia; B descreve o Gateway, e o Zuul usava @EnableZuulProxy; D confunde gateway e registro; E erra, pois o substituto é o Spring Cloud Gateway.",
+      "section": "5. Zuul e a substituição pelo Spring Cloud Gateway",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Com o Zuul integrado ao Eureka e ativado por @EnableZuulProxy, um serviço registrado como partes, sem rota declarada, fica acessível pelo gateway em:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Nenhum caminho, pois toda rota do Zuul exige declaração explícita.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O caminho /partes/**, criado automaticamente a partir do serviceId.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "A porta 8761, a mesma do painel do servidor Eureka de exemplo.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "O endereço /{application}/{profile}/{label} do serviço partes.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "A URI lb://partes, digitada pelo cliente externo no navegador.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. Integrado ao Eureka, o Zuul cria rotas a partir do serviceId, como /partes/**. A ignora as rotas automáticas; C é porta do registro; D é formato do Config Server; E é sintaxe interna do Spring Cloud Gateway, não um endereço público.",
+      "section": "5. Zuul e a substituição pelo Spring Cloud Gateway",
+      "errorConceptKey": "e5",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O Spring Cloud Config Server, ativado por @EnableConfigServer, tem como backend padrão um repositório Git, o que permite manter histórico e reverter alterações de configuração.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. O Git é o backend padrão do Config Server, que também aceita sistema de arquivos (perfil native), Vault, JDBC e outros. O versionamento traz auditoria e volta atrás das propriedades alteradas.",
+      "section": "6. Spring Cloud Config e o uso na PDPJ-Br",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Basta anotar um bean com @RefreshScope para que ele perceba sozinho, no mesmo instante, qualquer commit feito no repositório Git do Config Server, sem nenhuma chamada adicional.",
+      "format": "TRUE_FALSE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": true
+        }
+      ],
+      "explanation": "Errado. @RefreshScope permite recriar o bean com valores novos, mas é preciso disparar o refresh, por exemplo pelo endpoint /actuator/refresh da instância ou pelo Spring Cloud Bus, que avisa várias instâncias.",
+      "section": "6. Spring Cloud Config e o uso na PDPJ-Br",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Nas versões atuais do Spring Boot, a aplicação cliente pode importar suas propriedades do Config Server pela propriedade spring.config.import com o prefixo configserver, mecanismo que substituiu o uso do arquivo bootstrap.yml.",
+      "format": "TRUE_FALSE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A forma atual é spring.config.import=configserver:endereço, podendo usar optional: para subir mesmo sem o servidor. O bootstrap.yml era o caminho em versões antigas do Spring Cloud.",
+      "section": "6. Spring Cloud Config e o uso na PDPJ-Br",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "No contexto da PDPJ-Br, editais cobram service discovery e gateway porque a plataforma organiza serviços comuns do Judiciário numa arquitetura de microsserviços, na qual esses mecanismos permitem localizar serviços e oferecer entrada única.",
+      "format": "TRUE_FALSE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "C",
+          "text": "Certo",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "Errado",
+          "correct": false
+        }
+      ],
+      "explanation": "Certo. A PDPJ-Br, instituída pela Resolução CNJ 335/2020, propõe serviços compartilhados entre tribunais e consumidos por APIs; descoberta, gateway e configuração centralizada são os conceitos que sustentam esse ambiente distribuído.",
+      "section": "6. Spring Cloud Config e o uso na PDPJ-Br",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "O endereço /partes/producao/main de um Config Server com backend Git devolve:",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "A lista de instâncias ativas do serviço partes no Eureka.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "O resultado do health check de produção do serviço partes.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "A rota do gateway que leva ao serviço partes em produção.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "As propriedades de partes no perfil producao, do branch main.",
+          "correct": true
+        },
+        {
+          "key": "E",
+          "text": "O código-fonte do serviço partes compilado a partir do main.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito D. O formato é /{application}/{profile}/{label}, e o label costuma ser branch, tag ou commit. A é papel do Eureka, B do Actuator, C do gateway, e o Config Server não entrega código-fonte nem artefatos compilados (E).",
+      "section": "6. Spring Cloud Config e o uso na PDPJ-Br",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Associe corretamente o componente do Spring Cloud à pergunta que ele responde.",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "FACIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Config Server: qual instância chamar agora, em rodízio.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Eureka: com quais propriedades o serviço sobe em produção.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "LoadBalancer: por onde o cliente externo entra no sistema.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Gateway: onde estão registradas as instâncias de cada serviço.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Eureka: onde estão as instâncias disponíveis de cada serviço.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. O Eureka responde onde estão as instâncias. As demais trocam os papéis: o LoadBalancer decide qual instância chamar, o Config Server entrega as propriedades e o gateway é a porta de entrada e o roteador do tráfego externo.",
+      "section": "6. Spring Cloud Config e o uso na PDPJ-Br",
+      "errorConceptKey": "e1",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Um tribunal atualizou no Git a URL de um serviço externo usada por vinte instâncias de um módulo e quer aplicar a mudança sem reiniciá-las. Qual combinação atende melhor?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Desligar a autopreservação do Eureka para forçar novo registro de todas.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Beans com @RefreshScope e aviso a todas as instâncias via Spring Cloud Bus.",
+          "correct": true
+        },
+        {
+          "key": "C",
+          "text": "Novo filtro pre no Zuul para reescrever a URL antiga em cada requisição.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Trocar o round robin pelo aleatório no LoadBalancer das vinte instâncias.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Recompilar o módulo com a nova URL e publicar outra versão do pacote.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito B. @RefreshScope recria os beans com valores novos, e o Spring Cloud Bus propaga o refresh por um broker a todas as instâncias. A, C e D mexem em registro, gateway e balanceamento, que não tratam propriedades; E exige justamente o novo pacote que se queria evitar.",
+      "section": "6. Spring Cloud Config e o uso na PDPJ-Br",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Num ambiente de microsserviços Spring Cloud, qual afirmação sobre o Config Server está correta?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "MEDIA",
+      "options": [
+        {
+          "key": "A",
+          "text": "Substitui o Eureka, pois sabe o endereço de cada instância pela configuração.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Recebe o tráfego externo e o roteia conforme o perfil ativo de cada cliente.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Pode entregar valores guardados cifrados, decifrando-os ao servir o cliente.",
+          "correct": true
+        },
+        {
+          "key": "D",
+          "text": "Só funciona se cada serviço guardar uma cópia local do repositório Git.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Exige que todas as aplicações usem o mesmo perfil e o mesmo label do Git.",
+          "correct": false
+        }
+      ],
+      "explanation": "Gabarito C. Valores com prefixo {cipher} podem ficar cifrados no repositório e são decifrados pelo servidor. A e B atribuem ao Config funções de registro e gateway; D erra, pois o cliente busca por HTTP; E erra, pois cada aplicação escolhe perfil e label.",
+      "section": "6. Spring Cloud Config e o uso na PDPJ-Br",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    },
+    {
+      "statement": "Para subir um novo módulo integrado a um ambiente Spring Cloud com Config Server, Eureka e gateway, qual ordem de inicialização evita falhas de dependência?",
+      "format": "MULTIPLE_CHOICE",
+      "difficulty": "DIFICIL",
+      "options": [
+        {
+          "key": "A",
+          "text": "Gateway, serviço de negócio, Eureka Server e, por último, Config Server.",
+          "correct": false
+        },
+        {
+          "key": "B",
+          "text": "Serviço de negócio, gateway, Config Server e, por último, Eureka Server.",
+          "correct": false
+        },
+        {
+          "key": "C",
+          "text": "Eureka Server, gateway, Config Server e, por último, serviço de negócio.",
+          "correct": false
+        },
+        {
+          "key": "D",
+          "text": "Config Server, gateway, serviço de negócio e, por último, Eureka Server.",
+          "correct": false
+        },
+        {
+          "key": "E",
+          "text": "Config Server, Eureka Server, serviço de negócio e, por último, gateway.",
+          "correct": true
+        }
+      ],
+      "explanation": "Gabarito E. Os serviços precisam das propriedades antes de subir (Config), depois precisam de um registro onde se inscrever (Eureka), e o gateway roteia para serviços já registrados. As demais ordens fazem algum componente subir antes daquilo de que depende.",
+      "section": "6. Spring Cloud Config e o uso na PDPJ-Br",
+      "errorConceptKey": "e6",
+      "sourceType": "AUTHORIAL",
+      "board": null,
+      "agency": null,
+      "year": null,
+      "sourceUrl": null
+    }
+  ],
+  "sources": [
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Cloud Netflix — Service Discovery: Eureka Clients e Eureka Server",
+      "publisher": "Spring (spring.io)",
+      "reference": "Documentação de referência do Spring Cloud Netflix: registro, heartbeat, modo standalone, peer awareness",
+      "url": "https://docs.spring.io/spring-cloud-netflix/reference/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Cloud Commons — DiscoveryClient e Spring Cloud LoadBalancer",
+      "publisher": "Spring (spring.io)",
+      "reference": "Abstrações de descoberta, @LoadBalanced, RoundRobinLoadBalancer e RandomLoadBalancer",
+      "url": "https://docs.spring.io/spring-cloud-commons/reference/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Cloud Gateway — documentação de referência",
+      "publisher": "Spring (spring.io)",
+      "reference": "Rotas, predicados, filtros e URI lb://",
+      "url": "https://docs.spring.io/spring-cloud-gateway/reference/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Cloud Config — documentação de referência",
+      "publisher": "Spring (spring.io)",
+      "reference": "Config Server, backend Git, /{application}/{profile}/{label}, spring.config.import e refresh",
+      "url": "https://docs.spring.io/spring-cloud-config/reference/",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Spring Cloud 2020.0 (Ilford) — anúncio de lançamento",
+      "publisher": "Spring Blog (spring.io)",
+      "reference": "Remoção de Ribbon, Hystrix e Zuul do Spring Cloud Netflix",
+      "url": "https://spring.io/blog/2020/12/22/spring-cloud-2020-0-0-aka-ilford-is-available",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Resolução CNJ 335/2020 — institui a PDPJ-Br",
+      "publisher": "CNJ",
+      "reference": "Política pública para a governança e a gestão de processo judicial eletrônico; Plataforma Digital do Poder Judiciário",
+      "url": "https://atos.cnj.jus.br/atos/detalhar/3496",
+      "accessedAt": "2026-11-18"
+    },
+    {
+      "kind": "OFICIAL",
+      "title": "Documentação da PDPJ-Br",
+      "publisher": "CNJ — PDPJ-Br",
+      "reference": "Arquitetura da plataforma, microsserviços e mensageria",
+      "url": "https://docs.pdpj.jus.br/",
+      "accessedAt": "2026-11-18"
+    }
+  ]
+}
