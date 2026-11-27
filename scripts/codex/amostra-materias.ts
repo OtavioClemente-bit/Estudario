@@ -5,14 +5,31 @@
 //   deno run -A scripts/codex/amostra-materias.ts --aplicar    → publica as "ok" de work/amostra-codex-res/*.json
 //     (copia para conteudo/materias/<área>/<resto>.json com status PUBLISHED e liga as decisões)
 const ROOT = new URL("../../", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
-const PASTA = `${ROOT}conteudo/entrada/materias-codex-2`;
-const LOTES = `${ROOT}work/amostra-codex.json`;
-const RES = `${ROOT}work/amostra-codex-res`;
+// AMOSTRA_PASTA/AMOSTRA_NOME (26/11): mesma revisão para outra pasta de rascunhos (ex.: conteudo/entrada/chatgpt, nome chatgpt-materias).
+const PASTA = `${ROOT}${Deno.env.get("AMOSTRA_PASTA") ?? "conteudo/entrada/materias-codex-2"}`;
+const NOME = Deno.env.get("AMOSTRA_NOME") ?? "codex";
+const LOTES = `${ROOT}work/amostra-${NOME}.json`;
+const RES = `${ROOT}work/amostra-${NOME}-res`;
 const POR_LOTE = 25, POR_MATERIA = 6;
 type Json = Record<string, any>;
-const destino = (id: string) => id.includes(".") ? `${ROOT}conteudo/materias/${id.split(".")[0]}/${id.split(".").slice(1).join(".")}.json` : null;
+// Rascunho cujo id não tem "área." (matérias do ChatGPT, 26/11): a área vem da disciplina (antes de "/" ou "—"),
+// como nas já publicadas (ex.: legislacao-tributaria-municipal.acarau-...). Só o id e a pasta mudam; o conteúdo não.
+const slug = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const idFinal = (id: string): string | null => {
+  if (id.includes(".")) return id;
+  try {
+    const a = slug(String(JSON.parse(Deno.readTextFileSync(`${PASTA}/${id}.json`)).subject ?? "").split(/\s[\/—–-]\s|\//)[0]);
+    return a ? `${a}.${id}` : null;
+  } catch { return null; }
+};
+// Nomes de arquivo já publicados em qualquer área (evita publicar de novo com outro prefixo).
+const jaPublicados = new Set<string>();
+for (const d of Deno.readDirSync(`${ROOT}conteudo/materias`)) {
+  if (d.isDirectory) for (const e of Deno.readDirSync(`${ROOT}conteudo/materias/${d.name}`)) jaPublicados.add(e.name.replace(/\.json$/, ""));
+}
+const destino = (id: string) => { const f = idFinal(id); return f ? `${ROOT}conteudo/materias/${f.split(".")[0]}/${f.split(".").slice(1).join(".")}.json` : null; };
 const existe = (id: string) => { try { Deno.statSync(`${PASTA}/${id}.json`); return true; } catch { return false; } };
-const publicada = (id: string) => { const d = destino(id); if (!d) return false; try { Deno.statSync(d); return true; } catch { return false; } };
+const publicada = (id: string) => { if (!id.includes(".") && jaPublicados.has(id)) return true; const d = destino(id); if (!d) return false; try { Deno.statSync(d); return true; } catch { return false; } };
 const aprovada = (arquivo: string) => {
   const o = new Deno.Command("deno", { args: ["run", "--allow-read", "--allow-env", `${ROOT}scripts/biblioteca/conferir-materia.ts`, arquivo, "--estrito"], stdout: "piped", stderr: "null" }).outputSync();
   return new TextDecoder().decode(o.stdout).trim().endsWith("OK");
@@ -78,12 +95,13 @@ if (Deno.args.includes("--montar")) {
   for (const id of ok) {
     const m = JSON.parse(Deno.readTextFileSync(`${PASTA}/${id}.json`));
     m.status = "PUBLISHED";
+    m.id = idFinal(id);
     Deno.mkdirSync(destino(id)!.replace(/\/[^/]+$/, ""), { recursive: true });
     Deno.writeTextFileSync(destino(id)!, JSON.stringify(m, null, 2) + "\n");
   }
   if (ok.length) {
     // Com centenas de ids a linha de comando passava do limite do Windows (07/11): a lista vai num arquivo.
-    Deno.writeTextFileSync(`${ROOT}work/amostra-codex-ok-ids.txt`, ok.join("\n") + "\n");
+    Deno.writeTextFileSync(`${ROOT}work/amostra-codex-ok-ids.txt`, ok.map((id) => idFinal(id)).join("\n") + "\n");
     const o = new Deno.Command("deno", { args: ["run", "-A", `${ROOT}scripts/codex/ligar-decisoes.ts`, `--ids=@${ROOT}work/amostra-codex-ok-ids.txt`], stdout: "piped", stderr: "piped" }).outputSync();
     console.log(new TextDecoder().decode(o.stdout).trim().split("\n").slice(-3).join("\n"));
   }
