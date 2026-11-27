@@ -42,7 +42,7 @@
       "markdown": "### O problema de definir contratos\nNem todo objeto oferece os mesmos detalhes, mas vários podem cumprir uma capacidade comum. Interfaces e classes abstratas permitem descrever o que os clientes podem pedir e, quando apropriado, compartilhar implementação. A escolha afeta herança, visibilidade, testes e reutilização.\n\n### Classe abstrata e interface\nUma **classe abstrata** não pode ser instanciada diretamente. Pode ter estado de instância, construtores, métodos concretos e métodos abstratos (sem corpo). Uma subclasse concreta precisa implementar os métodos abstratos herdados.\n\nUma **interface** declara um contrato de tipo. Uma classe pode implementar várias interfaces, mas estender diretamente apenas uma classe. Interface não possui campos de instância; campos nela são constantes (`public static final`). Pode conter métodos abstratos, métodos `default` (de instância, com corpo), métodos `static` e auxiliares `private`.\n\n| Necessidade | Classe abstrata | Interface |\n|---|---|---|\n| Estado comum por instância e construtor | Adequada | Não oferece campos de instância nem construtores |\n| Contrato comum entre classes sem parentesco | Possível, mas consome herança simples | Adequada; várias podem ser implementadas |\n| Implementação compartilhada | Métodos concretos | `default` quando comportamento comum fizer sentido |\n\nAna desenvolve leitores de arquivo e leitores de rede. Ambos implementam `Leitor`, que declara `ler()`, sem precisar pertencer à mesma família de classes. Um método que recebe `Leitor` aceita os dois por polimorfismo.\n\n### Métodos default e conflitos\nUm método `default` fornece comportamento de instância opcional numa interface e pode ser sobrescrito. Método `static` pertence à própria interface e é chamado pelo nome dela; não é herdado como método de instância. Método `private` auxilia outros métodos da interface sem integrar seu contrato público.\n\nSe duas interfaces fornecem defaults conflitantes, a classe precisa resolver a ambiguidade. Em geral, uma implementação concreta herdada da classe prevalece; uma interface mais específica prevalece sobre a mais geral; sem isso, a classe declara o método e pode chamar uma implementação qualificada, como `A.super.operacao()`.\n\n### Pacotes e modificadores de acesso\nUm **pacote** (package) agrupa tipos relacionados e define um espaço de nomes. A declaração `package` indica o pacote; `import` permite referir tipos de outro pacote sem escrever o nome completo. Pacotes também ajudam a organizar bibliotecas e controlar o acesso de pacote. Um pacote Java não é, por si só, uma fronteira de segurança contra código malicioso.\n\n| Modificador em Java | Mesma classe | Mesmo pacote | Subclasse em outro pacote | Código não relacionado de outro pacote |\n|---|---:|---:|---:|---:|\n| `public` | Sim | Sim | Sim | Sim |\n| `protected` | Sim | Sim | Sim, pelas regras de acesso de subclasse | Não |\n| sem modificador (package-private) | Sim | Sim | Não por ser subclasse, se estiver fora do pacote | Não |\n| `private` | Sim | Não | Não | Não |\n\nPara membros `protected` fora do pacote, o acesso ocorre no contexto permitido à subclasse; não é um “public” geral para qualquer objeto. Classes de topo podem ser públicas ou package-private, não `private`/`protected` como membros. O acesso padrão é package-private, não significa `public`.\n\nPasso a passo: Ana cria `biblioteca.modelo.Emprestimo` com campo `private dataFim`, método público `renovar()` e um auxiliar sem modificador. A tela em outro pacote pode chamar `renovar()`, mas não ler `dataFim` nem acessar o auxiliar. Uma classe do pacote de modelo pode acessar o auxiliar. O método público protege a regra em vez de liberar o campo.\n\n### Tipos genéricos\n**Generics** (tipos genéricos) permitem parametrizar classes, interfaces e métodos por tipos, mantendo verificações estáticas e reduzindo casts. `List<Emprestimo>` expressa uma lista de empréstimos, em vez de uma lista sem tipo que aceita qualquer objeto.\n\n```java\nList<String> nomes = new ArrayList<>();\nnomes.add(\"Ana\");\nString nome = nomes.get(0); // tipo verificado, sem cast explícito\n```\n\nO parâmetro `T` é um marcador de tipo, por exemplo `Caixa<T>`; ao usar `Caixa<String>`, o compilador verifica operações de texto. Java aplica apagamento de tipos (*type erasure*) em boa parte da implementação: informações genéricas não funcionam como tipos diferentes em todos os contextos de execução. Por isso não se pode, por exemplo, criar diretamente `new T()` nem usar `new List<String>[10]` como array genérico.\n\n`?` é curinga para tipo desconhecido. A regra prática **PECS** (“producer extends, consumer super”) sugere `? extends T` quando a estrutura produz valores que serão lidos como `T`, e `? super T` quando recebe valores `T`; não é uma lei universal, e leitura/escrita ficam sujeitas às garantias do tipo. Exemplo: `List<? extends Number>` permite ler números, mas não inserir arbitrariamente um `Integer`, pois a lista real poderia ser de `Double`.\n\n### Bibliotecas, componentes e reutilização\nUma **biblioteca** oferece código reutilizável que a aplicação chama. Um **componente** é uma unidade substituível com interfaces claras e responsabilidades delimitadas; pode encapsular implementação e ser distribuído num pacote ou módulo. Reutilizar componentes reduz duplicação, mas exige entender contrato, versão, dependências e compatibilidade.\n\nAna usa uma biblioteca de persistência por uma interface `Repositorio<Emprestimo>`. A aplicação depende do contrato; o componente concreto implementa gravação. Um arquivo JAR (*Java Archive*) empacota classes e recursos Java; um módulo Java pode declarar quais pacotes exporta e de quais módulos depende. Empacotar não corrige um contrato mal desenhado nem transforma qualquer classe numa arquitetura de componentes.\n\n### Acesso a banco de dados: JDBC e ORM\n**JDBC** (*Java Database Connectivity*) é a API padrão Java para conectar-se a bancos relacionais, executar comandos e ler resultados. A sequência típica é obter conexão, preparar comando, preencher parâmetros, executar, percorrer resultados e fechar recursos. `PreparedStatement` separa valores do texto SQL e reduz riscos de injeção de SQL quando usado corretamente.\n\n**ORM** (*Object-Relational Mapping*, mapeamento objeto-relacional) relaciona objetos e classes a registros e tabelas; uma ferramenta ORM pode gerar consultas e sincronizar estado. Não elimina a necessidade de transações, índices, tratamento de falhas ou compreensão do banco. Transação agrupa operações que devem confirmar ou falhar como unidade segundo as garantias do banco.\n\nExemplo: Ana salva um empréstimo. O serviço valida domínio; o repositório abre uma transação; JDBC grava cabeçalho e itens usando parâmetros; confirma ao final; se ocorrer falha, desfaz a transação; fecha conexão e comandos. Com ORM, o repositório pode persistir a entidade por uma sessão, mas a fronteira do serviço e a regra de consistência continuam necessárias.\n\n> **Pegadinha:** interface não é classe abstrata; método default não cria estado de instância; acesso sem modificador não é público; generics não autorizam qualquer tipo e são verificados em compilação; ORM não significa ausência de SQL ou de transações.\n\n### Resumo para a prova\n- Classe abstrata pode compartilhar estado e implementação; interface expressa capacidade e admite implementação múltipla.\n- `default` é de instância; `static` pertence à interface; conflitos de defaults devem ser resolvidos.\n- `public`, `protected`, package-private (sem modificador) e `private` têm alcances distintos.\n- Generics dão segurança de tipos e reduzem casts; curingas limitam operações possíveis.\n- Bibliotecas são chamadas pela aplicação; componentes expõem contratos; JAR empacota classes e recursos.\n- JDBC executa comandos e trata resultados; ORM mapeia objetos a dados relacionais; transações e recursos continuam importantes.\n"
     },
     {
-      "title": "6. Análise e modelagem, UML, ferramentas CASE e inversão de controle",
+      "title": "6. Metodologias, ferramentas e projeto de interface com o usuário",
       "markdown": "### O problema de modelar antes de codificar\nAntes de implementar, a equipe precisa descobrir os conceitos do domínio, suas relações e responsabilidades. A análise orientada a objetos transforma necessidades em modelo; o projeto define uma solução implementável. Diagramas comunicam decisões, mas não substituem a análise.\n\n### Identificação de classes e responsabilidades\nParta de requisitos e exemplos. Substantivos podem sugerir classes (`Leitor`, `Emprestimo`), mas nem todo substantivo vira classe: “cor azul” pode ser atributo. Verbos podem indicar operações (`renovar`, `devolver`) ou eventos. Identifique conceitos estáveis, dados, regras e colaboradores.\n\nPasso a passo: Ana pede para reservar um livro e saber quando estará disponível. A equipe identifica `Leitor`, `Livro`, `Reserva` e `Catalogo`; define que o catálogo localiza exemplares e que a reserva guarda estado e data; verifica duplicidade e disponibilidade; então testa cancelamento e indisponibilidade. Assim, as classes representam conceitos e regras, não apenas palavras do requisito.\n\n### UML e diagramas\n**UML** (*Unified Modeling Language*, Linguagem de Modelagem Unificada) é uma notação para visualizar, especificar e documentar modelos. É linguagem de modelagem, não método de desenvolvimento nem linguagem de programação.\n\n| Diagrama | Mostra | Pergunta |\n|---|---|---|\n| Casos de uso | Atores e objetivos | Quem quer fazer o quê? |\n| Classes | Tipos, operações e relações | Qual é a estrutura estática? |\n| Sequência | Participantes e mensagens no tempo | Em que ordem colaboram? |\n| Atividades | Ações e decisões | Que caminhos o processo percorre? |\n| Estados | Estados e transições de um objeto | Como muda seu ciclo de vida? |\n| Componentes | Unidades de software e dependências | Como módulos se conectam? |\n\nEm classes, generalização representa herança; associação indica vínculo; dependência indica uso; composição usa losango preenchido no lado do todo e agregação, losango vazio. Multiplicidades como `1`, `0..1` e `*` indicam quantidades. Uma associação, sozinha, não define quem cria ou controla a relação. Num diagrama de sequência, Ana pede `reservar(livro)`; o serviço consulta o catálogo, verifica disponibilidade e cria a reserva. As mensagens aparecem em ordem temporal e podem revelar responsabilidades mal distribuídas.\n\n### Projeto estruturado e ferramentas CASE\nO **projeto estruturado** decompõe o sistema em funções e processos. Um **Diagrama de Fluxo de Dados (DFD)** representa processos, fluxos, depósitos e entidades externas; não é um diagrama UML de classes. A análise estruturada enfatiza transformações de dados; a orientada a objetos enfatiza objetos, responsabilidades e relações. As visões podem ser combinadas, respeitando a finalidade de cada diagrama.\n\n**CASE** (*Computer-Aided Software Engineering*, engenharia de software assistida por computador) designa ferramentas que apoiam análise, projeto, documentação ou manutenção. Uma ferramenta CASE pode desenhar UML ou verificar consistência; uma **IDE** (*Integrated Development Environment*, ambiente integrado de desenvolvimento) ajuda a editar, compilar e depurar. Nenhuma ferramenta garante que o modelo represente corretamente o problema.\n\n### Injeção de dependência e inversão de controle\n**Inversão de controle (IoC)** transfere o controle da criação de colaboradores ou do fluxo a uma abstração ou mecanismo externo. **Injeção de dependência** fornece esses colaboradores a um objeto, por exemplo pelo construtor; um contêiner pode fazer a montagem, mas não é obrigatório.\n\nExemplo: `ServicoReserva` recebe `RepositorioReserva` no construtor. Em produção, recebe a implementação ligada ao banco; no teste, Ana fornece uma versão em memória. O serviço não cria a infraestrutura concreta. Isso facilita substituir detalhes e testar, desde que a implementação respeite o contrato.\n\n### Exemplo integrado\nAna solicita uma reserva pela interface. O serviço coordena o caso, consulta o catálogo e grava por um repositório recebido como dependência. O modelo separa a interação com usuário, a regra de disponibilidade e a persistência; diagramas de sequência e componentes podem documentar essas colaborações. A equipe revisa o fluxo com cenários de cancelamento e falta de exemplares.\n\n> **Pegadinha:** UML não é metodologia; DFD não é diagrama de classes; CASE e IDE apoiam o trabalho, mas não substituem decisões de projeto. IoC é uma ideia de controle; injeção de dependência é uma técnica para fornecer colaboradores.\n\n### Resumo para a prova\n- Análise identifica conceitos, regras e responsabilidades; substantivo não vira classe automaticamente.\n- UML modela estrutura e comportamento; classes, casos de uso, sequência, atividades, estados e componentes respondem a perguntas diferentes.\n- DFD descreve processos e fluxos de dados; CASE apoia engenharia; IDE apoia codificação.\n- IoC transfere controle; injeção fornece colaboradores por interfaces ou contratos.\n- Distribua responsabilidades e teste o modelo com cenários concretos, inclusive alternativos.\n"
     }
   ],
@@ -5258,38 +5258,38 @@
       "sourceUrl": null
     },
     {
-      "statement": "Uma equipe desenha os atores do sistema de biblioteca e os objetivos que cada um deseja alcançar, sem detalhar a ordem das mensagens entre objetos. Qual diagrama UML foi usado?",
+      "statement": "No Rational Unified Process (RUP), a fase em que se define e estabiliza a arquitetura do sistema e se tratam os principais riscos técnicos é a de:",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "MEDIA",
       "options": [
         {
           "key": "A",
-          "text": "Diagrama de sequência, que ordena as mensagens trocadas ao longo do tempo",
+          "text": "Concepção, que delimita escopo e viabilidade do negócio",
           "correct": false
         },
         {
           "key": "B",
-          "text": "Diagrama de casos de uso, que mostra atores e os objetivos de cada um",
+          "text": "Elaboração",
           "correct": true
         },
         {
           "key": "C",
-          "text": "Diagrama de estados, que mostra as transições do ciclo de vida de um objeto",
+          "text": "Construção, em que se desenvolve a maior parte do código",
           "correct": false
         },
         {
           "key": "D",
-          "text": "Diagrama de classes, que mostra a estrutura estática de tipos e relações",
+          "text": "Transição, em que o produto é entregue aos usuários",
           "correct": false
         },
         {
           "key": "E",
-          "text": "Diagrama de componentes, que mostra módulos de software e suas dependências",
+          "text": "Implementação, que encerra o ciclo de vida do projeto",
           "correct": false
         }
       ],
-      "explanation": "Gabarito B. O diagrama de casos de uso responde a quem quer fazer o quê: apresenta atores e objetivos, sem entrar na ordem das mensagens. A mostra a ordem temporal das colaborações; C trata do ciclo de vida de um objeto; D descreve a estrutura estática; E liga módulos e dependências.",
-      "section": "6. Análise e modelagem, UML, ferramentas CASE e inversão de controle",
+      "explanation": "Na Elaboração o RUP fixa a arquitetura de referência e ataca os riscos principais. Concepção define escopo, Construção produz a maior parte do software e Transição entrega ao usuário; Implementação é disciplina, não fase.",
+      "section": "6. Metodologias, ferramentas e projeto de interface com o usuário",
       "errorConceptKey": null,
       "sourceType": "AUTHORIAL",
       "board": null,
@@ -5298,38 +5298,38 @@
       "sourceUrl": null
     },
     {
-      "statement": "Sobre o Diagrama de Fluxo de Dados (DFD) usado no projeto estruturado, assinale a alternativa correta.",
+      "statement": "Sobre o Scrum, assinale a alternativa correta.",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "FACIL",
       "options": [
         {
           "key": "A",
-          "text": "O DFD é um diagrama UML que representa classes, atributos e herança.",
+          "text": "O Scrum Master define a prioridade dos itens do Product Backlog.",
           "correct": false
         },
         {
           "key": "B",
-          "text": "O DFD mostra apenas a hierarquia de generalização entre os tipos do sistema.",
+          "text": "A Sprint tem duração fixa de três meses, para permitir entregas completas.",
           "correct": false
         },
         {
           "key": "C",
-          "text": "O DFD representa processos, fluxos de dados, depósitos e entidades externas.",
+          "text": "A Daily Scrum dura até 15 minutos e serve à inspeção do progresso.",
           "correct": true
         },
         {
           "key": "D",
-          "text": "O DFD dispensa decisões de projeto, pois gera o modelo do sistema sozinho.",
+          "text": "O Manifesto Ágil eliminou a documentação, que deixou de ter qualquer valor.",
           "correct": false
         },
         {
           "key": "E",
-          "text": "O DFD é uma linguagem de programação usada para implementar rotinas de acesso.",
+          "text": "O Kanban é um evento do Scrum realizado ao final de cada Sprint.",
           "correct": false
         }
       ],
-      "explanation": "Gabarito C. O DFD pertence à análise e ao projeto estruturados e mostra como os dados são transformados por processos, circulam em fluxos, ficam em depósitos e se relacionam com entidades externas. A confunde-o com o diagrama de classes; B atribui a ele a generalização; D e E o tratam como ferramenta automática ou como linguagem de programação, o que ele não é.",
-      "section": "6. Análise e modelagem, UML, ferramentas CASE e inversão de controle",
+      "explanation": "A Daily é o evento diário de até 15 minutos para inspecionar o avanço rumo à meta da Sprint. Quem prioriza o backlog é o Product Owner; a Sprint dura até um mês; o Manifesto ainda valoriza a documentação, e Kanban é outro método.",
+      "section": "6. Metodologias, ferramentas e projeto de interface com o usuário",
       "errorConceptKey": null,
       "sourceType": "AUTHORIAL",
       "board": null,
@@ -5338,38 +5338,38 @@
       "sourceUrl": null
     },
     {
-      "statement": "O construtor de ServicoReserva criava diretamente a conexão concreta com o banco. Para facilitar testes e trocar a infraestrutura, a equipe passou a receber no construtor um RepositorioReserva, declarado como interface. Essa mudança aplica principalmente:",
+      "statement": "Um sistema tem requisitos muito estáveis e o contrato exige que cada etapa seja concluída e aprovada antes da seguinte. O modelo de processo mais aderente a essa situação é o:",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "FACIL",
       "options": [
         {
           "key": "A",
-          "text": "herança de implementação, pois o serviço passa a estender o repositório",
-          "correct": false
+          "text": "cascata",
+          "correct": true
         },
         {
           "key": "B",
-          "text": "sobrecarga de construtores, pois há dois métodos com o mesmo nome",
+          "text": "espiral, guiado pela análise de riscos a cada volta",
           "correct": false
         },
         {
           "key": "C",
-          "text": "composição forte, pois o repositório é destruído obrigatoriamente com o serviço",
+          "text": "Scrum, com entregas a cada Sprint de até um mês",
           "correct": false
         },
         {
           "key": "D",
-          "text": "injeção de dependência, pois o colaborador passa a ser fornecido de fora",
-          "correct": true
+          "text": "Kanban, com fluxo contínuo e limite de trabalho em andamento",
+          "correct": false
         },
         {
           "key": "E",
-          "text": "diagrama de sequência, pois a mudança registra a ordem temporal das mensagens",
+          "text": "XP, com programação em par e pequenas entregas frequentes",
           "correct": false
         }
       ],
-      "explanation": "Gabarito D. Receber o colaborador pelo construtor, em vez de criá-lo dentro da classe, é injeção de dependência; em produção entra a implementação ligada ao banco e, no teste, uma versão em memória. A exigiria extends; B trata de métodos de mesmo nome; C mistura ciclo de vida, que não é o ponto; E é uma técnica de documentação, não de código.",
-      "section": "6. Análise e modelagem, UML, ferramentas CASE e inversão de controle",
+      "explanation": "A cascata organiza o trabalho em fases sequenciais, cada uma concluída antes da próxima, e funciona bem quando os requisitos são estáveis. Espiral, Scrum, Kanban e XP são iterativos e pensados para mudança frequente.",
+      "section": "6. Metodologias, ferramentas e projeto de interface com o usuário",
       "errorConceptKey": null,
       "sourceType": "AUTHORIAL",
       "board": null,
@@ -5378,38 +5378,38 @@
       "sourceUrl": null
     },
     {
-      "statement": "Uma equipe usa uma ferramenta para desenhar diagramas UML, verificar a consistência entre eles e manter a documentação do projeto. Em geral, essa ferramenta é classificada como:",
+      "statement": "Ao projetar a interface de um sistema acadêmico, a equipe passa a exibir uma barra de progresso durante o envio de arquivos, para o usuário saber o que está acontecendo. Essa decisão atende à heurística de Nielsen da:",
       "format": "MULTIPLE_CHOICE",
       "difficulty": "MEDIA",
       "options": [
         {
           "key": "A",
-          "text": "IDE, pois seu foco principal é editar, compilar e depurar o código-fonte",
+          "text": "prevenção de erros, que evita ações perigosas por confirmação",
           "correct": false
         },
         {
           "key": "B",
-          "text": "ferramenta CASE, pois apoia a análise, o projeto e a documentação",
+          "text": "visibilidade do estado do sistema",
           "correct": true
         },
         {
           "key": "C",
-          "text": "contêiner de injeção, pois monta os colaboradores dos objetos em execução",
+          "text": "flexibilidade e eficiência, com atalhos para usuários avançados",
           "correct": false
         },
         {
           "key": "D",
-          "text": "banco de dados relacional, pois armazena os registros do sistema em tabelas",
+          "text": "estética minimalista, que retira informação irrelevante da tela",
           "correct": false
         },
         {
           "key": "E",
-          "text": "biblioteca de interface, pois oferece componentes visuais prontos para as telas",
+          "text": "ajuda e documentação, com manual de uso acessível no sistema",
           "correct": false
         }
       ],
-      "explanation": "Gabarito B. Ferramentas CASE apoiam análise, projeto, documentação ou manutenção, como desenhar UML e verificar a consistência dos modelos. A descreve a IDE, voltada à codificação; C é um mecanismo de montagem de dependências; D e E não têm relação com modelagem.",
-      "section": "6. Análise e modelagem, UML, ferramentas CASE e inversão de controle",
+      "explanation": "A visibilidade do estado do sistema pede que a interface informe o que ocorre, com retorno em tempo razoável, como uma barra de progresso. As demais heurísticas tratam de evitar erros, atalhos, enxugar a tela e oferecer ajuda.",
+      "section": "6. Metodologias, ferramentas e projeto de interface com o usuário",
       "errorConceptKey": null,
       "sourceType": "AUTHORIAL",
       "board": null,

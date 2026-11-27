@@ -33,6 +33,11 @@
    Edital sem quadro de questões (autorizado pelo dono em 24/11: "pode ser flexível, o importante é parecer a
    prova"): o total vem do tamanho típico da banca e a divisão é proporcional aos tópicos de cada disciplina,
    e a estrutura do simulado diz que a quantidade é aproximada.
+   **Sexta exceção autorizada (27/11/2026):** `scripts/biblioteca/somar-duplicadas.ts` junta à matéria publicada a
+   matéria do ChatGPT já revisada que saiu duplicada dela: copia literalmente as questões novas (enunciado repetido
+   fica de fora) e troca a teoria só se a nova for ≥ 1,5× maior ("as questões podem somar, quanto mais melhor; a
+   matéria só se for melhor e maior substitui", dono em 27/11). Não escreve nem altera texto de questão; só liga a
+   questão ao capítulo mais parecido quando o capítulo citado não existe.
 2. **Salve os arquivos em `conteudo/entrada/`** (a matéria e o recorte). Nunca grave em
    `conteudo/materias/`, `conteudo/recortes/` nem `conteudo/editais/`: essas pastas são conferidas e
    publicadas por outro processo.
