@@ -161,13 +161,92 @@ object SimulationBlueprint {
     }
 }
 
-/** Formato das questões pela banca: Cebraspe e Quadrix são Certo/Errado; as demais, A a E. */
+/**
+ * Regras de cada banca: formato das questões e se uma errada anula uma certa. Cebraspe, Quadrix e Iades
+ * são Certo/Errado com nota líquida; Fumarc, A a D; as demais, A a E.
+ * A normalização segue normalizeBoard/BOARD_NAMES de supabase/functions/_shared/library.ts.
+ */
 object BoardStyle {
-    private fun key(value: String) = stripAccents(value.lowercase())
+    private val leading = Regex("^[\\s\\d.\\-–)]+(?=[a-z])")
+    private val nonWord = Regex("[^a-z0-9]+")
 
-    fun styleFor(board: String?): String {
-        val name = board?.let(::key) ?: return "FIVE_OPTIONS"
-        return if (listOf("cebraspe", "cespe", "quadrix").any { it in name }) "TRUE_FALSE" else "FIVE_OPTIONS"
+    private fun alias(value: String?): String = stripAccents(value.orEmpty())
+        .replace("º", "").replace("°", "").replace("ª", "")
+        .lowercase()
+        .replace(leading, "")
+        .replace(nonWord, " ")
+        .trim()
+
+    private val BOARD_NAMES = mapOf(
+        "cespe" to "cebraspe", "cespe unb" to "cebraspe", "cebraspe cespe" to "cebraspe",
+        "fundacao carlos chagas" to "fcc", "fundacao getulio vargas" to "fgv", "fundacao getulio vargas mpgo" to "fgv",
+        "instituto aocp" to "aocp", "instituto ibfc" to "ibfc", "instituto consulplan" to "consulplan",
+        "fundacao cesgranrio" to "cesgranrio", "fundacao fafipa" to "fafipa",
+        "instituto brasileiro de formacao e capacitacao ibfc" to "ibfc", "instituto brasileiro de formacao e capacitacao" to "ibfc",
+        "crs pmmg" to "pmmg crs", "comissao organizadora e examinadora do trf3" to "comissao do trf3",
+    )
+
+    /** Chave da banca, igual à do servidor: "CESPE/UnB" e "Cebraspe" viram "cebraspe". */
+    fun normalize(board: String?): String {
+        val name = alias(board)
+        return BOARD_NAMES[name] ?: name
+    }
+
+    /** Mesma banca, ignorando acento, caixa e apelido. */
+    fun sameBoard(a: String?, b: String?): Boolean {
+        val x = normalize(a)
+        return x.isNotEmpty() && x == normalize(b)
+    }
+
+    private val TRUE_FALSE_BOARDS = setOf("cebraspe", "cespe", "quadrix", "iades")
+    private val FOUR_OPTIONS_BOARDS = setOf("fumarc")
+    private val WRONG_CANCELS_RIGHT = setOf("cebraspe", "cespe", "quadrix", "iades")
+
+    private fun matches(board: String?, set: Set<String>): Boolean {
+        val norm = normalize(board)
+        if (norm.isEmpty()) return false
+        val words = norm.split(' ')
+        return norm in set || words.any { it in set }
+    }
+
+    fun styleFor(board: String?): String = when {
+        matches(board, TRUE_FALSE_BOARDS) -> "TRUE_FALSE"
+        matches(board, FOUR_OPTIONS_BOARDS) -> "FOUR_OPTIONS"
+        else -> "FIVE_OPTIONS"
+    }
+
+    /** Bancas em que uma errada anula uma certa (nota líquida). */
+    fun wrongCancelsRight(board: String?): Boolean = matches(board, WRONG_CANCELS_RIGHT)
+
+    /** Nota líquida: certas menos erradas, nunca abaixo de zero; em branco vale zero. */
+    fun netScore(correct: Int, wrong: Int): Int = (correct - wrong).coerceAtLeast(0)
+
+    /** Nota em % pela regra da banca: líquida para quem anula, acertos/total para as demais. */
+    fun scorePercent(board: String?, correct: Int, wrong: Int, total: Int): Int {
+        if (total <= 0) return 0
+        val points = if (wrongCancelsRight(board)) netScore(correct, wrong) else correct
+        return (points * 100.0 / total).roundToInt()
+    }
+
+    const val NET_SCORE_LABEL = "Nota líquida (regra da banca: uma errada anula uma certa)"
+
+    /** Nome de exibição para uma banca conhecida digitada de outro jeito ("cespe" vira "Cebraspe"). */
+    fun displayName(board: String?): String? {
+        val raw = board?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val norm = normalize(raw)
+        return KNOWN_BOARDS.firstOrNull { normalize(it) == norm } ?: raw
+    }
+
+    /**
+     * Ordem de uma questão para a banca do concurso: 0 = da própria banca, 1 = outra banca no mesmo formato
+     * (Certo/Errado ou múltipla escolha), 2 = as demais. Sem banca do concurso, tudo empata.
+     */
+    fun affinity(examBoard: String?, questionBoard: String?): Int {
+        if (normalize(examBoard).isEmpty()) return 0
+        if (sameBoard(examBoard, questionBoard)) return 0
+        val trueFalse = styleFor(examBoard) == "TRUE_FALSE"
+        if (normalize(questionBoard).isNotEmpty() && (styleFor(questionBoard) == "TRUE_FALSE") == trueFalse) return 1
+        return 2
     }
 
     fun styleLabel(style: String): String = when (style) {
@@ -181,7 +260,10 @@ object BoardStyle {
     fun minutesFor(style: String, questions: Int): Int =
         (questions * if (style == "TRUE_FALSE") 2.0 else 3.0).roundToInt().coerceAtLeast(10)
 
-    val KNOWN_BOARDS = listOf("Cebraspe", "FGV", "FCC", "Vunesp", "Cesgranrio", "Quadrix", "IBFC", "Instituto AOCP", "Idecan", "Consulplan", "Fundatec", "Iades")
+    val KNOWN_BOARDS = listOf(
+        "Cebraspe", "FGV", "FCC", "Vunesp", "Fumarc", "Cesgranrio", "Quadrix", "IBFC", "Instituto AOCP", "Iades",
+        "Idecan", "Consulplan", "Fundatec", "IBADE", "Selecon", "Instituto Access", "Objetiva", "Fepese",
+    )
 }
 
 /** O que a pessoa já fez, para decidir o que liberar. */

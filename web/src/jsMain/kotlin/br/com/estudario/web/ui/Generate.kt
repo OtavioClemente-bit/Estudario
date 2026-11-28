@@ -90,8 +90,7 @@ fun GenerateDialog(topicId: Long, questionsOnly: Boolean = false, onClose: () ->
             val competition = Store.data.topics.firstOrNull { it.id == topicId }?.let { t -> Store.data.subjects.firstOrNull { it.id == t.subjectId } }
                 ?.let { s -> Store.data.competitions.firstOrNull { it.id == s.competitionId } }
             if (competition != null) {
-                val fromProfile = br.com.estudario.web.data.Simulations.examProfile(Store.data, competition.id).board?.trim()?.ifBlank { null }
-                (fromProfile ?: br.com.estudario.web.data.Catalog.boardFor(competition.name))?.let { if (board.isBlank()) board = it.take(40) }
+                br.com.estudario.web.data.Simulations.boardOf(Store.data, competition.id)?.let { if (board.isBlank()) board = it.take(40) }
             }
         }
         quota = quotaFor(if (questionsOnly) "QUESTION_BATCH" else "CONTENT_GENERATION")

@@ -275,6 +275,8 @@ data class SimulationEntity(
     val correctCount: Int = 0,
     val questionCount: Int = 0,
     val scorePercent: Int? = null,
+    /** Nota líquida (certas − erradas, mínimo 0) quando a banca anula; null nas demais. scorePercent já segue a regra. */
+    val netScore: Int? = null,
 )
 
 @Entity(

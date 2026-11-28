@@ -283,6 +283,11 @@ fun ProfileScreen() {
         Div({ classes("gm-col") }) {
             WardrobeCard(progress)
 
+            // ---- banca do concurso principal: tudo (treinos, simulados, nota) segue ela
+            (data.competitions.firstOrNull { it.primary } ?: data.competitions.firstOrNull())?.let { competition ->
+                Card { Div({ classes("xs", "muted", "strong") }) { Text("BANCA DO SEU CONCURSO · ${competition.name.uppercase()}") }; BoardRow(competition.id) }
+            }
+
             // ---- atributos: de onde veio o XP
             GamePanel("insights", "Atributos", "${formatXp(progress.totalXp)} XP", accent = "#A78BFF") {
                 val sources = progress.sources.filter { it.xp > 0 }

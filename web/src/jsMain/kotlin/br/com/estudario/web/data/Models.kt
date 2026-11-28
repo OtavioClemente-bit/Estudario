@@ -235,6 +235,9 @@ data class Simulation(
     val correctCount: Int = 0,
     val questionCount: Int = 0,
     val scorePercent: Int? = null,
+    val board: String? = null,
+    /** Nota líquida (certas − erradas, mínimo 0) nas bancas em que uma errada anula uma certa. */
+    val netScore: Int? = null,
 )
 
 @Serializable

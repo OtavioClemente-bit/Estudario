@@ -135,7 +135,7 @@ fun SimulationResultScreen(
                         when {
                             reached -> "Acima da sua meta de $target%. Se a prova fosse hoje, você estaria no páreo."
                             else -> {
-                                val missing = ((target * current.questionCount + 99) / 100) - current.correctCount
+                                val missing = ((target * current.questionCount + 99) / 100) - (current.netScore ?: current.correctCount)
                                 "Faltaram $missing questão(ões) para a sua meta de $target%. Olhe as matérias abaixo: é ali que estão esses pontos."
                             }
                         },
@@ -149,7 +149,15 @@ fun SimulationResultScreen(
                             color = if (delta >= 0) estudarioColors().completed else MaterialTheme.colorScheme.error,
                         )
                     }
-                    if (ceItems.isNotEmpty()) Text(
+                    current.netScore?.let { net ->
+                        Text(
+                            "${br.com.estudario.domain.simulation.BoardStyle.NET_SCORE_LABEL}: $net ponto(s) de ${current.questionCount} · ${current.correctCount} acertos − $wrong erradas (em branco vale zero).",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                    current.board?.let { Text("Banca deste simulado: $it", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    if (current.netScore == null && ceItems.isNotEmpty()) Text(
                         "Na regra Cebraspe (certo +1, errado −1, branco 0): ${ceRight - ceWrong} ponto(s) líquido(s) em ${ceItems.size} itens. Cada erro anula um acerto: na dúvida real, deixar em branco pode valer mais.",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,

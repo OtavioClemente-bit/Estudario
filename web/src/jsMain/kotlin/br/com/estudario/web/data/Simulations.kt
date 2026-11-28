@@ -145,8 +145,23 @@ object Simulations {
         return ExamProfile(row?.str("board"), row?.str("style") ?: "FIVE_OPTIONS", row?.int("targetPercent") ?: 70)
     }
 
+
+    /**
+     * A banca do concurso que tudo segue (simulados, treinos, biblioteca): a escolhida pela pessoa ou,
+     * sem ela, a do edital recente do catálogo. Mesmo resolvedor do app (editalBoardOf).
+     */
+    suspend fun boardOf(data: Snapshot, competitionId: Long): String? {
+        examProfile(data, competitionId).board?.trim()?.ifBlank { null }?.let { return it }
+        val name = data.competitions.firstOrNull { it.id == competitionId }?.name ?: return null
+        return Catalog.boardFor(name)
+    }
+
+    /** O mesmo sem rede (catálogo já carregado nesta aba), para quem não pode esperar. */
+    fun cachedBoardOf(data: Snapshot, competitionId: Long): String? =
+        examProfile(data, competitionId).board?.trim()?.ifBlank { null }
+            ?: data.competitions.firstOrNull { it.id == competitionId }?.name?.let { Catalog.cachedBoardFor(it) }
     fun saveExamProfile(data: Snapshot, competitionId: Long, board: String?, targetPercent: Int): Snapshot {
-        val cleaned = board?.trim()?.ifBlank { null }
+        val cleaned = BoardStyle.displayName(board)
         val row = jsonOf(
             "competitionId" to competitionId, "board" to cleaned, "boardSource" to if (cleaned == null) null else "USER", "boardUrl" to null,
             "boardPending" to false, "style" to BoardStyle.styleFor(cleaned), "targetPercent" to targetPercent.coerceIn(30, 100), "updatedAt" to now(),
@@ -205,7 +220,7 @@ object Simulations {
     /** Monta a planta e grava o simulado; devolve (foto, id). A geração começa com [generate]. */
     fun create(data: Snapshot, competitionId: Long, mode: SimulationMode, size: Int, purpose: String? = null, planTaskId: String? = null, subjectIds: Set<Long>? = null): Pair<Snapshot, Long> {
         val competition = data.competitions.firstOrNull { it.id == competitionId } ?: error("Concurso não encontrado.")
-        val profile = examProfile(data, competitionId)
+        val profile = examProfile(data, competitionId).let { p -> if (p.board != null) p else cachedBoardOf(data, competitionId)?.let { b -> p.copy(board = b, style = BoardStyle.styleFor(b)) } ?: p }
         // 25/11: "por matérias escolhidas" (Pro) monta só com as matérias marcadas.
         val leaves = leafTopics(data, competitionId).filter { subjectIds == null || it.subjectId in subjectIds }
         require(leaves.isNotEmpty()) { "Escolha pelo menos uma matéria." }
@@ -413,7 +428,7 @@ object Simulations {
         val examId = examIdOf(data, simulationId) ?: return null
         val sim = data.simulations.firstOrNull { it.id == simulationId } ?: return null
         val elapsed = row(data, simulationId)?.long("elapsedSeconds") ?: 0L
-        return if (sim.status == "FINISHED") Catalog.submitRanking(examId, sim.correctCount, sim.questionCount.coerceAtLeast(1), elapsed)
+        return if (sim.status == "FINISHED") Catalog.submitRanking(examId, sim.netScore ?: sim.correctCount, sim.questionCount.coerceAtLeast(1), elapsed)
         else Catalog.ranking(examId)
     }
 
@@ -648,6 +663,9 @@ object Simulations {
             next = after
             if (ok) correct++
         }
+        // Bancas em que uma errada anula uma certa: nota líquida (em branco vale zero).
+        val wrong = questions.count { answers[it.id] != null } - correct
+        val net = if (BoardStyle.wrongCancelsRight(sim.str("board"))) BoardStyle.netScore(correct, wrong) else null
         val topicIds = questions.mapTo(hashSetOf()) { it.topicId }
         val subjectIds = next.topics.filter { it.id in topicIds }.mapTo(hashSetOf()) { it.subjectId }
         val at = now()
@@ -667,7 +685,8 @@ object Simulations {
                 "answersJson" to JsonPrimitive(JsonObject(answers.entries.associate { e -> e.key.toString() to JsonPrimitive(e.value) }).toString()),
                 "finishedAt" to JsonPrimitive(at), "elapsedSeconds" to JsonPrimitive(elapsedSeconds), "answeredCount" to JsonPrimitive(answers.size),
                 "correctCount" to JsonPrimitive(correct), "questionCount" to JsonPrimitive(questions.size),
-                "scorePercent" to JsonPrimitive(if (questions.isEmpty()) 0 else correct * 100 / questions.size),
+                "scorePercent" to JsonPrimitive(if (questions.isEmpty()) 0 else (net ?: correct) * 100 / questions.size),
+                "netScore" to (net?.let { JsonPrimitive(it) } ?: JsonNull),
             )
         }
     }

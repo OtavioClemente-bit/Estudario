@@ -373,7 +373,7 @@ private fun SimulationRow(simulation: Simulation, target: Int, onDiscard: () -> 
             Div({ classes("sx-row-body") }) {
                 B { Text(simulation.title) }
                 Span({ classes("sx-meta") }) {
-                    Text("${Queries.shortDate(Queries.dateOf(simulation.createdAt))} · ${simulation.timeLimitMinutes} min")
+                    Text("${Queries.shortDate(Queries.dateOf(simulation.createdAt))} · ${simulation.board?.let { "$it · " }.orEmpty()}${simulation.timeLimitMinutes} min")
                     if (simulation.status != "FINISHED") Text(" · " + pendingStatus(simulation, parts.count { it.status == "DONE" }, parts.size))
                 }
             }
@@ -461,15 +461,24 @@ private fun CreateSimulationDialog(competitionId: Long, mode: SimulationMode, on
 }
 
 @Composable
-private fun ProfileDialog(competitionId: Long, board: String?, target: Int, onClose: () -> Unit) {
+internal fun ProfileDialog(competitionId: Long, board: String?, target: Int, note: String? = null, onClose: () -> Unit) {
     var name by remember { mutableStateOf(board.orEmpty()) }
     var percent by remember { mutableStateOf(target) }
     Modal(onDismiss = onClose) {
         H2 { Text("Banca e meta") }
+        P({ classes("small", "muted") }) { Text("Questões, formato, tempo e nota dos treinos e simulados seguem o jeito da banca.") }
+        note?.let { P({ classes("small") }) { B { Text(it) } } }
+        Div({ classes("row", "wrap") }) {
+            BoardStyle.KNOWN_BOARDS.forEach { known ->
+                Button({ classes("chip"); if (BoardStyle.sameBoard(name, known)) classes("primary"); onClick { name = known } }) { Text(known) }
+            }
+        }
         Div({ classes("field") }) {
             org.jetbrains.compose.web.dom.Label { Text("Banca do concurso") }
             Input(InputType.Text) { classes("input"); value(name); placeholder("Ex.: Cebraspe, FGV, FCC, Vunesp"); attr("maxlength", "40"); onInput { name = it.value } }
-            Span({ classes("xs", "muted") }) { Text("Formato das questões: ${BoardStyle.styleLabel(BoardStyle.styleFor(name.ifBlank { null }))}") }
+            Span({ classes("xs", "muted") }) {
+                Text("Formato das questões: ${BoardStyle.styleLabel(BoardStyle.styleFor(name.ifBlank { null }))}" + if (BoardStyle.wrongCancelsRight(name)) " · uma errada anula uma certa" else "")
+            }
         }
         Div({ classes("day-row") }) {
             Div({ classes("grow") }) { Div({ classes("name") }) { Text("Meta de acerto") }; Div({ classes("hint") }) { Text("Usada para dizer se o simulado passou") } }
@@ -480,6 +489,41 @@ private fun ProfileDialog(competitionId: Long, board: String?, target: Int, onCl
             Btn("Salvar", { Store.update { Simulations.saveExamProfile(it, competitionId, name, percent) }; onClose() }, icon = "check")
         }
     }
+}
+
+/**
+ * "Banca: X — trocar". Vale para tudo do concurso; edital antigo mostra a banca dele só como sugestão.
+ * Usado no assistente de início e no perfil.
+ */
+@Composable
+fun BoardRow(competitionId: Long) {
+    val data = Store.data
+    val profile = Simulations.examProfile(data, competitionId)
+    val name = data.competitions.firstOrNull { it.id == competitionId }?.name.orEmpty()
+    var resolved by remember(competitionId) { mutableStateOf<String?>(null) }
+    var old by remember(competitionId) { mutableStateOf<Pair<String, Int?>?>(null) }
+    var editing by remember { mutableStateOf(false) }
+    LaunchedEffect(competitionId, profile.board) {
+        resolved = Simulations.boardOf(Store.data, competitionId)
+        old = if (resolved == null) br.com.estudario.web.data.Catalog.lastEditalBoard(name) else null
+    }
+    val board = resolved
+    val oldNote = old?.let { (b, year) -> "O último edital${year?.let { " ($it)" }.orEmpty()} foi da $b. A banca pode mudar; escolha a que você espera." }
+    Div({ classes("row", "between") }) {
+        B { Text("Banca: ${board ?: "a definir"}") }
+        Btn(if (board == null) "escolher" else "trocar", { editing = true }, style = "ghost")
+    }
+    Span({ classes("xs", "muted") }) {
+        Text(
+            when {
+                board != null -> BoardStyle.styleLabel(BoardStyle.styleFor(board)) +
+                    (if (BoardStyle.wrongCancelsRight(board)) " · uma errada anula uma certa" else "") + " · treinos e simulados seguem esta banca"
+                oldNote != null -> oldNote
+                else -> "Sem banca definida, as questões vêm no padrão geral das provas."
+            },
+        )
+    }
+    if (editing) ProfileDialog(competitionId, board ?: old?.first, profile.targetPercent, oldNote) { editing = false }
 }
 
 // ------------------------------------------------------------------ um simulado
@@ -689,11 +733,19 @@ private fun ResultView(simulation: Simulation) {
     Div({ classes("row") }) { Btn("Simulados", { Router.go(Route.Simulations) }, style = "ghost", small = true, icon = "arrow_back") }
     Card(extra = "pad-lg") {
         Div({ classes("mission") }) {
-            Ring(score / 100.0) { B { Text("$score%") }; Span { Text("de acerto") } }
+            Ring(score / 100.0) { B { Text("$score%") }; Span { Text(if (simulation.netScore != null) "nota líquida" else "de acerto") } }
             Div({ classes("stack", "tight", "grow") }) {
                 H2 { Text(if (score >= target) "Passou da meta!" else "Abaixo da meta de $target%") }
                 P({ classes("muted") }) { Text("${simulation.correctCount} de ${simulation.questionCount} certas · ${simulation.title}") }
-                if (ceItems.isNotEmpty()) P({ classes("small") }) {
+                simulation.netScore?.let { net ->
+                    val wrongCount = answers.size - simulation.correctCount
+                    P({ classes("small") }) {
+                        B { Text("${BoardStyle.NET_SCORE_LABEL}: $net ponto(s) de ${simulation.questionCount}. ") }
+                        Text("${simulation.correctCount} acertos − $wrongCount erradas; em branco vale zero. Na dúvida real, deixar em branco pode valer mais.")
+                    }
+                }
+                simulation.board?.let { P({ classes("xs", "muted") }) { Text("Banca deste simulado: $it") } }
+                if (simulation.netScore == null && ceItems.isNotEmpty()) P({ classes("small") }) {
                     B { Text("Regra Cebraspe: ${ceRight - ceWrong} ponto(s) líquido(s) em ${ceItems.size} itens. ") }
                     Text("Cada erro anula um acerto: na dúvida real, deixar em branco pode valer mais.")
                 }

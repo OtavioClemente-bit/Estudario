@@ -37,6 +37,14 @@ fun QuestionBankScreen(viewModel: AppViewModel, onBack: () -> Unit, onStart: (Qu
     val questions by viewModel.questions.collectAsState()
     val topics by viewModel.topics.collectAsState()
     val subjects by viewModel.subjects.collectAsState()
+    // Banca do concurso principal: as questões dela aparecem primeiro, depois as do mesmo formato.
+    val bankContext = androidx.compose.ui.platform.LocalContext.current
+    val bankCompetitions by viewModel.competitions.collectAsState()
+    val primaryCompetition = bankCompetitions.firstOrNull { it.isPrimary } ?: bankCompetitions.firstOrNull()
+    var examBoard by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(primaryCompetition?.id) {
+        examBoard = primaryCompetition?.let { c -> runCatching { br.com.estudario.data.catalog.editalBoardOf(bankContext, c.id, c.name) }.getOrNull()?.ifBlank { null } }
+    }
     var query by remember { mutableStateOf("") }
     var subjectId by remember { mutableStateOf<Long?>(null) }
     var favorites by remember { mutableStateOf(false) }
@@ -57,14 +65,14 @@ fun QuestionBankScreen(viewModel: AppViewModel, onBack: () -> Unit, onStart: (Qu
         (subjectId == null || topic?.subjectId == subjectId) &&
             (topicId == null || row.question.topicId == topicId) &&
             (sourceType == null || row.question.questionSourceType == sourceType) &&
-            (board == null || row.question.board == board) &&
+            (board == null || br.com.estudario.domain.simulation.BoardStyle.sameBoard(row.question.board, board)) &&
             (agency == null || row.question.agency == agency) &&
             (year == null || row.question.year == year) &&
             (difficulty == null || row.question.difficulty == difficulty) &&
             (!favorites || row.question.isFavorite) &&
             (query.isBlank() || row.question.statement.contains(query, true) || row.question.tagsText.contains(query, true)) &&
             when (status) { "new" -> row.question.answerCount == 0; "errors" -> row.question.errorCount > 0; "correct" -> row.question.correctCount > 0; else -> true }
-    }.take(250).toList()
+    }.sortedBy { br.com.estudario.domain.simulation.BoardStyle.affinity(examBoard, it.question.board) }.take(250).toList()
 
     Box(Modifier.fillMaxSize()) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = screenPadding(), verticalArrangement = Arrangement.spacedBy(10.dp)) {

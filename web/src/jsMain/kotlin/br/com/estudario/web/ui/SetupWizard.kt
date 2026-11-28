@@ -36,6 +36,7 @@ import org.jetbrains.compose.web.dom.Ol
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
+import br.com.estudario.domain.simulation.BoardStyle
 import org.jetbrains.compose.web.attributes.InputType
 import org.jetbrains.compose.web.attributes.placeholder
 import org.jetbrains.compose.web.dom.Label
@@ -99,6 +100,8 @@ fun SetupScreen() {
     var pdfFree by remember { mutableStateOf(false) }
     androidx.compose.runtime.LaunchedEffect(Unit) { pdfQuota = quotaFor("SYLLABUS_GENERATION"); pdfFree = planTierOf()?.let { it == "FREE" } == true }
     var examDate by remember { mutableStateOf("") }
+    var boardChoice by remember { mutableStateOf<String?>(null) }
+    var boardEditing by remember { mutableStateOf(false) }
     var minutes by remember { mutableStateOf(listOf(120, 120, 120, 120, 120, 180, 0)) }
     var block by remember { mutableStateOf(50) }
     var axes by remember { mutableStateOf(mapOf<String, SubjectAxes>()) }
@@ -122,7 +125,10 @@ fun SetupScreen() {
     fun withEdital(data: Snapshot): Pair<Snapshot, Long> {
         val entry = chosen
         val ai = aiEdital
-        return if (entry != null) Catalog.apply(data, entry, subjects) else EditalAi.apply(data, ai!!.first, ai.third)
+        val (applied, id) = if (entry != null) Catalog.apply(data, entry, subjects) else EditalAi.apply(data, ai!!.first, ai.third)
+        // Banca escolhida aqui (a do concurso deste ano pode não ser a do edital antigo): vale para tudo do concurso.
+        val board = boardChoice ?: return applied to id
+        return br.com.estudario.web.data.Simulations.saveExamProfile(applied, id, board, br.com.estudario.web.data.Simulations.examProfile(applied, id).targetPercent) to id
     }
 
     fun build(data: Snapshot): Pair<Snapshot, String> {
@@ -213,7 +219,7 @@ fun SetupScreen() {
                 Span({ classes("pdf-cta-go") }) { Text("Enviar PDF"); Icon("arrow_forward", plain = true) }
             }
             CatalogPicker(entries, error, query, { query = it }, busyId = if (busy) chosen?.id else null) { entry ->
-                busy = true; chosen = entry; aiEdital = null; error = null
+                busy = true; chosen = entry; aiEdital = null; error = null; boardChoice = null
                 scope.launch {
                     try { subjects = Catalog.subjects(entry.id); axes = emptyMap(); step = 1 } catch (e: Throwable) { error = e.message } finally { busy = false }
                 }
@@ -284,6 +290,46 @@ fun SetupScreen() {
                     if (examDate.isNotBlank()) Btn("Limpar", { examDate = "" }, style = "ghost", small = true)
                 }
                 if (daysLeft != null && daysLeft < 30) P({ classes("small"); attr("style", "text-align:center;margin-top:10px;color:var(--amber-strong)") }) { Text("Reta final! Vou priorizar revisão e questões.") }
+            }
+            // Banca: a do edital do catálogo (se for recente) ou a que a pessoa espera; tudo do concurso segue ela.
+            val catalogBoard = chosen?.board?.trim()?.ifBlank { null }
+            val oldEdital = catalogBoard != null && (chosen?.year ?: 0) < today.year - 1
+            val shownBoard = boardChoice ?: catalogBoard?.takeIf { !oldEdital }
+            Card {
+                Div({ classes("row", "between") }) {
+                    B { Text("Banca: ${shownBoard ?: "a definir"}") }
+                    Btn(if (shownBoard == null) "escolher" else "trocar", { boardEditing = true }, style = "ghost", small = true)
+                }
+                Span({ classes("xs", "muted") }) {
+                    Text(
+                        when {
+                            boardChoice == null && oldEdital -> "O último edital (${chosen?.year}) foi da $catalogBoard. A banca pode mudar; escolha a que você espera."
+                            shownBoard != null -> BoardStyle.styleLabel(BoardStyle.styleFor(shownBoard)) +
+                                (if (BoardStyle.wrongCancelsRight(shownBoard)) " · uma errada anula uma certa" else "") + " · treinos e simulados seguem esta banca"
+                            else -> "Sem banca definida, as questões vêm no padrão geral das provas."
+                        },
+                    )
+                }
+            }
+            if (boardEditing) {
+                var draft by remember { mutableStateOf(shownBoard ?: catalogBoard.orEmpty()) }
+                Modal(onDismiss = { boardEditing = false }) {
+                    H2 { Text("Qual banca você espera?") }
+                    if (oldEdital) P({ classes("small") }) { B { Text("O último edital foi da $catalogBoard. A banca pode mudar; escolha a que você espera.") } }
+                    Div({ classes("row", "wrap") }) {
+                        BoardStyle.KNOWN_BOARDS.forEach { known ->
+                            Button({ classes("chip-btn", *listOfNotNull(if (BoardStyle.sameBoard(draft, known)) "on" else null).toTypedArray()); onClick { draft = known } }) { Text(known) }
+                        }
+                    }
+                    Div({ classes("field") }) {
+                        org.jetbrains.compose.web.dom.Label { Text("Outra banca") }
+                        Input(InputType.Text) { classes("input"); value(draft); attr("maxlength", "40"); onInput { draft = it.value } }
+                    }
+                    Div({ classes("row", "end") }) {
+                        Btn("Cancelar", { boardEditing = false }, style = "ghost")
+                        Btn("Salvar", { boardChoice = draft.trim().ifBlank { null }; boardEditing = false }, icon = "check")
+                    }
+                }
             }
             NextBar(if (examDate.isBlank()) "Ainda não sei a data" else "Continuar") { step = 3 }
         }

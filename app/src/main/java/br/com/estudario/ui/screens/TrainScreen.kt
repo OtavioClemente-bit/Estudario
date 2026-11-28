@@ -183,7 +183,7 @@ fun TrainScreen(viewModel: AppViewModel, onStart: (QuizConfig) -> Unit, onHelp: 
                     br.com.estudario.ui.studio.GxSection(br.com.estudario.ui.brand.Glyph.Bolt, "Dificuldade", "Do básico às pegadinhas", br.com.estudario.ui.studio.Gx.gold) {
                         DifficultySelector(difficulty) { difficulty = it }
                     }
-                    if (boards.isNotEmpty()) br.com.estudario.ui.studio.GxSection(br.com.estudario.ui.brand.Glyph.Colunas, "Banca", null, br.com.estudario.ui.studio.Gx.blue) {
+                    if (boards.isNotEmpty()) br.com.estudario.ui.studio.GxSection(br.com.estudario.ui.brand.Glyph.Colunas, "Banca", "Sem filtro, as da banca do seu concurso vêm primeiro", br.com.estudario.ui.studio.Gx.blue) {
                         br.com.estudario.ui.studio.GxPicker(listOf<Pair<String?, String>>(null to "Todas") + boards.map { it to it }, board, limit = 6, searchHint = "Buscar banca") { board = it }
                     }
                     br.com.estudario.ui.studio.GxSection(br.com.estudario.ui.brand.Glyph.Clipboard, "Quantidade", "Questões nesta sessão", br.com.estudario.ui.studio.Gx.mint) {

@@ -701,7 +701,7 @@ private fun HistoryRow(simulation: SimulationEntity, target: Int, onClick: () ->
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(simulation.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = Gx.strong, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
-                    listOfNotNull(date, "${simulation.correctCount} de ${simulation.questionCount}", minutes.takeIf { it > 0 }?.let { "$it min" }).joinToString(" · "),
+                    listOfNotNull(date, simulation.board, "${simulation.correctCount} de ${simulation.questionCount}", minutes.takeIf { it > 0 }?.let { "$it min" }).joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall, color = Gx.mute,
                 )
             }
@@ -747,18 +747,24 @@ fun EvolutionChart(scores: List<Int>, target: Int, modifier: Modifier = Modifier
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun BoardDialog(current: String?, onDismiss: () -> Unit, onSave: (String?) -> Unit) {
+internal fun BoardDialog(current: String?, onDismiss: () -> Unit, note: String? = null, onSave: (String?) -> Unit) {
     var value by remember { mutableStateOf(current.orEmpty()) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Qual é a banca?") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Está no edital, normalmente na primeira página. As questões seguem o estilo dela.", style = MaterialTheme.typography.bodySmall)
+                Text("Está no edital, normalmente na primeira página. Questões, formato, tempo e nota do simulado seguem o jeito dela.", style = MaterialTheme.typography.bodySmall)
+                note?.let { Text(it, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold) }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     BoardStyle.KNOWN_BOARDS.forEach { board -> FilterChip(value == board, { value = board }, { Text(board) }) }
                 }
                 OutlinedTextField(value, { value = it.take(80) }, Modifier.fillMaxWidth(), label = { Text("Outra banca") }, singleLine = true)
+                if (value.isNotBlank()) Text(
+                    "Formato: ${BoardStyle.styleLabel(BoardStyle.styleFor(value))}" + if (BoardStyle.wrongCancelsRight(value)) " · uma errada anula uma certa" else "",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Gx.mute,
+                )
             }
         },
         confirmButton = { TextButton(onClick = { onSave(value.trim().ifBlank { null }) }) { Text("Salvar") } },

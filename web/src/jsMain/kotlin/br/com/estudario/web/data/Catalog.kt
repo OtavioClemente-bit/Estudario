@@ -126,14 +126,26 @@ object Catalog {
     fun catalogIdOf(data: Snapshot, competitionId: Long): String? =
         data.array(Keys.COMPETITIONS).mapNotNull { it as? JsonObject }.firstOrNull { (it["id"] as? JsonPrimitive)?.content?.toLongOrNull() == competitionId }?.str("catalogId")
 
-    suspend fun boardFor(competitionName: String): String? = runCatching {
+    suspend fun boardFor(competitionName: String): String? = runCatching { boardIn(entries(), competitionName) }.getOrNull()
+
+    /** O mesmo, sem rede: com a lista já carregada nesta aba (null quando ainda não carregou). */
+    fun cachedBoardFor(competitionName: String): String? = cache?.let { boardIn(it, competitionName) }
+
+    private fun boardIn(entries: List<CatalogEntry>, competitionName: String): String? {
         // A banca de um edital antigo (TRT-3 2022 = FUMARC) não é a do próximo concurso: só vale a do
         // catálogo quando o edital é deste ano ou do anterior.
         val minYear = kotlin.js.Date().getFullYear() - 1
-        val all = entries().filter { (it.year ?: 0) >= minYear }
+        val all = entries.filter { (it.year ?: 0) >= minYear }
         val entry = all.firstOrNull { it.title.equals(competitionName, true) }
-            ?: all.filter { it.shortName.equals(competitionName, true) }.mapNotNull { it.board?.trim()?.ifBlank { null } }.distinct().singleOrNull()?.let { return it }
-        entry?.board?.trim()?.ifBlank { null }
+            ?: return all.filter { it.shortName.equals(competitionName, true) }.mapNotNull { it.board?.trim()?.ifBlank { null } }.distinct().singleOrNull()
+        return entry.board?.trim()?.ifBlank { null }
+    }
+
+    /** Banca e ano do edital de onde o concurso veio, mesmo antigo: sugestão quando a pessoa ainda não escolheu. */
+    suspend fun lastEditalBoard(competitionName: String): Pair<String, Int?>? = runCatching {
+        val all = entries().filter { it.title.equals(competitionName, true) || it.shortName.equals(competitionName, true) }
+        val entry = all.maxByOrNull { it.year ?: 0 } ?: return@runCatching null
+        entry.board?.trim()?.ifBlank { null }?.let { it to entry.year }
     }.getOrNull()
 
     /**

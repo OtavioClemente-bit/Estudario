@@ -748,6 +748,10 @@ private fun ExamDateStep(snapshot: InitialSetupSnapshot, viewModel: InitialSetup
             Icon(Icons.Outlined.Schedule, null, tint = MaterialTheme.colorScheme.primary)
             Text("Sem data, o plano trabalha em ciclos de quatro semanas. Você pode gerar o próximo bloco e ajustar quando souber mais.", style = MaterialTheme.typography.bodyMedium)
         }
+        snapshot.competitionId?.let { id ->
+            Spacer(Modifier.height(16.dp))
+            SetupCard { br.com.estudario.ui.simulation.ExamBoardRow(id, snapshot.competitionName) }
+        }
     }
 
     if (showPicker) {

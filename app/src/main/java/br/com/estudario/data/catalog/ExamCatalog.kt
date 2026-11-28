@@ -418,6 +418,24 @@ suspend fun editalBoardOf(context: android.content.Context, competitionId: Long,
     }.getOrDefault("")
 }
 
+/** A banca do concurso para mostrar e trocar: a escolhida, a do edital recente ou a de um edital antigo. */
+data class ExamBoardInfo(val board: String?, val fromUser: Boolean, val oldEditalBoard: String?, val oldEditalYear: Int?)
+
+suspend fun examBoardInfo(context: android.content.Context, competitionId: Long, competitionName: String): ExamBoardInfo {
+    val app = context.applicationContext as? br.com.estudario.EstudarioApplication ?: return ExamBoardInfo(null, false, null, null)
+    val profile = app.database.simulationDao().examProfile(competitionId)
+    val resolved = editalBoardOf(context, competitionId, competitionName).ifBlank { null }
+    val fromUser = profile?.board != null && profile.boardSource == "USER"
+    if (resolved != null) return ExamBoardInfo(resolved, fromUser, null, null)
+    val old = runCatching {
+        val catalog = ExamCatalogProvider.get(context)
+        if (!catalog.isConfigured) return@runCatching null
+        val id = catalog.catalogIdFor(competitionName, CatalogLinks.get(context, competitionId)) ?: return@runCatching null
+        catalog.entries().firstOrNull { it.id == id }
+    }.getOrNull()
+    return ExamBoardInfo(null, false, old?.board?.trim()?.takeIf(String::isNotBlank), old?.year)
+}
+
 /** A posição no Simuladão: quantos fizeram, a média, a nota da pessoa e à frente de quantos por cento. */
 @Serializable
 data class ExamRanking(

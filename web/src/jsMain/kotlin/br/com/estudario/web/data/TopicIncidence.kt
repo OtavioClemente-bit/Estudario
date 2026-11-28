@@ -63,7 +63,7 @@ object TopicIncidence {
         }
         val boards = HashMap<Long, String>()
         fun boardOf(topic: Topic): String = subjects[topic.subjectId]?.competitionId?.let { c ->
-            boards.getOrPut(c) { runCatching { Simulations.examProfile(data, c).board?.trim() }.getOrNull().orEmpty() }
+            boards.getOrPut(c) { runCatching { Simulations.cachedBoardOf(data, c)?.trim() }.getOrNull().orEmpty() }
         }.orEmpty()
         val raw = HashMap<Long, Pair<Int, Int>>() // tópico -> (banca, todas)
         for ((board, list) in leaves.groupBy(::boardOf)) {

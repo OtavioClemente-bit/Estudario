@@ -75,7 +75,7 @@ object LibraryRefresh {
 
     private suspend fun boardOf(data: Snapshot, topic: Topic): String? {
         val competition = data.subjects.firstOrNull { it.id == topic.subjectId }?.let { s -> data.competitions.firstOrNull { it.id == s.competitionId } } ?: return null
-        return Simulations.examProfile(data, competition.id).board?.trim()?.ifBlank { null } ?: Catalog.boardFor(competition.name)
+        return Simulations.boardOf(data, competition.id)
     }
 
     /**

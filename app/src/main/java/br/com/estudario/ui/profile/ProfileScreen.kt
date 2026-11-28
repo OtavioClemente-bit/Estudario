@@ -110,6 +110,7 @@ fun ProfileScreen(
     val profile by viewModel.profile.collectAsState()
     val streak by viewModel.streak.collectAsState()
     val progress by viewModel.progress.collectAsState()
+    val competitions by viewModel.competitions.collectAsState()
     val context = LocalContext.current
     val aiAccessViewModel: AiAccessViewModel = viewModel(factory = AiAccessViewModel.Factory((context.applicationContext as EstudarioApplication).aiAccessRepository))
     val aiAccessState by aiAccessViewModel.state.collectAsState()
@@ -197,6 +198,7 @@ fun ProfileScreen(
 
     ProfileContent(
         profile = profile,
+        primaryCompetition = (competitions.firstOrNull { it.isPrimary } ?: competitions.firstOrNull())?.let { it.id to it.name },
         mission = mission,
         onOpenPlan = onOpenPlan,
         estudarioSignedIn = estudarioSignedIn,
@@ -230,6 +232,8 @@ fun ProfileScreen(
 @Composable
 private fun ProfileContent(
     profile: UserProfile,
+    /** Concurso principal (id, nome), para a banca. */
+    primaryCompetition: Pair<Long, String>? = null,
     mission: Pair<Int, Int>? = null,
     onOpenPlan: () -> Unit = {},
     estudarioSignedIn: Boolean = false,
@@ -303,6 +307,17 @@ private fun ProfileContent(
 
             item { DailyGoalBand(profile.dailyGoal.questions, onDailyGoalChange) }
             item { Divider() }
+
+            primaryCompetition?.let { (competitionId, competitionName) ->
+                item {
+                    Band {
+                        Text("BANCA DO SEU CONCURSO · ${competitionName.uppercase()}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(EstudarioSpacing.tight))
+                        br.com.estudario.ui.simulation.ExamBoardRow(competitionId, competitionName)
+                    }
+                }
+                item { Divider() }
+            }
 
             item {
                 AccountBand(

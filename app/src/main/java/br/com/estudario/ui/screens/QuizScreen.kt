@@ -84,12 +84,23 @@ fun QuizScreen(
     var planTaskXp by rememberSaveable { mutableIntStateOf(-1) }
     var questionIdsText by rememberSaveable { mutableStateOf("") }
     val questionIds = remember(questionIdsText) { questionIdsText.split(",").mapNotNull(String::toLongOrNull) }
+    // Banca do concurso principal (a escolhida ou a do edital): as questões dela vêm primeiro, depois as do mesmo formato.
+    val quizContext = androidx.compose.ui.platform.LocalContext.current
+    val quizCompetitions by viewModel.competitions.collectAsState()
+    val primaryCompetition = quizCompetitions.firstOrNull { it.isPrimary } ?: quizCompetitions.firstOrNull()
+    var examBoard by remember { mutableStateOf<String?>(null) }
+    var examBoardLoaded by remember { mutableStateOf(false) }
+    LaunchedEffect(primaryCompetition?.id) {
+        examBoard = primaryCompetition?.let { c -> runCatching { br.com.estudario.data.catalog.editalBoardOf(quizContext, c.id, c.name) }.getOrNull()?.ifBlank { null } }
+        examBoardLoaded = true
+    }
+    val boardRank = { item: QuestionWithOptions -> br.com.estudario.domain.simulation.BoardStyle.affinity(examBoard, item.question.board) }
     val eligible = allQuestions.filter { item ->
         val topic = topics.firstOrNull { it.id == item.question.topicId }
         !item.question.isHidden &&
         (config.topicId == null || item.question.topicId == config.topicId) &&
             (config.subjectId == null || topic?.subjectId == config.subjectId) &&
-            (config.board == null || item.question.board == config.board) &&
+            (config.board == null || br.com.estudario.domain.simulation.BoardStyle.sameBoard(item.question.board, config.board)) &&
             (config.difficulty == null || item.question.difficulty?.name == config.difficulty) &&
             when (config.mode) {
                 "new" -> item.question.answerCount == 0
@@ -99,8 +110,8 @@ fun QuizScreen(
                 else -> true
             }
     }
-    LaunchedEffect(config, eligible.map { it.question.id }) {
-        if (questionIdsText.isNotBlank()) return@LaunchedEffect
+    LaunchedEffect(config, eligible.map { it.question.id }, examBoardLoaded) {
+        if (questionIdsText.isNotBlank() || !examBoardLoaded) return@LaunchedEffect
         val sorteadas = when {
             // Bateria do plano (Missão do Folha): sem repetir o que já acertou (PlanQuestionPool).
             config.planTaskId != null -> br.com.estudario.ui.planner.planTaskQuestionIds(
@@ -109,7 +120,7 @@ fun QuizScreen(
             )
             else -> when (config.mode) {
             "smart", "daily" -> viewModel.smartQuestions(config.count).map { it.question.id }
-            "most_errors" -> eligible.sortedByDescending { it.question.errorCount }.take(config.count).map { it.question.id }
+            "most_errors" -> eligible.sortedWith(compareBy<QuestionWithOptions>(boardRank).thenByDescending { it.question.errorCount }).take(config.count).map { it.question.id }
             // Treinar erros respeita a escada de reencontro: primeiro o que já venceu (3, 10, 30
             // dias), depois o que ainda não venceu, e por último o que já está dominado.
             "errors" -> {
@@ -117,7 +128,7 @@ fun QuizScreen(
                 eligible.sortedWith(compareBy({ agenda[it.question.id] ?: Long.MAX_VALUE }, { -it.question.errorCount }))
                     .take(config.count).map { it.question.id }
             }
-            else -> eligible.shuffled().take(config.count).map { it.question.id }
+            else -> eligible.shuffled().sortedBy(boardRank).take(config.count).map { it.question.id }
             }
         }
         if (sorteadas.isNotEmpty()) questionIdsText = sorteadas.joinToString(",")

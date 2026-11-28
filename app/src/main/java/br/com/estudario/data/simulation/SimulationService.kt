@@ -165,7 +165,7 @@ class SimulationService(
         val current = examProfile(competitionId)
         dao.saveExamProfile(
             current.copy(
-                board = board?.trim()?.ifBlank { null },
+                board = BoardStyle.displayName(board),
                 boardSource = if (board.isNullOrBlank()) null else source,
                 boardUrl = if (source == "USER") null else current.boardUrl,
                 boardPending = false,
@@ -192,8 +192,9 @@ class SimulationService(
         val competition = appDao.competitionsOnce().firstOrNull { it.id == competitionId }
             ?: throw SimulationException("Concurso não encontrado.")
         val profile = examProfile(competitionId)
-        val board = profile.board
-        val style = profile.style
+        // A banca escolhida pela pessoa ou, sem ela, a do edital recente do catálogo (mesmo resolvedor da biblioteca).
+        val board = profile.board ?: br.com.estudario.data.catalog.editalBoardOf(context, competitionId, competition.name).ifBlank { null }
+        val style = if (profile.board != null) profile.style else BoardStyle.styleFor(board)
         val weakSpots = weakSpots(competitionId)
         val base = buildJsonObject {
             put("competitionName", competition.name.take(300))
@@ -379,7 +380,7 @@ class SimulationService(
         val examId = examIdOf(simulation) ?: return null
         val token = (context.applicationContext as? br.com.estudario.EstudarioApplication)?.supabaseAuthRepository?.accessToken() ?: return null
         val catalog = ExamCatalogProvider.get(context)
-        return if (submit && simulation.status == "FINISHED") catalog.submitRanking(examId, simulation.correctCount, simulation.questionCount.coerceAtLeast(1), simulation.elapsedSeconds, token)
+        return if (submit && simulation.status == "FINISHED") catalog.submitRanking(examId, simulation.netScore ?: simulation.correctCount, simulation.questionCount.coerceAtLeast(1), simulation.elapsedSeconds, token)
         else catalog.ranking(examId, token)
     }
 
@@ -731,6 +732,9 @@ class SimulationService(
             val selected = answers[question.question.id] ?: continue
             if (repository.answer(question, selected, sessionId)) correct++
         }
+        // Errada = respondida e não certa; em branco não conta. Nas bancas que anulam, a nota é a líquida.
+        val wrong = questions.count { answers[it.question.id] != null } - correct
+        val cancels = BoardStyle.wrongCancelsRight(simulation.board)
         val topics = questions.map { it.question.topicId }.toSet()
         val subjectIds = appDao.topicsOnce().filter { it.id in topics }.map { it.subjectId }.toSet()
         val now = System.currentTimeMillis()
@@ -756,7 +760,8 @@ class SimulationService(
                 answeredCount = answers.size,
                 correctCount = correct,
                 questionCount = questions.size,
-                scorePercent = if (questions.isEmpty()) 0 else correct * 100 / questions.size,
+                scorePercent = if (questions.isEmpty()) 0 else (if (cancels) BoardStyle.netScore(correct, wrong) else correct) * 100 / questions.size,
+                netScore = if (cancels) BoardStyle.netScore(correct, wrong) else null,
             ),
         )
     }

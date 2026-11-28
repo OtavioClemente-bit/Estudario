@@ -183,7 +183,7 @@ fun TrainScreen() {
                     Span({ classes("gx-meter", when (option.key) { "FACIL" -> "d-easy"; "MEDIA" -> "d-medium"; "DIFICIL" -> "d-hard"; else -> "d-mixed" }) }) { repeat(3) { I {} } }
                 }
             }
-            if (boards.isNotEmpty()) GxSection("Colunas", "Banca", null, "#6F9BFF") { GxPicker(listOf("all" to "Todas") + boards.map { it to it }, board, limit = 6, searchHint = "Buscar banca") { board = it } }
+            if (boards.isNotEmpty()) GxSection("Colunas", "Banca", "Em Todas, as da banca do seu concurso vêm primeiro", "#6F9BFF") { GxPicker(listOf("all" to "Todas") + boards.map { it to it }, board, limit = 6, searchHint = "Buscar banca") { board = it } }
             GxSection("quiz", "Quantidade", if (available == 0) "Nenhuma questão com esses filtros" else "$available disponíve${if (available == 1) "l" else "is"} com esses filtros", "#2FD39A") {
                 GxCounter(count, { count = it }, min = 5, max = 60, step = 5, unit = "questões", chips = listOf(10, 20, 30), label = "Quantidade de questões")
             }
@@ -317,16 +317,19 @@ fun pickQuestions(data: Snapshot, scope: String, preview: Boolean = false): List
     val filtered = pool.filter { q ->
         (subject < 0 || topicsById[q.topicId]?.subjectId == subject) &&
             (topicFilter < 0 || q.topicId == topicFilter) &&
-            (board == "all" || q.board?.trim() == board) &&
+            (board == "all" || br.com.estudario.domain.simulation.BoardStyle.sameBoard(q.board, board)) &&
             (difficulty == "all" || q.difficulty == difficulty)
     }
+    // A banca do concurso principal (a escolhida ou a do edital): questões dela primeiro, depois as do mesmo formato.
+    val examBoard = (data.competitions.firstOrNull { it.primary } ?: data.competitions.firstOrNull())?.let { br.com.estudario.web.data.Simulations.cachedBoardOf(data, it.id) }
+    val byBoard = { q: Question -> br.com.estudario.domain.simulation.BoardStyle.affinity(examBoard, q.board) }
     val chosen = when (mode) {
-        "random" -> filtered.shuffled(random)
-        "new" -> filtered.filter { it.answerCount == 0 }.shuffled(random)
+        "random" -> filtered.shuffled(random).sortedBy(byBoard)
+        "new" -> filtered.filter { it.answerCount == 0 }.shuffled(random).sortedBy(byBoard)
         "wrong" -> filtered.filter { it.id in errorIds }.shuffled(random)
-        "mostwrong" -> filtered.filter { it.errorCount > 0 }.sortedByDescending { errorCounts[it.id] ?: it.errorCount }
-        "neverright" -> filtered.filter { it.answerCount > 0 && it.correctCount == 0 }.shuffled(random)
-        "favorites" -> filtered.filter { it.favorite }.shuffled(random)
+        "mostwrong" -> filtered.filter { it.errorCount > 0 }.sortedWith(compareBy(byBoard).thenByDescending { errorCounts[it.id] ?: it.errorCount })
+        "neverright" -> filtered.filter { it.answerCount > 0 && it.correctCount == 0 }.shuffled(random).sortedBy(byBoard)
+        "favorites" -> filtered.filter { it.favorite }.shuffled(random).sortedBy(byBoard)
         else -> return smart(filtered, count)
     }
     return chosen.take(count)
